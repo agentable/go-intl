@@ -1,0 +1,245 @@
+[
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-000",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "day": "numeric",
+      "month": "short"
+    },
+    "input": {
+      "end": "2020-02-15T00:00:00Z",
+      "start": "2020-02-01T00:00:00Z"
+    },
+    "expectedRange": "Feb 1 – 15"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-001",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {},
+    "input": {
+      "end": "2019-01-05T00:00:00Z",
+      "start": "2019-01-03T00:00:00Z"
+    },
+    "expectedRange": "1/3/2019 – 1/5/2019"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-002",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {},
+    "input": {
+      "end": "2019-03-04T00:00:00Z",
+      "start": "2019-01-03T00:00:00Z"
+    },
+    "expectedRange": "1/3/2019 – 3/4/2019"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-003",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {},
+    "input": {
+      "end": "2020-03-04T00:00:00Z",
+      "start": "2019-01-03T00:00:00Z"
+    },
+    "expectedRange": "1/3/2019 – 3/4/2020"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-004",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {},
+    "input": {
+      "end": "2019-03-04T00:00:00Z",
+      "start": "2019-01-05T00:00:00Z"
+    },
+    "expectedRange": "1/5/2019 – 3/4/2019"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-005",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {},
+    "input": {
+      "end": "2020-03-04T00:00:00Z",
+      "start": "2019-01-05T00:00:00Z"
+    },
+    "expectedRange": "1/5/2019 – 3/4/2020"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-006",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {},
+    "input": {
+      "end": "2020-03-04T00:00:00Z",
+      "start": "2019-03-04T00:00:00Z"
+    },
+    "expectedRange": "3/4/2019 – 3/4/2020"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-007",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "day": "numeric",
+      "month": "short",
+      "year": "numeric"
+    },
+    "input": {
+      "end": "2019-01-05T00:00:00Z",
+      "start": "2019-01-03T00:00:00Z"
+    },
+    "expectedRange": "Jan 3 – 5, 2019"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-008",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "day": "numeric",
+      "month": "short",
+      "year": "numeric"
+    },
+    "input": {
+      "end": "2019-03-04T00:00:00Z",
+      "start": "2019-01-03T00:00:00Z"
+    },
+    "expectedRange": "Jan 3 – Mar 4, 2019"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-009",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "day": "numeric",
+      "month": "short",
+      "year": "numeric"
+    },
+    "input": {
+      "end": "2020-03-04T00:00:00Z",
+      "start": "2019-01-03T00:00:00Z"
+    },
+    "expectedRange": "Jan 3, 2019 – Mar 4, 2020"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-010",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "day": "numeric",
+      "month": "short",
+      "year": "numeric"
+    },
+    "input": {
+      "end": "2019-03-04T00:00:00Z",
+      "start": "2019-01-05T00:00:00Z"
+    },
+    "expectedRange": "Jan 5 – Mar 4, 2019"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-011",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "day": "numeric",
+      "month": "short",
+      "year": "numeric"
+    },
+    "input": {
+      "end": "2020-03-04T00:00:00Z",
+      "start": "2019-01-05T00:00:00Z"
+    },
+    "expectedRange": "Jan 5, 2019 – Mar 4, 2020"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-012",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "day": "numeric",
+      "month": "short",
+      "year": "numeric"
+    },
+    "input": {
+      "end": "2020-03-04T00:00:00Z",
+      "start": "2019-03-04T00:00:00Z"
+    },
+    "expectedRange": "Mar 4, 2019 – Mar 4, 2020"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-013",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "day": "numeric",
+      "hour": "numeric",
+      "minute": "numeric",
+      "month": "short",
+      "year": "numeric"
+    },
+    "input": {
+      "end": "2021-01-20T00:00:00Z",
+      "start": "2021-01-10T00:00:00Z"
+    },
+    "expectedRange": "Jan 10, 2021, 12:00 AM – Jan 20, 2021, 12:00 AM"
+  },
+  {
+    "id": "datetimeformat-formatjs-format-range-test-ts-014",
+    "source": "formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
+    "locale": "en",
+    "feature": "formatRangeToParts",
+    "options": {
+      "day": "numeric",
+      "month": "short"
+    },
+    "input": {
+      "end": "2020-02-15T00:00:00Z",
+      "start": "2020-02-01T00:00:00Z"
+    },
+    "expectedRange": "Feb 1 – 15",
+    "expectedRangeParts": [
+      {
+        "type": "month",
+        "value": "Feb",
+        "source": "startRange"
+      },
+      {
+        "type": "literal",
+        "value": " ",
+        "source": "startRange"
+      },
+      {
+        "type": "day",
+        "value": "1",
+        "source": "startRange"
+      },
+      {
+        "type": "literal",
+        "value": " – ",
+        "source": "startRange"
+      },
+      {
+        "type": "day",
+        "value": "15",
+        "source": "endRange"
+      }
+    ]
+  }
+]

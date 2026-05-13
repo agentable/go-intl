@@ -1,0 +1,88 @@
+[
+  {
+    "id": "pluralrules-manual-cardinal-one",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "type": "ordinal"
+    },
+    "input": 2,
+    "expected": "two"
+  },
+  {
+    "id": "pluralrules-manual-select-range-cardinal",
+    "source": "manual",
+    "locale": "en-US",
+    "feature": "selectRange",
+    "options": {},
+    "input": {
+      "start": 1,
+      "end": 2
+    },
+    "expected": "other"
+  },
+  {
+    "id": "pluralrules-manual-compact-french-fallback",
+    "source": "manual",
+    "locale": "fr",
+    "options": {
+      "notation": "compact"
+    },
+    "input": 1200000,
+    "expected": "other"
+  },
+  {
+    "id": "pluralrules-manual-significant-rounding",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "maximumSignificantDigits": 1
+    },
+    "input": 1.4,
+    "expected": "one"
+  },
+  {
+    "id": "pluralrules-manual-rounding-mode-trunc",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "maximumFractionDigits": 0,
+      "roundingMode": "trunc"
+    },
+    "input": 1.9,
+    "expected": "one"
+  },
+  {
+    "id": "pluralrules-manual-trailing-zero-strip",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "minimumFractionDigits": 2,
+      "trailingZeroDisplay": "stripIfInteger"
+    },
+    "input": 1,
+    "expected": "one"
+  },
+  {
+    "id": "pluralrules-manual-rounding-increment",
+    "source": "manual",
+    "locale": "fr",
+    "options": {
+      "minimumFractionDigits": 0,
+      "maximumFractionDigits": 0,
+      "roundingIncrement": 5
+    },
+    "input": 1000002,
+    "expected": "many"
+  },
+  {
+    "id": "pluralrules-manual-invalid-type",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "type": "invalid"
+    },
+    "input": 1,
+    "errorCode": "invalid_option"
+  }
+]

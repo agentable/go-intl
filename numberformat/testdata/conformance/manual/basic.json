@@ -1,0 +1,31 @@
+[
+  {
+    "id": "numberformat-manual-currency-usd",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "style": "currency",
+      "currency": "USD"
+    },
+    "input": 1234.5,
+    "expected": "$1,234.50",
+    "expectedParts": [
+      {"type": "currency", "value": "$"},
+      {"type": "integer", "value": "1"},
+      {"type": "group", "value": ","},
+      {"type": "integer", "value": "234"},
+      {"type": "decimal", "value": "."},
+      {"type": "fraction", "value": "50"}
+    ]
+  },
+  {
+    "id": "numberformat-manual-invalid-style",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "style": "invalid"
+    },
+    "input": 1,
+    "errorCode": "invalid_option"
+  }
+]

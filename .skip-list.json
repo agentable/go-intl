@@ -1,0 +1,562 @@
+[
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/abstract/BestFitFormatMatcher.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/abstract/skeleton.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/format.test.ts",
+    "category": "partial-extraction",
+    "reason": "mechanical assertions outside current generated fixture gate"
+  },
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/ftp-main.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/index.test.ts",
+    "category": "partial-extraction",
+    "reason": "mechanical assertions outside current generated fixture gate"
+  },
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/offset-timezone.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-getcanonicallocales/tests/parser.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-locale/tests/likely-subtags.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-locale/tests/minimize.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency-code.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/da.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/de.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/en-BS.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/en-GB.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/en.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/es.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/fr.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/id.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/it.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/ja.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/ko.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/ms.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/nb.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/nl.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/pl.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/pt.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/ru.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/sv.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/th.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/tr.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/uk.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/__snapshots__/zh.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/currencyTest.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/da.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/de.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/en-BS.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/en-GB.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/en.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/es.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/fr.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/id.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/it.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/ja.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/ko.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/ms.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/nb.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/nl.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/pl.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/pt.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/ru.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/sv.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/th.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/tr.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/uk.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/__snapshots__/zh.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/decimalTest.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/format_to_parts.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/legacy.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "category": "partial-extraction",
+    "reason": "mechanical assertions outside current generated fixture gate"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-ko-KR.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "category": "partial-extraction",
+    "reason": "mechanical assertions outside current generated fixture gate"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/da.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/de.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/en-BS.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/en-GB.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/en.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/es.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/fr.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/id.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/it.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/ja.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/ko.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/ms.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/nb.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/nl.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/pl.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/pt.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/ru.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/sv.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/th.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/tr.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/uk.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/__snapshots__/zh.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/percentTest.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/signDisplay-currency-zh-TW.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/signDisplay-zh-TW.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit-zh-TW.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/da.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/de.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/en-BS.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/en-GB.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/en.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/es.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/fr.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/id.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/it.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/ja.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/ko.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/ms.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/nb.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/nl.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/pl.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/pt.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/ru.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/sv.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/th.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/tr.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/uk.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/__snapshots__/zh.test.ts.snap",
+    "category": "snapshot-source",
+    "reason": "snapshot output requires source test input mapping"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/unitTest.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/value-tonumber.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-pluralrules/tests/supported-locales-of.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  }
+]

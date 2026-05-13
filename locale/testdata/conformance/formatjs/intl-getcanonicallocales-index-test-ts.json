@@ -1,0 +1,56 @@
+[
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-000",
+    "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
+    "locale": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
+    "expected": "en-u-bar-foo-ca-buddhist-kk-nu-thai"
+  },
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-001",
+    "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
+    "locale": "und-x-private",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "und-x-private",
+    "expected": "und-x-private"
+  },
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-002",
+    "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
+    "locale": "zh-hANs-sG",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "zh-hANs-sG",
+    "expected": "zh-Hans-SG"
+  },
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-003",
+    "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
+    "locale": "twi",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "twi",
+    "expected": "ak"
+  },
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-004",
+    "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
+    "locale": "ug-Arab-CN",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "ug-Arab-CN",
+    "expected": "ug-Arab-CN"
+  },
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-005",
+    "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
+    "locale": "und-Armn-SU",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "und-Armn-SU",
+    "expected": "und-Armn-AM"
+  }
+]

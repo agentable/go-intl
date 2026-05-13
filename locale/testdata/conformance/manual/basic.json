@@ -1,0 +1,29 @@
+[
+  {
+    "id": "locale-manual-canonicalize",
+    "source": "manual",
+    "locale": "en-US",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "EN-us-u-NU-LATN",
+    "expected": "en-US-u-nu-latn"
+  },
+  {
+    "id": "locale-manual-maximize-en",
+    "source": "manual",
+    "locale": "en",
+    "feature": "maximize",
+    "options": {},
+    "input": "en",
+    "expected": "en-Latn-US"
+  },
+  {
+    "id": "locale-manual-minimize-en-latn-us",
+    "source": "manual",
+    "locale": "en-Latn-US",
+    "feature": "minimize",
+    "options": {},
+    "input": "en-Latn-US",
+    "expected": "en"
+  }
+]

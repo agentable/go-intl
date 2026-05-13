@@ -1,0 +1,39 @@
+[
+  {
+    "id": "datetimeformat-manual-date-short-month",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "year": "numeric",
+      "month": "short",
+      "day": "numeric"
+    },
+    "input": "2026-05-08T12:00:00Z",
+    "expected": "May 8, 2026"
+  },
+  {
+    "id": "datetimeformat-manual-date-range",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "year": "numeric",
+      "month": "short",
+      "day": "numeric"
+    },
+    "input": {
+      "start": "2026-05-08T12:00:00Z",
+      "end": "2026-05-10T12:00:00Z"
+    },
+    "expectedRange": "May 8 – 10, 2026"
+  },
+  {
+    "id": "datetimeformat-manual-invalid-year",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "year": "invalid"
+    },
+    "input": "2026-05-08T12:00:00Z",
+    "errorCode": "invalid_option"
+  }
+]

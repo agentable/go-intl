@@ -1,0 +1,328 @@
+version: '3'
+
+vars:
+  PROJECT_ROOT:
+    sh: pwd
+  GOBIN: '{{.PROJECT_ROOT}}/bin'
+  GOLANGCI_LINT_BINARY: '{{.GOBIN}}/golangci-lint'
+  REQUIRED_GOLANGCI_LINT_VERSION:
+    sh: cat .golangci.version 2>/dev/null || echo "2.12.2"
+  GOLANGCI_LINT_VERSION:
+    sh: >-
+      {{.GOLANGCI_LINT_BINARY}} version --format short 2>/dev/null
+      || {{.GOLANGCI_LINT_BINARY}} version --short 2>/dev/null
+      || echo "not-installed"
+
+env:
+  GOBIN: '{{.GOBIN}}'
+
+tasks:
+  default:
+    desc: Run lint and test
+    cmds:
+      - task: lint
+      - task: test
+
+  help:
+    desc: Show this help message
+    cmds:
+      - echo "go-intl"
+      - echo "Available targets:"
+      - task --list
+    silent: true
+
+  clean:
+    desc: Clean build artifacts and caches
+    cmds:
+      - echo "Cleaning build artifacts..."
+      - rm -rf {{.GOBIN}}
+      - go clean -cache -testcache || true
+
+  deps:
+    desc: Download Go module dependencies
+    cmds:
+      - echo "Downloading dependencies..."
+      - go mod download
+      - go mod tidy
+
+
+  deps:update:
+    desc: Update dependencies for the root module and any nested modules
+    cmds:
+      - |
+        set -e
+        echo "Updating dependencies..."
+        MODULES=". $(find . -mindepth 2 -name go.mod \
+          -not -path '*/vendor/*' -not -path '*/.*' \
+          -exec dirname {} \; | sort)"
+        for dir in $MODULES; do
+          echo "==> $dir"
+          (
+            cd "$dir"
+            replaced=$(awk '
+              /^replace[[:space:]]+[^(]/ { print $2 }
+              /^replace[[:space:]]*\(/ { f=1; next }
+              f && /^\)/ { f=0; next }
+              f && /=>/ { print $1 }
+            ' go.mod)
+            deps=$(awk '
+              /^require[[:space:]]+[^(]/ { print $2 }
+              /^require[[:space:]]*\(/ { f=1; next }
+              f && /^\)/ { f=0; next }
+              f && !/\/\/ indirect/ && NF >= 2 { print $1 }
+            ' go.mod | while read -r dep; do
+              echo "$replaced" | grep -qxF "$dep" || echo "$dep"
+            done | tr '\n' ' ')
+            if [ -n "$deps" ]; then
+              go get -u $deps
+            fi
+            go mod tidy
+          )
+        done
+        if [ -f go.work ]; then
+          echo "==> go work sync"
+          go work sync
+        fi
+
+  test:
+    desc: Run all tests with race detection
+    cmds:
+      - echo "Running all tests..."
+      - go test -race -p 1 ./...
+
+  lint:
+    desc: Run all linters
+    deps:
+      - golangci-lint
+      - tidy-lint
+
+  install-golangci-lint:
+    desc: Install golangci-lint with the required version
+    cmds:
+      - mkdir -p {{.GOBIN}}
+      - |
+        if [ "{{.GOLANGCI_LINT_VERSION}}" != "{{.REQUIRED_GOLANGCI_LINT_VERSION}}" ]; then
+          echo "Installing golangci-lint v{{.REQUIRED_GOLANGCI_LINT_VERSION}} (current: {{.GOLANGCI_LINT_VERSION}})..."
+          if ! go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v{{.REQUIRED_GOLANGCI_LINT_VERSION}}; then
+            echo "golangci-lint bootstrap failed for v{{.REQUIRED_GOLANGCI_LINT_VERSION}}"
+            exit 1
+          fi
+          echo "golangci-lint v{{.REQUIRED_GOLANGCI_LINT_VERSION}} installed successfully"
+        fi
+    status:
+      - test "{{.GOLANGCI_LINT_VERSION}}" = "{{.REQUIRED_GOLANGCI_LINT_VERSION}}"
+
+  golangci-lint:preflight:
+    desc: Verify golangci-lint is installed at the required version
+    deps:
+      - install-golangci-lint
+    cmds:
+      - |
+        actual=$({{.GOLANGCI_LINT_BINARY}} version --format short 2>/dev/null \
+          || {{.GOLANGCI_LINT_BINARY}} version --short 2>/dev/null \
+          || echo "not-installed")
+        if [ "$actual" != "{{.REQUIRED_GOLANGCI_LINT_VERSION}}" ]; then
+          echo "golangci-lint bootstrap failed: expected v{{.REQUIRED_GOLANGCI_LINT_VERSION}}, got $actual"
+          exit 1
+        fi
+
+  golangci-lint:
+    desc: Run golangci-lint
+    cmds:
+      - task: golangci-lint:preflight
+      - '{{.GOLANGCI_LINT_BINARY}} version'
+      - echo "Running golangci-lint..."
+      - '{{.GOLANGCI_LINT_BINARY}} run --allow-parallel-runners --timeout=10m --path-prefix .'
+
+  tidy-lint:
+    desc: Check if go.mod and go.sum are tidy
+    cmds:
+      - echo "Checking go.mod and go.sum are tidy..."
+      - go mod tidy
+      - git diff --exit-code -- go.mod go.sum
+
+  yamllint:
+    desc: Run yamllint
+    cmds:
+      - yamllint -s .
+
+  vuln:
+    desc: Run govulncheck
+    cmds:
+      - govulncheck ./...
+
+  data:update:
+    desc: Regenerate internal/cldr from a local cldr-json checkout
+    cmds:
+      - mkdir -p tools/gen-cldr/.cldr-json
+      - >-
+        npm --prefix tools/gen-cldr/.cldr-json install --no-save
+        cldr-bcp47@48.1.0 cldr-core@48.1.0 cldr-dates-full@48.1.0
+        cldr-localenames-full@48.1.0 cldr-misc-full@48.1.0
+        cldr-numbers-full@48.1.0 cldr-segments-full@48.1.0
+        cldr-units-full@48.1.0
+      - >-
+        go -C tools/gen-cldr run .
+        -cldr-dir .cldr-json/node_modules
+        -out ../../internal/cldr
+        -version-file ../../internal/cldr/VERSION
+        -profile ../locale-profile.json
+      - >-
+        go -C tools/gen-plural-rules run .
+        -plurals ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/plurals.json
+        -ranges ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/pluralRanges.json
+        -out ../../internal/cldr/plural
+        -profile ../locale-profile.json
+
+  data:diff:
+    desc: Show diff between committed CLDR data and freshly generated output
+    cmds:
+      - rm -rf .tmp/cldr-diff && mkdir -p .tmp/cldr-diff
+      - >-
+        go -C tools/gen-cldr run .
+        -cldr-dir .cldr-json/node_modules
+        -out ../../.tmp/cldr-diff
+        -version-file ../../internal/cldr/VERSION
+        -profile ../locale-profile.json
+      - >-
+        go -C tools/gen-plural-rules run .
+        -plurals ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/plurals.json
+        -ranges ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/pluralRanges.json
+        -out ../../.tmp/cldr-diff/plural
+        -profile ../locale-profile.json
+      - >-
+        diff -ru
+        -x VERSION
+        -x '*_test.go'
+        -x cldr.go
+        -x doc.go
+        internal/cldr .tmp/cldr-diff || true
+
+  data:verify:
+    desc: Verify generated CLDR data is byte-identical
+    cmds:
+      - rm -rf .tmp/cldr-verify && mkdir -p .tmp/cldr-verify
+      - >-
+        go -C tools/gen-cldr run .
+        -cldr-dir .cldr-json/node_modules
+        -out ../../.tmp/cldr-verify
+        -version-file ../../internal/cldr/VERSION
+        -profile ../locale-profile.json
+      - >-
+        go -C tools/gen-plural-rules run .
+        -plurals ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/plurals.json
+        -ranges ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/pluralRanges.json
+        -out ../../.tmp/cldr-verify/plural
+        -profile ../locale-profile.json
+      - >-
+        diff -ru
+        -x VERSION
+        -x '*_test.go'
+        -x cldr.go
+        -x doc.go
+        internal/cldr .tmp/cldr-verify
+
+
+  data:contract:
+    desc: Verify generated CLDR data contracts without regeneration
+    cmds:
+      - go test -run TestCLDRGeneratedDataContract ./internal/cldr
+
+  build:size:
+    desc: Report and gate the CLDR binary size delta
+    cmds:
+      - mkdir -p .tmp
+      - go build -o .tmp/intl-with-cldr ./examples/sizecheck/with
+      - go build -o .tmp/intl-without-cldr ./examples/sizecheck/without
+      - |
+        with=$(stat -f%z .tmp/intl-with-cldr)
+        without=$(stat -f%z .tmp/intl-without-cldr)
+        delta=$((with - without))
+        echo "delta: ${delta} bytes"
+        test "$delta" -le 1572864
+
+  benchstat:
+    desc: Install benchstat CLI
+    cmds:
+      - mkdir -p {{.GOBIN}}
+      - go install golang.org/x/perf/cmd/benchstat@latest
+    status:
+      - test -x {{.GOBIN}}/benchstat
+
+  bench:run:
+    desc: Run benchmarks once with allocation reporting
+    cmds:
+      - go test -run '^$' -bench=. -benchmem ./... ./tools/check-fixtures ./tools/check-divergences
+
+  bench:gate:
+    desc: Run tagged benchmark budget tests
+    cmds:
+      - go test -tags perf ./numberformat ./datetimeformat ./pluralrules
+
+  bench:
+    desc: Run benchmark report with benchstat-compatible output
+    deps:
+      - benchstat
+    cmds:
+      - mkdir -p .tmp
+      - |
+        {
+          echo "go: $(go version)"
+          echo "goarch: $(go env GOARCH)"
+          sysctl -n machdep.cpu.brand_string 2>/dev/null || true
+        } > .tmp/bench-current.txt
+      - >-
+        go test -run '^$' -bench=. -benchmem -count=5
+        ./... ./tools/check-fixtures ./tools/check-divergences
+        >> .tmp/bench-current.txt
+      - |
+        if [ -n "${BASELINE:-}" ]; then
+          {{.GOBIN}}/benchstat "$BASELINE" .tmp/bench-current.txt
+        else
+          cat .tmp/bench-current.txt
+        fi
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - echo "Formatting Go code..."
+      - go fmt ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - echo "Running go vet..."
+      - go vet ./...
+
+  conformance:fixtures:
+    desc: Validate conformance fixture schema
+    cmds:
+      - >-
+        go run ./tools/check-fixtures
+        ./locale ./numberformat ./datetimeformat ./pluralrules
+
+  conformance:divergences:
+    desc: Validate conformance divergence audit IDs
+    cmds:
+      - >-
+        go run ./tools/check-divergences
+        ./locale ./numberformat ./datetimeformat ./pluralrules
+
+  conformance:verify:
+    desc: Run all conformance verification checks
+    cmds:
+      - task: conformance:fixtures
+      - task: conformance:divergences
+
+  verify:
+    desc: Run all verification steps (deps, format, vet, lint, test, vuln)
+    cmds:
+      - task: deps
+      - task: fmt
+      - task: vet
+      - task: lint
+      - task: test
+      - task: conformance:verify
+      - task: data:contract
+      - task: vuln
+      - echo "All verification steps completed successfully ✅"
