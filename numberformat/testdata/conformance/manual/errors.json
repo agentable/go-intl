@@ -1,0 +1,12 @@
+[
+  {
+    "id": "numberformat-manual-invalid-style",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "style": "invalid"
+    },
+    "input": 1,
+    "errorCode": "invalid_option"
+  }
+]

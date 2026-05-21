@@ -1,0 +1,13 @@
+[
+  {
+    "id": "durationformat-node-v26-hours-minutes",
+    "source": "node:v26.0.0:durationformat",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "hours": 1,
+      "minutes": 2
+    },
+    "expected": "1 hr, 2 min"
+  }
+]

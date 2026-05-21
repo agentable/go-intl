@@ -1,0 +1,24 @@
+[submodule ".references/formatjs"]
+	path = .references/formatjs
+	url = https://github.com/formatjs/formatjs.git
+[submodule ".references/intl"]
+	path = .references/intl
+	url = https://github.com/translate-agent/intl
+[submodule ".references/ext"]
+	path = .references/ext
+	url = https://github.com/php-ecma-intl/ext.git
+[submodule ".agents/skills"]
+	path = .agents/skills
+	url = https://github.com/agentable/golang-skills.git
+[submodule ".references/node"]
+	path = .references/node
+	url = https://github.com/nodejs/node.git
+[submodule ".references/ecma402"]
+	path = .references/ecma402
+	url = https://github.com/tc39/ecma402.git
+[submodule ".references/carbon"]
+	path = .references/carbon
+	url = https://github.com/dromara/carbon.git
+[submodule ".references/go-money"]
+	path = .references/go-money
+	url = https://github.com/Rhymond/go-money

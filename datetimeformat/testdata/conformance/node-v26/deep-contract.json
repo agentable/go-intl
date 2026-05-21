@@ -1,0 +1,453 @@
+[
+  {
+    "id": "datetimeformat-node-v26-range-date-time-utc-h23",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "day": "numeric",
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "month": "short",
+      "year": "numeric",
+      "timeZone": "UTC"
+    },
+    "input": {
+      "start": "2021-01-10T00:00:00Z",
+      "end": "2021-01-20T00:00:00Z"
+    },
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "UTC",
+      "hourCycle": "h23",
+      "hour12": false,
+      "year": "numeric",
+      "month": "short",
+      "day": "numeric",
+      "hour": "2-digit",
+      "minute": "2-digit"
+    },
+    "expectedRange": "Jan 10, 2021, 00:00 – Jan 20, 2021, 00:00",
+    "expectedRangeParts": [
+      {"type": "month", "value": "Jan", "source": "startRange"},
+      {"type": "literal", "value": " ", "source": "startRange"},
+      {"type": "day", "value": "10", "source": "startRange"},
+      {"type": "literal", "value": ", ", "source": "startRange"},
+      {"type": "year", "value": "2021", "source": "startRange"},
+      {"type": "literal", "value": ", ", "source": "startRange"},
+      {"type": "hour", "value": "00", "source": "startRange"},
+      {"type": "literal", "value": ":", "source": "startRange"},
+      {"type": "minute", "value": "00", "source": "startRange"},
+      {"type": "literal", "value": " – ", "source": "shared"},
+      {"type": "month", "value": "Jan", "source": "endRange"},
+      {"type": "literal", "value": " ", "source": "endRange"},
+      {"type": "day", "value": "20", "source": "endRange"},
+      {"type": "literal", "value": ", ", "source": "endRange"},
+      {"type": "year", "value": "2021", "source": "endRange"},
+      {"type": "literal", "value": ", ", "source": "endRange"},
+      {"type": "hour", "value": "00", "source": "endRange"},
+      {"type": "literal", "value": ":", "source": "endRange"},
+      {"type": "minute", "value": "00", "source": "endRange"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-range-time-utc-h23",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-US",
+    "feature": "formatRange",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "UTC"
+    },
+    "input": {
+      "start": "2021-01-10T00:00:00Z",
+      "end": "2021-01-10T03:30:00Z"
+    },
+    "expectedResolvedOptions": {
+      "locale": "en-US",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "UTC",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit"
+    },
+    "expectedRange": "00:00 – 03:30",
+    "expectedRangeParts": [
+      {"type": "hour", "value": "00", "source": "startRange"},
+      {"type": "literal", "value": ":", "source": "startRange"},
+      {"type": "minute", "value": "00", "source": "startRange"},
+      {"type": "literal", "value": " – ", "source": "shared"},
+      {"type": "hour", "value": "03", "source": "endRange"},
+      {"type": "literal", "value": ":", "source": "endRange"},
+      {"type": "minute", "value": "30", "source": "endRange"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-range-shared-month-prefix",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en",
+    "feature": "formatRangeToParts",
+    "options": {
+      "day": "numeric",
+      "month": "short",
+      "timeZone": "UTC"
+    },
+    "input": {
+      "start": "2020-02-01T00:00:00Z",
+      "end": "2020-02-15T00:00:00Z"
+    },
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "UTC",
+      "month": "short",
+      "day": "numeric"
+    },
+    "expectedRange": "Feb 1 – 15",
+    "expectedRangeParts": [
+      {"type": "month", "value": "Feb", "source": "shared"},
+      {"type": "literal", "value": " ", "source": "shared"},
+      {"type": "day", "value": "1", "source": "startRange"},
+      {"type": "literal", "value": " – ", "source": "shared"},
+      {"type": "day", "value": "15", "source": "endRange"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-tz-short-amsterdam",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-US",
+    "feature": "timeZoneName",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "Europe/Amsterdam",
+      "timeZoneName": "short"
+    },
+    "input": "2020-09-16T09:55:32Z",
+    "expectedResolvedOptions": {
+      "locale": "en-US",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "Europe/Amsterdam",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZoneName": "short"
+    },
+    "expected": "11:55 GMT+2",
+    "expectedParts": [
+      {"type": "hour", "value": "11"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "55"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "GMT+2"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-tz-long-new-york-winter",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-US",
+    "feature": "timeZoneName",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "America/New_York",
+      "timeZoneName": "long"
+    },
+    "input": "2021-01-10T12:00:00Z",
+    "expectedResolvedOptions": {
+      "locale": "en-US",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "America/New_York",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZoneName": "long"
+    },
+    "expected": "07:00 Eastern Standard Time",
+    "expectedParts": [
+      {"type": "hour", "value": "07"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "00"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "Eastern Standard Time"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-tz-long-new-york-summer",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-US",
+    "feature": "timeZoneName",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "America/New_York",
+      "timeZoneName": "long"
+    },
+    "input": "2021-06-10T12:00:00Z",
+    "expectedResolvedOptions": {
+      "locale": "en-US",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "America/New_York",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZoneName": "long"
+    },
+    "expected": "08:00 Eastern Daylight Time",
+    "expectedParts": [
+      {"type": "hour", "value": "08"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "00"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "Eastern Daylight Time"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-tz-short-generic-new-york",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-US",
+    "feature": "timeZoneName",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "America/New_York",
+      "timeZoneName": "shortGeneric"
+    },
+    "input": "2021-01-10T12:00:00Z",
+    "expectedResolvedOptions": {
+      "locale": "en-US",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "America/New_York",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZoneName": "shortGeneric"
+    },
+    "expected": "07:00 ET",
+    "expectedParts": [
+      {"type": "hour", "value": "07"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "00"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "ET"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-tz-long-generic-new-york",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-US",
+    "feature": "timeZoneName",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "America/New_York",
+      "timeZoneName": "longGeneric"
+    },
+    "input": "2021-01-10T12:00:00Z",
+    "expectedResolvedOptions": {
+      "locale": "en-US",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "America/New_York",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZoneName": "longGeneric"
+    },
+    "expected": "07:00 Eastern Time",
+    "expectedParts": [
+      {"type": "hour", "value": "07"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "00"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "Eastern Time"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-tz-short-offset-new-york",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-US",
+    "feature": "timeZoneName",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "America/New_York",
+      "timeZoneName": "shortOffset"
+    },
+    "input": "2021-01-10T12:00:00Z",
+    "expectedResolvedOptions": {
+      "locale": "en-US",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "America/New_York",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZoneName": "shortOffset"
+    },
+    "expected": "07:00 GMT-5",
+    "expectedParts": [
+      {"type": "hour", "value": "07"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "00"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "GMT-5"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-tz-long-offset-new-york",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-US",
+    "feature": "timeZoneName",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "America/New_York",
+      "timeZoneName": "longOffset"
+    },
+    "input": "2021-01-10T12:00:00Z",
+    "expectedResolvedOptions": {
+      "locale": "en-US",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "America/New_York",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZoneName": "longOffset"
+    },
+    "expected": "07:00 GMT-05:00",
+    "expectedParts": [
+      {"type": "hour", "value": "07"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "00"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "GMT-05:00"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-tz-metazone-london-winter",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-GB",
+    "feature": "metazone",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "Europe/London",
+      "timeZoneName": "long"
+    },
+    "input": "2021-01-10T12:00:00Z",
+    "expectedResolvedOptions": {
+      "locale": "en-GB",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "Europe/London",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZoneName": "long"
+    },
+    "expected": "12:00 Greenwich Mean Time",
+    "expectedParts": [
+      {"type": "hour", "value": "12"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "00"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "Greenwich Mean Time"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-tz-metazone-london-summer",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-GB",
+    "feature": "metazone",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "Europe/London",
+      "timeZoneName": "long"
+    },
+    "input": "2021-06-10T12:00:00Z",
+    "expectedResolvedOptions": {
+      "locale": "en-GB",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "Europe/London",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZoneName": "long"
+    },
+    "expected": "13:00 British Summer Time",
+    "expectedParts": [
+      {"type": "hour", "value": "13"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "00"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "British Summer Time"}
+    ]
+  },
+  {
+    "id": "datetimeformat-node-v26-tz-offset-string-kolkata",
+    "source": "node:v26.0.0:datetimeformat:p4-deep-contract",
+    "locale": "en-US",
+    "feature": "offsetTimeZone",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "hour12": false,
+      "timeZone": "+05:30",
+      "timeZoneName": "longOffset"
+    },
+    "input": "2021-01-10T12:00:00Z",
+    "expectedResolvedOptions": {
+      "locale": "en-US",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "timeZone": "+05:30",
+      "hourCycle": "h23",
+      "hour12": false,
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZoneName": "longOffset"
+    },
+    "expected": "17:30 GMT+05:30",
+    "expectedParts": [
+      {"type": "hour", "value": "17"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "30"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "GMT+05:30"}
+    ]
+  }
+]

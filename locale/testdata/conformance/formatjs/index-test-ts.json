@@ -1,0 +1,20 @@
+[
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-locale-tests-index-test-ts-000",
+    "source": "formatjs:packages/intl-locale/tests/index.test.ts",
+    "locale": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
+    "expected": "en-u-bar-foo-ca-buddhist-kk-nu-thai"
+  },
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-locale-tests-index-test-ts-001",
+    "source": "formatjs:packages/intl-locale/tests/index.test.ts",
+    "locale": "und-x-private",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "und-x-private",
+    "expected": "und-x-private"
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "locale-node-v26-canonicalize",
+    "source": "node:v26.0.0:locale",
+    "locale": "en-US",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "EN-us-u-NU-LATN",
+    "expected": "en-US-u-nu-latn"
+  },
+  {
+    "id": "locale-node-v26-maximize-en",
+    "source": "node:v26.0.0:locale",
+    "locale": "en",
+    "feature": "maximize",
+    "options": {},
+    "input": "en",
+    "expected": "en-Latn-US"
+  }
+]

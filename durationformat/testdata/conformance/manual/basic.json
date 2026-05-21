@@ -1,0 +1,19 @@
+[
+  {
+    "id": "durationformat-manual-format-to-parts-000",
+    "source": "manual:durationformat/basic",
+    "locale": "en",
+    "feature": "formatToParts",
+    "options": {},
+    "input": {"hours": 1, "minutes": 2},
+    "expectedParts": [
+      {"type": "integer", "value": "1", "unit": "hour"},
+      {"type": "literal", "value": " ", "unit": "hour"},
+      {"type": "unit", "value": "hr", "unit": "hour"},
+      {"type": "literal", "value": ", "},
+      {"type": "integer", "value": "2", "unit": "minute"},
+      {"type": "literal", "value": " ", "unit": "minute"},
+      {"type": "unit", "value": "min", "unit": "minute"}
+    ]
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "id": "numberformat-node-v26-currency-usd",
+    "source": "node:v26.0.0:numberformat",
+    "locale": "en-US",
+    "options": {
+      "style": "currency",
+      "currency": "USD"
+    },
+    "input": 1234.5,
+    "expected": "$1,234.50"
+  }
+]

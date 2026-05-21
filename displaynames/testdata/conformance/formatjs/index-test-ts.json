@@ -1,0 +1,259 @@
+[
+  {
+    "id": "displaynames-formatjs-index-language-zh-hans-sg",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "zh",
+    "options": {
+      "type": "language"
+    },
+    "input": "zh-hANs-sG",
+    "expected": "简体中文（新加坡）",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-language-zh-hans-xy-code",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "zh",
+    "options": {
+      "type": "language",
+      "fallback": "code"
+    },
+    "input": "zh-Hans-Xy",
+    "expected": "简体中文（XY）",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-language-zh-hans-xy-none",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "zh",
+    "options": {
+      "type": "language",
+      "fallback": "none"
+    },
+    "input": "zh-Hans-XY",
+    "expected": "",
+    "expectedOk": false
+  },
+  {
+    "id": "displaynames-formatjs-index-language-xx-cn-none",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "zh",
+    "options": {
+      "type": "language",
+      "fallback": "none"
+    },
+    "input": "xx-CN",
+    "expected": "",
+    "expectedOk": false
+  },
+  {
+    "id": "displaynames-formatjs-index-language-en-gb-long",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "language",
+      "style": "long"
+    },
+    "input": "en-GB",
+    "expected": "British English",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-language-en-gb-short",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "language",
+      "style": "short"
+    },
+    "input": "en-GB",
+    "expected": "UK English",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-language-en-gb-standard-long",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "language",
+      "style": "long",
+      "languageDisplay": "standard"
+    },
+    "input": "en-GB",
+    "expected": "English (United Kingdom)",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-language-en-gb-standard-short",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "language",
+      "style": "short",
+      "languageDisplay": "standard"
+    },
+    "input": "en-GB",
+    "expected": "English (UK)",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-currency-cny-long",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en-US",
+    "options": {
+      "type": "currency"
+    },
+    "input": "cNy",
+    "expected": "Chinese Yuan",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-script-arab-zh",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "zh",
+    "options": {
+      "type": "script",
+      "fallback": "code"
+    },
+    "input": "arab",
+    "expected": "阿拉伯文",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-calendar-roc",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "calendar"
+    },
+    "input": "roc",
+    "expected": "Minguo Calendar",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-calendar-buddhist",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "calendar"
+    },
+    "input": "BUDDHIST",
+    "expected": "Buddhist Calendar",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-calendar-chinese-short",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "calendar",
+      "style": "short"
+    },
+    "input": "chinese",
+    "expected": "Chinese Calendar",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-calendar-coptic-narrow",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "calendar",
+      "style": "narrow"
+    },
+    "input": "coptic",
+    "expected": "Coptic Calendar",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-calendar-islamic-civil",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "calendar"
+    },
+    "input": "islamic-civil",
+    "expected": "Hijri Calendar (tabular, civil epoch)",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-calendar-ethiopic-amete-alem",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "calendar"
+    },
+    "input": "ethiopic-amete-alem",
+    "expected": "Ethiopic Amete Alem Calendar",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-calendar-abc-code",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "calendar"
+    },
+    "input": "abc",
+    "expected": "abc",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-calendar-abc-none",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "calendar",
+      "fallback": "none"
+    },
+    "input": "abc",
+    "expected": "",
+    "expectedOk": false
+  },
+  {
+    "id": "displaynames-formatjs-index-datetimefield-year-long",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "dateTimeField"
+    },
+    "input": "year",
+    "expected": "year",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-datetimefield-weekofyear-short",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "dateTimeField",
+      "style": "short"
+    },
+    "input": "weekOfYear",
+    "expected": "wk.",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-datetimefield-timezonename-narrow",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "dateTimeField",
+      "style": "narrow"
+    },
+    "input": "timeZoneName",
+    "expected": "zone",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-formatjs-index-datetimefield-dayperiod",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "dateTimeField"
+    },
+    "input": "dayPeriod",
+    "expected": "AM/PM",
+    "expectedOk": true
+  }
+]

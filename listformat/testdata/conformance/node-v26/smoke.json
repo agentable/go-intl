@@ -1,0 +1,10 @@
+[
+  {
+    "id": "listformat-node-v26-conjunction-long",
+    "source": "node:v26.0.0:listformat",
+    "locale": "en-US",
+    "options": {},
+    "input": ["A", "B", "C"],
+    "expected": "A, B, and C"
+  }
+]

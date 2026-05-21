@@ -1,0 +1,32 @@
+[
+  {
+    "id": "displaynames-formatjs-index-calendar-gregorian-error",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "calendar"
+    },
+    "input": "gregorian",
+    "errorCode": "invalidCode"
+  },
+  {
+    "id": "displaynames-formatjs-index-calendar-unknowncalendar-error",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "calendar"
+    },
+    "input": "unknowncalendar",
+    "errorCode": "invalidCode"
+  },
+  {
+    "id": "displaynames-formatjs-index-datetimefield-invalid-error",
+    "source": "formatjs:packages/intl-displaynames/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "type": "dateTimeField"
+    },
+    "input": "invalidfield",
+    "errorCode": "invalidCode"
+  }
+]

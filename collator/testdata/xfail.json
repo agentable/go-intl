@@ -1,0 +1,38 @@
+[
+  {
+    "id": "collator-node-v26-search-usage-contract",
+    "reason": "active x/text backend has no public search tailoring selector",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-45"
+  },
+  {
+    "id": "collator-node-v26-case-first-upper-contract",
+    "reason": "active x/text backend marks kf caseFirst as TODO",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-45"
+  },
+  {
+    "id": "collator-node-v26-case-first-lower-contract",
+    "reason": "active x/text backend marks kf caseFirst as TODO",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-45"
+  },
+  {
+    "id": "collator-node-v26-locale-case-first-upper-contract",
+    "reason": "active x/text backend marks kf caseFirst as TODO",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-45"
+  },
+  {
+    "id": "collator-node-v26-german-phonebook-option-contract",
+    "reason": "active x/text backend has no stable public contract for arbitrary explicit collation tailoring",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-45"
+  },
+  {
+    "id": "collator-node-v26-german-phonebook-locale-contract",
+    "reason": "active x/text backend has no stable public contract for arbitrary explicit collation tailoring",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-45"
+  }
+]

@@ -1,0 +1,191 @@
+// Package displaynames provides runtime accessors for ECMA-402 DisplayNames
+// data backed by generated CLDR locale-names tables. Currency display names
+// reuse the existing internal/cldr currency accessors.
+package displaynames
+
+import (
+	"strings"
+
+	"github.com/agentable/go-intl/internal/cldr"
+	"github.com/agentable/go-intl/internal/pattern"
+)
+
+// Of returns the localized display name for a code and whether one exists.
+//
+// kind: "language" | "region" | "script" | "currency" | "calendar" | "dateTimeField".
+// style: "long" | "short" | "narrow".
+// languageDisplay: "dialect" | "standard" (only meaningful when kind == "language").
+//
+// When data for the requested locale is unavailable, the lookup walks the
+// truncation parent chain (e.g. en-US -> en) and finally falls back to "en".
+func Of(dataLocale, kind, style, languageDisplay, code, fallback string) (string, bool) {
+	if kind == "currency" {
+		return currencyDisplay(dataLocale, style, code)
+	}
+	if kind == "calendar" {
+		if alias := calendarAlias[code]; alias != "" {
+			code = alias
+		}
+	}
+	if kind == "dateTimeField" {
+		if alias := dateTimeFieldAlias[code]; alias != "" {
+			code = alias
+		}
+	}
+	for tag := dataLocale; tag != ""; tag = parentTag(tag) {
+		if value, ok := lookup(tag, kind, style, languageDisplay, code, fallback); ok {
+			return value, true
+		}
+	}
+	return lookup("en", kind, style, languageDisplay, code, fallback)
+}
+
+// calendarAlias maps ECMA-402 calendar identifiers (Unicode BCP 47 `u-ca`
+// keys) to CLDR's `localeDisplayNames.types.calendar` keys.
+var calendarAlias = map[string]string{
+	"gregory": "gregorian",
+	"ethioaa": "ethiopic-amete-alem",
+}
+
+var dateTimeFieldAlias = map[string]string{
+	"dayPeriod": "dayperiod",
+}
+
+// SupportedLocales returns the locale tags with display-name data.
+func SupportedLocales() []string {
+	return displayNamesSupportedLocales()
+}
+
+func parentTag(tag string) string {
+	idx := strings.LastIndex(tag, "-")
+	if idx < 0 {
+		return ""
+	}
+	return tag[:idx]
+}
+
+func lookup(tag, kind, style, languageDisplay, code, fallback string) (string, bool) {
+	loc, ok := displayNamesData()[tag]
+	if !ok {
+		return "", false
+	}
+	switch kind {
+	case "language":
+		display := loc.languages.dialect
+		if languageDisplay == "standard" {
+			display = loc.languages.standard
+		}
+		if value, ok := resolveStyled(display, style, code); ok {
+			return value, true
+		}
+		return resolveLanguage(loc, display, style, code, fallback == "code")
+	case "region":
+		return resolveStyled(loc.territories, style, code)
+	case "script":
+		return resolveStyled(loc.scripts, style, code)
+	case "calendar":
+		return resolveStyled(loc.calendars, style, code)
+	case "dateTimeField":
+		return resolveStyled(loc.dateTimeFields, style, code)
+	}
+	return "", false
+}
+
+func resolveLanguage(loc localeData, display styledNames, style, code string, fallbackCode bool) (string, bool) {
+	parts := strings.Split(code, "-")
+	if len(parts) == 1 {
+		return "", false
+	}
+
+	base, region, ok := languageBaseAndRegion(display, style, parts)
+	if !ok {
+		return "", false
+	}
+	if region == "" {
+		return base, true
+	}
+
+	regionName, ok := resolveStyled(loc.territories, style, region)
+	if !ok {
+		if !fallbackCode {
+			return "", false
+		}
+		regionName = region
+	}
+	return applyLocalePattern(loc.localePattern, base, regionName), true
+}
+
+func languageBaseAndRegion(display styledNames, style string, parts []string) (base, region string, ok bool) {
+	language := parts[0]
+	index := 1
+	var script string
+	if index < len(parts) && len(parts[index]) == 4 {
+		script = parts[index]
+		index++
+	}
+	if index < len(parts) && isRegionSubtag(parts[index]) {
+		region = parts[index]
+	}
+
+	if script != "" {
+		if value, ok := resolveStyled(display, style, language+"-"+script); ok {
+			return value, region, true
+		}
+	}
+	if value, ok := resolveStyled(display, style, language); ok {
+		return value, region, true
+	}
+	return "", "", false
+}
+
+func isRegionSubtag(subtag string) bool {
+	return len(subtag) == 2 || len(subtag) == 3
+}
+
+func applyLocalePattern(text, language, region string) string {
+	if text == "" {
+		text = "{0} ({1})"
+	}
+	return pattern.FormatIndexed(text, language, region)
+}
+
+func resolveStyled(s styledNames, style, code string) (string, bool) {
+	switch style {
+	case "narrow":
+		if v, ok := s.narrow[code]; ok {
+			return v, true
+		}
+		if v, ok := s.short[code]; ok {
+			return v, true
+		}
+	case "short":
+		if v, ok := s.short[code]; ok {
+			return v, true
+		}
+	}
+	if v, ok := s.long[code]; ok {
+		return v, true
+	}
+	return "", false
+}
+
+func currencyDisplay(dataLocale, style, code string) (string, bool) {
+	loc, ok := cldr.ResolveLocale(dataLocale)
+	if !ok {
+		loc, _ = cldr.ResolveLocale("en")
+	}
+	switch style {
+	case "narrow":
+		if symbol := loc.CurrencySymbol(code, "narrow"); symbol != "" {
+			return symbol, true
+		}
+	case "short":
+		if symbol := loc.CurrencySymbol(code, ""); symbol != "" {
+			return symbol, true
+		}
+	}
+	if name := loc.CurrencyCanonicalName(code); name != "" {
+		return name, true
+	}
+	return "", false
+}

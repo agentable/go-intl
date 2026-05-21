@@ -1,0 +1,39 @@
+[
+  {
+    "id": "listformat-manual-conjunction-long",
+    "source": "manual:listformat-basic",
+    "locale": "en-US",
+    "options": {},
+    "input": ["A", "B", "C"],
+    "expected": "A, B, and C",
+    "expectedParts": [
+      {"type": "element", "value": "A"},
+      {"type": "literal", "value": ", "},
+      {"type": "element", "value": "B"},
+      {"type": "literal", "value": ", and "},
+      {"type": "element", "value": "C"}
+    ]
+  },
+  {
+    "id": "listformat-manual-disjunction-short",
+    "source": "manual:listformat-basic",
+    "locale": "en-US",
+    "options": {"type": "disjunction", "style": "short"},
+    "input": ["A", "B"],
+    "expected": "A or B",
+    "expectedParts": [
+      {"type": "element", "value": "A"},
+      {"type": "literal", "value": " or "},
+      {"type": "element", "value": "B"}
+    ]
+  },
+  {
+    "id": "listformat-manual-supported-locales",
+    "source": "manual:listformat-basic",
+    "locale": "en-US",
+    "feature": "supportedLocalesOf",
+    "options": {"localeMatcher": "lookup"},
+    "input": ["fr-FR", "en-US", "zh-Hans-CN"],
+    "expectedLocales": ["fr-FR", "en-US", "zh-Hans-CN"]
+  }
+]

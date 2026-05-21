@@ -1,0 +1,34 @@
+[
+  {
+    "id": "datetimeformat-formatjs-index-test-ts-000",
+    "source": "formatjs:packages/intl-datetimeformat/tests/index.test.ts",
+    "locale": "en-US",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "timeZone": "Europe/Amsterdam",
+      "timeZoneName": "short"
+    },
+    "input": "2020-09-16T09:55:32Z",
+    "expected": "11:55 AM GMT+2"
+  },
+  {
+    "id": "datetimeformat-formatjs-index-test-ts-002",
+    "source": "formatjs:packages/intl-datetimeformat/tests/index.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "day": "numeric",
+      "hour": "numeric",
+      "minute": "numeric",
+      "month": "numeric",
+      "timeZone": "America/New_York",
+      "year": "numeric"
+    },
+    "input": {
+      "end": "2021-06-19T17:00:00Z",
+      "start": "2021-05-19T09:00:00Z"
+    },
+    "expectedRange": "5/19/2021, 5:00 AM – 6/19/2021, 1:00 PM"
+  }
+]

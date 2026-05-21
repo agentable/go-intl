@@ -1,0 +1,295 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+const outputDir = ".tmp/sizecheck"
+
+var (
+	errMissingDataVersion    = errors.New("missing cldr/icu/tzdata pin")
+	errMultipleProfileValues = errors.New("multiple JSON values")
+	errEmptyLocaleProfile    = errors.New("empty locale profile")
+)
+
+type binaryCase struct {
+	name   string
+	source string
+}
+
+type result struct {
+	name     string
+	bytes    int64
+	duration time.Duration
+}
+
+type dataProfile struct {
+	CLDR        string
+	ICU         string
+	TZData      string
+	LocaleCount int
+	Cold        bool
+}
+
+func main() {
+	fs := flag.NewFlagSet("sizecheck", flag.ContinueOnError)
+	cold := fs.Bool("cold", false, "clear the Go build cache before measuring compile time")
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "unknown argument %q\n", fs.Arg(0))
+		os.Exit(2)
+	}
+	if err := run(context.Background(), outputDir, runOptions{Root: ".", Cold: *cold}); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+type runOptions struct {
+	Root string
+	Cold bool
+}
+
+func run(ctx context.Context, dir string, opts runOptions) error {
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	profile, err := readDataProfile(opts.Root)
+	if err != nil {
+		return err
+	}
+	profile.Cold = opts.Cold
+	if opts.Cold {
+		if err := cleanBuildCache(ctx); err != nil {
+			return err
+		}
+	}
+	caseDir := filepath.Join(dir, "cases")
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0o750); err != nil {
+		return err
+	}
+
+	cases := sizeCases()
+	results := make([]result, 0, len(cases))
+	for _, tc := range cases {
+		pkgDir, err := writeCase(caseDir, tc)
+		if err != nil {
+			return err
+		}
+		result, err := buildCase(ctx, tc.name, pkgDir, filepath.Join(binDir, tc.name))
+		if err != nil {
+			return err
+		}
+		results = append(results, result)
+	}
+	fmt.Fprint(os.Stdout, formatResults(profile, results))
+	return nil
+}
+
+func cleanBuildCache(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "go", "clean", "-cache")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("clean build cache: %w\n%s", err, output)
+	}
+	return nil
+}
+
+func writeCase(root string, tc binaryCase) (string, error) {
+	dir := filepath.Join(root, tc.name)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(path, []byte(strings.TrimSpace(tc.source)+"\n"), 0o600); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+func buildCase(ctx context.Context, name, pkgDir, out string) (result, error) {
+	start := time.Now()
+	cmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-o", out, "./"+filepath.ToSlash(pkgDir))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return result{}, fmt.Errorf("build %s: %w\n%s", name, err, output)
+	}
+	info, err := os.Stat(out)
+	if err != nil {
+		return result{}, err
+	}
+	return result{name: name, bytes: info.Size(), duration: time.Since(start).Round(time.Millisecond)}, nil
+}
+
+func formatResults(profile dataProfile, results []result) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "data-profile: locales=%d cldr=%s icu=%s tzdata=%s cold=%t\n", profile.LocaleCount, profile.CLDR, profile.ICU, profile.TZData, profile.Cold)
+	var baseline int64
+	for _, r := range results {
+		if r.name == "empty" {
+			baseline = r.bytes
+			break
+		}
+	}
+	fmt.Fprintf(&b, "%-22s %12s %12s %12s\n", "case", "bytes", "delta", "build")
+	for _, r := range results {
+		fmt.Fprintf(&b, "%-22s %12d %12d %12s\n", r.name, r.bytes, r.bytes-baseline, r.duration)
+	}
+	return b.String()
+}
+
+func readDataProfile(root string) (dataProfile, error) {
+	version, err := readVersionFile(filepath.Join(root, "internal", "cldr", "VERSION"))
+	if err != nil {
+		return dataProfile{}, err
+	}
+	count, err := readLocaleProfileCount(filepath.Join(root, "tools", "locale-profile.json"))
+	if err != nil {
+		return dataProfile{}, err
+	}
+	version.LocaleCount = count
+	return version, nil
+}
+
+func readVersionFile(path string) (dataProfile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return dataProfile{}, fmt.Errorf("read version file %s: %w", path, err)
+	}
+	var profile dataProfile
+	for _, line := range strings.Split(string(data), "\n") {
+		key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "cldr":
+			profile.CLDR = value
+		case "icu":
+			profile.ICU = value
+		case "tzdata":
+			profile.TZData = value
+		}
+	}
+	if profile.CLDR == "" || profile.ICU == "" || profile.TZData == "" {
+		return dataProfile{}, fmt.Errorf("read version file %s: %w", path, errMissingDataVersion)
+	}
+	return profile, nil
+}
+
+func readLocaleProfileCount(path string) (int, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, fmt.Errorf("read locale profile %s: %w", path, err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	var profile struct {
+		Locales []string `json:"locales"`
+	}
+	if err := dec.Decode(&profile); err != nil {
+		return 0, fmt.Errorf("parse locale profile %s: %w", path, err)
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		return 0, fmt.Errorf("parse locale profile %s: %w", path, errMultipleProfileValues)
+	}
+	if len(profile.Locales) == 0 {
+		return 0, fmt.Errorf("parse locale profile %s: %w", path, errEmptyLocaleProfile)
+	}
+	return len(profile.Locales), nil
+}
+
+func sizeCases() []binaryCase {
+	return []binaryCase{
+		{
+			name: "empty",
+			source: `package main
+
+func main() {}`,
+		},
+		{
+			name: "cldr-available",
+			source: `package main
+
+import "github.com/agentable/go-intl/internal/cldr"
+
+func main() {
+	_ = cldr.AvailableLocales()
+}`,
+		},
+		{
+			name: "root-facade",
+			source: `package main
+
+import intl "github.com/agentable/go-intl"
+
+func main() {
+	_ = intl.SupportedCalendars()
+}`,
+		},
+		directFormatterCase("numberformat", "numberformat"),
+		directFormatterCase("datetimeformat", "datetimeformat"),
+		directFormatterCase("pluralrules", "pluralrules"),
+		directFormatterCase("listformat", "listformat"),
+		directFormatterCase("relativetimeformat", "relativetimeformat"),
+		directFormatterCase("durationformat", "durationformat"),
+		directFormatterCase("displaynames", "displaynames"),
+		directFormatterCase("collator", "collator"),
+		directFormatterCase("segmenter", "segmenter"),
+		{
+			name: "all-formatters",
+			source: `package main
+
+import (
+	"github.com/agentable/go-intl/collator"
+	"github.com/agentable/go-intl/datetimeformat"
+	"github.com/agentable/go-intl/displaynames"
+	"github.com/agentable/go-intl/durationformat"
+	"github.com/agentable/go-intl/listformat"
+	"github.com/agentable/go-intl/numberformat"
+	"github.com/agentable/go-intl/pluralrules"
+	"github.com/agentable/go-intl/relativetimeformat"
+	"github.com/agentable/go-intl/segmenter"
+)
+
+func main() {
+	_, _ = numberformat.New(nil)
+	_, _ = datetimeformat.New(nil)
+	_, _ = pluralrules.New(nil)
+	_, _ = listformat.New(nil)
+	_, _ = relativetimeformat.New(nil)
+	_, _ = durationformat.New(nil)
+	_, _ = displaynames.New(nil)
+	_, _ = collator.New(nil)
+	_, _ = segmenter.New(nil)
+}`,
+		},
+	}
+}
+
+func directFormatterCase(name, pkg string) binaryCase {
+	return binaryCase{
+		name: name,
+		source: fmt.Sprintf(`package main
+
+import "github.com/agentable/go-intl/%s"
+
+func main() {
+	_, _ = %s.New(nil)
+}`, pkg, pkg),
+	}
+}

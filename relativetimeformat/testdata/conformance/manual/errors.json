@@ -1,0 +1,10 @@
+[
+  {
+    "id": "relativetimeformat-manual-invalid-unit",
+    "source": "manual:relativetimeformat-basic",
+    "locale": "en-US",
+    "options": {},
+    "input": {"value": 1, "unit": "invalid"},
+    "errorCode": "invalid_value"
+  }
+]

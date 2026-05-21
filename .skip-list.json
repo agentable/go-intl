@@ -1,0 +1,142 @@
+[
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/abstract/BestFitFormatMatcher.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/abstract/skeleton.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/format.test.ts",
+    "category": "partial-extraction",
+    "reason": "mechanical assertions outside current generated fixture gate"
+  },
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/ftp-main.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/index.test.ts",
+    "category": "partial-extraction",
+    "reason": "mechanical assertions outside current generated fixture gate"
+  },
+  {
+    "source": "formatjs:packages/intl-datetimeformat/tests/offset-timezone.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "category": "partial-extraction",
+    "reason": "mechanical assertions outside current generated fixture gate"
+  },
+  {
+    "source": "formatjs:packages/intl-getcanonicallocales/tests/parser.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
+    "category": "partial-extraction",
+    "reason": "mechanical assertions outside current generated fixture gate"
+  },
+  {
+    "source": "formatjs:packages/intl-listformat/tests/supported-locales-of.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-locale/tests/likely-subtags.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-locale/tests/minimize.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency-code.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/currency/currencyTest.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/decimal/decimalTest.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/format_to_parts.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/legacy.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "category": "partial-extraction",
+    "reason": "mechanical assertions outside current generated fixture gate"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-ko-KR.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "category": "partial-extraction",
+    "reason": "mechanical assertions outside current generated fixture gate"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/percent/percentTest.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/signDisplay-currency-zh-TW.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/signDisplay-zh-TW.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit-zh-TW.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/unit/unitTest.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-numberformat/tests/value-tonumber.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-pluralrules/tests/supported-locales-of.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  },
+  {
+    "source": "formatjs:packages/intl-relativetimeformat/tests/supported-locales-of.test.ts",
+    "category": "unsupported-extractor-shape",
+    "reason": "unsupported Vitest assertion shape"
+  }
+]

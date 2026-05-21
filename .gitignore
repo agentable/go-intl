@@ -1,0 +1,53 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# IntelliJ files
+.idea/
+
+# Coverage files
+cover.out
+cover.html
+.cov.*
+
+# Local binary folder
+bin/
+
+# Local build folder for storing build artifacts
+build/
+.tmp/
+.task/
+tools/gen-cldr/.cldr-json/node_modules/
+tools/gen-fixtures-from-formatjs/gen-fixtures-from-formatjs
+.plans/
+
+# Mac OS files
+**/.DS_Store
+
+# todo
+.todo
+TODO.md
+TODO.yaml
+IMPROVE.md
+REFACTOR.md
+
+# vscode
+.vscode/
+
+# .ralphy
+.ralphy/*.json

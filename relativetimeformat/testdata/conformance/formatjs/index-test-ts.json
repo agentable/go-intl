@@ -1,0 +1,49 @@
+[
+  {
+    "id": "relativetimeformat-formatjs-index-test-ts-000",
+    "source": "formatjs:packages/intl-relativetimeformat/tests/index.test.ts",
+    "locale": "zh-CN",
+    "options": {},
+    "input": {
+      "unit": "second",
+      "value": -1
+    },
+    "expected": "1秒钟前"
+  },
+  {
+    "id": "relativetimeformat-formatjs-index-test-ts-001",
+    "source": "formatjs:packages/intl-relativetimeformat/tests/index.test.ts",
+    "locale": "zh-TW",
+    "options": {},
+    "input": {
+      "unit": "second",
+      "value": -1
+    },
+    "expected": "1 秒前"
+  },
+  {
+    "id": "relativetimeformat-formatjs-index-test-ts-002",
+    "source": "formatjs:packages/intl-relativetimeformat/tests/index.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "numeric": "auto",
+      "style": "short"
+    },
+    "input": {
+      "unit": "seconds",
+      "value": -1
+    },
+    "expected": "1 秒前"
+  },
+  {
+    "id": "relativetimeformat-formatjs-index-test-ts-003",
+    "source": "formatjs:packages/intl-relativetimeformat/tests/index.test.ts",
+    "locale": "en-AI",
+    "options": {},
+    "input": {
+      "unit": "second",
+      "value": -1
+    },
+    "expected": "1 second ago"
+  }
+]

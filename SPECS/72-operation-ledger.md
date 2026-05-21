@@ -1,0 +1,133 @@
+# 72 - Operation Ledger
+
+Status: active
+Owns: mapping public `go-intl` surfaces to ECMA-402 owners, local implementation files, and verification gates.
+
+This ledger is the maintenance index for public API truthfulness. Package SPECS own detailed semantics; this file answers one narrower question: "why does this exported surface exist, and where is its observable contract tested?"
+
+The ledger is a live truth table, not a compatibility defense. It records the current or same-change public surface and its ECMA-402 owner; it must not preserve historical names merely because callers may exist, and it must not list planned symbols that are not implemented in the same branch.
+
+---
+
+## 1. Rules
+
+1. Every exported constructor, namespace function, method, option helper, and record family must map to an ECMA-402 owner or an explicit Go typed bridge.
+2. Bridge overload families may be grouped when they share one ECMA-402 operation and differ only by Go input type.
+3. A public surface with no ECMA-402 owner, no typed bridge rationale, and no verification entry must be deleted or moved to `internal`.
+4. A row cannot justify a local API by historical convenience; if ECMA-402 ownership is weak, the owning SPEC must either name the Go typed bridge or remove the surface.
+5. Rows for implementation gaps must point to the owning SPEC's support-tier section; the ledger itself does not accept divergences.
+6. `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf`, which parses `localeMatcher`, returns formatter-owned `OptionError` values for invalid matcher input, and delegates to `internal/ecma402.SupportedLocales`.
+7. Constructor and `SupportedLocalesOf` entrypoints must receive a single typed `Options` value; option count is enforced by the public Go signature.
+8. `localeMatcher` parsing must use `internal/ecma402.LocaleMatcherAlgorithm` directly or through `internal/ecma402.SupportedLocalesOf`; constructor validation should use `internal/ecma402.LocaleMatcherOption`.
+9. String-backed enum validation must use `internal/ecma402.InvalidStringOption` unless the option needs package-specific unsupported-state handling.
+10. Integer range validation must use `internal/ecma402.InvalidIntegerOption`; cross-field constraints stay in the owning formatter package.
+11. Public record structs that cross host/API boundaries must marshal with ECMA-402 field names and omission semantics; do not introduce parallel `map[string]any` record APIs.
+12. Every partial capability must have a capability-slice row before the public API can advertise it. The row must name the native owner, supported slice, refused slice, sentinel, truthful supported-set rule, verification, review date, and exit path.
+
+> **Why**: The stable API is small enough to review by ledger. Keeping this as prose plus file references is clearer than generating a brittle public-symbol manifest.
+>
+> **Rejected**: Keeping this only in a temporary implementation plan. The ledger is a durable contract artifact.
+
+---
+
+## 2. Namespace and Locale
+
+| Surface | ECMA-402 owner / operation | Go entrypoints | Verification |
+|---------|----------------------------|----------------|--------------|
+| Root canonicalization | `Intl.getCanonicalLocales` | `intl.go`, `GetCanonicalLocales` | `intl_test.go`, locale conformance fixtures |
+| Root supported values | `Intl.supportedValuesOf` | `supported.go`, typed supported-value accessors | `supported_test.go`, generated CLDR/tz data contract |
+| Root constructor aliases | `Intl.<Constructor>` namespace properties | `intl.go` type aliases | `intl_test.go`, SPEC 60 |
+| Structured error details | Go error bridge for ECMA-402 `RangeError` / `TypeError`-equivalent failures | `errors.go`, `internal/intlerr/errors.go`, `ErrorKind`, `Error`, root category sentinels | `internal/intlerr/errors_test.go`, constructor option tests, `intl_test.go` invalid-key and public error-text tests |
+| ECMA-402 record JSON | Host-boundary bridge for `resolvedOptions()`, parts, range parts, locale info, segments, and duration records | package `ResolvedOptions` structs, package `Part` / `RangePart` structs, `locale.WeekInfo`, `locale.TextInfo`, `segmenter.Segment`, `durationformat.Duration` | `record_json_test.go` |
+| Locale construction | `Intl.Locale` constructor plus Go `language.Tag` bridge | `locale/locale.go`, `locale.New`, `locale.FromTag`, `locale.Parse`, `locale.MustParse` | `locale/*_test.go`, locale conformance fixtures, `contract_facade_test.go` x/text boundary test |
+| Locale string identity | `Intl.Locale.prototype.toString`, `baseName` | `Locale.String`, `BaseName`, `MarshalText`, `UnmarshalText` | `locale/locale_test.go`, `locale/extension_test.go` |
+| Locale accessors | `Intl.Locale.prototype` getters | `Calendar`, `Collation`, `HourCycle`, `CaseFirst`, `Numeric`, `NumberingSystem`, `FirstDayOfWeek`, `Language`, `Script`, `Region`, `Variants` | `locale/construct_test.go`, `locale/extension_test.go` |
+| Locale maximize/minimize | `maximize`, `minimize` | `locale/canonical.go` | `locale/canonical_test.go`, CLDR likely-subtag tests |
+| Locale info methods | `getCalendars`, `getCollations`, `getHourCycles`, `getNumberingSystems`, `getTimeZones`, `getWeekInfo`, `getTextInfo` | `locale/info.go` | `locale/info_test.go`, `locale/info_ownership_test.go` |
+| Locale list bridge | `CanonicalizeLocaleList` typed bridge | `locale/list.go`, `locale.ParseList`, `locale.MustParseList`, `internal/ecma402/locale_list.go` | `locale/list_test.go`, formatter constructor tests |
+
+---
+
+## 3. Formatter Constructors
+
+| Surface | ECMA-402 owner / operation | Go entrypoints | Verification |
+|---------|----------------------------|----------------|--------------|
+| Constructor options object | `new Intl.<Constructor>(locales, options?)` | package `New(locales locale.List, opts Options)` | package constructor and resolved-options tests |
+| Locale negotiation | `ResolveLocale`, relevant extension keys | package constructors, `internal/localematcher`, `internal/ecma402.LocaleMatcherAlgorithm` | package resolved-options tests, `internal/localematcher/*_test.go`, derived available-locale alias tests |
+| Supported locales | `Intl.<Constructor>.supportedLocalesOf` | package `SupportedLocalesOf`, `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` | package `TestSupportedLocalesOf`, `internal/localematcher/filter_test.go`, derived available-locale alias tests |
+| Resolved options | `resolvedOptions()` | package `ResolvedOptions` methods | package resolved-options tests |
+
+---
+
+## 4. Number and Plural
+
+| Surface | ECMA-402 owner / operation | Go entrypoints | Verification |
+|---------|----------------------------|----------------|--------------|
+| Number formatting | `Intl.NumberFormat.prototype.format` | `numberformat/format.go`, `Value` constructors, `Format` | `numberformat/format_test.go`, conformance fixtures |
+| Number parts | `formatToParts` | `FormatToParts` | `numberformat/format_test.go`, conformance fixtures |
+| Number ranges | `formatRange`, `formatRangeToParts` | `numberformat/range.go`, `FormatRange`, `FormatRangeToParts` | `numberformat/range_test.go`, conformance fixtures |
+| Number option presence fields | ECMA-402 option bag typed bridge | `Options` `*int` digit fields, root `gointl.Int`, `CurrencyCode`, `UnitIdentifier` | `numberformat/resolved_options_test.go`, option error tests, pointer copy tests |
+| Plural selection | `Intl.PluralRules.prototype.select` | `pluralrules/pluralrules.go`, `Value` constructors, `Select` | `pluralrules/pluralrules_test.go`, conformance fixtures |
+| Plural range selection | `selectRange` | `SelectRange` | `pluralrules/range_test.go`, conformance fixtures |
+| Plural digit option presence fields | Shared digit options typed bridge | `Options` `*int` digit fields, root `gointl.Int` | `pluralrules/options_test.go`, pointer copy tests |
+
+---
+
+## 5. Date, List, Relative Time, Duration
+
+| Surface | ECMA-402 owner / operation | Go entrypoints | Verification |
+|---------|----------------------------|----------------|--------------|
+| Date formatting | `Intl.DateTimeFormat.prototype.format` | `datetimeformat/datetimeformat.go`, `Format` | `datetimeformat/datetimeformat_test.go`, conformance fixtures |
+| Date parts | `formatToParts` | `datetimeformat/parts.go` | `datetimeformat/datetimeformat_test.go`, conformance fixtures |
+| Date ranges | `formatRange`, `formatRangeToParts` | `datetimeformat/range.go` | `datetimeformat/datetimeformat_test.go`, conformance fixtures |
+| Date option presence fields | ECMA-402 option bag typed bridge | `Hour12 *bool`, `FractionalSecondDigits *int`, root `gointl.Bool` / `gointl.Int` | `datetimeformat/datetimeformat_test.go`, pointer copy tests |
+| List formatting | `Intl.ListFormat.prototype.format` | `listformat/format.go`, `Format` | `listformat/listformat_test.go`, conformance fixtures |
+| List parts | `formatToParts` | `FormatToParts` | `listformat/listformat_test.go` |
+| Relative time formatting | `Intl.RelativeTimeFormat.prototype.format` | `relativetimeformat/format.go`, typed `Format*` methods | `relativetimeformat/relativetimeformat_test.go`, conformance fixtures |
+| Relative time parts | `formatToParts` | typed `Format*ToParts` methods | `relativetimeformat/parts_test.go`, conformance fixtures |
+| Duration formatting | `Intl.DurationFormat.prototype.format` | `durationformat/format.go`, `Format` | `durationformat/durationformat_test.go`, conformance fixtures |
+| Duration parts | `formatToParts` | `FormatToParts` | `durationformat/parts_test.go`, conformance fixtures |
+| Duration option presence field | ECMA-402 option bag typed bridge | `FractionalDigits *int`, root `gointl.Int` | `durationformat/digital_style_test.go`, pointer copy tests |
+
+---
+
+## 6. Names, Collation, Segmentation
+
+| Surface | ECMA-402 owner / operation | Go entrypoints | Verification |
+|---------|----------------------------|----------------|--------------|
+| Display names lookup | `Intl.DisplayNames.prototype.of` | `displaynames/displaynames.go`, `Of(code) (string, bool, error)` | `displaynames/displaynames_test.go`, `displaynames/validate_test.go` |
+| Display names code canonicalization | `CanonicalCodeForDisplayNames` | `internal/ecma402/displaynames.go` | `displaynames/validate_test.go` |
+| Collation compare | `Intl.Collator.prototype.compare` | `collator/collator.go`, `Compare` | `collator/collator_test.go`, `collator/search_sensitivity_test.go` |
+| Collation option presence fields | ECMA-402 option bag typed bridge | `Numeric *bool`, `IgnorePunctuation *bool`, root `gointl.Bool` | `collator/collator_test.go`, conformance fixtures, pointer copy tests |
+| Segmentation view | `Intl.Segmenter.prototype.segment` | `segmenter/segmenter.go`, `Segment` | `segmenter/segmenter_test.go` |
+| Segment iteration | `Segments` iterable | `Segments.All() iter.Seq[Segment]` | `segmenter/segmenter_test.go` |
+| Segment containing lookup | `Segments.prototype.containing` | `Containing`, `ContainingByte` | `segmenter/segmenter_test.go` |
+
+---
+
+## 7. Capability Slice Ledger
+
+This table records partial capabilities that are intentionally narrower than the
+full ECMA-402 surface. It does not grant permission to ship approximations. Each
+row points to the owning SPEC section that holds the detailed support tier,
+rationale, `review_after`, and removal path.
+
+| Capability slice | Native owner | Supported slice | Refused slice | Sentinel / supported-set rule | Verification | Exit path |
+|------------------|--------------|-----------------|---------------|-------------------------------|--------------|-----------|
+| DateTimeFormat calendar data | `Intl.DateTimeFormat` calendar option and `ResolveLocale` `ca` key | Gregorian / ISO-8601 observable formatting backed by generated data | Well-formed but unsupported calendar requests from `Options.Calendar` or locale `-u-ca-*` | `gointl.ErrUnsupportedOption`; `SupportedCalendars()` and date data accessors must expose only generated supported calendars plus ECMA-402 required `iso8601` | SPEC 30 §3.1, `intl_test.go` calendar supported-values test, `datetimeformat/*_test.go` | Generate non-Gregorian payloads, implement calendar arithmetic equivalent to ECMA-402 `ToLocalTime`, add FormatJS/Node fixtures, then expand `SupportedCalendars()`; review_after 2026-09-30 |
+| Collator search usage | `Intl.Collator` `usage = "search"` | `usage = "sort"` with active `x/text/collate` behavior | Explicit `SearchUsage` | `gointl.ErrUnsupportedOption`; `SupportedLocalesOf` remains a locale capability check and must not imply search tailoring | SPEC 45 §1.1, `collator/search_sensitivity_test.go`, `collator/collator_test.go` | Identify a CLDR/x/text-backed search tailoring path, add Node comparison fixtures, then accept `SearchUsage`; review_after 2026-09-30 |
+| Collator case-first tailoring | `Intl.Collator` `caseFirst` and locale `kf` key | Default / `false` case-first behavior | Explicit or locale-derived `upper` / `lower` | `gointl.ErrUnsupportedOption`; `ResolvedOptions().CaseFirst` may report only behavior the backend applies | SPEC 45 §1.1, `collator/collator_test.go`, `collator/testdata/xfail.json` | Add backend support or dependency report, then verify resolved options and ordering fixtures; review_after 2026-09-30 |
+| Collator collation tailoring | `Intl.Collator` `collation` option and locale `co` key | Default collation behavior for supported base locales | Well-formed non-default collation identifiers | `gointl.ErrUnsupportedOption`; `SupportedCollations()` must remain empty until explicit collation requests can be applied | SPEC 45 §1.1, `intl_test.go` collation supported-values test, `collator/collator_test.go` | Map supported CLDR collation identifiers to backend behavior, add supported-values and resolved-options fixtures, then advertise only applicable identifiers; review_after 2026-09-30 |
+| Segmenter dictionary/CJK tailoring | `Intl.Segmenter` locale-sensitive word and sentence segmentation | Verified UAX #29 behavior for locales in `internal/segmentation.SupportedLocales()` | Dictionary/CJK-tailored locales such as `ja`, `km`, `lo`, `my`, `th`, `zh`, `zh-Hans`, `zh-Hant` | Do not advertise through `segmenter.SupportedLocalesOf`; constructors may still resolve to an available default locale | SPEC 46 §2, `internal/segmentation/accessors_test.go`, `segmenter/segmenter_test.go` | Add or select a backend with dictionary/CJK tailoring, generate Node/V8 fixtures, then expand `internal/segmentation.SupportedLocales()`; review_after 2026-09-30 |
+
+---
+
+## 8. Acceptance Criteria
+
+- [ ] New exported surfaces update this ledger in the same change.
+- [ ] Deleted public surfaces remove their ledger row and any README/SPEC references.
+- [ ] Rows for narrowed implementation gaps link to the owning SPEC section with current behavior, `review_after`, and removal path.
+- [ ] New partial capabilities update the capability-slice ledger before they are advertised by public supported-locale or supported-value APIs.
+- [ ] Public supported-locale and supported-value APIs do not advertise refused capability slices.
+- [ ] `task lint` and `task test` pass after ledger-affecting code changes.
+- [ ] `task conformance:verify` passes when fixture or divergence references change.

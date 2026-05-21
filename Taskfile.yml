@@ -1,0 +1,338 @@
+version: '3'
+
+vars:
+  PROJECT_ROOT:
+    sh: pwd
+  GOBIN: '{{.PROJECT_ROOT}}/bin'
+  GOLANGCI_LINT_BINARY: '{{.GOBIN}}/golangci-lint'
+  REQUIRED_GOLANGCI_LINT_VERSION:
+    sh: cat .golangci.version 2>/dev/null || echo "2.12.2"
+  GOLANGCI_LINT_VERSION:
+    sh: >-
+      {{.GOLANGCI_LINT_BINARY}} version --format short 2>/dev/null
+      || {{.GOLANGCI_LINT_BINARY}} version --short 2>/dev/null
+      || echo "not-installed"
+
+env:
+  GOBIN: '{{.GOBIN}}'
+
+tasks:
+  default:
+    desc: Run lint and test
+    cmds:
+      - task: lint
+      - task: test
+
+  help:
+    desc: Show this help message
+    cmds:
+      - echo "go-intl"
+      - echo "Available targets:"
+      - task --list
+    silent: true
+
+  clean:
+    desc: Clean build artifacts and caches
+    cmds:
+      - echo "Cleaning build artifacts..."
+      - rm -rf {{.GOBIN}}
+      - go clean -cache -testcache || true
+
+  deps:
+    desc: Download Go module dependencies
+    cmds:
+      - echo "Downloading dependencies..."
+      - go mod download
+      - go mod tidy
+
+
+  deps:update:
+    desc: Update dependencies for the root module and any nested modules
+    cmds:
+      - |
+        set -e
+        echo "Updating dependencies..."
+        MODULES=". $(find . -mindepth 2 -name go.mod \
+          -not -path '*/vendor/*' -not -path '*/.*' \
+          -exec dirname {} \; | sort)"
+        for dir in $MODULES; do
+          echo "==> $dir"
+          (
+            cd "$dir"
+            replaced=$(awk '
+              /^replace[[:space:]]+[^(]/ { print $2 }
+              /^replace[[:space:]]*\(/ { f=1; next }
+              f && /^\)/ { f=0; next }
+              f && /=>/ { print $1 }
+            ' go.mod)
+            deps=$(awk '
+              /^require[[:space:]]+[^(]/ { print $2 }
+              /^require[[:space:]]*\(/ { f=1; next }
+              f && /^\)/ { f=0; next }
+              f && !/\/\/ indirect/ && NF >= 2 { print $1 }
+            ' go.mod | while read -r dep; do
+              echo "$replaced" | grep -qxF "$dep" || echo "$dep"
+            done | tr '\n' ' ')
+            if [ -n "$deps" ]; then
+              go get -u $deps
+            fi
+            go mod tidy
+          )
+        done
+        if [ -f go.work ]; then
+          echo "==> go work sync"
+          go work sync
+        fi
+
+  test:
+    desc: Run all tests with race detection
+    cmds:
+      - echo "Running all tests..."
+      - go test -race -p 1 ./...
+
+  lint:
+    desc: Run all linters
+    cmds:
+      - task: tidy-lint
+      - task: golangci-lint
+
+  install-golangci-lint:
+    desc: Install golangci-lint with the required version
+    cmds:
+      - mkdir -p {{.GOBIN}}
+      - |
+        if [ "{{.GOLANGCI_LINT_VERSION}}" != "{{.REQUIRED_GOLANGCI_LINT_VERSION}}" ]; then
+          echo "Installing golangci-lint v{{.REQUIRED_GOLANGCI_LINT_VERSION}} (current: {{.GOLANGCI_LINT_VERSION}})..."
+          if ! go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v{{.REQUIRED_GOLANGCI_LINT_VERSION}}; then
+            echo "golangci-lint bootstrap failed for v{{.REQUIRED_GOLANGCI_LINT_VERSION}}"
+            exit 1
+          fi
+          echo "golangci-lint v{{.REQUIRED_GOLANGCI_LINT_VERSION}} installed successfully"
+        fi
+    status:
+      - test "{{.GOLANGCI_LINT_VERSION}}" = "{{.REQUIRED_GOLANGCI_LINT_VERSION}}"
+
+  golangci-lint:preflight:
+    desc: Verify golangci-lint is installed at the required version
+    deps:
+      - install-golangci-lint
+    cmds:
+      - |
+        actual=$({{.GOLANGCI_LINT_BINARY}} version --format short 2>/dev/null \
+          || {{.GOLANGCI_LINT_BINARY}} version --short 2>/dev/null \
+          || echo "not-installed")
+        if [ "$actual" != "{{.REQUIRED_GOLANGCI_LINT_VERSION}}" ]; then
+          echo "golangci-lint bootstrap failed: expected v{{.REQUIRED_GOLANGCI_LINT_VERSION}}, got $actual"
+          exit 1
+        fi
+
+  golangci-lint:
+    desc: Run golangci-lint
+    cmds:
+      - task: golangci-lint:preflight
+      - '{{.GOLANGCI_LINT_BINARY}} version'
+      - echo "Running golangci-lint..."
+      - '{{.GOLANGCI_LINT_BINARY}} run --allow-parallel-runners --timeout=30m --concurrency=1 --path-prefix .'
+
+  tidy-lint:
+    desc: Check if go.mod and go.sum are tidy
+    cmds:
+      - echo "Checking go.mod and go.sum are tidy..."
+      - go mod tidy
+      - git diff --exit-code -- go.mod go.sum
+
+  yamllint:
+    desc: Run yamllint
+    cmds:
+      - yamllint -s .
+
+  vuln:
+    desc: Run govulncheck
+    cmds:
+      - |
+        GOBIN=$(go env GOBIN)
+        if [ -z "$GOBIN" ]; then
+          GOBIN="$(go env GOPATH)/bin"
+        fi
+        GOVULNCHECK="$GOBIN/govulncheck"
+        if [ ! -x "$GOVULNCHECK" ]; then
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+        fi
+        "$GOVULNCHECK" ./...
+
+  data:preflight:
+    desc: Verify internal/cldr/VERSION and tools/gen-cldr/.cldr-json/package.json agree on the CLDR pin
+    internal: true
+    cmds:
+      - |
+        VERSION_PIN=$(grep '^cldr=' internal/cldr/VERSION | cut -d= -f2 | tr -d ' \t\r\n')
+        MANIFEST_PIN=$(grep '"cldr-bcp47"' tools/gen-cldr/.cldr-json/package.json | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/')
+        if [ -z "$VERSION_PIN" ] || [ -z "$MANIFEST_PIN" ]; then
+          echo "ERROR: could not extract CLDR pin from VERSION or package.json" >&2
+          exit 1
+        fi
+        if [ "$VERSION_PIN" != "$MANIFEST_PIN" ]; then
+          printf '\nERROR: CLDR version pin drift\n' >&2
+          printf '  internal/cldr/VERSION                          : cldr=%s\n' "$VERSION_PIN" >&2
+          printf '  tools/gen-cldr/.cldr-json/package.json         : cldr-bcp47=%s\n\n' "$MANIFEST_PIN" >&2
+          printf 'Fix: edit tools/gen-cldr/.cldr-json/package.json so all 8 cldr-* deps match VERSION,\n' >&2
+          printf '     run: npm install --package-lock-only --prefix tools/gen-cldr/.cldr-json\n' >&2
+          printf '     then commit package.json and package-lock.json.\n\n' >&2
+          exit 1
+        fi
+
+  data:fetch:
+    desc: Install pinned cldr-json source via npm ci (skipped when node_modules is up to date)
+    internal: true
+    deps:
+      - data:preflight
+    cmds:
+      - npm ci --prefix tools/gen-cldr/.cldr-json --silent --no-audit --no-fund
+    sources:
+      - tools/gen-cldr/.cldr-json/package.json
+      - tools/gen-cldr/.cldr-json/package-lock.json
+    generates:
+      - tools/gen-cldr/.cldr-json/node_modules/.package-lock.json
+
+  data:
+    desc: Regenerate internal/cldr/ from the pinned cldr-json source
+    deps:
+      - data:fetch
+    cmds:
+      - >-
+        go -C tools/gen-cldr run .
+        -cldr-dir .cldr-json/node_modules
+        -out ../../internal/cldr
+        -version-file ../../internal/cldr/VERSION
+        -profile ../locale-profile.json
+      - >-
+        go -C tools/gen-plural-rules run .
+        -plurals ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/plurals.json
+        -ranges ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/pluralRanges.json
+        -out ../../internal/cldr/plural
+        -profile ../locale-profile.json
+      - task: data:contract
+      - |
+        echo ""
+        echo "Next:"
+        echo "  git diff internal/cldr/   # review the regenerated data"
+        echo "  task verify               # run the full gate before committing"
+
+  data:check:
+    desc: Verify internal/cldr/ is byte-identical to a fresh regeneration (CI gate)
+    deps:
+      - data:fetch
+    cmds:
+      - rm -rf .tmp/cldr-check && mkdir -p .tmp/cldr-check
+      - >-
+        go -C tools/gen-cldr run .
+        -cldr-dir .cldr-json/node_modules
+        -out ../../.tmp/cldr-check
+        -version-file ../../internal/cldr/VERSION
+        -profile ../locale-profile.json
+      - >-
+        go -C tools/gen-plural-rules run .
+        -plurals ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/plurals.json
+        -ranges ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/pluralRanges.json
+        -out ../../.tmp/cldr-check/plural
+        -profile ../locale-profile.json
+      # displaynames/accessors.go is hand-written lookup policy; compare the
+      # generated DisplayNames payload explicitly.
+      - >-
+        diff -ru
+        -x VERSION
+        -x '*_test.go'
+        -x cldr.go
+        -x doc.go
+        -x displaynames
+        internal/cldr .tmp/cldr-check
+      - >-
+        diff -u
+        internal/cldr/displaynames/data.go
+        .tmp/cldr-check/displaynames/data.go
+      - task: data:contract
+
+  data:contract:
+    desc: Verify generated CLDR data contracts without regeneration
+    cmds:
+      - go test -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile)$' ./internal/cldr
+
+  build:size:
+    desc: Report direct formatter, root facade, and CLDR binary size deltas
+    cmds:
+      - go run ./tools/sizecheck
+
+  build:size:cold:
+    desc: Report binary size deltas and compile time after clearing the Go build cache
+    cmds:
+      - go run ./tools/sizecheck -cold
+
+  benchstat:
+    desc: Install benchstat CLI
+    cmds:
+      - mkdir -p {{.GOBIN}}
+      - go install golang.org/x/perf/cmd/benchstat@latest
+    status:
+      - test -x {{.GOBIN}}/benchstat
+
+  bench:run:
+    desc: Run benchmarks once with allocation reporting
+    cmds:
+      - go test -run '^$' -bench=. -benchmem ./...
+
+  bench:
+    desc: Run non-blocking benchmark telemetry with benchstat-compatible output
+    deps:
+      - benchstat
+    cmds:
+      - mkdir -p .tmp
+      - |
+        {
+          echo "go: $(go version)"
+          echo "goarch: $(go env GOARCH)"
+          sysctl -n machdep.cpu.brand_string 2>/dev/null || true
+        } > .tmp/bench-current.txt
+      - >-
+        go test -run '^$' -bench=. -benchmem -count=5
+        ./...
+        >> .tmp/bench-current.txt
+      - |
+        if [ -n "${BASELINE:-}" ]; then
+          {{.GOBIN}}/benchstat "$BASELINE" .tmp/bench-current.txt
+        else
+          cat .tmp/bench-current.txt
+        fi
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - echo "Formatting Go code..."
+      - go fmt ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - echo "Running go vet..."
+      - go vet ./...
+
+  conformance:verify:
+    desc: Validate conformance fixtures, skip-list, coverage, and divergence audit
+    cmds:
+      - >-
+        go run ./tools/check-conformance
+        -skip-list .skip-list.json
+        -coverage
+        ./locale ./numberformat ./datetimeformat ./pluralrules ./listformat ./relativetimeformat ./durationformat ./displaynames ./collator ./segmenter
+
+  verify:
+    desc: Run all verification steps (deps, format, vet, lint, test, vuln)
+    cmds:
+      - task: deps
+      - task: fmt
+      - task: vet
+      - task: lint
+      - task: test
+      - task: conformance:verify
+      - task: data:contract
+      - task: vuln
+      - echo "All verification steps completed successfully ✅"

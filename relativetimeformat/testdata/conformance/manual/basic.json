@@ -1,0 +1,49 @@
+[
+  {
+    "id": "relativetimeformat-manual-second-past",
+    "source": "manual:relativetimeformat-basic",
+    "locale": "en-US",
+    "options": {},
+    "input": {"value": -1, "unit": "second"},
+    "expected": "1 second ago",
+    "expectedParts": [
+      {"type": "integer", "value": "1", "unit": "second"},
+      {"type": "literal", "value": " second ago"}
+    ]
+  },
+  {
+    "id": "relativetimeformat-manual-day-auto",
+    "source": "manual:relativetimeformat-basic",
+    "locale": "en-US",
+    "options": {"numeric": "auto"},
+    "input": {"value": -1, "unit": "day"},
+    "expected": "yesterday",
+    "expectedParts": [
+      {"type": "literal", "value": "yesterday"}
+    ]
+  },
+  {
+    "id": "relativetimeformat-manual-day-fraction",
+    "source": "manual:relativetimeformat-basic",
+    "locale": "en-US",
+    "options": {},
+    "input": {"value": 1.5, "unit": "days"},
+    "expected": "in 1.5 days",
+    "expectedParts": [
+      {"type": "literal", "value": "in "},
+      {"type": "integer", "value": "1", "unit": "day"},
+      {"type": "decimal", "value": ".", "unit": "day"},
+      {"type": "fraction", "value": "5", "unit": "day"},
+      {"type": "literal", "value": " days"}
+    ]
+  },
+  {
+    "id": "relativetimeformat-manual-supported-locales",
+    "source": "manual:relativetimeformat-basic",
+    "locale": "en-US",
+    "feature": "supportedLocalesOf",
+    "options": {"localeMatcher": "lookup"},
+    "input": ["fr-FR", "en-US", "zh-Hans-CN"],
+    "expectedLocales": ["fr-FR", "en-US", "zh-Hans-CN"]
+  }
+]

@@ -1,0 +1,490 @@
+# SPEC 30 — DateTimeFormat Core
+
+> **Status:** Draft (2026-05-08)
+> **Owner:** `datetimeformat/`
+> **Reference contract:** `.references/ecma402/spec/datetimeformat.html` first, then `formatjs/packages/intl-datetimeformat/` + `formatjs/packages/ecma402-abstract/DateTimeFormat/`
+
+## Overview
+
+Defines `datetimeformat.DateTimeFormat` public API, constructor validation, ECMA-402 locale/options negotiation, time zone context handling for `time.Time`, `Format`/`FormatToParts`/`FormatRange`/`FormatRangeToParts`/`ResolvedOptions` behavior. Active generated pattern data is centered around Gregorian/ISO-8601; well-formed but unimplemented calendar requests must fail during construction and must not be silently supported with Gregorian behavior disguised.
+
+This SPEC does not redefine:
+- Skeleton parsing with BestFitFormatMatcher → see [SPEC 31 §Skeleton](./31-datetimeformat-skeleton.md#skeleton)
+- Time zone data injection with metaZones → see [SPEC 32 §TZ Data](./32-datetimeformat-tz.md#tz-data)
+- Calendar data schema → see [SPEC 32 §Calendar Data](./32-datetimeformat-tz.md#calendar-data)
+- `Locale` structure → see [SPEC 10 §Locale structure](./10-locale.md)
+- General entrance to abstract operations → See [SPEC 12 §Abstract Ops](./12-abstract-operations.md)
+
+---
+
+## 1. Public API
+
+### 1.1 Construction and Option
+
+```go
+package datetimeformat
+
+type DateTimeFormat struct{ /* Immutable; contains resolved + cached *time.Location + selectedPattern + cldr data slice */ }
+
+type Options struct {
+    Calendar               string
+    NumberingSystem        string
+    LocaleMatcher          LocaleMatcher
+    FormatMatcher          FormatMatcher
+    TimeZone               string
+    TimeZoneName           TimeZoneName
+    Weekday                FieldStyle
+    Year                   NumericStyle
+    Month                  MonthStyle
+    Day                    NumericStyle
+    DayPeriod              FieldStyle
+    Hour                   NumericStyle
+    Minute                 NumericStyle
+    Second                 NumericStyle
+    HourCycle              HourCycle
+    Hour12                 *bool
+    DateStyle              Style
+    TimeStyle              Style
+    FractionalSecondDigits *int
+}
+
+func New(locales locale.List, opts Options) (*DateTimeFormat, error)
+
+func (f *DateTimeFormat) Format(t time.Time) string
+func (f *DateTimeFormat) FormatToParts(t time.Time) []Part
+func (f *DateTimeFormat) FormatRange(start, end time.Time) string
+func (f *DateTimeFormat) FormatRangeToParts(start, end time.Time) []Part
+func (f *DateTimeFormat) ResolvedOptions() ResolvedOptions
+```
+
+**MUST** Rules:
+
+1. `New` **MUST** complete all option syntax verification, locale/options negotiation, and `*time.Location` parsing during the construction period, and `error` will be returned on failure.
+2. `New` accepts a `Options` value. `New(locales, Options{})` is equivalent to JS passing an empty options object or omitting options; multiple options objects are not Go API shapes and are rejected by the compiler.
+3. Ordinary success paths for `Format` / `FormatToParts` / `FormatRange` / `FormatRangeToParts` **Must not return** option errors; invalid time, etc. If the JS `RangeError` equivalent error cannot be expressed by the `time.Time` type, additional errors should not be invented.
+4. `DateTimeFormat` is an immutable value; all methods on `*DateTimeFormat` must be concurrency safe.
+5. Formatter options **MUST** adopt the typed `Options` value (same as SPEC 20), and functional options are prohibited from being used as a common main path.
+6. `ResolvedOptions` **MUST** return an immutable snapshot (value type); the results of multiple calls are equal.
+
+> **Why**: Centralized error handling during construction; `Format` does not return error and is equal to `FormatJS` bytes. The parsing of `*time.Location` (`time.LoadLocation`) cannot be redone in the `Format` phase (violating the hot path zero allocation rule).
+
+### 1.2 Input type
+
+**MUST** rules (corresponding to ECMA-402 §13.5.1 `time.Time` input parameter):
+
+1. `Format`/`FormatToParts`/`FormatRange`/`FormatRangeToParts` input parameter **MUST** be `time.Time` (not `*time.Time`, not `int64` milliseconds); **disable** to accept `any` entry.
+2. **MUST** call `t = t.Round(0)` immediately at the method entry to strip off the monotonic clock, and then go through the main formatting process.
+3. `Location()` that comes with `time.Time` **cannot** be used as the display time zone for each call. ECMA-402 resolves `timeZone` to `[[TimeZone]]` during construction; when `Options.TimeZone` is not passed, the Go equivalent of `internal/tz.Default()` snapshot `SystemTimeZoneIdentifier()` must be passed. `internal/tz` is the only package that allows reading the host's default timezone, and tests override it via an internal provider.
+4. The zero value of `time.Time{}` is instant that can be represented by Go, not JavaScript invalid Date. It must be formatted as normal `time.Time` via formatter `[[TimeZone]]`; rewriting it as Unix epoch or error is prohibited.
+
+```go
+// Entry normalization (signature, no implementation)
+func (f *DateTimeFormat) Format(t time.Time) string {
+t = t.Round(0) // Strip monotonic
+loc := f.timeZone // Already cached on New; never from a single input Location()
+    instant := t.UTC().UnixMilli()
+// Use (instant, loc) to use PartitionDateTimePattern
+}
+```
+
+> **Why**:
+> 1. `time.Time` is Go idiom, interoperable with `time.Now()` / `time.Date()` / time package.
+> 2. ECMA-402 model: input = instant, formatter `[[TimeZone]]` = output time zone; the input `Location` does not affect the output (FormatJS `ToLocalTime` behavior). Go idiom puts the time zone on `time.Time`, we must determine the formatter time zone during construction.
+> 3. `t.Round(0)` is recommended by Go pkg.go.dev; otherwise `Format(t1) != Format(t1.Round(0))` will have observable differences (monotonic clock affects equality testing).
+>
+> **Rejected**:
+> - **Accept `any` entry** (emulates JS `Date | number | string`) - Go type safety is weakened; and the messageformat-go bridge already holds `time.Time`.
+> - **Do not strip monotonic** - Output jitter, `Format(t) == Format(t)` is true but `t.Equal(t2) ⇒ Format(t) == Format(t2)` is not true.
+> - ** `t.Location()` that follows each input when TimeZone is not specified ** - This changes the formatter from an ECMA-402 fixed `[[TimeZone]]` object to a per-input display-zone helper and must be rejected.
+> - **Follow the translate-agent mode (use `t.Year()/Month()/Day()` directly, ignore the option TimeZone)** —— Depart from ECMA-402, incompatible with FormatJS byte equality.
+
+### 1.3 Calling example
+
+```go
+df, err := datetimeformat.New(locale.List{locale.MustParse("zh-CN")},
+    datetimeformat.Options{
+        DateStyle: datetimeformat.FullDateTimeStyle,
+        TimeZone:  "Asia/Shanghai",
+    })
+out := df.Format(time.Now())
+// out == "Friday, May 8, 2026"
+```
+
+```go
+df, _ := datetimeformat.New(locale.List{locale.MustParse("en-US")},
+    datetimeformat.Options{
+        Month: datetimeformat.ShortMonthStyle,
+        Day:   datetimeformat.NumericFieldStyle,
+        Year:  datetimeformat.NumericFieldStyle,
+    })
+// df.Format(t) == "May 8, 2026"
+```
+
+### 1.4 Option parameter type — typed ECMA-402 values
+
+**MUST** Rules:
+
+1. All options taken from the union of ECMA-402 string literals (`localeMatcher` / `hourCycle` / `formatMatcher` / `weekday` / `year` / `month` / `day` / `dayPeriod` / `hour` / `minute` / `second` / `timeZoneName` / `dateStyle` / `timeStyle`) **MUST** be carried in a named type, the underlying kind remains `string`, and the serialization form is consistent with the JS resolvedOptions string.
+2. `calendar` and `timeZone` are still `string`, because they are Unicode extension / IANA or offset identifiers, not small enumerations.
+3. Verification **MUST** be completed centrally in `New`. Failure to wrap `ErrInvalidOption` and display the value passed in by the user.
+4. `Hour12` is a special case (JS `boolean`): Go side **MUST** use `*bool` to distinguish "not passed" from "explicit false"; the call point uses `gointl.Bool(false)`.
+5. `FractionalSecondDigits` **MUST** use `*int` to distinguish untransmitted and explicit illegal values; the call point uses `gointl.Int(n)`.
+
+> **Why**: typed value still retains ECMA-402 strings as wire/resolved forms, but lets Go call sites express legal values through constants. The conformance fixture and messageformat-go adapter do a mapping at the boundary and do not downgrade the public API to JSON form.
+>
+> **Rejected**: functional options + bare string - hidden state, not serializable, difficult to statically discover.
+
+---
+
+## 2. Options and ResolvedOptions
+
+### 2.1 Options field
+
+The `Options` (internal config struct) field corresponds to ECMA-402 §13.4.1 `InitializeDateTimeFormat`:
+
+```go
+// All named types underlying kind are string (JS literal alignment; see §1.4).
+type (
+    LocaleMatcher string  // "lookup" | "best fit"
+    HourCycle     string  // "h11" | "h12" | "h23" | "h24"
+    FormatMatcher string  // "basic" | "best fit"
+    FieldStyle    string  // "narrow" | "short" | "long"
+    NumericStyle  string  // "numeric" | "2-digit"
+    MonthStyle    string  // "numeric" | "2-digit" | "narrow" | "short" | "long"
+    TimeZoneName  string  // "short" | "long" | "shortOffset" | "longOffset" | "shortGeneric" | "longGeneric"
+    Style         string  // "full" | "long" | "medium" | "short"
+)
+
+type Options struct {
+    LocaleMatcher          LocaleMatcher
+Calendar string // BCP 47 -u-ca-* literal; well-formed unsupported values fall back through ResolveLocale
+    NumberingSystem        string
+    HourCycle              HourCycle
+TimeZone string // IANA name or "+HH:MM"
+FormatMatcher FormatMatcher // Default "best fit"
+Hour12 *bool // Distinguish between "not passed" and "explicit false"
+    Weekday                FieldStyle
+    Era                    FieldStyle
+    Year                   NumericStyle
+    Month                  MonthStyle
+    Day                    NumericStyle
+    DayPeriod              FieldStyle
+    Hour                   NumericStyle
+    Minute                 NumericStyle
+    Second                 NumericStyle
+    FractionalSecondDigits *int // 1..3
+    TimeZoneName           TimeZoneName
+    DateStyle              Style
+    TimeStyle              Style
+}
+```
+
+`Options{}` A value of zero is equivalent to the ECMA-402 default option. `Hour12` and `FractionalSecondDigits` use pointers to store presence; the constructor copies the pointee value into the internal config. Other named type fields use empty strings to indicate that they are not passed.
+
+**MUST** Rules:
+
+1. **MUST** check that `DateStyle` / `TimeStyle` are mutually exclusive with specific fields (`Weekday`/`Year`/`Month`/`...`); if set at the same time, return `ErrInvalidOption` (aligned with ECMA-402 §13.1.1.1 exception).
+2. `Hour12` **MUST** be expressed through `*bool` to distinguish "not passed" from "explicit false".
+3. `FractionalSecondDigits` **MUST** check ∈ `{1, 2, 3}`, otherwise return `ErrInvalidOption`.
+4. `NumberingSystem` **MUST** only verify Unicode type syntax; well-formed but unsupported values are selected by `ResolveLocale` to support values or fall back to default values. `Calendar` first checks the Unicode type syntax, and then requires the value to belong to the active supported calendar set (`gregory`, `iso8601`), otherwise an error matching `gointl.ErrUnsupportedOption` is returned.
+
+### 2.2 HourCycle linkage (§13.1.1.1) <a id="22-hourcycle-linkage-13111"></a>
+
+**MUST** Rules:
+
+1. `ResolvedOptions().HourCycle` **MUST** be linked with `Locale.HourCycle()`(BCP 47 `-u-hc-...`) + explicit `Options.HourCycle` + `Options.Hour12`, according to ECMA-402 §13.1.1.1 step resolution:
+   ```text
+   if Hour12 != nil:
+resolved.HourCycle := Hour12 ? "h11"|"h12" (locale default 12-system location): "h23"|"h24"
+(The specific choice between the two is determined by dataLocale by default)
+else if HourCycle is set explicitly:
+       resolved.HourCycle := HourCycle
+   else if Locale.HourCycle() != "":
+       resolved.HourCycle := Locale.HourCycle()
+   else:
+resolved.HourCycle := dataLocale default (taken from CLDR `timeData.json` `preferred`)
+   ```
+2. **Disable** to let `Hour12 = false` overwrite `Locale.HourCycle() = h11` by default (must follow the above priority).
+3. The simultaneous existence of `Options{HourCycle: H11HourCycle, Hour12: gointl.Bool(true)}` MUST take precedence over `Hour12` (ECMA-402 §13.1.1.1).
+
+> **Why**: HourCycle is the field with the highest error rate in the conformance test (FormatJS `tests/hour-cycle.test.ts` 30+ fixture), and must strictly follow §13.1.1.1.
+
+### 2.3 ResolvedOptions
+
+```go
+type ResolvedOptions struct {
+    Locale                 locale.Locale
+Calendar string // always "gregory" in active scope
+    NumberingSystem        string
+TimeZone string // IANA canonical name or "+HH:MM"
+    HourCycle              HourCycle
+    Hour12                 *bool
+    Weekday                FieldStyle
+    Era                    FieldStyle
+    Year                   NumericStyle
+    Month                  FieldStyle
+    Day                    NumericStyle
+    DayPeriod              FieldStyle
+    Hour                   NumericStyle
+    Minute                 NumericStyle
+    Second                 NumericStyle
+    FractionalSecondDigits int
+    TimeZoneName           TimeZoneName
+    DateStyle              Style
+    TimeStyle              Style
+}
+```
+
+**MUST** Rules:
+
+1. The field order **MUST** be consistent with the ECMA-402 §13.4.5 spec order.
+2. `TimeZone` **MUST** return the IANA canonical name (such as `"America/New_York"`), even if the input is link(`"US/Eastern"`); obtained through [SPEC 32 §CanonicalLink](./32-datetimeformat-tz.md#canonicallink).
+3. `Hour12` **MUST** only be rendered non-null when explicitly passed in by the user or when option `HourCycle` resolves to a 12-bit position.
+4. **MUST** return value type (non-pointer), concurrency safe.
+5. JSON field names and `omitempty` behavior **MUST** comply with [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Intl.DateTimeFormat](./73-json-records.md#intldatetimeformat). An empty string simply means ECMA-402 property absence for branch-only style fields.
+
+---
+
+## 3. Calendar Resolution(active scope)
+
+### 3.1 Support tier
+
+Current tier: **narrowed implementation gap**.
+
+| Field | Value |
+|-------|-------|
+| Current behavior | Only Gregorian / ISO-8601 observable formatting is backed by generated data. |
+| Rationale | Rejecting unsupported calendars is more truthful than formatting with Gregorian data while reporting another calendar. |
+| Native contract | Node/V8 deep fixtures must cover time-zone-name forms, metazone standard/daylight names, UTC-offset time zones, interval ranges, range parts, and resolved options before any DateTimeFormat expansion is accepted. |
+| review_after | 2026-09-30 or the next CLDR / ICU calendar-data upgrade, whichever comes first. |
+| Removal path | Generate non-Gregorian calendar payloads, implement calendar arithmetic equivalent to ECMA-402 `ToLocalTime`, add FormatJS/Node fixtures, then expand `SupportedCalendars()`. |
+
+This section defines the current safe boundary, not the permanent product target. A world-class `Intl.DateTimeFormat` should eventually support the major ECMA-visible calendars that the generated data and calendar arithmetic can truthfully implement.
+
+### 3.2 Current behavior
+
+active generated pattern data only covers Gregorian/ISO-8601 observable behavior. Well-formed but unimplemented values in `Options.Calendar` or locale `-u-ca-*` must return an error matching `gointl.ErrUnsupportedOption` and must not continue formatting after a silent fallback through `ResolveLocale` .
+
+> **Why**:
+> 1. ECMA-402 constructor allows unsupported but well-formed calendar to fall back through locale data negotiation; go-intl chooses more realistic Go boundaries in active scope: an error is returned when the caller explicitly requests unimplemented calendar, avoiding false promises between `ResolvedOptions` and actual Gregorian behavior.
+> 2. The core difficulty of non-Gregorian pattern/calculation is the state machine of ICU `Calendar::computeFields` (~5000 lines of C++); active scope does not generate the corresponding payload.
+> 3. messageformat-go’s current `:datetime` function only supports Gregorian.
+>
+> **Deferred, not rejected**:
+> - **Buddhist** —— requires generated schema, year offset semantics, and conformance fixtures before it can be advertised.
+> - **Persian** —— requires a Solar Hijri algorithm decision plus generated calendar data.
+> - **Japanese** —— requires era table versioning and conformance around era transitions.
+
+**MUST** Rules:
+
+1. The `Calendar` field type **MUST** be `string` (exposing BCP 47 `-u-ca-...` form), and **not** be changed to a controlled enumeration (`type Calendar int`) - the string semantics directly corresponds to BCP 47, and is reserved for consumer-driven expansion.
+2. When `Locale.Calendar()` / `Options.Calendar` is not empty, Unicode type syntax verification must be done first, and then calendars outside the active supported set are rejected.
+3. `SupportedCalendars()` **MUST** return exactly `"gregory"` and ECMA-402 required `"iso8601"`.
+4. `SupportedLocalesOf` **MUST** return requested locale with unsupported `-u-ca-*`; for example, `en-US-u-ca-buddhist` must be filtered in the current active scope, and `en-US-u-ca-iso8601` must be retained.
+5. `ResolvedOptions().Calendar` **MUST** return the `ca` value of the resolved locale record; the current active data can only be `"gregory"` or `"iso8601"`.
+
+### 3.3 Calendar data access
+
+**MUST** Rules:
+
+1. Calendar data (era / month / weekday / dayPeriod name) **MUST** be accessed through [SPEC 32 §Calendar Data](./32-datetimeformat-tz.md#calendar-data); `internal/cldr/dates.go` is a generated data record.
+2. The `New` period **MUST** first parse the public `locale.Locale` into `cldr.Locale`, and then pull it once through `internal/cldr.GregorianFor(cldrLoc)` and freeze it into the `DateTimeFormat` internal slot.
+
+---
+
+## 4. Time zone processing
+
+### 4.1 TimeZone option analysis
+
+**MUST** Rules:
+
+1. `Options.TimeZone` input parameter **MUST** accept three forms:
+   - IANA canonical name:`"America/New_York"`
+- IANA link (backwards compatible):`"US/Eastern"` - **MUST** resolve to canonical via [SPEC 32 §CanonicalLink](./32-datetimeformat-tz.md#canonicallink)
+- UTC offset string:`"+05:30"` / `"-08:00"` / `"+00:00"` -- **MUST** be parsed via [SPEC 32 §ParseOffsetString](./32-datetimeformat-tz.md#parseoffsetstring)
+2. **MUST** call `time.LoadLocation` or `internal/tz.Resolve` when `New`, cache `*time.Location` to the internal slot; **It is forbidden** to parse the time zone name during the `Format` call.
+3. Parsing failure **MUST** return `ErrInvalidOption` wrapped error, the message contains the timezone string.
+4. `Options{TimeZone: ""}` has the same semantics as the unpassed option: the host default is used (aligned to ECMA-402 `DefaultTimeZone()`).
+5. UTC offset form `*time.Location` **MUST** never be DST (direct fixed-offset zone), aligned with FormatJS `getApplicableZoneData` behavior.
+
+> **Why**: The `Format` path is redone every time `time.LoadLocation` is a significant performance loss (~10 μs file search each time, even `time/tzdata` has to take the parsing path). Time zones are materialized in `New`, allowing hot-path benchmark telemetry to reflect formatting rather than location loading.
+>
+> **Rejected**:
+> - Let `Format(t)` directly use `t.Location()` to determine the display time zone - deviating from ECMA-402 fixed `[[TimeZone]]`.
+> - `Format` path accepts `*time.Location` parameter - violates ECMA-402 single-parameter `format(date)` model.
+
+### 4.2 Format No check in period TZ
+
+**MUST** Rules:
+
+1. `Format` / `FormatToParts` paths **must not** call `time.LoadLocation` / `internal/tz.Resolve`.
+2. The `Format` path **must not** parse `metaZones.json` or do file I/O; the time zone display name (`shortGeneric` / `longGeneric`, etc.) is obtained through the generated `internal/cldr.TimeZoneDisplayName(cldrLoc, zone, form, isDST, instant, offsetMs)` table lookup and GMT fallback.
+
+> **Why**: hot path should not be used for time zone parsing or runtime JSON; CLDR metazone/exemplar city data has been compiled into a Go table during codegen, and only memory table lookup and necessary GMT fallback are performed during the call period.
+
+---
+
+## 5. Formatting main process (PartitionDateTimePattern)
+
+`Format` and `FormatToParts` share the main process `PartitionDateTimePattern`, defined in `formatjs/.../PartitionDateTimePattern.ts` + `ToLocalTime.ts` + `FormatDateTimePattern.ts`:
+
+```text
+1. instant := t.UTC().UnixMilli()
+2. localTime := ToLocalTime(instant, calendar, location)
+   // localTime = {era, year, month, day, weekday, hour, minute, second, ms, dst, offset}
+3. pattern := f.pattern // Has been resolved to selectedPattern(SPEC 31) in New
+4. parts := []Part{}
+5. for token in pattern:
+       if token is literal: parts += {Type: "literal", Value: token.text}
+       else: parts += FormatField(localTime, token, dataLocale, numberingSystem)
+6. return parts
+```
+
+**MUST** Rules:
+
+1. `Format` **MUST** be equivalent to `strings.Join(part.Value for part in FormatToParts(t), "")` - the output string bytes of the two are equal, as asserted by the conformance test.
+2. `instant` **MUST** be obtained through `t.UTC().UnixMilli()`; **FORBIDDEN** to be transferred through `t.Unix() * 1000` (accuracy loss).
+3. `ToLocalTime` implementation **MUST** be in `internal/ecma402/datetimeformat/tolocaltime.go`, accept `(instant int64, calendar string, location *time.Location)`, and return structured `LocalTime`.
+4. Pattern token → Field formatted lookup table **MUST** pass [SPEC 31 §Skeleton character table](./31-datetimeformat-skeleton.md).
+5. The `Part.Type` output by `FormatField` **MUST** qualify ECMA-402 §15.5.1 Table 9 for a total of 15 spec strings: `era | year | month | day | hour | minute | second | weekday | dayPeriod | timeZoneName | literal | fractionalSecondDigits | relatedYear | yearName | unknown`. The AM/PM mark is triggered by the token `a/b/B` inside the pattern, but the output part type is still `"dayPeriod"`** (spec §15.5.4), and `"ampm"` must not be emitted directly (that is the internal pattern mark of FormatJS, not an ECMA-402 part type). `relatedYear / yearName / unknown` will not be emitted in Gregorian-only scope, but the constant **MUST** exist to ensure that `switch part.Type` does not break the API in future calendar extensions. **It is forbidden** to use non-spec strings such as `hour24` / `hour11` / `dayperiod` (lowercase) / `ampm`.
+6. `DateTimeFormat` **MUST** cache `selectedPattern` when `New` is used, instead of repeatedly selecting the pattern in each `FormatToParts`. `selectedPattern` contains at least kind(`date | time | dateTime | none`) and date/time/dateTime pattern strings; style pattern, component skeleton pattern, and date+time interpolation are all formatted from this structure.
+7. `localeMatcher` and `formatMatcher` **MUST** be kept separate: `localeMatcher` only affects the CLDR data locale selection; `formatMatcher` only affects the component options → pattern selection. **BANNED** Substituting locale fallback results for formatMatcher decisions.
+
+```go
+type Part struct {
+Type string // Strict enumeration, not open
+    Value string
+}
+```
+
+> **Why**: `Part.Type` is the alignment key of the conformance fixture; opening the enumeration (allowing arbitrary strings) will make the fixture impossible to mechanically compare. `selectedPattern` makes the pattern spine of constructor-eager explicit to prevent style, component, and fallback branches from spreading in the hot path.
+>
+> **Rejected**: `type PartType int` enumeration constant - one more step of mapping when comparing with the string field of the JSON fixture, and the FormatJS string readability is lost.
+
+---
+
+## 6. FormatRange / FormatRangeToParts <a id="rangekind"></a>
+
+**MUST** Rules:
+
+1. `FormatRange(start, end)` **MUST** implement ECMA-402 §13.5.5 `FormatDateTimeRange` three-stage fallback:
+   ```text
+   diff := largestFieldDiff(start, end)
+   pattern := intervalFormats[skeleton][diff]
+   if pattern == nil:
+       pattern := "{0} – {1}"  // dateTimeFormats.intervalFormatFallback
+   return apply(pattern, format(start), format(end))
+   ```
+2. `intervalFormats` data **MUST** be obtained through `internal/cldr.IntervalFormatsFor(loc, calendar)` (data comes from CLDR `ca-gregorian.json` `dateTimeFormats.intervalFormats`).
+3. `FormatRangeToParts` **MUST** return the `[]Part` element with the `Source` field (`"startRange" | "endRange" | "shared"`); the `Part` type is expanded to:
+   ```go
+   type RangePart struct {
+Type string // Same as Part.Type
+       Value  string
+       Source string  // "startRange" | "endRange" | "shared"
+   }
+   ```
+4. `Source` string constant **MUST** reuse `internal/ecma402.RangeKind` (same as [SPEC 20 §FormatRange](./20-numberformat.md#5-formatrange--formatrangetoparts) `RangeKind`) to avoid spelling drift.
+5. The input of `start.After(end)` must not return an error, nor must the two ends be swapped or `~` added; use the input parameter order according to ECMA-402 `PartitionDateTimeRangePattern`.
+6. When `start == end` and `intervalFormats` hit the "same field", they **MUST** fall back to `Format(start)` single formatting, which **disables** outputting "X – X".
+7. The current generated range fixture gate must at least cover the day-difference interval pattern (`intervalFormats["yMMMd"]["d"]`) of the `yMMMd` skeleton, and retain CLDR literal spacing (e.g. narrow no-break/thin spaces) instead of the handwritten `" – "`.
+
+> **Why**: `intervalFormats` three-stage fallback is the operator with the second highest error rate in the conformance test (FormatJS `tests/format-range.test.ts` 100+ fixture).
+>
+> **Rejected**: Abstract `CollapseRange[T]` is shared with NumberFormat - the Part field is different (see [SPEC 20 §FormatRange](./20-numberformat.md#5-formatrange--formatrangetoparts) for details).
+
+---
+
+## 7. Error model
+
+**MUST** Rules:
+
+1. The construction error must match root sentinel:
+   - `gointl.ErrInvalidOption`
+   - `gointl.ErrUnsupportedOption` for unsupported calendar and time-zone requests
+2. Construction-time errors must have a `*gointl.Error` structured context, including field names, user values, locale and expected-value guidance.
+3. **BANNED** `panic` any user path.
+4. `time.Time` cannot represent JavaScript invalid Date; don’t invent invalid-date fallback for Go zero values or ordinary representable times.
+
+```go
+// Error example (signature)
+err := ecma402.UnsupportedOptionError("datetimeformat", "timeZone",
+    tz, loc.String(), intlerr.ErrUnsupportedOption) // public callers match gointl.ErrUnsupportedOption
+```
+
+---
+
+## 8. Performance telemetry
+
+Benchmark numbers guide profiling and prioritization; they do not override ECMA-402 correctness or act as standalone merge blockers(SPEC 71).
+
+**MUST** Rules:
+
+1. `BenchmarkDateTimeFormat_New` and cached date/time benchmarks stay in `task bench` telemetry.
+2. `Format` hot-path allocation counts are tracked with `b.ReportAllocs()`.
+3. Performance work must not change skeleton matching, time-zone canonicalization, calendar support, or parts semantics.
+
+> **Why**: The messageformat-go `:datetime` function may take N times `Format`;< 2 μs for each message to preserve the message layer SLA.
+
+---
+
+## 9. Forbidden
+
+- **BANNED** Do not invent additional errors when the `Format` / `FormatToParts` / `FormatRange` path returns option error; Go typed input cannot express JavaScript invalid Date.
+- **DOWN** Calling `time.LoadLocation` on the `Format` path - `*time.Location` must be cached when `New` is used.
+- **BANNED** Check CLDR time zone display name in `Format` path - `metaZones` data must be materialized at `New` time.
+- **NO** Generating calendar pattern data (including Buddhist year offsets) outside of the Gregorian pattern payload before the §3.1 removal path is complete; this is a current implementation boundary, not a permanent range shrinkage.
+- **Banned** Follow the translate-agent mode (directly use `t.Location()` to determine the display time zone) - deviate from ECMA-402.
+- **FORBIDDEN** Transfer instant via `t.Unix() * 1000` - accuracy loss (second level).
+- **Disabled** Accepts `any` as input parameter or `*time.Time` - weakened type safety.
+- **Disabled** `Format` does not strip the monotonic clock - `t.Round(0)` must be called immediately at method entry.
+- **BANNED** Change `Part.Type` to `int` constant enum - one more mapping step when comparing against JSON conformance fixture string fields.
+- **FORBIDDEN** Shares `CollapseRange` with NumberFormat - Part field is different.
+- **BANNED** Introducing ICU C++ dependencies or cgo paths (SPEC 00 §1.1 non-target).
+
+---
+
+## 10. Acceptance Criteria
+
+- [ ] `formatjs/packages/intl-datetimeformat/tests/format.test.ts` All fixtures in `datetimeformat/conformance_unified_test.go` pass (byte-equality).
+- [ ] `formatjs/packages/intl-datetimeformat/tests/format-range.test.ts` All fixtures passed.
+- [ ] `formatjs/packages/intl-datetimeformat/tests/offset-timezone.test.ts` All fixtures pass (`+05:30` / `-08:00` and other inputs).
+- [ ] `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_TimezoneContextPreservation`: the same `time.Time` has different output under different options `TimeZone`).
+- [ ] `go test -race ./datetimeformat/...` passes (including `TestDateTimeFormat_MonotonicClockStripping`:`t.Round(0)` followed by multiple `Format(t)` bytes that are equal).
+- [ ] `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_ConcurrentFormat` 100 goroutine × 1000 calls).
+- [ ] `go vet ./datetimeformat/...` clean.
+- [ ] `New(locale.List{loc}, Options{Calendar: "buddhist"})` returns a wrapped error matching `gointl.ErrUnsupportedOption`, the message contains calendar and locale.
+- [ ] `New(locale.List{loc}, Options{TimeZone: "Mars/Olympus"})` returns a wrapped error matching `gointl.ErrUnsupportedOption`.
+- [ ] `New(locale.List{loc}, Options{TimeZone: "US/Eastern"})` succeeded; `ResolvedOptions().TimeZone == "America/New_York"` (canonical name conversion).
+- [ ] `New(locale.List{loc}, Options{TimeZone: "+05:30"})` succeeded; `ResolvedOptions().TimeZone == "+05:30"` (offset string reserved).
+- [ ] `New(locale.List{locEnUS}, Options{Hour12: gointl.Bool(false), Hour: NumericFieldStyle})`:`ResolvedOptions().HourCycle == "h23"`.
+- [ ] `New(locale.List{locFrFR}, Options{Hour: NumericFieldStyle})`:`ResolvedOptions().HourCycle == "h23"` (French default h23).
+- [ ] DateTimeFormat cached and constructor benchmarks appear in non-blocking `task bench` telemetry.
+- [ ] Benchmark reports label DateTimeFormat as a per-surface package, not root facade cost.
+
+---
+
+## 11. References
+
+### Primary
+
+- `.references/formatjs/packages/intl-datetimeformat/core.ts` — public API, `tzData` injection path
+- `.references/formatjs/packages/ecma402-abstract/DateTimeFormat/InitializeDateTimeFormat.ts` — option pipeline
+- `.references/formatjs/packages/ecma402-abstract/DateTimeFormat/PartitionDateTimePattern.ts` — Main process
+- `.references/formatjs/packages/ecma402-abstract/DateTimeFormat/ToLocalTime.ts` — UTC → local time (including `+offset` and IANA, calendar=gregory invariant)
+- `.references/formatjs/packages/ecma402-abstract/DateTimeFormat/FormatDateTimePattern.ts` — Part.Type enumeration
+- `.references/formatjs/packages/intl-datetimeformat/tests/` — main conformance source
+
+- `.references/intl/intl.go` — translate-agent/intl(Go DateTimeFormat precedent, but ignore TimeZone, we don’t learn)
+- `.references/ext/src/ecma402/{calendar,hour_cycle,time_zone}.{c,h}` — PHP/ICU identifier verification path
+
+### Project Cross-References
+
+- [SPEC 12 §Abstract Ops](./12-abstract-operations.md) — shared validators / pattern helpers / `ErrInvalidOption`
+- [SPEC 10 §Locale structure](./10-locale.md) — `Locale.HourCycle()` / `Locale.Calendar()`
+- [SPEC 31 §Skeleton](./31-datetimeformat-skeleton.md#skeleton) — Skeleton character table + BestFitFormatMatcher
+- [SPEC 32 §TZ Data](./32-datetimeformat-tz.md#tz-data) — `time/tzdata` injection + metaZones
+- [SPEC 32 §Calendar Data](./32-datetimeformat-tz.md#calendar-data) — Gregorian data schema
+- [SPEC 50 §Schema](./50-cldr-data.md#schema) — `ca-gregorian.json` data shape
+- [SPEC 60](./60-facade.md) — root namespace ownership; root `intl.FormatDate` one-shot helpers are outside the long-term public surface.
+- [SPEC 71](./71-benchmark.md) — non-blocking performance telemetry

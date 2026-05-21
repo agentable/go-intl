@@ -1,0 +1,67 @@
+[
+  {
+    "id": "listformat-formatjs-index-test-ts-000",
+    "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
+    "locale": "zh-CN",
+    "options": {
+      "type": "unit"
+    },
+    "input": [
+      "1",
+      "2",
+      "3"
+    ],
+    "expected": "123"
+  },
+  {
+    "id": "listformat-formatjs-index-test-ts-001",
+    "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
+    "locale": "zh-CN",
+    "options": {
+      "type": "unit"
+    },
+    "input": [
+      "1",
+      "2"
+    ],
+    "expected": "12"
+  },
+  {
+    "id": "listformat-formatjs-index-test-ts-002",
+    "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "type": "unit"
+    },
+    "input": [
+      "1",
+      "2",
+      "3"
+    ],
+    "expected": "1 2 3"
+  },
+  {
+    "id": "listformat-formatjs-index-test-ts-003",
+    "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "type": "unit"
+    },
+    "input": [
+      "1",
+      "2"
+    ],
+    "expected": "1 2"
+  },
+  {
+    "id": "listformat-formatjs-index-test-ts-004",
+    "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
+    "locale": "en-AI",
+    "options": {},
+    "input": [
+      "1",
+      "2"
+    ],
+    "expected": "1 and 2"
+  }
+]

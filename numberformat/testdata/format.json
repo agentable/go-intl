@@ -1,0 +1,24 @@
+[
+  {
+    "name": "decimal grouping",
+    "locale": "en",
+    "input": 1234.5,
+    "want": "1,234.5"
+  },
+  {
+    "name": "usd currency",
+    "locale": "en-US",
+    "style": "currency",
+    "currency": "USD",
+    "input": 1234.5,
+    "want": "$1,234.50"
+  },
+  {
+    "name": "scientific",
+    "locale": "en",
+    "notation": "scientific",
+    "maximumFractionDigits": 2,
+    "input": 12345,
+    "want": "1.23E4"
+  }
+]

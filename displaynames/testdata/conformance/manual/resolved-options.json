@@ -1,0 +1,58 @@
+[
+  {
+    "id": "displaynames-manual-resolved-region-omits-language-display",
+    "source": "manual",
+    "locale": "en",
+    "options": {
+      "type": "region"
+    },
+    "input": "US",
+    "expected": "United States",
+    "expectedOk": true,
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "style": "long",
+      "type": "region",
+      "fallback": "code",
+      "languageDisplay": null
+    }
+  },
+  {
+    "id": "displaynames-manual-resolved-language-defaults",
+    "source": "manual",
+    "locale": "en",
+    "options": {
+      "type": "language"
+    },
+    "input": "en-GB",
+    "expected": "British English",
+    "expectedOk": true,
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "style": "long",
+      "type": "language",
+      "fallback": "code",
+      "languageDisplay": "dialect"
+    }
+  },
+  {
+    "id": "displaynames-manual-resolved-language-standard-short",
+    "source": "manual",
+    "locale": "en",
+    "options": {
+      "type": "language",
+      "style": "short",
+      "languageDisplay": "standard"
+    },
+    "input": "en-GB",
+    "expected": "English (UK)",
+    "expectedOk": true,
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "style": "short",
+      "type": "language",
+      "fallback": "code",
+      "languageDisplay": "standard"
+    }
+  }
+]

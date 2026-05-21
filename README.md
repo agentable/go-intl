@@ -1,0 +1,636 @@
+# go-intl
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/agentable/go-intl.svg)](https://pkg.go.dev/github.com/agentable/go-intl)
+[![Go Version](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
+A Go implementation of the active ECMA-402 `Intl` API with typed constructors and generated CLDR data.
+
+## Features
+
+- **Native Intl alignment**: Public packages map to the active `Intl` constructors: `Locale`, `NumberFormat`, `DateTimeFormat`, `PluralRules`, `ListFormat`, `RelativeTimeFormat`, `DurationFormat`, `DisplayNames`, `Collator`, and `Segmenter`.
+- **Typed Go bridge**: Parse locale strings into `locale.List`, then pass `time.Time`, typed option structs, and typed numeric values while preserving ECMA-402 behavior.
+- **Root namespace**: The root package represents the JavaScript `Intl` namespace as an aggregate facade; production services that need one formatter should import that constructor package directly.
+- **Reusable formatters**: Construct package-level formatters when you need repeated formatting, parts, ranges, or resolved options.
+- **Host-friendly records**: Resolved options, parts, ranges, locale info, segments, and durations marshal with ECMA-402 JSON field names for API and JS-host boundaries.
+- **Structured errors**: Root sentinels work with `errors.Is`, and `gointl.Error` exposes stable kind, owner, option, value, locale, and expected-value guidance.
+- **CLDR-backed data**: Ship generated CLDR data as Go source; applications do not load JSON, ICU, or time-zone data files at runtime.
+- **Reference fixtures**: Verify formatter output against ECMA-402-derived FormatJS fixtures and native Intl snapshots.
+
+## Installation
+
+```bash
+go get github.com/agentable/go-intl
+```
+
+Requires **Go 1.26+**.
+
+## Quick Start
+
+Construct the formatter that matches the JavaScript `Intl` constructor you would use:
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/agentable/go-intl/datetimeformat"
+	"github.com/agentable/go-intl/locale"
+	"github.com/agentable/go-intl/numberformat"
+)
+
+func main() {
+	locales, err := locale.ParseList("en-US")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	priceFormat, err := numberformat.New(locales, numberformat.Options{
+		Style:    numberformat.CurrencyStyle,
+		Currency: numberformat.CurrencyCode("USD"),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	price := priceFormat.Format(numberformat.Float(1234.5))
+
+	dateFormat, err := datetimeformat.New(locales, datetimeformat.Options{
+		DateStyle: datetimeformat.LongDateTimeStyle,
+		TimeZone:  "America/New_York",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	date := dateFormat.Format(time.Date(2026, time.May, 8, 14, 30, 0, 0, time.UTC))
+
+	fmt.Println(price)
+	fmt.Println(date)
+}
+```
+
+Output:
+
+```text
+$1,234.50
+May 8, 2026
+```
+
+## Packages
+
+| Package | Use |
+|---------|-----|
+| `github.com/agentable/go-intl` | Root `Intl` namespace helpers, active constructor type aliases, supported values, and structured error categories. |
+| `github.com/agentable/go-intl/locale` | BCP 47 parsing, canonicalization, maximize/minimize, and locale info getters. |
+| `github.com/agentable/go-intl/numberformat` | Decimal, percent, currency, unit, compact, scientific, engineering, parts, and range formatting. |
+| `github.com/agentable/go-intl/datetimeformat` | Date/time styles, field-based formatting, time zones, parts, and date/time ranges. |
+| `github.com/agentable/go-intl/pluralrules` | Cardinal and ordinal plural category selection, including range selection. |
+| `github.com/agentable/go-intl/listformat` | Locale-sensitive list formatting and list parts. |
+| `github.com/agentable/go-intl/relativetimeformat` | Locale-sensitive relative-time formatting and parts. |
+| `github.com/agentable/go-intl/durationformat` | Locale-sensitive duration formatting and parts. |
+| `github.com/agentable/go-intl/displaynames` | Localized names for languages, regions, scripts, currencies, calendars, and date-time fields. |
+| `github.com/agentable/go-intl/collator` | Locale-sensitive string comparison for sorting. |
+| `github.com/agentable/go-intl/segmenter` | Unicode grapheme, word, and sentence segmentation for supported locales. |
+
+Prefer constructor subpackages in services that need one formatter. Importing `github.com/agentable/go-intl` is an aggregate facade: it mirrors the JavaScript `Intl` namespace and therefore imports every active constructor surface for namespace helpers and type aliases. Use the root package for `GetCanonicalLocales`, root supported-value accessors, or when you intentionally want the full `Intl` namespace shape.
+
+See the [Go package documentation](https://pkg.go.dev/github.com/agentable/go-intl) for the full API reference.
+
+## Native Intl Mapping
+
+The Go packages follow the ownership of the native JavaScript `Intl` API:
+
+| JavaScript | Go |
+|------------|----|
+| `Intl.getCanonicalLocales(locales)` | `gointl.GetCanonicalLocales(locales)` |
+| `Intl.supportedValuesOf("calendar")` | `gointl.SupportedCalendars()` |
+| `Intl.supportedValuesOf("collation")` | `gointl.SupportedCollations()` |
+| `Intl.supportedValuesOf("currency")` | `gointl.SupportedCurrencies()` |
+| `Intl.supportedValuesOf("numberingSystem")` | `gointl.SupportedNumberingSystems()` |
+| `Intl.supportedValuesOf("timeZone")` | `gointl.SupportedTimeZones()` |
+| `Intl.supportedValuesOf("unit")` | `gointl.SupportedUnits()` |
+| `new Intl.Locale(tag, options)` | `locale.Parse(tag)`, `locale.New(tag, options)`, or `locale.FromTag(tag, options)` |
+| `new Intl.NumberFormat(locales, options)` | `numberformat.New(locales, options)` |
+| `Intl.NumberFormat.supportedLocalesOf(locales, options)` | `numberformat.SupportedLocalesOf(locales, options)` |
+| `new Intl.DateTimeFormat(locales, options)` | `datetimeformat.New(locales, options)` |
+| `Intl.DateTimeFormat.supportedLocalesOf(locales, options)` | `datetimeformat.SupportedLocalesOf(locales, options)` |
+| `new Intl.PluralRules(locales, options)` | `pluralrules.New(locales, options)` |
+| `Intl.PluralRules.supportedLocalesOf(locales, options)` | `pluralrules.SupportedLocalesOf(locales, options)` |
+| `new Intl.ListFormat(locales, options)` | `listformat.New(locales, options)` |
+| `Intl.ListFormat.supportedLocalesOf(locales, options)` | `listformat.SupportedLocalesOf(locales, options)` |
+| `new Intl.RelativeTimeFormat(locales, options)` | `relativetimeformat.New(locales, options)` |
+| `Intl.RelativeTimeFormat.supportedLocalesOf(locales, options)` | `relativetimeformat.SupportedLocalesOf(locales, options)` |
+| `new Intl.DurationFormat(locales, options)` | `durationformat.New(locales, options)` |
+| `Intl.DurationFormat.supportedLocalesOf(locales, options)` | `durationformat.SupportedLocalesOf(locales, options)` |
+| `new Intl.DisplayNames(locales, options)` | `displaynames.New(locales, options)` |
+| `Intl.DisplayNames.supportedLocalesOf(locales, options)` | `displaynames.SupportedLocalesOf(locales, options)` |
+| `new Intl.Collator(locales, options)` | `collator.New(locales, options)` |
+| `Intl.Collator.supportedLocalesOf(locales, options)` | `collator.SupportedLocalesOf(locales, options)` |
+| `new Intl.Segmenter(locales, options)` | `segmenter.New(locales, options)` |
+| `Intl.Segmenter.supportedLocalesOf(locales, options)` | `segmenter.SupportedLocalesOf(locales, options)` |
+
+## Usage
+
+### Parse Locales Once
+
+Parse BCP 47 tags at your application boundary. Formatter constructors receive a `locale.List`: use `nil` or `locale.List{}` for omitted locales, `locale.ParseList` for fallible request lists, and `locale.MustParseList` for const-like examples or tests.
+
+```go
+locales, err := locale.ParseList("zh-Hant-TW-u-nu-hanidec")
+if err != nil {
+	return err
+}
+loc := locales[0]
+
+fmt.Println(loc.String())
+fmt.Println(loc.Maximize().String())
+fmt.Println(loc.GetWeekInfo().FirstDay)
+```
+
+Use `locale.MustParse` / `locale.MustParseList` in tests and package-level examples where a hard-coded locale must be valid.
+
+### Use Constructor Packages Directly
+
+Use constructor packages directly in production services that need one `Intl` constructor, or when calls share locale, options, parts, ranges, or resolved options. This keeps the dependency graph tied to the formatter you use; the root package is measured as aggregate facade cost.
+
+```go
+locales := locale.MustParseList("en-US")
+
+compactFormat, err := numberformat.New(locales, numberformat.Options{
+	Notation: numberformat.CompactNotation,
+})
+if err != nil {
+	return err
+}
+
+rules, err := pluralrules.New(locales, pluralrules.Options{})
+if err != nil {
+	return err
+}
+
+category, err := rules.Select(pluralrules.Int(1))
+if err != nil {
+	return err
+}
+
+fmt.Println(compactFormat.Format(numberformat.Int(1200)))
+fmt.Println(category)
+```
+
+Formatter-specific options stay in their formatter packages. The root package does not re-export `numberformat`, `datetimeformat`, or `pluralrules` option names.
+
+### Filter Supported Locales
+
+Constructor static methods stay with their packages, just like native `Intl.<Constructor>.supportedLocalesOf`:
+
+```go
+requested := locale.MustParseList("de-DE", "en-US-u-nu-latn", "zh-Hans-CN")
+
+supported, err := numberformat.SupportedLocalesOf(requested, numberformat.Options{
+	LocaleMatcher: numberformat.LookupLocaleMatcher,
+})
+if err != nil {
+	return err
+}
+
+fmt.Println(supported)
+```
+
+The result preserves the requested locale order and returns requested locale values, including Unicode extensions.
+
+### Construct Formatters for Repeated Work
+
+Use formatter packages directly when you need resolved options, parts, ranges, or repeated calls in a hot path:
+
+```go
+format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+	Style:       numberformat.UnitStyle,
+	Unit:        numberformat.UnitIdentifier("kilometer-per-hour"),
+	UnitDisplay: numberformat.ShortUnitDisplay,
+})
+if err != nil {
+	return err
+}
+
+fmt.Println(format.Format(numberformat.Int(88)))
+fmt.Println(format.ResolvedOptions().Unit)
+```
+
+Unit identifiers follow native `Intl.NumberFormat`: use canonical lowercase ECMA-402 identifiers such as `meter`, `microsecond`, or `kilometer-per-hour`.
+
+### Use Root Namespace Helpers
+
+Import the root package when you need native `Intl` namespace functions or pointer helpers for optional scalar options:
+
+```go
+import (
+	"fmt"
+
+	gointl "github.com/agentable/go-intl"
+	"github.com/agentable/go-intl/locale"
+)
+
+locales := gointl.GetCanonicalLocales(locale.MustParseList("en-US", "en-US"))
+units := gointl.SupportedUnits()
+
+fmt.Println(locales[0])
+fmt.Println(units[:3])
+```
+
+Root supported-value accessors cover calendars, collations, currencies, numbering systems, time zones, and units. Collation currently reports only identifiers the active backend can apply truthfully.
+
+Use `gointl.Int`, `gointl.Bool`, and `gointl.String` for optional option fields where ECMA-402 distinguishes omitted from an explicit zero, false, or empty value.
+
+### Format Exact Decimals
+
+Use decimal-string methods when binary `float64` cannot represent the value you need to format:
+
+```go
+format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+	Style:                 numberformat.PercentStyle,
+	MinimumFractionDigits: gointl.Int(2),
+	MaximumFractionDigits: gointl.Int(2),
+})
+if err != nil {
+	return err
+}
+
+value, err := numberformat.Decimal("0.075")
+if err != nil {
+	return err
+}
+
+out := format.Format(value)
+
+fmt.Println(out)
+```
+
+### Inspect Parts
+
+Use parts APIs when you need to style or transform individual formatted tokens:
+
+```go
+format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+	Style:    numberformat.CurrencyStyle,
+	Currency: numberformat.CurrencyCode("USD"),
+})
+if err != nil {
+	return err
+}
+
+for _, part := range format.FormatToParts(numberformat.Float(1234.5)) {
+	fmt.Printf("%s: %q\n", part.Type, part.Value)
+}
+```
+
+### Marshal Records for Host Boundaries
+
+Public ECMA-402 records use camelCase JSON keys, so API adapters and JavaScript
+hosts can pass them through without rebuilding field maps:
+
+```go
+format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+	Style: numberformat.CurrencyStyle,
+	Currency: numberformat.CurrencyCode("USD"),
+})
+if err != nil {
+	return err
+}
+
+data, err := json.Marshal(format.ResolvedOptions())
+if err != nil {
+	return err
+}
+
+fmt.Println(string(data))
+```
+
+`locale.Locale` marshals as its canonical BCP 47 string. Parts, range parts,
+`durationformat.Duration`, locale `WeekInfo` / `TextInfo`, and
+`segmenter.Segment` also use ECMA-402 field names.
+
+### Format Dates and Ranges
+
+`datetimeformat` accepts `time.Time` and supports style-based or field-based formatting:
+
+```go
+format, err := datetimeformat.New(locale.MustParseList("en-US"), datetimeformat.Options{
+	DateStyle: datetimeformat.MediumDateTimeStyle,
+	TimeStyle: datetimeformat.ShortDateTimeStyle,
+	TimeZone:  "America/New_York",
+})
+if err != nil {
+	return err
+}
+
+start := time.Date(2026, time.May, 8, 14, 30, 0, 0, time.UTC)
+end := start.Add(2 * time.Hour)
+
+fmt.Println(format.Format(start))
+fmt.Println(format.FormatRange(start, end))
+```
+
+### Select Plural Categories
+
+Use `pluralrules` to select CLDR plural categories for message selection:
+
+```go
+rules, err := pluralrules.New(locale.MustParseList("en"), pluralrules.Options{
+	Type: pluralrules.Ordinal,
+})
+if err != nil {
+	return err
+}
+
+for _, n := range []int64{1, 2, 3, 4} {
+	category, err := rules.Select(pluralrules.Int(n))
+	if err != nil {
+		return err
+	}
+	fmt.Println(category)
+}
+```
+
+Output:
+
+```text
+one
+two
+few
+other
+```
+
+### Format Lists and Relative Time
+
+Use `listformat` and `relativetimeformat` for native list and relative-time phrasing:
+
+```go
+locales := locale.MustParseList("en")
+
+list, err := listformat.New(locales, listformat.Options{
+	Type:  listformat.Conjunction,
+	Style: listformat.ShortStyle,
+})
+if err != nil {
+	return err
+}
+
+relative, err := relativetimeformat.New(locales, relativetimeformat.Options{
+	Numeric: relativetimeformat.NumericAuto,
+})
+if err != nil {
+	return err
+}
+
+out, err := relative.FormatInt(-1, relativetimeformat.Day)
+if err != nil {
+	return err
+}
+
+fmt.Println(list.Format([]string{"red", "green", "blue"}))
+fmt.Println(out)
+```
+
+### Format Durations
+
+Use `durationformat` for `Intl.DurationFormat` semantics, including digital time formatting and fractional sub-second rollup:
+
+```go
+format, err := durationformat.New(locale.MustParseList("en"), durationformat.Options{
+	Style: durationformat.DigitalStyle,
+})
+if err != nil {
+	return err
+}
+
+out, err := format.Format(durationformat.Duration{
+	Hours:   1,
+	Minutes: 2,
+	Seconds: 3,
+})
+if err != nil {
+	return err
+}
+
+fmt.Println(out)
+```
+
+Output:
+
+```text
+1:02:03
+```
+
+### Name Codes, Sort Text, and Segment Strings
+
+Use the remaining constructor packages when you need display names, collation, or text boundaries:
+
+```go
+locales := locale.MustParseList("en")
+
+names, err := displaynames.New(locales, displaynames.Options{
+	Type: displaynames.Region,
+})
+if err != nil {
+	return err
+}
+region, ok, err := names.Of("FR")
+if err != nil {
+	return err
+}
+if ok {
+	fmt.Println(region)
+}
+
+coll, err := collator.New(locales, collator.Options{})
+if err != nil {
+	return err
+}
+words := []string{"z", "a", "ä"}
+slices.SortFunc(words, coll.Compare)
+fmt.Println(words)
+
+seg, err := segmenter.New(locales, segmenter.Options{
+	Granularity: segmenter.WordGranularity,
+})
+if err != nil {
+	return err
+}
+for part := range seg.Segment("Hello, world.").All() {
+	if part.IsWordLike {
+		fmt.Println(part.Segment)
+	}
+}
+```
+
+## Supported Data
+
+`tools/locale-profile.json` defines the CLDR locale profile used by generated
+number, date, plural, list, relative time, duration, display-name, unit,
+currency, and time-zone display data. Constructor `SupportedLocalesOf` methods
+derive support from the payload family they use, so a locale is advertised only
+when the backing data or engine can support it.
+
+The default data profile is a curated product shape, not a hidden compatibility
+matrix: 104 locale tags, CLDR 48.1.0, ICU 78, and tzdata 2025b. Most
+CLDR-backed constructors share that generated profile. `Collator` and
+`Segmenter` are intentionally engine-specific: `Collator` follows
+`golang.org/x/text/collate`, and `Segmenter` currently reports only locales
+whose UAX #29 boundaries do not require dictionary or CJK tailoring. For example,
+`ja`, `th`, and `zh-Hant` are not advertised by `segmenter.SupportedLocalesOf`
+until tailored segmentation lands.
+
+To broaden generated CLDR coverage, add tags to `tools/locale-profile.json` and
+run `task data`. Any profile expansion must also include behavior evidence
+(`task data:contract` and `task conformance:verify`), binary-size evidence
+(`task build:size`), and cold-build evidence (`task build:size:cold`). Selectable
+build profiles are deliberately absent until repeated host demand proves that a
+single curated default cannot serve the product.
+
+To check runtime support, call the constructor package's `SupportedLocalesOf`.
+
+Locale parsing accepts BCP 47 tags through `golang.org/x/text/language`.
+Root supported-value accessors return ECMA-402 values: calendars are `gregory`
+and `iso8601`, numbering systems include the simple digit systems from
+ECMA-402, units come from the sanctioned unit list, currencies and time zones
+come from generated CLDR / tz data, and collations come from the active
+collation backend.
+
+## Known Divergences
+
+`go-intl` matches observable ECMA-402 output where it can and documents every accepted difference. Two categories exist:
+
+- **Typed bridges** turn JavaScript dynamic shapes into idiomatic Go signatures. They are intentional and stable.
+- **Conformance divergences** are accepted reference mismatches; each one is enumerated and audited by `task conformance:verify`.
+
+### Typed bridges
+
+| JavaScript shape | Go shape | Why |
+|------------------|----------|-----|
+| `collator.compare(x, y)` returns `-1 \| 0 \| 1` | `Collator.Compare(x, y) int` returning standard `-`/`0`/`+` | Matches `slices.SortFunc` and `bytes.Compare`. |
+| `displayNames.of(code)` returns `string \| undefined` or throws `RangeError` | `DisplayNames.Of(code) (string, bool, error)` | `ok` distinguishes missing data; `error` distinguishes invalid code shape. |
+| `segmenter.segment(s)` returns a JS iterable of `{ segment, index, isWordLike }` | `Segments.All() iter.Seq[Segment]` with `Segment.CodeUnitIndex` and `Segment.ByteIndex` | Mirrors ECMA-402 while still supporting Go string offsets. |
+| JS `new Intl.X(locales, options?)` | `New(locales, opts Options)` accepting a `locale.List` plus exactly one typed `Options` value | Callers express omitted locales with `nil` / `locale.List{}` and use `Options{}` for the empty or omitted JS options object. |
+| `format(value)` accepting `Number \| BigInt \| string` | Opaque `numberformat.Value` constructors plus `Format`, `FormatToParts`, `FormatRange`, and `FormatRangeToParts` | Preserves type safety without a public `any` hot path. |
+| Resolved option properties that JS omits when inactive (e.g. `minimumFractionDigits` under `roundingType="significantDigits"`) | `*int` / `*LanguageDisplay` fields on `ResolvedOptions` that are `nil` when the spec hides them | Distinguishes "not set" from "explicitly zero" without ambiguity. |
+
+### Conformance divergences
+
+Per-package accepted mismatches against FormatJS/Node reference output live in
+`<package>/testdata/divergences.md` only when that package has an active or
+resolved divergence history. Do not create or retain empty placeholder
+`divergences.md` files. The current active divergence audit is:
+
+- [`datetimeformat/testdata/divergences.md`](datetimeformat/testdata/divergences.md)
+
+Each active entry includes a divergence ID, source fixture, owner, reason, review date, and removal path. `task conformance:verify` enforces that every accepted divergence is still referenced.
+
+## Error Handling
+
+Constructors and formatter methods return errors that work with the root
+sentinels in `github.com/agentable/go-intl`. Most caller-fixable failures also
+carry `*gointl.Error`, which is useful for config UIs, API errors, and host
+bindings that need stable machine-readable context. The human error string uses
+an `expected ...; got ...` shape and omits internal ECMA-402 abstract-operation
+names.
+
+| Error | Meaning |
+|-------|---------|
+| `gointl.ErrInvalidOption` | A constructor or `SupportedLocalesOf` received an invalid option. |
+| `gointl.ErrUnsupportedOption` | A valid ECMA-402 option is not backed by active implementation behavior. |
+| `gointl.ErrInvalidValue` | A runtime formatting value is malformed, non-finite, or otherwise invalid. |
+| `gointl.ErrInvalidCode` | `DisplayNames.Of` received an invalid code for its resolved type. |
+| `gointl.ErrInvalidKey` | A keyed root namespace operation received an unsupported key. |
+| `gointl.ErrUnsupportedLocale` | A locale request is outside the active data set. |
+| `gointl.ErrUnsupportedBackend` | Required implementation support is unavailable. |
+
+The three `ErrUnsupported*` categories also match `errors.ErrUnsupported`.
+
+```go
+_, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+	Style: numberformat.CurrencyStyle,
+})
+if err != nil {
+	if errors.Is(err, gointl.ErrInvalidOption) {
+		if detail, ok := errors.AsType[*gointl.Error](err); ok {
+			return fmt.Errorf("fix %s %s=%q (expected %s): %w",
+				detail.Owner, detail.Name, detail.Value, detail.Expected, err)
+		}
+		return fmt.Errorf("fix formatter options: %w", err)
+	}
+	return err
+}
+```
+
+`Error.Kind` returns values such as `invalidOption`, `unsupportedOption`,
+`invalidValue`, `invalidCode`, and `invalidKey`. `Error.Expected` is optional;
+when it is empty, `Error()` still derives generic expected-value guidance from
+the error kind and field name. The wrapped sentinel remains the source of truth
+for branching with `errors.Is`.
+
+## Development
+
+```bash
+task deps                 # Download modules and tidy go.mod/go.sum
+task fmt                  # Format Go code
+task vet                  # Run go vet
+task test                 # Run go test -race -p 1 ./...
+task lint                 # Run go mod tidy check and golangci-lint
+task conformance:verify   # Validate fixtures, skip-list, coverage, and divergence audit
+task data                 # Regenerate CLDR data into internal/cldr/ (writes back)
+task data:check           # Regenerate CLDR data into a temp tree and compare byte-for-byte
+task data:contract        # Verify generated CLDR data contracts
+task build:size           # Report root, formatter, and CLDR binary size deltas
+task build:size:cold      # Report the same size table after clearing Go's build cache
+task bench:run            # Run one-shot benchmark telemetry
+task bench                # Produce a non-blocking benchmark report, optionally with BASELINE=<file>
+task vuln                 # Run govulncheck
+task verify               # Run deps, fmt, vet, lint, test, conformance, data contract, and vuln checks
+```
+
+The host consumer profile is exercised by `go test ./...`; it protects
+supported-set boundaries and reversed range behavior that host integrations
+depend on.
+
+Measure aggregate root facade cost separately from per-surface formatter cost.
+Treat `go list -deps .` as root aggregate evidence only; use direct subpackage
+commands for single-formatter dependency measurements.
+
+```bash
+go list -deps . | wc -l
+go list -deps ./numberformat | wc -l
+go list -deps ./datetimeformat | wc -l
+task build:size  # CLDR linker smoke for generated data changes
+task build:size:cold  # CLDR cold-build smoke for profile changes
+```
+
+For binary-size checks, label root facade harnesses separately from formatter-only harnesses.
+
+Run a targeted package while developing:
+
+```bash
+go test -race ./numberformat/...
+go test -race -run TestPluralRules_Cardinal/en ./pluralrules/
+(cd tools/gen-cldr && go test ./...)
+(cd tools/gen-cldr && go vet ./...)
+(cd tools/gen-plural-rules && go test ./...)
+(cd tools/gen-plural-rules && go vet ./...)
+(cd tools/gen-fixtures-from-formatjs && go test ./...)
+(cd tools/gen-fixtures-from-formatjs && go vet ./...)
+go test ./tools/conformance ./tools/check-conformance
+```
+
+## Documentation
+
+- [SPECS](./SPECS/) record public contracts, formatter behavior, data layout, and conformance rules.
+- [AGENTS.md](./AGENTS.md) defines development workflow and repository conventions for AI coding agents.
+
+## Contributing
+
+Open an issue before changing public behavior. Keep README changes focused on installation, usage, examples, and development commands; put contracts in `SPECS/` and agent workflow rules in `AGENTS.md`.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

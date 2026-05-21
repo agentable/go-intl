@@ -1,0 +1,163 @@
+[
+  {
+    "id": "durationformat-formatjs-index-test-ts-000",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "years": 1
+    },
+    "expected": "1 yr"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-001",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "months": 2,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-002",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "days": 3,
+      "months": 2,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths, 3 days"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-003",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "days": 3,
+      "hours": 4,
+      "months": 2,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths, 3 days, 4 hr"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-004",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "days": 3,
+      "hours": 4,
+      "minutes": 5,
+      "months": 2,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths, 3 days, 4 hr, 5 min"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-005",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "days": 3,
+      "hours": 4,
+      "minutes": 5,
+      "months": 2,
+      "seconds": 6,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths, 3 days, 4 hr, 5 min, 6 sec"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-006",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "days": 3,
+      "hours": 4,
+      "milliseconds": 7,
+      "minutes": 5,
+      "months": 2,
+      "seconds": 6,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths, 3 days, 4 hr, 5 min, 6 sec, 7 ms"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-007",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "style": "digital"
+    },
+    "input": {
+      "years": 1
+    },
+    "expected": "1 yr, 0:00:00"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-008",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "milliseconds": "numeric",
+      "style": "narrow"
+    },
+    "input": {
+      "milliseconds": 473,
+      "seconds": 1
+    },
+    "expected": "1.473s"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-009",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "microseconds": "numeric",
+      "style": "narrow"
+    },
+    "input": {
+      "microseconds": 473,
+      "milliseconds": 1
+    },
+    "expected": "1.473ms"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-010",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "nanoseconds": "numeric",
+      "style": "narrow"
+    },
+    "input": {
+      "microseconds": 1,
+      "nanoseconds": 473
+    },
+    "expected": "1.473μs"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-011",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "hours": "2-digit",
+      "minutes": "2-digit",
+      "seconds": "2-digit"
+    },
+    "input": {
+      "hours": 5,
+      "minutes": 30,
+      "seconds": 15
+    },
+    "expected": "05:30:15"
+  }
+]

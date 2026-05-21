@@ -1,0 +1,39 @@
+{
+  "supportedLocalesOfExcludes": {
+    "collator": ["de-u-co-phonebk", "en-u-kf-upper"],
+    "datetimeformat": ["en-US-u-ca-buddhist"],
+    "segmenter": ["ja", "th", "zh-Hant"]
+  },
+  "supportedValuesOfIncludes": {
+    "calendar": ["gregory", "iso8601"],
+    "currency": ["USD"],
+    "numberingSystem": ["latn"],
+    "unit": ["meter"]
+  },
+  "supportedValuesOfExcludes": {
+    "calendar": ["buddhist"],
+    "collation": ["phonebk"]
+  },
+  "reversedRanges": {
+    "numberFormat": {
+      "locale": "en",
+      "start": "10",
+      "end": "1",
+      "want": "10–1"
+    },
+    "dateTimeFormat": {
+      "locale": "en",
+      "timeZone": "UTC",
+      "start": "2026-06-01T00:00:00Z",
+      "end": "2026-05-01T00:00:00Z",
+      "startContains": "6/1/2026",
+      "endContains": "5/1/2026"
+    },
+    "pluralRules": {
+      "locale": "az",
+      "start": "2",
+      "end": "1",
+      "want": "one"
+    }
+  }
+}

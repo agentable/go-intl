@@ -1,0 +1,15 @@
+[
+  {
+    "id": "relativetimeformat-node-v26-day-auto",
+    "source": "node:v26.0.0:relativetimeformat",
+    "locale": "en-US",
+    "options": {
+      "numeric": "auto"
+    },
+    "input": {
+      "value": -1,
+      "unit": "day"
+    },
+    "expected": "yesterday"
+  }
+]

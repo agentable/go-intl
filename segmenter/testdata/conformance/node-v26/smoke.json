@@ -1,0 +1,61 @@
+[
+  {
+    "id": "segmenter-node-v26-word-hello-world",
+    "source": "node:v26.0.0:segmenter",
+    "locale": "en",
+    "options": {
+      "granularity": "word"
+    },
+    "input": "Hello, world!",
+    "expectedSegments": [
+      {
+        "segment": "Hello",
+        "codeUnitIndex": 0,
+        "isWordLike": true
+      },
+      {
+        "segment": ",",
+        "codeUnitIndex": 5,
+        "isWordLike": false
+      },
+      {
+        "segment": " ",
+        "codeUnitIndex": 6,
+        "isWordLike": false
+      },
+      {
+        "segment": "world",
+        "codeUnitIndex": 7,
+        "isWordLike": true
+      },
+      {
+        "segment": "!",
+        "codeUnitIndex": 12,
+        "isWordLike": false
+      }
+    ]
+  },
+  {
+    "id": "segmenter-node-v26-grapheme-emoji-index",
+    "source": "node:v26.0.0:segmenter",
+    "locale": "en",
+    "options": {
+      "granularity": "grapheme"
+    },
+    "input": "a🙂b",
+    "expectedSegments": [
+      {
+        "segment": "a",
+        "codeUnitIndex": 0
+      },
+      {
+        "segment": "🙂",
+        "codeUnitIndex": 1
+      },
+      {
+        "segment": "b",
+        "codeUnitIndex": 3
+      }
+    ]
+  }
+]

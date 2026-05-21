@@ -1,0 +1,72 @@
+[
+  {
+    "id": "numberformat-manual-resolved-compact-defaults",
+    "source": "manual",
+    "locale": "en",
+    "options": {
+      "notation": "compact"
+    },
+    "input": 1500,
+    "expected": "1.5K",
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "numberingSystem": "latn",
+      "style": "decimal",
+      "minimumIntegerDigits": 1,
+      "minimumFractionDigits": 0,
+      "maximumFractionDigits": 0,
+      "minimumSignificantDigits": 1,
+      "maximumSignificantDigits": 2,
+      "useGrouping": "min2",
+      "notation": "compact",
+      "compactDisplay": "short",
+      "signDisplay": "auto",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "morePrecision",
+      "trailingZeroDisplay": "auto"
+    }
+  },
+  {
+    "id": "numberformat-manual-resolved-significant-digits-hide-fraction",
+    "source": "manual",
+    "locale": "en",
+    "options": {
+      "minimumSignificantDigits": 2
+    },
+    "input": 1,
+    "expected": "1.0",
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "style": "decimal",
+      "minimumIntegerDigits": 1,
+      "minimumFractionDigits": null,
+      "maximumFractionDigits": null,
+      "minimumSignificantDigits": 2,
+      "maximumSignificantDigits": 21,
+      "roundingPriority": "auto"
+    }
+  },
+  {
+    "id": "numberformat-manual-resolved-scientific-currency-defaults",
+    "source": "manual",
+    "locale": "en",
+    "options": {
+      "style": "currency",
+      "currency": "USD",
+      "notation": "scientific"
+    },
+    "input": 1234,
+    "expected": "$1.234E3",
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "style": "currency",
+      "currency": "USD",
+      "currencyDisplay": "symbol",
+      "currencySign": "standard",
+      "minimumFractionDigits": 0,
+      "maximumFractionDigits": 3,
+      "notation": "scientific"
+    }
+  }
+]

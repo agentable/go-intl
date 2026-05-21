@@ -1,0 +1,36 @@
+[
+  {
+    "id": "displaynames-node-v26-region-us",
+    "source": "node:v26.0.0:displayNames",
+    "locale": "en",
+    "options": {
+      "type": "region"
+    },
+    "input": "US",
+    "expected": "United States",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-node-v26-language-zh-hans",
+    "source": "node:v26.0.0:displayNames",
+    "locale": "en",
+    "options": {
+      "type": "language"
+    },
+    "input": "zh-Hans",
+    "expected": "Simplified Chinese",
+    "expectedOk": true
+  },
+  {
+    "id": "displaynames-node-v26-currency-eur-narrow",
+    "source": "node:v26.0.0:displayNames",
+    "locale": "en",
+    "options": {
+      "type": "currency",
+      "style": "narrow"
+    },
+    "input": "EUR",
+    "expected": "€",
+    "expectedOk": true
+  }
+]

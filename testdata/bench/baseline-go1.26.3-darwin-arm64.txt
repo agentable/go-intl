@@ -1,0 +1,26 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/agentable/go-intl/numberformat
+cpu: Apple M5 Pro
+BenchmarkBaseline_XText_Decimal-15                4291341       296.4 ns/op     312 B/op   8 allocs/op
+BenchmarkBaseline_XText_Percent-15                3781388       317.0 ns/op     376 B/op   9 allocs/op
+BenchmarkNumberFormat_Decimal_PerCall-15          137013        8392 ns/op     4244 B/op  32 allocs/op
+BenchmarkNumberFormat_Decimal_Cached-15           28413519      43.12 ns/op      16 B/op   1 allocs/op
+BenchmarkNumberFormat_Percent_Cached-15           1738922       683.2 ns/op     504 B/op  13 allocs/op
+BenchmarkNumberFormat_Currency_Cached-15          1280848       946.4 ns/op     752 B/op  19 allocs/op
+BenchmarkNumberFormat_Compact_Cached-15           366295        3175 ns/op     2185 B/op  48 allocs/op
+BenchmarkNumberFormat_FormatToParts_Cached-15     3833168       313.6 ns/op     432 B/op   8 allocs/op
+BenchmarkNumberFormat_New-15                      139568        8609 ns/op     4216 B/op  31 allocs/op
+PASS
+ok   github.com/agentable/go-intl/numberformat 12.162s
+goos: darwin
+goarch: arm64
+pkg: github.com/agentable/go-intl/pluralrules
+cpu: Apple M5 Pro
+BenchmarkBaseline_XText_Plural_Cardinal-15        288497715     4.217 ns/op       0 B/op   0 allocs/op
+BenchmarkBaseline_XText_Plural_Ordinal-15         180869926     6.513 ns/op       0 B/op   0 allocs/op
+BenchmarkPluralRules_Cardinal_Cached-15           55671537      21.69 ns/op       0 B/op   0 allocs/op
+BenchmarkPluralRules_Ordinal_Cached-15            28322566      44.04 ns/op       0 B/op   0 allocs/op
+BenchmarkPluralRules_SelectRange_Cached-15        19645533      55.40 ns/op       0 B/op   0 allocs/op
+PASS
+ok   github.com/agentable/go-intl/pluralrules 6.355s

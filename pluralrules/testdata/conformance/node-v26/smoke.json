@@ -1,0 +1,13 @@
+[
+  {
+    "id": "pluralrules-node-v26-ordinal-two",
+    "source": "node:v26.0.0:pluralrules",
+    "locale": "en-US",
+    "feature": "select",
+    "options": {
+      "type": "ordinal"
+    },
+    "input": 2,
+    "expected": "two"
+  }
+]

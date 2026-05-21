@@ -1,0 +1,12 @@
+[
+  {
+    "id": "pluralrules-manual-invalid-type",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "type": "invalid"
+    },
+    "input": 1,
+    "errorCode": "invalid_option"
+  }
+]
