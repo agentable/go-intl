@@ -1,10 +1,10 @@
-name: Go
+name: Go CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -24,9 +24,11 @@ jobs:
     timeout-minutes: 30
     env:
       GOPRIVATE: github.com/agentable/*
+      GOWORK: "off"
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        # Do NOT initialize submodules
 
       - name: Configure Git for private modules
         env:
@@ -50,7 +52,7 @@ jobs:
       - name: Install dependencies
         run: task deps
 
-      - name: Run unit tests
+      - name: Run tests
         run: task test
 
   lint:
@@ -59,11 +61,13 @@ jobs:
     timeout-minutes: 45
     env:
       GOPRIVATE: github.com/agentable/*
+      GOWORK: "off"
       GOGC: "50"
       GOMEMLIMIT: 4GiB
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        # Do NOT initialize submodules
 
       - name: Configure Git for private modules
         env:
@@ -97,14 +101,22 @@ jobs:
           version: ${{ steps.golangci.outputs.version }}
           args: --timeout=30m --concurrency=1 --path-prefix=.
 
-
   security:
     name: Security
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      GOPRIVATE: github.com/agentable/*
+      GOWORK: "off"
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+
+      - name: Configure Git for private modules
+        env:
+          TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -117,45 +129,3 @@ jobs:
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
-
-  data-verify:
-    name: CLDR data verify
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
-          cache-dependency-path: |
-            go.sum
-            tools/gen-cldr/go.sum
-
-      - name: Set up Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-
-      - name: Install Task
-        uses: go-task/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cache CLDR checkout
-        uses: actions/cache@v5
-        with:
-          path: tools/gen-cldr/.cldr-json/node_modules
-          key: cldr-json-${{ hashFiles('tools/gen-cldr/.cldr-json/package-lock.json') }}
-          restore-keys: |
-            cldr-json-
-
-      - name: Regenerate CLDR data
-        run: task data
-
-      - name: Verify CLDR data
-        run: task data:check

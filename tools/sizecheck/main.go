@@ -96,7 +96,9 @@ func run(ctx context.Context, dir string, opts runOptions) error {
 		}
 		results = append(results, result)
 	}
-	fmt.Fprint(os.Stdout, formatResults(profile, results))
+	if _, err := fmt.Fprint(os.Stdout, formatResults(profile, results)); err != nil {
+		return err
+	}
 	return nil
 }
 

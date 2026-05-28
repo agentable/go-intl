@@ -2,7 +2,6 @@ package numberformat
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/intlerr"
@@ -185,8 +184,8 @@ func TestNumberFormatAcceptsSanctionedUnits(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New(Options{Unit: UnitIdentifier(%q)}) error = %v, want nil", unit, err)
 		}
-		if got := format.ResolvedOptions().Unit; got != strings.ToLower(unit) {
-			t.Fatalf("ResolvedOptions().Unit = %q, want %q", got, strings.ToLower(unit))
+		if got := format.ResolvedOptions().Unit; got != unit {
+			t.Fatalf("ResolvedOptions().Unit = %q, want %q", got, unit)
 		}
 	}
 }

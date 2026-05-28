@@ -18,7 +18,7 @@ func main() {
 
 func mainExit(args []string, stdout, stderr io.Writer) int {
 	if err := run(args, stdout); err != nil {
-		fmt.Fprintln(stderr, err)
+		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
 	return 0
@@ -51,7 +51,9 @@ func run(args []string, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprint(stdout, report)
+		if _, err := fmt.Fprint(stdout, report); err != nil {
+			return err
+		}
 	}
 	return nil
 }

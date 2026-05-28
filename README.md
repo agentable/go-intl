@@ -625,7 +625,7 @@ go test ./tools/conformance ./tools/check-conformance
 ## Documentation
 
 - [SPECS](./SPECS/) record public contracts, formatter behavior, data layout, and conformance rules.
-- [AGENTS.md](./AGENTS.md) defines development workflow and repository conventions for AI coding agents.
+- [CLAUDE.md](./CLAUDE.md) defines development workflow and repository conventions for AI coding agents.
 
 ## Contributing
 

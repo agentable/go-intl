@@ -9,7 +9,7 @@ For human usage examples, read [`README.md`](README.md). This file is the develo
 ```bash
 task test                 # go test -race -p 1 ./...
 task lint                 # go mod tidy diff check + pinned golangci-lint v2
-task fmt                  # go fmt ./...
+task fmt                  # golangci-lint fmt ./...
 task vet                  # go vet ./...
 task verify               # deps + fmt + vet + lint + test + conformance + data contract + vuln
 task vuln                 # govulncheck ./...
@@ -253,7 +253,7 @@ Add runtime dependencies only when an active SPEC requires them.
 
 ## Linting
 
-`task lint` runs the pinned `bin/golangci-lint` version from `.golangci.version` and checks `go mod tidy` output. The config is `.golangci.yml`; notable enabled linters include `exhaustive`, `errorlint`, `err113`, `gocritic`, `gosec`, `misspell`, `noctx`, `prealloc`, and `revive`.
+`task lint` checks `go mod tidy` output and runs the `.golangci.version` toolchain, reusing an exact PATH match or installing it into `bin/`. The config is `.golangci.yml`; notable enabled linters include `bodyclose`, `errname`, `errorlint`, `exhaustive`, `gocritic`, `gosec`, `misspell`, `nakedret`, `nilerr`, `noctx`, `nolintlint`, `prealloc`, `revive`, and `whitespace`.
 
 Nested tool modules are checked from their own module roots. Do not use root-module patterns such as `go test ./tools/gen-cldr/...`; run from each module root instead, for example `(cd tools/gen-cldr && go test ./...)`, `(cd tools/gen-plural-rules && go test ./...)`, and `(cd tools/gen-fixtures-from-formatjs && go test ./...)`.
 
@@ -264,7 +264,6 @@ GitHub Actions runs on pushes to `main` and pull requests:
 - `test`: `task deps`, then `task test`
 - `lint`: `task deps`, then `task lint`
 - `security`: installs `govulncheck`, then runs `govulncheck ./...`
-- `data-verify`: regenerates CLDR data, then runs `task data:check`
 
 ## Agent Skills
 

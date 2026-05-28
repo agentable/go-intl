@@ -297,8 +297,10 @@ func appendDecimalParts(parts []Part, s string, symbols cldrnumber.NumberSymbols
 		integer = rest
 	}
 	if hasFraction {
-		parts = append(parts, Part{Type: PartDecimal, Value: symbols.Decimal})
-		parts = append(parts, Part{Type: PartFraction, Value: fraction})
+		parts = append(parts,
+			Part{Type: PartDecimal, Value: symbols.Decimal},
+			Part{Type: PartFraction, Value: fraction},
+		)
 	}
 	return parts
 }

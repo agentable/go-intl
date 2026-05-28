@@ -47,55 +47,55 @@ func TestTaskfileBenchmarkTargets(t *testing.T) {
 	}
 }
 
-func TestTaskfileLintRunsSerially(t *testing.T) {
+func TestTaskfileLintUsesSharedDeps(t *testing.T) {
 	t.Parallel()
 
 	content := readTaskfile(t)
-	if strings.Contains(content, "  lint:\n    desc: Run all linters\n    deps:") {
-		t.Fatal("lint must not run tidy-lint and golangci-lint as parallel deps")
+	if !strings.Contains(content, "  lint:\n    desc: Run all linters\n    deps:\n      - golangci-lint\n      - tidy-lint") {
+		t.Fatal("lint must run the shared golangci-lint and tidy-lint dependencies")
 	}
-	if !strings.Contains(content, "  lint:\n    desc: Run all linters\n    cmds:\n      - task: tidy-lint\n      - task: golangci-lint") {
-		t.Fatal("lint must run tidy-lint before golangci-lint")
+	if strings.Contains(content, "  lint:\n    desc: Run all linters\n    cmds:\n      - task: tidy-lint") {
+		t.Fatal("lint must use the shared dependency form")
 	}
 }
 
-func TestTaskfileLintBootstrapBoundary(t *testing.T) {
+func TestTaskfileLintSelectsExactVersionBinary(t *testing.T) {
 	t.Parallel()
 
 	content := readTaskfile(t)
-	if !strings.Contains(content, "golangci-lint:preflight:") {
-		t.Fatal("Taskfile.yml must expose a golangci-lint preflight target")
-	}
-	if !strings.Contains(content, "golangci-lint bootstrap failed") {
-		t.Fatal("Taskfile.yml must label golangci-lint bootstrap failures distinctly")
-	}
-	if !strings.Contains(content, "task: golangci-lint:preflight") {
-		t.Fatal("golangci-lint execution must depend on the bootstrap preflight")
+	for _, want := range []string{
+		"GOLANGCI_LINT_LOCAL_BINARY",
+		`for candidate in "$(command -v golangci-lint 2>/dev/null || true)" "{{.GOLANGCI_LINT_LOCAL_BINARY}}"`,
+		`echo "{{.GOLANGCI_LINT_LOCAL_BINARY}}"`,
+		"  golangci-lint:\n    desc: Run golangci-lint\n    deps:\n      - install-golangci-lint",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("Taskfile.yml missing exact-version golangci-lint wiring %q", want)
+		}
 	}
 }
 
-func TestTaskfileLintBootstrapUsesGoInstall(t *testing.T) {
+func TestTaskfileLintBootstrapUsesPinnedInstaller(t *testing.T) {
 	t.Parallel()
 
 	content := readTaskfile(t)
-	if !strings.Contains(content, "github.com/golangci/golangci-lint/v2/cmd/golangci-lint") {
-		t.Fatal("golangci-lint bootstrap must install the pinned Go module")
+	if !strings.Contains(content, "raw.githubusercontent.com/golangci/golangci-lint/master/install.sh") {
+		t.Fatal("golangci-lint bootstrap must use the pinned upstream installer")
 	}
-	if strings.Contains(content, "raw.githubusercontent.com/golangci/golangci-lint/master/install.sh") {
-		t.Fatal("golangci-lint bootstrap must not depend on the upstream shell installer")
+	if !strings.Contains(content, `| sh -s -- -b "{{.GOBIN}}" v{{.REQUIRED_GOLANGCI_LINT_VERSION}}`) {
+		t.Fatal("golangci-lint bootstrap must install the required version into GOBIN")
+	}
+	if strings.Contains(content, "github.com/golangci/golangci-lint/v2/cmd/golangci-lint") {
+		t.Fatal("golangci-lint bootstrap must not compile the linter from source")
 	}
 }
 
-func TestTaskfileLintPreflightReadsInstalledBinary(t *testing.T) {
+func TestTaskfileLintHasNoDeadPreflight(t *testing.T) {
 	t.Parallel()
 
 	content := readTaskfile(t)
-	if !strings.Contains(content, "actual=$({{.GOLANGCI_LINT_BINARY}} version") {
-		t.Fatal("golangci-lint preflight must read the installed binary after bootstrap")
-	}
-	if strings.Contains(content, `if [ "{{.GOLANGCI_LINT_VERSION}}" != "{{.REQUIRED_GOLANGCI_LINT_VERSION}}" ]; then
-          echo "golangci-lint bootstrap failed`) {
-		t.Fatal("golangci-lint preflight must not use the stale task variable after install")
+	if strings.Contains(content, "golangci-lint:preflight:") {
+		t.Fatal("Taskfile.yml must not keep an unused golangci-lint preflight target")
 	}
 }
 

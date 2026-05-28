@@ -38,24 +38,24 @@ var (
 	ErrUnsupportedBackend = sentinelOf(UnsupportedBackend)
 )
 
-type kindSentinel struct {
+type kindError struct {
 	kind ErrorKind
 }
 
 func sentinelOf(kind ErrorKind) error {
-	return kindSentinel{kind: kind}
+	return kindError{kind: kind}
 }
 
-func (e kindSentinel) Error() string {
+func (e kindError) Error() string {
 	return "intl: " + e.kind.label()
 }
 
-func (e kindSentinel) Is(target error) bool {
+func (e kindError) Is(target error) bool {
 	if target == errors.ErrUnsupported {
 		return e.kind.isUnsupported()
 	}
 	switch target := target.(type) {
-	case kindSentinel:
+	case kindError:
 		return e.kind == target.kind
 	case *Error:
 		return e.kind == target.Kind
@@ -138,7 +138,7 @@ func (e *Error) Is(target error) bool {
 		return e.Kind.isUnsupported()
 	}
 	switch target := target.(type) {
-	case kindSentinel:
+	case kindError:
 		return e.Kind == target.kind || errors.Is(e.Err, target)
 	case *Error:
 		return e.Kind == target.Kind
