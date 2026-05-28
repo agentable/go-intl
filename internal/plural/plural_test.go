@@ -27,6 +27,38 @@ func TestCategoryString(t *testing.T) {
 	}
 }
 
+func TestCategoryMarshalText(t *testing.T) {
+	t.Parallel()
+
+	got, err := Many.MarshalText()
+	if err != nil {
+		t.Fatalf("Many.MarshalText() error = %v, want nil", err)
+	}
+	if string(got) != "many" {
+		t.Fatalf("Many.MarshalText() = %q, want many", got)
+	}
+}
+
+func TestOperandValueHighPrecisionComparisonsAndModulo(t *testing.T) {
+	t.Parallel()
+
+	fraction := NewOperandValue("0.00000000000000000001")
+	if !fraction.Greater(0) || fraction.Equal(0) {
+		t.Fatalf("%s should be greater than zero", fraction)
+	}
+	if got := fraction.Mod(1).String(); got != "0.00000000000000000001" {
+		t.Fatalf("%s %% 1 = %q, want original fraction", fraction, got)
+	}
+
+	large := NewOperandValue("9223372036854775807.01")
+	if !large.Greater(math.MaxInt64) {
+		t.Fatalf("%s should be greater than MaxInt64", large)
+	}
+	if got := NewOperandValue("100000000000000000003.50").Mod(100).String(); got != "3.50" {
+		t.Fatalf("large operand %% 100 = %q, want 3.50", got)
+	}
+}
+
 func TestOperandValueComparisonsAndModulo(t *testing.T) {
 	t.Parallel()
 
@@ -74,6 +106,10 @@ func TestGetOperands(t *testing.T) {
 	fastInteger := GetIntegerOperands(math.MinInt64)
 	if fastInteger.N.String() != "9223372036854775808" || fastInteger.I.String() != "9223372036854775808" || fastInteger.V != 0 || fastInteger.F.String() != "0" || fastInteger.T.String() != "0" {
 		t.Fatalf("GetIntegerOperands(MinInt64) = %+v, want integer operands", fastInteger)
+	}
+	fastUnsigned := GetUnsignedIntegerOperands(^uint64(0))
+	if fastUnsigned.N.String() != "18446744073709551615" || fastUnsigned.I.String() != "18446744073709551615" || fastUnsigned.V != 0 || fastUnsigned.F.String() != "0" || fastUnsigned.T.String() != "0" {
+		t.Fatalf("GetUnsignedIntegerOperands(MaxUint64) = %+v, want integer operands", fastUnsigned)
 	}
 	if got := (OperandValue{}).String(); got != "0" {
 		t.Fatalf("zero OperandValue String() = %q, want 0", got)

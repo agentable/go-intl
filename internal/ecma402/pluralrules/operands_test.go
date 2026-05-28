@@ -1,6 +1,7 @@
 package ecma402pr
 
 import (
+	"math"
 	"testing"
 )
 
@@ -71,5 +72,46 @@ func TestOperandValueFractionModulo(t *testing.T) {
 	}
 	if remainder.Equal(3) {
 		t.Fatalf("103.50 %% 100 = %s, unexpectedly equal to integer 3", remainder)
+	}
+}
+
+func TestIntegerOperandConstructors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		value   OperandValue
+		want    string
+		mod     int64
+		wantMod string
+	}{
+		{name: "signed minimum magnitude", value: NewIntegerOperand(math.MinInt64), want: "9223372036854775808", mod: 100, wantMod: "8"},
+		{name: "unsigned maximum", value: NewUnsignedIntegerOperand(^uint64(0)), want: "18446744073709551615", mod: 100, wantMod: "15"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.value.String(); got != tc.want {
+				t.Fatalf("operand = %q, want %q", got, tc.want)
+			}
+			if got := tc.value.Mod(tc.mod).String(); got != tc.wantMod {
+				t.Fatalf("operand %% %d = %q, want %q", tc.mod, got, tc.wantMod)
+			}
+		})
+	}
+}
+
+func TestIntegerOperandRecords(t *testing.T) {
+	t.Parallel()
+
+	signed := GetIntegerOperands(-42)
+	if signed.N.String() != "42" || signed.I.String() != "42" || signed.V != 0 || signed.W != 0 || signed.F.String() != "0" || signed.T.String() != "0" || signed.C != 0 || signed.E != 0 {
+		t.Fatalf("GetIntegerOperands(-42) = %+v, want integer operand record", signed)
+	}
+
+	unsigned := GetUnsignedIntegerOperands(^uint64(0))
+	if unsigned.N.String() != "18446744073709551615" || unsigned.I.String() != "18446744073709551615" || unsigned.V != 0 || unsigned.W != 0 || unsigned.F.String() != "0" || unsigned.T.String() != "0" || unsigned.C != 0 || unsigned.E != 0 {
+		t.Fatalf("GetUnsignedIntegerOperands(MaxUint64) = %+v, want integer operand record", unsigned)
 	}
 }
