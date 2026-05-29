@@ -340,6 +340,7 @@ func TestDateTimeFormatPreservesFixedOffsetTimeZone(t *testing.T) {
 		{in: "+05:30", want: "+05:30"},
 		{in: "+0530", want: "+05:30"},
 		{in: "+05", want: "+05:00"},
+		{in: "+14:00", want: "+14:00"},
 	} {
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
@@ -359,11 +360,17 @@ func TestDateTimeFormatRejectsUnsupportedTimeZone(t *testing.T) {
 	t.Parallel()
 
 	loc := locale.MustParse("en-US")
-	_, err := New(locale.List{loc}, Options{TimeZone: "Mars/Olympus"})
-	if !errors.Is(err, intlerr.ErrUnsupportedOption) {
-		t.Fatalf("New(Options{TimeZone: Mars/Olympus}) error = %v, want intlerr.ErrUnsupportedOption", err)
+	for _, timeZone := range []string{"Mars/Olympus", "+14:01"} {
+		t.Run(timeZone, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := New(locale.List{loc}, Options{TimeZone: timeZone})
+			if !errors.Is(err, intlerr.ErrUnsupportedOption) {
+				t.Fatalf("New(Options{TimeZone: %s}) error = %v, want intlerr.ErrUnsupportedOption", timeZone, err)
+			}
+			assertOptionError(t, err, "unsupported", "timeZone", timeZone, loc.String())
+		})
 	}
-	assertOptionError(t, err, "unsupported", "timeZone", "Mars/Olympus", loc.String())
 }
 
 func TestDateTimeFormatAllowsEmptyTimeZone(t *testing.T) {

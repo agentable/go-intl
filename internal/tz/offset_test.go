@@ -18,8 +18,8 @@ func TestParseOffsetStringValidOffsets(t *testing.T) {
 		{in: "-0530", want: -(5*3600*1000 + 30*60*1000)},
 		{in: "+05:30", want: 5*3600*1000 + 30*60*1000},
 		{in: "-08:00", want: -8 * 3600 * 1000},
-		{in: "+23:59", want: 23*3600*1000 + 59*60*1000},
-		{in: "-23:59", want: -(23*3600*1000 + 59*60*1000)},
+		{in: "+14:00", want: 14 * 3600 * 1000},
+		{in: "-14:00", want: -14 * 3600 * 1000},
 	} {
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
@@ -38,7 +38,7 @@ func TestParseOffsetStringValidOffsets(t *testing.T) {
 func TestParseOffsetStringRejectsInvalidOffsets(t *testing.T) {
 	t.Parallel()
 
-	for _, in := range []string{"", "+", "+24:00", "+01:60", "+01:30:45", "+1:00", "01:00", "+0a:00", "+\uff10\uff11:00"} {
+	for _, in := range []string{"", "+", "+14:01", "-14:01", "+23:59", "-23:59", "+24:00", "+01:60", "+01:30:45", "+1:00", "01:00", "+0a:00", "+\uff10\uff11:00"} {
 		t.Run(in, func(t *testing.T) {
 			t.Parallel()
 

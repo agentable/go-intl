@@ -57,7 +57,7 @@ func parseOffsetString(s string) (int64, int, int, error) {
 	if err != nil {
 		return 0, 0, 0, invalidOffset(s)
 	}
-	if hour > 23 || minute > 59 {
+	if hour > 14 || minute > 59 || hour == 14 && minute != 0 {
 		return 0, 0, 0, invalidOffset(s)
 	}
 	return sign, hour, minute, nil
