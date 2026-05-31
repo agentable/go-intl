@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -236,4 +241,190 @@ func TestRunReturnsDataProfileErrorsBeforeBuilding(t *testing.T) {
 	if err == nil {
 		t.Fatal("run() error = nil, want missing data profile error")
 	}
+}
+
+func TestRunMainRejectsInvalidArguments(t *testing.T) {
+	t.Parallel()
+
+	var stdout, stderr bytes.Buffer
+	if got := runMain([]string{"-unknown"}, &stdout, &stderr); got != 2 {
+		t.Fatalf("runMain() exit = %d, want 2", got)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("runMain() stdout = %q, want empty", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "flag provided but not defined") {
+		t.Fatalf("runMain() stderr = %q, want flag parse error", stderr.String())
+	}
+}
+
+func TestRunMainRejectsPositionalArguments(t *testing.T) {
+	t.Parallel()
+
+	var stdout, stderr bytes.Buffer
+	if got := runMain([]string{"extra"}, &stdout, &stderr); got != 2 {
+		t.Fatalf("runMain() exit = %d, want 2", got)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("runMain() stdout = %q, want empty", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), `unknown argument "extra"`) {
+		t.Fatalf("runMain() stderr = %q, want unknown argument", stderr.String())
+	}
+}
+
+func TestRunMainReturnsRunError(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	t.Cleanup(func() {
+		if err := os.RemoveAll(outputDir); err != nil {
+			t.Fatalf("remove output dir: %v", err)
+		}
+	})
+
+	if got := runMain(nil, &stdout, &stderr); got != 1 {
+		t.Fatalf("runMain() exit = %d, want 1", got)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("runMain() stdout = %q, want empty", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "read version file") {
+		t.Fatalf("runMain() stderr = %q, want data profile error", stderr.String())
+	}
+}
+
+func TestRunWithDependenciesBuildsCasesAndWritesOutput(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeSizecheckDataProfile(t, root)
+	outDir, err := os.MkdirTemp(".", "sizecheck-run-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(outDir); err != nil {
+			t.Fatalf("remove temp output: %v", err)
+		}
+	})
+	var stdout bytes.Buffer
+	cleaned := false
+	err = runWithDependencies(t.Context(), outDir, runOptions{Root: root, Cold: true}, runDependencies{
+		cases: []binaryCase{{
+			name: "hello",
+			source: `package main
+
+func main() {}`,
+		}},
+		cleanBuildCache: func(context.Context) error {
+			cleaned = true
+			return nil
+		},
+		stdout: &stdout,
+	})
+	if err != nil {
+		t.Fatalf("runWithDependencies() error = %v, want nil", err)
+	}
+	if !cleaned {
+		t.Fatal("runWithDependencies() did not clean build cache")
+	}
+	for _, want := range []string{
+		"data-profile: locales=2 cldr=48.1.0 icu=78 tzdata=2025b cold=true",
+		"hello",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("runWithDependencies() stdout = %q, want substring %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestRunWithDependenciesReturnsCleanBuildCacheError(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeSizecheckDataProfile(t, root)
+	wantErr := errors.New("clean failed")
+	err := runWithDependencies(t.Context(), filepath.Join(t.TempDir(), "out"), runOptions{Root: root, Cold: true}, runDependencies{
+		cases: []binaryCase{},
+		cleanBuildCache: func(context.Context) error {
+			return wantErr
+		},
+		stdout: io.Discard,
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("runWithDependencies() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestWriteCaseReturnsCreateDirectoryError(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(root, []byte("not a directory"), 0o666); err != nil {
+		t.Fatal(err)
+	}
+	_, err := writeCase(root, binaryCase{name: "hello", source: "package main"})
+	if err == nil {
+		t.Fatal("writeCase() error = nil, want create directory error")
+	}
+}
+
+func TestCleanBuildCacheWithCommand(t *testing.T) {
+	t.Parallel()
+
+	if err := cleanBuildCacheWithCommand(t.Context(), helperCommand(0, "")); err != nil {
+		t.Fatalf("cleanBuildCacheWithCommand() error = %v, want nil", err)
+	}
+}
+
+func TestCleanBuildCacheWithCommandWrapsGoCleanFailure(t *testing.T) {
+	t.Parallel()
+
+	err := cleanBuildCacheWithCommand(t.Context(), helperCommand(7, "boom"))
+	if err == nil {
+		t.Fatal("cleanBuildCacheWithCommand() error = nil, want failure")
+	}
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+		t.Fatalf("cleanBuildCacheWithCommand() error = %T, want *exec.ExitError in chain", err)
+	}
+}
+
+func writeSizecheckDataProfile(t *testing.T, root string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(root, "internal", "cldr"), 0o777); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "tools"), 0o777); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "internal", "cldr", "VERSION"), []byte("cldr=48.1.0\nicu=78\ntzdata=2025b\n"), 0o666); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "tools", "locale-profile.json"), []byte(`{"locales":["en","fr"]}`), 0o666); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func helperCommand(exitCode int, stderr string) commandContextFunc {
+	return func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		cmdArgs := append([]string{"-test.run=TestHelperProcess", "--", name}, args...)
+		cmd := exec.CommandContext(ctx, os.Args[0], cmdArgs...)
+		cmd.Env = append(os.Environ(),
+			"GO_WANT_HELPER_PROCESS=1",
+			fmt.Sprintf("GO_HELPER_EXIT_CODE=%d", exitCode),
+			"GO_HELPER_STDERR="+stderr,
+		)
+		return cmd
+	}
+}
+
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	fmt.Fprint(os.Stderr, os.Getenv("GO_HELPER_STDERR"))
+	code, err := strconv.Atoi(os.Getenv("GO_HELPER_EXIT_CODE"))
+	if err != nil {
+		os.Exit(2)
+	}
+	os.Exit(code)
 }

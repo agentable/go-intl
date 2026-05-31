@@ -43,19 +43,29 @@ type dataProfile struct {
 }
 
 func main() {
+	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+func runMain(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("sizecheck", flag.ContinueOnError)
+	fs.SetOutput(stderr)
 	cold := fs.Bool("cold", false, "clear the Go build cache before measuring compile time")
-	if err := fs.Parse(os.Args[1:]); err != nil {
-		os.Exit(2)
+	if err := fs.Parse(args); err != nil {
+		return 2
 	}
 	if fs.NArg() > 0 {
-		fmt.Fprintf(os.Stderr, "unknown argument %q\n", fs.Arg(0))
-		os.Exit(2)
+		if _, err := fmt.Fprintf(stderr, "unknown argument %q\n", fs.Arg(0)); err != nil {
+			return 1
+		}
+		return 2
 	}
-	if err := run(context.Background(), outputDir, runOptions{Root: ".", Cold: *cold}); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	if err := runWithDependencies(context.Background(), outputDir, runOptions{Root: ".", Cold: *cold}, defaultRunDependencies(stdout)); err != nil {
+		if _, printErr := fmt.Fprintln(stderr, err); printErr != nil {
+			return 1
+		}
+		return 1
 	}
+	return 0
 }
 
 type runOptions struct {
@@ -63,7 +73,34 @@ type runOptions struct {
 	Cold bool
 }
 
+type runDependencies struct {
+	cases           []binaryCase
+	cleanBuildCache func(context.Context) error
+	stdout          io.Writer
+}
+
+func defaultRunDependencies(stdout io.Writer) runDependencies {
+	return runDependencies{
+		cases:           sizeCases(),
+		cleanBuildCache: cleanBuildCache,
+		stdout:          stdout,
+	}
+}
+
 func run(ctx context.Context, dir string, opts runOptions) error {
+	return runWithDependencies(ctx, dir, opts, defaultRunDependencies(os.Stdout))
+}
+
+func runWithDependencies(ctx context.Context, dir string, opts runOptions, deps runDependencies) error {
+	if deps.cleanBuildCache == nil {
+		deps.cleanBuildCache = cleanBuildCache
+	}
+	if deps.stdout == nil {
+		deps.stdout = os.Stdout
+	}
+	if deps.cases == nil {
+		deps.cases = sizeCases()
+	}
 	if err := os.RemoveAll(dir); err != nil {
 		return err
 	}
@@ -73,7 +110,7 @@ func run(ctx context.Context, dir string, opts runOptions) error {
 	}
 	profile.Cold = opts.Cold
 	if opts.Cold {
-		if err := cleanBuildCache(ctx); err != nil {
+		if err := deps.cleanBuildCache(ctx); err != nil {
 			return err
 		}
 	}
@@ -83,9 +120,8 @@ func run(ctx context.Context, dir string, opts runOptions) error {
 		return err
 	}
 
-	cases := sizeCases()
-	results := make([]result, 0, len(cases))
-	for _, tc := range cases {
+	results := make([]result, 0, len(deps.cases))
+	for _, tc := range deps.cases {
 		pkgDir, err := writeCase(caseDir, tc)
 		if err != nil {
 			return err
@@ -96,14 +132,20 @@ func run(ctx context.Context, dir string, opts runOptions) error {
 		}
 		results = append(results, result)
 	}
-	if _, err := fmt.Fprint(os.Stdout, formatResults(profile, results)); err != nil {
+	if _, err := fmt.Fprint(deps.stdout, formatResults(profile, results)); err != nil {
 		return err
 	}
 	return nil
 }
 
+type commandContextFunc func(context.Context, string, ...string) *exec.Cmd
+
 func cleanBuildCache(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "go", "clean", "-cache")
+	return cleanBuildCacheWithCommand(ctx, exec.CommandContext)
+}
+
+func cleanBuildCacheWithCommand(ctx context.Context, command commandContextFunc) error {
+	cmd := command(ctx, "go", "clean", "-cache")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("clean build cache: %w\n%s", err, output)
