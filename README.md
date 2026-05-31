@@ -11,7 +11,7 @@ A Go implementation of the active ECMA-402 `Intl` API with typed constructors an
 - **Native Intl alignment**: Public packages map to the active `Intl` constructors: `Locale`, `NumberFormat`, `DateTimeFormat`, `PluralRules`, `ListFormat`, `RelativeTimeFormat`, `DurationFormat`, `DisplayNames`, `Collator`, and `Segmenter`.
 - **Typed Go bridge**: Parse locale strings into `locale.List`, then pass `time.Time`, typed option structs, and typed numeric values while preserving ECMA-402 behavior.
 - **Root namespace**: The root package represents the JavaScript `Intl` namespace as an aggregate facade; production services that need one formatter should import that constructor package directly.
-- **Reusable formatters**: Construct package-level formatters when you need repeated formatting, parts, ranges, or resolved options.
+- **Reusable formatters**: Construct once and reuse; constructors resolve locale, options, and data so repeated formatting stays on the cached path.
 - **Host-friendly records**: Resolved options, parts, ranges, locale info, segments, and durations marshal with ECMA-402 JSON field names for API and JS-host boundaries.
 - **Structured errors**: Root sentinels work with `errors.Is`, and `gointl.Error` exposes stable kind, owner, option, value, locale, and expected-value guidance.
 - **CLDR-backed data**: Ship generated CLDR data as Go source; applications do not load JSON, ICU, or time-zone data files at runtime.
@@ -83,7 +83,7 @@ May 8, 2026
 | Package | Use |
 |---------|-----|
 | `github.com/agentable/go-intl` | Root `Intl` namespace helpers, active constructor type aliases, supported values, and structured error categories. |
-| `github.com/agentable/go-intl/locale` | BCP 47 parsing, canonicalization, maximize/minimize, and locale info getters. |
+| `github.com/agentable/go-intl/locale` | BCP 47 parsing, request lists, canonical locale identity, maximize/minimize, and locale info getters. |
 | `github.com/agentable/go-intl/numberformat` | Decimal, percent, currency, unit, compact, scientific, engineering, parts, and range formatting. |
 | `github.com/agentable/go-intl/datetimeformat` | Date/time styles, field-based formatting, time zones, parts, and date/time ranges. |
 | `github.com/agentable/go-intl/pluralrules` | Cardinal and ordinal plural category selection, including range selection. |
@@ -136,6 +136,8 @@ The Go packages follow the ownership of the native JavaScript `Intl` API:
 ### Parse Locales Once
 
 Parse BCP 47 tags at your application boundary. Formatter constructors receive a `locale.List`: use `nil` or `locale.List{}` for omitted locales, `locale.ParseList` for fallible request lists, and `locale.MustParseList` for const-like examples or tests.
+
+Use the root `gointl.GetCanonicalLocales` helper when you need the ECMA-402 `Intl.getCanonicalLocales` operation. The lower-level locale-list canonicalization step is internal to constructors and `SupportedLocalesOf`.
 
 ```go
 locales, err := locale.ParseList("zh-Hant-TW-u-nu-hanidec")
@@ -202,7 +204,7 @@ The result preserves the requested locale order and returns requested locale val
 
 ### Construct Formatters for Repeated Work
 
-Use formatter packages directly when you need resolved options, parts, ranges, or repeated calls in a hot path:
+Use formatter packages directly when you need resolved options, parts, ranges, or repeated calls in a hot path. Constructors do the locale, option, and data setup; keep the formatter and call its methods instead of rebuilding it per value.
 
 ```go
 format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
@@ -395,7 +397,7 @@ fmt.Println(out)
 
 ### Format Durations
 
-Use `durationformat` for `Intl.DurationFormat` semantics, including digital time formatting and fractional sub-second rollup:
+Use `durationformat` for `Intl.DurationFormat` semantics, including digital time formatting and fractional sub-second rollup. Reuse the formatter for repeated duration output; it resolves its embedded number and list formatters at construction time.
 
 ```go
 format, err := durationformat.New(locale.MustParseList("en"), durationformat.Options{
@@ -629,7 +631,7 @@ go test ./tools/conformance ./tools/check-conformance
 
 ## Contributing
 
-Open an issue before changing public behavior. Keep README changes focused on installation, usage, examples, and development commands; put contracts in `SPECS/` and agent workflow rules in `AGENTS.md`.
+Open an issue before changing public behavior. Keep README changes focused on installation, usage, examples, and development commands; put contracts in `SPECS/` and agent workflow rules in `CLAUDE.md` and the `AGENTS.md` symlink.
 
 ## License
 

@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/agentable/go-intl/internal/localeid"
+
 	"golang.org/x/text/language"
 )
 
@@ -34,7 +36,7 @@ func Parse(s string) (Locale, error) {
 	}
 	lower = normalizeCalendarAliases(lower)
 	lower = normalizeFirstDayAliases(lower)
-	base, unicodeExtension, err := splitUnicodeExtension(lower)
+	base, unicodeExtension, err := localeid.SplitUnicodeExtension(lower)
 	if err != nil {
 		return Locale{}, invalidLocaleValue("languageTag", s, err)
 	}
@@ -78,15 +80,7 @@ func FromTag(tag language.Tag, opts Options) (Locale, error) {
 }
 
 func (l Locale) String() string {
-	unicode := l.unicodeExtensionParts()
-	parts := make([]string, 1, 2+len(unicode))
-	parts[0] = l.BaseName()
-	if len(unicode) == 0 {
-		return parts[0]
-	}
-	parts = append(parts, "u")
-	parts = append(parts, unicode...)
-	return strings.Join(parts, "-")
+	return localeid.InsertUnicodeExtension(l.BaseName(), l.ext.attributes, l.unicodeExtensionKeywords())
 }
 
 func (l Locale) BaseName() string {

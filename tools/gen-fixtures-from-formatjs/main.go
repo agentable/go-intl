@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -25,6 +27,7 @@ type fixture struct {
 	ExpectedParts      []fixturePart  `json:"expectedParts,omitempty"`
 	ExpectedRange      *string        `json:"expectedRange,omitempty"`
 	ExpectedRangeParts []rangePart    `json:"expectedRangeParts,omitempty"`
+	ExpectedResolved   any            `json:"expectedResolvedOptions,omitempty"`
 }
 
 type fixturePart struct {
@@ -46,14 +49,18 @@ type skipEntry struct {
 	DivergenceID string `json:"divergenceId,omitempty"`
 }
 
-type nodeEntry struct {
-	Input    any    `json:"input"`
-	Expected string `json:"expected"`
+type nodeWitness struct {
+	NodeVersion           string              `json:"nodeVersion"`
+	Versions              map[string]string   `json:"versions"`
+	NumberFormatResolved  []fixture           `json:"numberFormatResolved"`
+	DurationFormatDigital []fixture           `json:"durationFormatDigital"`
+	SupportedValues       nodeSupportedValues `json:"supportedValues"`
 }
 
-type nodeLocale struct {
-	NumberFormats []nodeEntry `json:"numberFormats"`
-	DateFormats   []nodeEntry `json:"dateFormats"`
+type nodeSupportedValues struct {
+	Source   string              `json:"source"`
+	Versions map[string]string   `json:"versions"`
+	Values   map[string][]string `json:"values"`
 }
 
 const formatJSNumberFormatTestSourcePrefix = "formatjs:packages/intl-numberformat/tests/"
@@ -75,7 +82,7 @@ func main() {
 func run(args []string) error {
 	fs := flag.NewFlagSet("gen-fixtures-from-formatjs", flag.ContinueOnError)
 	formatjsPath := fs.String("formatjs", "", "FormatJS checkout path")
-	nodePath := fs.String("node", "", "Node localizationData-v76.1.json path")
+	nodePath := fs.String("node", "", "Node executable path for native Intl fixture generation")
 	outDir := fs.String("out", "", "output repository root")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -88,16 +95,20 @@ func run(args []string) error {
 			return err
 		}
 	}
-	skips := []skipEntry{}
 	if *formatjsPath != "" {
 		formatJSSkips, err := importFormatJS(*formatjsPath, *outDir)
 		if err != nil {
 			return err
 		}
-		skips = append(skips, formatJSSkips...)
-	} else {
-		skips = append(skips, skipEntry{Source: "formatjs", Category: "missing-reference", Reason: "formatjs path not provided"})
+		return writeSkips(*outDir, formatJSSkips)
 	}
+	if *nodePath != "" {
+		return nil
+	}
+	return writeSkips(*outDir, []skipEntry{{Source: "formatjs", Category: "missing-reference", Reason: "formatjs path not provided"}})
+}
+
+func writeSkips(outDir string, skips []skipEntry) error {
 	slices.SortFunc(skips, func(a, b skipEntry) int {
 		if a.Source != b.Source {
 			return strings.Compare(a.Source, b.Source)
@@ -107,41 +118,142 @@ func run(args []string) error {
 		}
 		return strings.Compare(a.Reason, b.Reason)
 	})
-	return writeJSON(filepath.Join(*outDir, ".skip-list.json"), skips)
+	return writeJSON(filepath.Join(outDir, ".skip-list.json"), skips)
 }
 
 func importNode(path, outDir string) error {
-	data, err := os.ReadFile(path)
+	witness, err := runNodeWitness(path)
 	if err != nil {
 		return err
 	}
-	var locales map[string]nodeLocale
-	if err := json.Unmarshal(data, &locales); err != nil {
+	nodeDir, err := nodeFixtureDir(witness.NodeVersion)
+	if err != nil {
 		return err
 	}
-	localeNames := make([]string, 0, len(locales))
-	for loc := range locales {
-		localeNames = append(localeNames, loc)
-	}
-	slices.Sort(localeNames)
-
-	numberFixtures := []fixture{}
-	dateFixtures := []fixture{}
-	for _, loc := range localeNames {
-		slug := strings.ToLower(loc)
-		entry := locales[loc]
-		for i, number := range entry.NumberFormats {
-			numberFixtures = append(numberFixtures, fixture{ID: fmt.Sprintf("numberformat-node-v76-%s-%d", slug, i), Source: "node:v76.1:numberFormats", Locale: loc, Options: map[string]any{}, Input: number.Input, Expected: ptr(number.Expected)})
-		}
-		for i, date := range entry.DateFormats {
-			dateFixtures = append(dateFixtures, fixture{ID: fmt.Sprintf("datetimeformat-node-v76-%s-%d", slug, i), Source: "node:v76.1:dateFormats", Locale: loc, Options: map[string]any{"year": "numeric", "month": "short", "day": "numeric"}, Input: date.Input, Expected: ptr(date.Expected)})
+	if len(witness.NumberFormatResolved) > 0 {
+		path := filepath.Join(outDir, "numberformat", "testdata", "conformance", nodeDir, "resolved-options.json")
+		if err := writeJSON(path, witness.NumberFormatResolved); err != nil {
+			return err
 		}
 	}
-	if err := writeJSON(filepath.Join(outDir, "numberformat", "testdata", "conformance", "node-v76", "smoke.json"), numberFixtures); err != nil {
-		return err
+	if len(witness.DurationFormatDigital) > 0 {
+		path := filepath.Join(outDir, "durationformat", "testdata", "conformance", nodeDir, "digital.json")
+		if err := writeJSON(path, witness.DurationFormatDigital); err != nil {
+			return err
+		}
 	}
-	return writeJSON(filepath.Join(outDir, "datetimeformat", "testdata", "conformance", "node-v76", "smoke.json"), dateFixtures)
+	if len(witness.SupportedValues.Values) > 0 {
+		path := filepath.Join(outDir, "testdata", "native", nodeDir, "supported-values.json")
+		if err := writeJSON(path, witness.SupportedValues); err != nil {
+			return err
+		}
+	}
+	return nil
 }
+
+func runNodeWitness(nodePath string) (nodeWitness, error) {
+	cmd := exec.Command(nodePath, "-e", nodeWitnessScript)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return nodeWitness{}, fmt.Errorf("run node witness %q: %v: %s", nodePath, err, strings.TrimSpace(stderr.String()))
+	}
+	var witness nodeWitness
+	if err := json.Unmarshal(stdout.Bytes(), &witness); err != nil {
+		return nodeWitness{}, fmt.Errorf("decode node witness output: %w", err)
+	}
+	if witness.NodeVersion == "" {
+		return nodeWitness{}, fmt.Errorf("node witness output missing nodeVersion")
+	}
+	return witness, nil
+}
+
+func nodeFixtureDir(version string) (string, error) {
+	trimmed := strings.TrimPrefix(version, "v")
+	major, _, ok := strings.Cut(trimmed, ".")
+	if !ok || major == "" {
+		return "", fmt.Errorf("invalid Node version %q", version)
+	}
+	if _, err := strconv.Atoi(major); err != nil {
+		return "", fmt.Errorf("invalid Node major version %q: %w", version, err)
+	}
+	return "node-v" + major, nil
+}
+
+const nodeWitnessScript = `
+const selectedVersions = {};
+for (const key of ['node', 'v8', 'icu', 'cldr', 'tz', 'unicode']) {
+  if (process.versions[key]) {
+    selectedVersions[key] = process.versions[key];
+  }
+}
+
+const nodeMajor = process.versions.node.split('.')[0];
+const nodeVersion = process.version;
+
+function source(surface, topic) {
+  return 'node:' + nodeVersion + ':' + surface + ':' + topic;
+}
+
+function id(surface, topic) {
+  return surface + '-node-v' + nodeMajor + '-' + topic;
+}
+
+function numberFormatFixture(topic, locale, options, input) {
+  const format = new Intl.NumberFormat(locale, options);
+  return {
+    id: id('numberformat', topic),
+    source: source('numberformat', 'resolved-options'),
+    locale,
+    options,
+    input,
+    expected: format.format(input),
+    expectedResolvedOptions: format.resolvedOptions(),
+  };
+}
+
+function durationFormatFixture(topic, locale, options, input) {
+  const format = new Intl.DurationFormat(locale, options);
+  return {
+    id: id('durationformat', topic),
+    source: source('durationformat', 'digital'),
+    locale,
+    options,
+    input,
+    expected: format.format(input),
+    expectedParts: format.formatToParts(input),
+    expectedResolvedOptions: format.resolvedOptions(),
+  };
+}
+
+const supportedValues = {};
+for (const key of ['calendar', 'collation', 'currency', 'numberingSystem', 'timeZone', 'unit']) {
+  supportedValues[key] = Intl.supportedValuesOf(key);
+}
+
+const witness = {
+  nodeVersion,
+  versions: selectedVersions,
+  numberFormatResolved: [
+    numberFormatFixture('resolved-decimal-default', 'en', {}, 12345.6),
+    numberFormatFixture('resolved-significant-digits', 'en', {minimumSignificantDigits: 3}, 1.2),
+    numberFormatFixture('resolved-compact-defaults', 'en', {notation: 'compact'}, 1200),
+  ],
+  durationFormatDigital: [
+    durationFormatFixture('digital-hours-minutes-seconds', 'en', {style: 'digital'}, {hours: 5, minutes: 30, seconds: 15}),
+    durationFormatFixture('digital-fractional-seconds', 'en', {style: 'digital', fractionalDigits: 3}, {hours: 5, minutes: 30, seconds: 15, milliseconds: 123}),
+    durationFormatFixture('digital-zero-hours', 'en', {style: 'digital'}, {minutes: 30, seconds: 15}),
+  ],
+  supportedValues: {
+    source: 'node:' + nodeVersion + ':intl:supportedValuesOf',
+    versions: selectedVersions,
+    values: supportedValues,
+  },
+};
+
+console.log(JSON.stringify(witness));
+`
 
 func importFormatJS(path, outDir string) ([]skipEntry, error) {
 	numberSkips, err := importFormatJSNumberFormat(path, outDir)

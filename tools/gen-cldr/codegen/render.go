@@ -227,8 +227,8 @@ func renderCollationsFile(input RuntimeInput, _ *StringTable) (generatedFile, er
 	return generatedFile{name: "collations.go", src: src}, err
 }
 
-func renderSupportedFile(RuntimeInput, *StringTable) (generatedFile, error) {
-	src, err := renderSupported()
+func renderSupportedFile(input RuntimeInput, _ *StringTable) (generatedFile, error) {
+	src, err := renderSupported(input)
 	return generatedFile{name: "supported.go", src: src}, err
 }
 

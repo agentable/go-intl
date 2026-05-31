@@ -311,15 +311,15 @@ import (
 )
 
 func main() {
-	_, _ = numberformat.New(nil)
-	_, _ = datetimeformat.New(nil)
-	_, _ = pluralrules.New(nil)
-	_, _ = listformat.New(nil)
-	_, _ = relativetimeformat.New(nil)
-	_, _ = durationformat.New(nil)
-	_, _ = displaynames.New(nil)
-	_, _ = collator.New(nil)
-	_, _ = segmenter.New(nil)
+	_, _ = numberformat.New(nil, numberformat.Options{})
+	_, _ = datetimeformat.New(nil, datetimeformat.Options{})
+	_, _ = pluralrules.New(nil, pluralrules.Options{})
+	_, _ = listformat.New(nil, listformat.Options{})
+	_, _ = relativetimeformat.New(nil, relativetimeformat.Options{})
+	_, _ = durationformat.New(nil, durationformat.Options{})
+	_, _ = displaynames.New(nil, displaynames.Options{})
+	_, _ = collator.New(nil, collator.Options{})
+	_, _ = segmenter.New(nil, segmenter.Options{})
 }`,
 		},
 	}
@@ -333,7 +333,7 @@ func directFormatterCase(name, pkg string) binaryCase {
 import "github.com/agentable/go-intl/%s"
 
 func main() {
-	_, _ = %s.New(nil)
-}`, pkg, pkg),
+	_, _ = %s.New(nil, %s.Options{})
+}`, pkg, pkg, pkg),
 	}
 }

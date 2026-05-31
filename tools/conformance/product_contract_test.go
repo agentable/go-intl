@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/agentable/go-intl/internal/segmentation"
 )
@@ -56,6 +57,7 @@ func TestCollatorNodeOptionContractsExistBeforeBackendAcceptance(t *testing.T) {
 	}
 	for _, id := range []string{
 		"collator-node-v26-search-usage-contract",
+		"collator-node-v26-numeric-locale-extension-contract",
 		"collator-node-v26-case-first-upper-contract",
 		"collator-node-v26-case-first-lower-contract",
 		"collator-node-v26-locale-case-first-upper-contract",
@@ -71,6 +73,36 @@ func TestCollatorNodeOptionContractsExistBeforeBackendAcceptance(t *testing.T) {
 		}
 		if len(fixture.ExpectedResolved) == 0 {
 			t.Fatalf("fixture %q missing expectedResolvedOptions", id)
+		}
+	}
+}
+
+func TestSegmenterTailoredLocaleContractsRemainWithheld(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(repositoryRoot(t), "segmenter")
+	fixtures, err := LoadFixtures(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := make(map[string]Fixture, len(fixtures))
+	for _, fixture := range fixtures {
+		byID[fixture.ID] = fixture
+	}
+	for _, id := range []string{
+		"segmenter-node-v26-th-word-tailored-contract",
+		"segmenter-node-v26-ja-word-tailored-contract",
+		"segmenter-node-v26-zh-hant-word-tailored-contract",
+	} {
+		fixture, ok := byID[id]
+		if !ok {
+			t.Fatalf("missing segmenter tailored-locale node contract fixture %q", id)
+		}
+		if len(fixture.ExpectedSegments) == 0 {
+			t.Fatalf("fixture %q missing expectedSegments", id)
+		}
+		if reason, ok := SkipReason(root, id, time.Now()); !ok || reason == "" {
+			t.Fatalf("fixture %q must stay xfailed until the backend supports tailored word boundaries", id)
 		}
 	}
 }

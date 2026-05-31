@@ -2,7 +2,6 @@ package datetimeformat
 
 import (
 	"strings"
-	"time"
 
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	ecma402dtf "github.com/agentable/go-intl/internal/ecma402/datetimeformat"
@@ -83,7 +82,7 @@ func (f *DateTimeFormat) patternData() *patternData {
 	return buildPatternData(f.gregorian)
 }
 
-func (p selectedPattern) parts(f *DateTimeFormat, t time.Time) ([]Part, bool) {
+func (p selectedPattern) parts(f *DateTimeFormat, t localTime) ([]Part, bool) {
 	switch p.kind {
 	case patternDate:
 		return f.formatDatePattern(p.date, t), true

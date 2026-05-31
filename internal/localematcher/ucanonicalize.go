@@ -1,9 +1,7 @@
 package localematcher
 
 import (
-	"cmp"
-	"slices"
-	"strings"
+	"github.com/agentable/go-intl/internal/localeid"
 )
 
 type keyword struct {
@@ -12,39 +10,20 @@ type keyword struct {
 }
 
 func UnicodeExtensionValue(extension, key string) string {
-	body, ok := strings.CutPrefix(extension, "-u-")
-	if !ok {
+	ext, err := localeid.ParseUnicodeExtension(extension)
+	if err != nil {
 		return ""
 	}
-	parts := strings.Split(body, "-")
-	for i := range len(parts) {
-		if len(parts[i]) != 2 || parts[i] != key {
-			continue
-		}
-		start := i + 1
-		end := start
-		for end < len(parts) && len(parts[end]) >= 3 {
-			end++
-		}
-		if start == end {
-			return "true"
-		}
-		return strings.Join(parts[start:end], "-")
-	}
-	return ""
+	return ext.ValueForKey(key)
 }
 
 func InsertUnicodeExtensionAndCanonicalize(loc string, keywords []keyword) string {
 	if len(keywords) == 0 {
 		return loc
 	}
-	slices.SortFunc(keywords, func(a, b keyword) int { return cmp.Compare(a.key, b.key) })
-	parts := []string{loc, "u"}
+	out := make([]localeid.UnicodeKeyword, 0, len(keywords))
 	for _, kw := range keywords {
-		parts = append(parts, kw.key)
-		if kw.value != "" && kw.value != "true" {
-			parts = append(parts, strings.Split(kw.value, "-")...)
-		}
+		out = append(out, localeid.UnicodeKeyword{Key: kw.key, Value: kw.value})
 	}
-	return strings.Join(parts, "-")
+	return localeid.InsertUnicodeExtension(loc, nil, out)
 }

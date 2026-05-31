@@ -1,6 +1,6 @@
 # SPEC 50 — CLDR Data & Codegen
 
-> **Status:** Draft (2026-05-08)
+> **Status:** Revised (2026-05-31)
 > **Priority:** High (all formatter data bottom layer; blocking SPEC 10 / 20 / 30 / 31 / 32 / 40)
 > **Authority:** CLDR / ICU / tzdata release data are the upstream authorities. This SPEC records the `internal/cldr/` package structure, version peg, active scope locale scope, `tools/gen-cldr/` code generator schema.
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-`internal/cldr/` is the data bottom layer of go-intl CLDR-backed formatter. It compiles the locale-aware table of [Unicode CLDR](https://cldr.unicode.org/) (numeric symbols, numeric time separators, currency precision, date mode, plurality rules, list mode, relative time field, duration unit mode, time zone display name, likely subtags, locale matching data) into Go literals during the generation period, and consumes them through the O(1) accessor for the formatter package at runtime. The runtime algorithm boundaries for `collator` and `segmenter` are defined by their respective SPECs. `tools/gen-cldr/` is the code generator for this package and is maintained as an independent Go module.
+`internal/cldr/` is the data bottom layer of go-intl CLDR-backed formatter. It compiles the locale-aware table of [Unicode CLDR](https://cldr.unicode.org/) (numeric symbols, numeric time separators, currency precision, date mode, plurality rules, list mode, relative time field, duration unit mode, time zone display name, likely subtags, and reference locale matching data) into Go literals during the generation period, and consumes them through the O(1) accessor for the formatter package at runtime. The runtime algorithm boundaries for `collator`, `segmenter`, and active best-fit locale matching are defined by their respective SPECs. `tools/gen-cldr/` is the code generator for this package and is maintained as an independent Go module.
 
 This SPEC definition: data source selection (direct consumption `unicode-org/cldr-json`), embedding strategy (Go literal, **not** use `//go:embed *.json`), active locale scope (single `locales` collection, CLDR-backed surface payload coverage and accessor-derived supported set), version pinning (`cldr=48.1.0` / `icu=78` / `tzdata=2025b`), default data portrait (104 locale curated default), generator location (`tools/gen-cldr/` independent `go.mod`), file layout and accessor interface, upgrade process.
 
@@ -52,14 +52,14 @@ Each `internal/cldr/<file>.go` corresponds to an extraction entry:
 | `plural/*.go` | `cldr-core/supplemental/plurals.json` + `ordinals.json` + `pluralRanges.json` | cardinal rules, ordinal rules, pluralRanges (this file is output by SPEC 40 codegen; this SPEC only agrees on the file location) |
 | `preference.go` | `cldr-core/supplemental/timeData.json` + `weekData.json` + `calendarPreferenceData.json` | hourCycle preference, firstDay / weekend / minDays, calendar preference for each region |
 | `likely_subtags.go` | `cldr-core/supplemental/likelySubtags.json` | language → maximized (script, region) mapping |
-| `locale_matching.go` | `cldr-core/supplemental/languageMatching.json` | paradigmLocales, matchVariables, distance table (SPEC 11 BestFitMatcher data) |
+| `locale_matching.go` | `cldr-core/supplemental/languageMatching.json` | reference paradigmLocales, matchVariables, and distance table accessors for future best-fit expansion; active SPEC 11 matching does not import this package |
 | `regions.go` | `cldr-core/supplemental/territoryContainment.json` | matchVariables area expansion ($enUS / $cnsar / $americas / $maghreb, etc.) |
 | `currencies.go` | `cldr-numbers-full/main/<locale>/currencies.json` + `cldr-core/supplemental/currencyData.json` | Currency display name (long / short / narrow), plural form, defaultFractionDigits, cashDigits, rounding |
 | `units.go` | `cldr-units-full/main/<locale>/units.json` | NumberFormat sanctioned unit plural mode, DurationFormat duration unit mode (long / short / narrow), compoundUnitPatterns |
 | `list_patterns.go` | `cldr-misc-full/main/<locale>/listPatterns.json` | ListFormat pair/start/middle/end pattern of `conjunction` / `disjunction` / `unit` × `long` / `short` / `narrow` |
 | `relative_time.go` | `cldr-dates-full/main/<locale>/dateFields.json` | long/short/narrow relative and relativeTime pattern of RelativeTimeFormat year/quarter/month/week/day/hour/minute/second |
 | `locales.go` | `cldr-core/availableLocales.json` | Supported locale list + `AvailableLocales()` accessor |
-| `supported.go` | Derived from generated runtime maps and generator constants | formatter-specific supported locale list + CLDR-backed inputs of root supported-value accessors |
+| `supported.go` | Derived from generated runtime maps, generated compact supported-value indexes, and generator constants | formatter-specific supported locale list + CLDR-backed inputs of root supported-value accessors |
 | `manifest.go` | `internal/cldr/VERSION` + `tools/locale-profile.json` + CLDR package metadata | generator name, CLDR / ICU / tzdata pins, active locale profile, input file SHA-256 hash |
 | `strings.go` | (derived) | Shared deduplication string table (`const _data string`) |
 
@@ -487,6 +487,8 @@ func SupportedCurrencies() []string
 func SupportedNumberingSystems() []string
 func SupportedTimeZones() []string
 
+`SupportedCalendars()` is generated from date calendar payload keys, maps CLDR `"gregorian"` to ECMA-402 `"gregory"`, and appends `"iso8601"` only when Gregorian data exists. Supported-value accessors must use generated compact indexes rather than scanning heavy formatter payload maps on first call. They must not mirror Node's broader lists until matching formatter semantics and fixtures are active.
+
 // Numeric symbols and patterns
 type NumberSymbols struct {
     Decimal, Group, Percent, Plus, Minus, NaN, Infinity, ApproxSign string
@@ -532,7 +534,7 @@ func (l Locale) CalendarPreference() []string
 func MaximizeSubtags(language, script, region string) (lang, scr, reg string, ok bool)
 func MinimizeSubtags(language, script, region string) (lang, scr, reg string, ok bool)
 
-// Locale Matching(SPEC 11 BestFitMatcher consumption)
+// Reference locale matching data (not an active SPEC 11 package dependency)
 func MatchingDistance(desired, supported string) int
 func ParadigmLocales() []string
 func MatchVariables() map[string][]string
@@ -542,6 +544,7 @@ func MatchVariables() map[string][]string
 
 1. `AvailableLocales()` represents the CLDR availability universe; formatter locale matching **MUST** use a formatter-specific list, i.e. `internal/cldr/number.SupportedLocales()`, `internal/cldr/date.SupportedLocales()`, `internal/cldr/plural.SupportedLocales()`, `internal/cldr/list.SupportedLocales()`, `internal/cldr/relativetime.SupportedLocales()`, or `internal/cldr/displaynames.SupportedLocales()`.
 2. Formatter-specific `SupportedLocales()` **MUST** be derived from generated runtime data maps, and each tag can find non-`Undefined` locales through `ResolveLocale`.
+3. `internal/localematcher` **MUST NOT** import `internal/cldr`; formatter constructors inject generated supported-locale slices, maximizers, and locale-data providers into matcher APIs.
 3. `internal/cldrmatch` **FORBIDDEN** from maintaining a handwritten locale list; after adding formatter data, the corresponding supported-locale accessor must be added to the CLDR generator and derived from it.
 4. `internal/cldr.SupportedCollations()` **MUST** generate candidate identifiers from `cldr-bcp47`. Temporary lists such as `emoji` / `eor` must not be handwritten at runtime; root `SupportedCollations()` ** must not** directly consume this candidate list and must reflect the active Collator backend truth through `internal/collation.SupportedCollations()`.
 
@@ -550,6 +553,8 @@ func MatchVariables() map[string][]string
 ### 6.2 accessor allocation constraints
 
 Hot path accessors **MUST** zero-allocate after data loading is complete (returning `string` is a string slice into `_data`, returning a read-only map/slice reference). Large tables are allowed to be initialized via `sync.Once` on first access; this cold start cost must not occur in lightweight entries that do not use the corresponding formatter surface.
+
+Root supported-value accessors are lightweight semantic indexes. Currency, calendar, numbering-system, and time-zone candidates are computed during `tools/gen-cldr` generation from the same runtime payload sources that prove support, then emitted as compact sorted slices. Runtime code may canonicalize the small generated candidate slice (for example time-zone links), but it must not load date, currency-name, number-symbol, or metazone display-name payloads merely to answer `Intl.supportedValuesOf`.
 
 Use `go test -benchmem -run=^$ -bench=BenchmarkAccessor ./internal/cldr/` as non-blocking telemetry for accessor hot paths.
 
@@ -688,7 +693,7 @@ func TestGenerated_NoDrift(t *testing.T) {
 - [ ] §6.1 All the accessors listed in §6.1 are declared (`ResolveLocale` / `NumberSymbols` / `CalendarNames` / `IntervalFormats` / `ZoneToMetazone` / `MetazoneName` / `CurrencyDigits` / `MaximizeSubtags` / `MatchingDistance`, etc.).
 - [ ] Each formatter-specific `SupportedLocales()` is non-empty, does not contain `und`, and each tag has a corresponding generated payload.
 - [ ] `SupportedCalendars()` / `SupportedCurrencies()` / `SupportedNumberingSystems()` / `SupportedTimeZones()` returns canonical, sorted, unique values, and the data comes from generated runtime maps or ECMA-402 generator constants; `internal/cldr.SupportedCollations()` returns canonical, sorted, unique CLDR candidate values only.
-- [ ] `SupportedCalendars()` contains `iso8601`; `SupportedNumberingSystems()` contains the full table of ECMA-402 simple digit numbering systems, even if the current profile does not generate the corresponding CLDR symbol payload.
+- [ ] `SupportedCalendars()` derives from generated date calendar payloads, maps CLDR `"gregorian"` to ECMA-402 `"gregory"`, and contains `iso8601` when Gregorian data exists; `SupportedNumberingSystems()` contains the full table of ECMA-402 simple digit numbering systems, even if the current profile does not generate the corresponding CLDR symbol payload.
 - [ ] `go test -benchmem -run=^$ -bench=BenchmarkAccessor ./internal/cldr/` reports accessor allocation telemetry.
 
 ### Test
@@ -696,7 +701,7 @@ func TestGenerated_NoDrift(t *testing.T) {
 - [ ] `tools/gen-cldr/gen_test.go` passes; Asserts that the era / month field of the base locale (en / zh-Hans / ar) is not empty.
 - [ ] `internal/cldr/snapshot_test.go` passed; the CI verification generated result is consistent with git.
 - [ ] FormatJS `tests/likely-subtags.test.ts` / `minimize.test.ts` All fixtures passed in `internal/cldr/likely_subtags_test.go`.
-- [ ] FormatJS `intl-localematcher/tests/best-fit-matcher.test.ts` All fixtures passed the SPEC 11 test (this SPEC provides `MatchingDistance` data).
+- [ ] `internal/cldr/locale_matching_test.go` proves generated `MatchingDistance`, `ParadigmLocales`, and `MatchVariables` accessors remain deterministic. SPEC 11 best-fit tests do not depend on these accessors unless a future spec revision adopts generated CLDR distance matching.
 
 ---
 
@@ -721,7 +726,7 @@ func TestGenerated_NoDrift(t *testing.T) {
 
 - [SPEC 00 §5.3 — Data strategy](./00-vision-and-scope.md#53-data-strategy)
 - [SPEC 10 §Maximize / Minimize](./10-locale.md) - Consumes `MaximizeSubtags` / `MinimizeSubtags`.
-- [SPEC 11 §BestFitMatcher Data](./11-locale-matching.md) - Consumes `MatchingDistance` / `ParadigmLocales` / `MatchVariables`.
+- [SPEC 11 §BestFitMatcher](./11-locale-matching.md) - Active matcher receives supported locales and maximizers from formatter constructors; generated `MatchingDistance` / `ParadigmLocales` / `MatchVariables` remain reference data for a future explicit matcher revision.
 - [SPEC 20 §Currency Data](./20-numberformat.md) - consumes `CurrencyDigits` / `CurrencyDisplayName`.
 - [SPEC 30 §DateTimeFormat Core](./30-datetimeformat.md) - Consumes `CalendarNames` / `DateFormat` / `TimeFormat` / `AvailableFormats` / `IntervalFormats`.
 - [SPEC 31 §Skeleton Resolution](./31-datetimeformat-skeleton.md) - Consumes `AvailableFormats` / `IntervalFormats`.

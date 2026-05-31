@@ -1,6 +1,10 @@
 package localematcher
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/agentable/go-intl/internal/localeid"
+)
 
 func LookupMatcher(requested, supported []string, defaultLocale string) Result {
 	return NewMatcher(supported, nil).lookup(requested, defaultLocale)
@@ -30,22 +34,9 @@ func LookupSupportedLocales(supported, requested []string) []string {
 }
 
 func removeUnicodeExtension(locale string) (string, string) {
-	start := strings.Index(locale, "-u-")
-	if start < 0 {
+	base, extension, err := localeid.RemoveUnicodeExtension(locale)
+	if err != nil {
 		return locale, ""
 	}
-	end := len(locale)
-	parts := strings.Split(locale[start+1:], "-")
-	pos := start + 1
-	for i, part := range parts {
-		if i > 0 {
-			pos++
-		}
-		if i > 0 && len(part) == 1 {
-			end = pos - 1
-			break
-		}
-		pos += len(part)
-	}
-	return locale[:start] + locale[end:], locale[start:end]
+	return base, extension
 }

@@ -22,6 +22,26 @@
     }
   },
   {
+    "id": "collator-node-v26-numeric-locale-extension-contract",
+    "source": "node:v26.0.0:collator:option-contract",
+    "locale": "en-u-kn-true",
+    "options": {},
+    "input": {
+      "left": "item2",
+      "right": "item10"
+    },
+    "expectedComparison": -1,
+    "expectedResolvedOptions": {
+      "locale": "en-u-kn",
+      "usage": "sort",
+      "sensitivity": "variant",
+      "ignorePunctuation": false,
+      "collation": "default",
+      "numeric": true,
+      "caseFirst": "false"
+    }
+  },
+  {
     "id": "collator-node-v26-case-first-upper-contract",
     "source": "node:v26.0.0:collator:option-contract",
     "locale": "en",

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "collator-node-v26-swedish-z-before-a-ring",
+    "source": "node:v26.0.0:collator:backend-proof",
+    "locale": "sv",
+    "options": {},
+    "input": {
+      "left": "z",
+      "right": "å"
+    },
+    "expectedComparison": -1,
+    "expectedResolvedOptions": {
+      "locale": "sv",
+      "usage": "sort",
+      "sensitivity": "variant",
+      "ignorePunctuation": false,
+      "collation": "default",
+      "numeric": false,
+      "caseFirst": "false"
+    }
+  },
+  {
+    "id": "collator-node-v26-swedish-a-ring-before-a-umlaut",
+    "source": "node:v26.0.0:collator:backend-proof",
+    "locale": "sv",
+    "options": {},
+    "input": {
+      "left": "å",
+      "right": "ä"
+    },
+    "expectedComparison": -1,
+    "expectedResolvedOptions": {
+      "locale": "sv",
+      "usage": "sort",
+      "sensitivity": "variant",
+      "ignorePunctuation": false,
+      "collation": "default",
+      "numeric": false,
+      "caseFirst": "false"
+    }
+  },
+  {
+    "id": "collator-node-v26-swedish-a-umlaut-before-o-umlaut",
+    "source": "node:v26.0.0:collator:backend-proof",
+    "locale": "sv",
+    "options": {},
+    "input": {
+      "left": "ä",
+      "right": "ö"
+    },
+    "expectedComparison": -1,
+    "expectedResolvedOptions": {
+      "locale": "sv",
+      "usage": "sort",
+      "sensitivity": "variant",
+      "ignorePunctuation": false,
+      "collation": "default",
+      "numeric": false,
+      "caseFirst": "false"
+    }
+  }
+]

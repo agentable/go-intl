@@ -186,7 +186,7 @@ Hour12 *bool // Distinguish between "not passed" and "explicit false"
 1. **MUST** check that `DateStyle` / `TimeStyle` are mutually exclusive with specific fields (`Weekday`/`Year`/`Month`/`...`); if set at the same time, return `ErrInvalidOption` (aligned with ECMA-402 §13.1.1.1 exception).
 2. `Hour12` **MUST** be expressed through `*bool` to distinguish "not passed" from "explicit false".
 3. `FractionalSecondDigits` **MUST** check ∈ `{1, 2, 3}`, otherwise return `ErrInvalidOption`.
-4. `NumberingSystem` **MUST** only verify Unicode type syntax; well-formed but unsupported values are selected by `ResolveLocale` to support values or fall back to default values. `Calendar` first checks the Unicode type syntax, and then requires the value to belong to the active supported calendar set (`gregory`, `iso8601`), otherwise an error matching `gointl.ErrUnsupportedOption` is returned.
+4. `NumberingSystem` **MUST** only verify Unicode type syntax; well-formed but unsupported values are selected by `ResolveLocale` to support values or fall back to default values. `Calendar` first checks the Unicode type syntax, and then requires the value to belong to the active generated calendar set exposed by `SupportedCalendars()`, otherwise an error matching `gointl.ErrUnsupportedOption` is returned.
 
 ### 2.2 HourCycle linkage (§13.1.1.1) <a id="22-hourcycle-linkage-13111"></a>
 
@@ -214,7 +214,7 @@ resolved.HourCycle := dataLocale default (taken from CLDR `timeData.json` `prefe
 ```go
 type ResolvedOptions struct {
     Locale                 locale.Locale
-Calendar string // always "gregory" in active scope
+Calendar string // generated-data-backed calendar identifier
     NumberingSystem        string
 TimeZone string // IANA canonical name or "+HH:MM"
     HourCycle              HourCycle
@@ -253,7 +253,7 @@ Current tier: **narrowed implementation gap**.
 
 | Field | Value |
 |-------|-------|
-| Current behavior | Only Gregorian / ISO-8601 observable formatting is backed by generated data. |
+| Current behavior | Generated Gregorian calendar data is active; `iso8601` is the ECMA-402 bridge over the same Gregorian local-time projection. |
 | Rationale | Rejecting unsupported calendars is more truthful than formatting with Gregorian data while reporting another calendar. |
 | Native contract | Node/V8 deep fixtures must cover time-zone-name forms, metazone standard/daylight names, UTC-offset time zones, interval ranges, range parts, and resolved options before any DateTimeFormat expansion is accepted. |
 | review_after | 2026-09-30 or the next CLDR / ICU calendar-data upgrade, whichever comes first. |
@@ -263,7 +263,7 @@ This section defines the current safe boundary, not the permanent product target
 
 ### 3.2 Current behavior
 
-active generated pattern data only covers Gregorian/ISO-8601 observable behavior. Well-formed but unimplemented values in `Options.Calendar` or locale `-u-ca-*` must return an error matching `gointl.ErrUnsupportedOption` and must not continue formatting after a silent fallback through `ResolveLocale` .
+Active generated pattern data currently covers Gregorian/ISO-8601 observable behavior. Well-formed but unimplemented values in `Options.Calendar` or locale `-u-ca-*` must return an error matching `gointl.ErrUnsupportedOption` and must not continue formatting after a silent fallback through `ResolveLocale`.
 
 > **Why**:
 > 1. ECMA-402 constructor allows unsupported but well-formed calendar to fall back through locale data negotiation; go-intl chooses more realistic Go boundaries in active scope: an error is returned when the caller explicitly requests unimplemented calendar, avoiding false promises between `ResolvedOptions` and actual Gregorian behavior.
@@ -278,9 +278,9 @@ active generated pattern data only covers Gregorian/ISO-8601 observable behavior
 **MUST** Rules:
 
 1. The `Calendar` field type **MUST** be `string` (exposing BCP 47 `-u-ca-...` form), and **not** be changed to a controlled enumeration (`type Calendar int`) - the string semantics directly corresponds to BCP 47, and is reserved for consumer-driven expansion.
-2. When `Locale.Calendar()` / `Options.Calendar` is not empty, Unicode type syntax verification must be done first, and then calendars outside the active supported set are rejected.
-3. `SupportedCalendars()` **MUST** return exactly `"gregory"` and ECMA-402 required `"iso8601"`.
-4. `SupportedLocalesOf` **MUST** return requested locale with unsupported `-u-ca-*`; for example, `en-US-u-ca-buddhist` must be filtered in the current active scope, and `en-US-u-ca-iso8601` must be retained.
+2. When `Locale.Calendar()` / `Options.Calendar` is not empty, Unicode type syntax verification must be done first, and then calendars outside `SupportedCalendars()` are rejected.
+3. `SupportedCalendars()` **MUST** be derived from generated date calendar payload keys, mapping CLDR `"gregorian"` to ECMA-402 `"gregory"` and appending `"iso8601"` only when Gregorian data is present. It must be sorted, unique, and must not copy Node's broader `Intl.supportedValuesOf("calendar")` list.
+4. `SupportedLocalesOf` **MUST NOT** return requested locales with unsupported `-u-ca-*`; for example, `en-US-u-ca-buddhist` must be filtered in the current active scope, and `en-US-u-ca-iso8601` must be retained.
 5. `ResolvedOptions().Calendar` **MUST** return the `ca` value of the resolved locale record; the current active data can only be `"gregory"` or `"iso8601"`.
 
 ### 3.3 Calendar data access
@@ -288,7 +288,8 @@ active generated pattern data only covers Gregorian/ISO-8601 observable behavior
 **MUST** Rules:
 
 1. Calendar data (era / month / weekday / dayPeriod name) **MUST** be accessed through [SPEC 32 §Calendar Data](./32-datetimeformat-tz.md#calendar-data); `internal/cldr/dates.go` is a generated data record.
-2. The `New` period **MUST** first parse the public `locale.Locale` into `cldr.Locale`, and then pull it once through `internal/cldr.GregorianFor(cldrLoc)` and freeze it into the `DateTimeFormat` internal slot.
+2. The `New` period **MUST** first parse the public `locale.Locale` into `cldr.Locale`, and then pull active Gregorian data once through `internal/cldr.GregorianFor(cldrLoc)` and freeze it into the `DateTimeFormat` internal slot.
+3. Expanding beyond Gregorian / ISO-8601 **MUST** add the generated calendar payload, calendar-specific local-time projection, pattern / part behavior, and Node or FormatJS fixtures in the same change before adding the calendar to `SupportedCalendars()`.
 
 ---
 
@@ -343,8 +344,8 @@ active generated pattern data only covers Gregorian/ISO-8601 observable behavior
 **MUST** Rules:
 
 1. `Format` **MUST** be equivalent to `strings.Join(part.Value for part in FormatToParts(t), "")` - the output string bytes of the two are equal, as asserted by the conformance test.
-2. `instant` **MUST** be obtained through `t.UTC().UnixMilli()`; **FORBIDDEN** to be transferred through `t.Unix() * 1000` (accuracy loss).
-3. `ToLocalTime` implementation **MUST** be in `internal/ecma402/datetimeformat/tolocaltime.go`, accept `(instant int64, calendar string, location *time.Location)`, and return structured `LocalTime`.
+2. `time.Time` input **MUST** be rounded and converted through the cached `*time.Location` before any calendar fields are read.
+3. ECMA-402 `ToLocalTime` semantics **MUST** be centralized behind one local-time projection path. Active `gregory` and `iso8601` use Gregorian fields, including ECMA-402 BCE display-year conversion (`year <= 0` formats as `1 - year`); future calendars must extend that projection instead of scattering calendar conditionals through pattern code.
 4. Pattern token → Field formatted lookup table **MUST** pass [SPEC 31 §Skeleton character table](./31-datetimeformat-skeleton.md).
 5. The `Part.Type` output by `FormatField` **MUST** qualify ECMA-402 §15.5.1 Table 9 for a total of 15 spec strings: `era | year | month | day | hour | minute | second | weekday | dayPeriod | timeZoneName | literal | fractionalSecondDigits | relatedYear | yearName | unknown`. The AM/PM mark is triggered by the token `a/b/B` inside the pattern, but the output part type is still `"dayPeriod"`** (spec §15.5.4), and `"ampm"` must not be emitted directly (that is the internal pattern mark of FormatJS, not an ECMA-402 part type). `relatedYear / yearName / unknown` will not be emitted in Gregorian-only scope, but the constant **MUST** exist to ensure that `switch part.Type` does not break the API in future calendar extensions. **It is forbidden** to use non-spec strings such as `hour24` / `hour11` / `dayperiod` (lowercase) / `ampm`.
 6. `DateTimeFormat` **MUST** cache `selectedPattern` when `New` is used, instead of repeatedly selecting the pattern in each `FormatToParts`. `selectedPattern` contains at least kind(`date | time | dateTime | none`) and date/time/dateTime pattern strings; style pattern, component skeleton pattern, and date+time interpolation are all formatted from this structure.

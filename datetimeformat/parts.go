@@ -7,7 +7,7 @@ func (f *DateTimeFormat) FormatToParts(t time.Time) []Part {
 	if f.location != nil {
 		t = t.In(f.location)
 	}
-	if parts, ok := f.pattern.parts(f, t); ok {
+	if parts, ok := f.pattern.parts(f, f.localTime(t)); ok {
 		return parts
 	}
 	return nil

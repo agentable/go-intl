@@ -1,7 +1,18 @@
 package codegen
 
-func renderSupported() ([]byte, error) {
-	return FormatFile([]byte(`package cldr
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/agentable/go-intl/tools/gen-cldr/extract"
+)
+
+func renderSupported(input RuntimeInput) ([]byte, error) {
+	var b strings.Builder
+	b.WriteString(`package cldr
 
 import (
 	"maps"
@@ -20,7 +31,7 @@ func NumberSupportedLocales() []string {
 	return numberSupportedLocales
 }
 
-// DateSupportedLocales returns locales with generated Gregorian date data.
+// DateSupportedLocales returns locales with generated date data.
 func DateSupportedLocales() []string {
 	dateSupportedLocalesOnce.Do(func() {
 		dateSupportedLocales = supportedLocaleTags(dateDataByLocale())
@@ -38,9 +49,6 @@ func UnitSupportedLocales() []string {
 
 // SupportedCalendars returns canonical ECMA-402 calendar identifiers backed by generated date data.
 func SupportedCalendars() []string {
-	supportedCalendarsOnce.Do(func() {
-		supportedCalendars = supportedCalendarValues()
-	})
 	return supportedCalendars
 }
 
@@ -51,9 +59,6 @@ func SupportedCollations() []string {
 
 // SupportedCurrencies returns canonical ISO 4217 currency codes backed by generated number data.
 func SupportedCurrencies() []string {
-	supportedCurrenciesOnce.Do(func() {
-		supportedCurrencies = supportedCurrencyValues()
-	})
 	return supportedCurrencies
 }
 
@@ -89,7 +94,7 @@ type DateLocaleData struct{}
 func (DateLocaleData) For(locale, key string) []string {
 	switch key {
 	case "ca":
-		return []string{"gregory", "iso8601"}
+		return SupportedCalendars()
 	case "hc":
 		return hourCycleLocaleData(locale)
 	case "nu":
@@ -103,21 +108,22 @@ var (
 	numberSupportedLocalesOnce    sync.Once
 	dateSupportedLocalesOnce      sync.Once
 	unitSupportedLocalesOnce      sync.Once
-	supportedCalendarsOnce        sync.Once
-	supportedCurrenciesOnce       sync.Once
 	supportedNumberingSystemsOnce sync.Once
 	supportedTimeZonesOnce        sync.Once
 
 	numberSupportedLocales    []string
 	dateSupportedLocales      []string
 	unitSupportedLocales      []string
-	supportedCalendars        []string
 	supportedCollations       = collationValues
-	supportedCurrencies       []string
 	supportedNumberingSystems []string
 	supportedTimeZones        []string
 )
-
+`)
+	writeStringSliceVar(&b, "supportedCalendars", supportedCalendarValues(input.Dates))
+	writeStringSliceVar(&b, "supportedCurrencies", supportedCurrencyValues(input.Currencies))
+	writeStringSliceVar(&b, "supportedNumberingSystemExtras", supportedNumberingSystemExtras(input.Numbers))
+	writeStringSliceVar(&b, "supportedTimeZoneCandidates", supportedTimeZoneCandidates(input.Metazones))
+	b.WriteString(`
 func supportedLocaleTags[T any](data map[Locale]T) []string {
 	tags := make([]string, 0, len(data))
 	for i := 1; i < len(localeRecords); i++ {
@@ -129,47 +135,20 @@ func supportedLocaleTags[T any](data map[Locale]T) []string {
 	return tags
 }
 
-func supportedCalendarValues() []string {
-	return []string{"gregory", "iso8601"}
-}
-
-func supportedCurrencyValues() []string {
-	seen := map[string]bool{}
-	for code := range currencyFractionData() {
-		if code != "DEFAULT" {
-			seen[code] = true
-		}
-	}
-	for _, currencies := range currencyDataByLocale() {
-		for code := range currencies {
-			seen[code] = true
-		}
-	}
-	return slices.Sorted(maps.Keys(seen))
-}
-
 func supportedNumberingSystemValues() []string {
-	seen := map[string]bool{}
-	for _, numberingSystem := range numbering.SimpleNumberingSystems {
-		seen[numberingSystem] = true
-	}
-	for _, data := range numberDataByLocale() {
-		if data.defaultNS != "" {
-			seen[data.defaultNS] = true
-		}
-		for numberingSystem := range data.symbols {
-			seen[numberingSystem] = true
+	out := slices.Clone(numbering.SimpleNumberingSystems)
+	for _, numberingSystem := range supportedNumberingSystemExtras {
+		if numberingSystem != "" && !slices.Contains(out, numberingSystem) {
+			out = append(out, numberingSystem)
 		}
 	}
-	return slices.Sorted(maps.Keys(seen))
+	slices.Sort(out)
+	return out
 }
 
 func supportedTimeZoneValues() []string {
 	seen := map[string]bool{}
-	for zone := range zoneMetazoneData() {
-		if zone == "Etc/Unknown" {
-			continue
-		}
+	for _, zone := range supportedTimeZoneCandidates {
 		seen[CanonicalTimeZoneLink(zone)] = true
 	}
 	return slices.Sorted(maps.Keys(seen))
@@ -250,5 +229,71 @@ func keywordLocaleData(defaultValue string, values []string) []string {
 	}
 	return out
 }
-`))
+`)
+	return FormatFile([]byte(b.String()))
+}
+
+func supportedCalendarValues(dates extract.Dates) []string {
+	seen := map[string]bool{}
+	for _, data := range dates {
+		for calendar := range data.Calendars {
+			switch calendar {
+			case "gregorian":
+				seen["gregory"] = true
+			default:
+				seen[calendar] = true
+			}
+		}
+	}
+	if seen["gregory"] {
+		seen["iso8601"] = true
+	}
+	return slices.Sorted(maps.Keys(seen))
+}
+
+func supportedCurrencyValues(data extract.CurrencyData) []string {
+	seen := map[string]bool{}
+	for code := range data.Fractions {
+		if code != "DEFAULT" {
+			seen[code] = true
+		}
+	}
+	for _, currencies := range data.Currencies {
+		for code := range currencies {
+			seen[code] = true
+		}
+	}
+	return slices.Sorted(maps.Keys(seen))
+}
+
+func supportedNumberingSystemExtras(numbers extract.Numbers) []string {
+	seen := map[string]bool{}
+	for _, data := range numbers {
+		if data.DefaultNumberingSystem != "" {
+			seen[data.DefaultNumberingSystem] = true
+		}
+		for numberingSystem := range data.Symbols {
+			seen[numberingSystem] = true
+		}
+	}
+	return slices.Sorted(maps.Keys(seen))
+}
+
+func supportedTimeZoneCandidates(data extract.Metazones) []string {
+	seen := map[string]bool{}
+	for zone := range data.ZoneToMetazones {
+		if zone == "Etc/Unknown" {
+			continue
+		}
+		seen[zone] = true
+	}
+	return slices.Sorted(maps.Keys(seen))
+}
+
+func writeStringSliceVar(b *strings.Builder, name string, values []string) {
+	fmt.Fprintf(b, "\nvar %s = []string{\n", name)
+	for _, value := range values {
+		fmt.Fprintf(b, "\t%s,\n", strconv.Quote(value))
+	}
+	b.WriteString("}\n")
 }

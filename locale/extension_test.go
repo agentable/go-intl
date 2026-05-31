@@ -34,6 +34,10 @@ func TestParseUnicodeExtensions(t *testing.T) {
 		{in: "en-US-u-zz-abc-ca-buddhist", want: "en-US-u-ca-buddhist-zz-abc", calendar: "buddhist"},
 		{in: "en-US-u-attr2-attr1-ca-buddhist-zz-abc-aa-xyz", want: "en-US-u-attr1-attr2-aa-xyz-ca-buddhist-zz-abc", calendar: "buddhist"},
 		{in: "en-u-foo-bar-nu-thai-ca-buddhist-kk-true", want: "en-u-bar-foo-ca-buddhist-kk-nu-thai", calendar: "buddhist", numberingSystem: "thai"},
+		{in: "en-u-ca-buddhist-ca-gregory", want: "en-u-ca-buddhist", calendar: "buddhist"},
+		{in: "en-u-kf-upper-kf-lower", want: "en-u-kf-upper", caseFirst: "upper"},
+		{in: "en-u-kn-false-kn", want: "en-u-kn-false", numeric: false},
+		{in: "en-u-ca-gregory-x-private", want: "en-u-ca-gregory-x-private", calendar: "gregory"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {

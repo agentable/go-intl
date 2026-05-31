@@ -131,6 +131,7 @@ Pipeline:
 6. Resolve unit options for years through nanoseconds using ECMA-402 `GetDurationUnitOptions`.
 7. Read `fractionalDigits`, allowed integer 0 through 9, default omitted.
 8. Load the locale's numeric time separator from CLDR number symbols, falling back to `":"` if the payload is empty.
+9. Materialize the embedded `NumberFormat` and `ListFormat` instances implied by the resolved options, including sign-hidden variants and fractional numeric variants, so cached formatting does not repeat locale negotiation, option validation, or CLDR data lookup.
 
 MUST rules:
 
@@ -178,10 +179,10 @@ Formatting pipeline:
 
 1. Validate the `Duration`.
 2. Walk units in ECMA-402 order: years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds.
-3. For non-numeric unit styles, construct `NumberFormat` with `style="unit"` and the resolved unit display.
+3. For non-numeric unit styles, use the constructor-resolved `NumberFormat` with `style="unit"` and the resolved unit display.
 4. For the first numeric or two-digit time unit, format the remaining numeric time sequence with CLDR separators.
 5. When the next smaller unit is fractional, add exact fractional digits to the current unit, use `roundingMode="trunc"`, and stop.
-6. Join unit groups with `ListFormat{type:"unit"}`; `style="digital"` joins non-digital groups using short list style.
+6. Join unit groups with the constructor-resolved `ListFormat{type:"unit"}`; `style="digital"` joins non-digital groups using short list style.
 
 MUST rules:
 

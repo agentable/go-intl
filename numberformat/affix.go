@@ -4,12 +4,14 @@ import (
 	"strings"
 
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
-	"github.com/agentable/go-intl/internal/cldr/plural"
 	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 )
 
 func (f *NumberFormat) applyCurrencyPattern(parts []Part, pluralFormatted string) []Part {
-	return f.applyCurrencyPatternForPlural(parts, pluralCategory(f.resolved.Locale.Tag().String(), strings.TrimPrefix(pluralFormatted, "-")))
+	if f.resolved.CurrencyDisplay != CurrencyDisplayName {
+		return f.applyCurrencyPatternForPlural(parts, "other")
+	}
+	return f.applyCurrencyPatternForPlural(parts, f.pluralCategory(strings.TrimPrefix(pluralFormatted, "-")))
 }
 
 func (f *NumberFormat) applyCurrencyPatternForPlural(parts []Part, plural string) []Part {
@@ -39,7 +41,7 @@ func (f *NumberFormat) applyCurrencyPatternForPlural(parts []Part, plural string
 }
 
 func (f *NumberFormat) applyUnitPattern(parts []Part, pluralFormatted string) []Part {
-	return f.applyUnitPatternForPlural(parts, pluralCategory(f.resolved.Locale.Tag().String(), pluralFormatted))
+	return f.applyUnitPatternForPlural(parts, f.pluralCategory(pluralFormatted))
 }
 
 func (f *NumberFormat) applyUnitPatternForPlural(parts []Part, plural string) []Part {
@@ -72,8 +74,8 @@ func currencyDisplayForNumberFormat(loc cldrnumber.Locale, opts ResolvedOptions,
 	return code
 }
 
-func pluralCategory(localeTag, formatted string) string {
-	return pluralCategoryWithExponent(localeTag, formatted, 0)
+func (f *NumberFormat) pluralCategory(formatted string) string {
+	return f.pluralCategoryWithExponent(formatted, 0)
 }
 
 func pluralNumberString(formatted string) string {
@@ -88,13 +90,9 @@ func pluralNumberString(formatted string) string {
 	return joinDecimalParts(integer, fraction)
 }
 
-func pluralCategoryWithExponent(localeTag, formatted string, exponent int) string {
-	rule, ok := plural.CardinalRule(localeTag)
-	if !ok {
-		rule, _ = plural.CardinalRule("en")
-	}
+func (f *NumberFormat) pluralCategoryWithExponent(formatted string, exponent int) string {
 	ops := ecma402pr.GetOperands(formatted, exponent)
-	return rule(ops).String()
+	return f.cardinalRule(ops).String()
 }
 
 type currencyPatternSet struct {

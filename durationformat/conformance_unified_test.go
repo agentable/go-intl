@@ -27,7 +27,19 @@ func TestDurationFormatConformance(t *testing.T) {
 				}
 				t.Fatalf("New(%q) error = %v", fixture.Locale, err)
 			}
+			if len(fixture.ExpectedResolved) != 0 {
+				assertDurationResolvedOptions(t, fixture, format.ResolvedOptions())
+			}
 			input := conformanceDurationInput(t, fixture)
+			if fixture.Expected != nil {
+				got, err := format.Format(input)
+				if err != nil {
+					t.Fatalf("Format(%v) error = %v", input, err)
+				}
+				if got != *fixture.Expected {
+					t.Fatalf("Format(%v) = %q, want %q", input, got, *fixture.Expected)
+				}
+			}
 			if len(fixture.ExpectedParts) > 0 {
 				got, err := format.FormatToParts(input)
 				if err != nil {
@@ -36,15 +48,8 @@ func TestDurationFormatConformance(t *testing.T) {
 				assertDurationParts(t, got, fixture.ExpectedParts)
 				return
 			}
-			got, err := format.Format(input)
-			if err != nil {
-				t.Fatalf("Format(%v) error = %v", input, err)
-			}
 			if fixture.Expected == nil {
 				t.Fatalf("fixture %s has no expected output", fixture.ID)
-			}
-			if got != *fixture.Expected {
-				t.Fatalf("Format(%v) = %q, want %q", input, got, *fixture.Expected)
 			}
 		})
 	}
@@ -142,5 +147,79 @@ func assertDurationParts(t *testing.T, got []Part, want []conformance.Part) {
 	}
 	if !reflect.DeepEqual(got, converted) {
 		t.Fatalf("FormatToParts() = %#v, want %#v", got, converted)
+	}
+}
+
+func assertDurationResolvedOptions(t *testing.T, fixture conformance.Fixture, got ResolvedOptions) {
+	t.Helper()
+
+	var want map[string]json.RawMessage
+	if err := json.Unmarshal(fixture.ExpectedResolved, &want); err != nil {
+		t.Fatal(err)
+	}
+	assertDurationResolvedString(t, want, "locale", got.Locale.String())
+	assertDurationResolvedString(t, want, "numberingSystem", got.NumberingSystem)
+	assertDurationResolvedString(t, want, "style", string(got.Style))
+	assertDurationResolvedString(t, want, "years", string(got.Years))
+	assertDurationResolvedString(t, want, "yearsDisplay", string(got.YearsDisplay))
+	assertDurationResolvedString(t, want, "months", string(got.Months))
+	assertDurationResolvedString(t, want, "monthsDisplay", string(got.MonthsDisplay))
+	assertDurationResolvedString(t, want, "weeks", string(got.Weeks))
+	assertDurationResolvedString(t, want, "weeksDisplay", string(got.WeeksDisplay))
+	assertDurationResolvedString(t, want, "days", string(got.Days))
+	assertDurationResolvedString(t, want, "daysDisplay", string(got.DaysDisplay))
+	assertDurationResolvedString(t, want, "hours", string(got.Hours))
+	assertDurationResolvedString(t, want, "hoursDisplay", string(got.HoursDisplay))
+	assertDurationResolvedString(t, want, "minutes", string(got.Minutes))
+	assertDurationResolvedString(t, want, "minutesDisplay", string(got.MinutesDisplay))
+	assertDurationResolvedString(t, want, "seconds", string(got.Seconds))
+	assertDurationResolvedString(t, want, "secondsDisplay", string(got.SecondsDisplay))
+	assertDurationResolvedString(t, want, "milliseconds", string(got.Milliseconds))
+	assertDurationResolvedString(t, want, "millisecondsDisplay", string(got.MillisecondsDisplay))
+	assertDurationResolvedString(t, want, "microseconds", string(got.Microseconds))
+	assertDurationResolvedString(t, want, "microsecondsDisplay", string(got.MicrosecondsDisplay))
+	assertDurationResolvedString(t, want, "nanoseconds", string(got.Nanoseconds))
+	assertDurationResolvedString(t, want, "nanosecondsDisplay", string(got.NanosecondsDisplay))
+	assertDurationResolvedOptionalInt(t, want, "fractionalDigits", got.FractionalDigits)
+}
+
+func assertDurationResolvedString(t *testing.T, values map[string]json.RawMessage, name, got string) {
+	t.Helper()
+
+	raw, ok := values[name]
+	if !ok {
+		return
+	}
+	var want string
+	if err := json.Unmarshal(raw, &want); err != nil {
+		t.Fatalf("expectedResolvedOptions.%s = %s: %v", name, raw, err)
+	}
+	if got != want {
+		t.Fatalf("ResolvedOptions().%s = %q, want %q", name, got, want)
+	}
+}
+
+func assertDurationResolvedOptionalInt(t *testing.T, values map[string]json.RawMessage, name string, got *int) {
+	t.Helper()
+
+	raw, ok := values[name]
+	if !ok {
+		return
+	}
+	if string(raw) == "null" {
+		if got != nil {
+			t.Fatalf("ResolvedOptions().%s = %d, want omitted", name, *got)
+		}
+		return
+	}
+	var want int
+	if err := json.Unmarshal(raw, &want); err != nil {
+		t.Fatalf("expectedResolvedOptions.%s = %s: %v", name, raw, err)
+	}
+	if got == nil {
+		t.Fatalf("ResolvedOptions().%s omitted, want %d", name, want)
+	}
+	if *got != want {
+		t.Fatalf("ResolvedOptions().%s = %d, want %d", name, *got, want)
 	}
 }

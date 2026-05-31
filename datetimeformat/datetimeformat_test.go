@@ -440,7 +440,7 @@ func TestDateTimeFormatUsesLocaleHourCycleExtension(t *testing.T) {
 func TestDateTimeFormatHourPatternValuesAtMidnight(t *testing.T) {
 	t.Parallel()
 
-	midnight := time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC)
+	midnight := gregoryLocalTime(time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC))
 	tests := []struct {
 		name      string
 		hourCycle HourCycle
@@ -609,8 +609,8 @@ func TestDateTimeFormatFormatToPartsBCEWideEra(t *testing.T) {
 	if era == "" || era == "Anno Domini" {
 		t.Fatalf("FormatToParts(BCE).era = %q, want BC era name in %#v", era, parts)
 	}
-	if year != "0" {
-		t.Fatalf("FormatToParts(BCE).year = %q, want 0 in %#v", year, parts)
+	if year != "1" {
+		t.Fatalf("FormatToParts(BCE).year = %q, want 1 in %#v", year, parts)
 	}
 }
 

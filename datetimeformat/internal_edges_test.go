@@ -32,7 +32,7 @@ func TestDateTimeFormatPatternLiteralEdges(t *testing.T) {
 
 	hour12 := false
 	format := DateTimeFormat{resolved: ResolvedOptions{Hour12: &hour12, NumberingSystem: "latn"}}
-	got := format.formatPattern("H a", time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC))
+	got := format.formatPattern("H a", gregoryLocalTime(time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC)))
 	want := []Part{{Type: PartHour, Value: "9"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("formatPattern(24h day period) = %#v, want trailing literal trimmed", got)
@@ -157,21 +157,23 @@ func TestDateTimeFormatSmallFormattingHelpers(t *testing.T) {
 
 	format := DateTimeFormat{resolved: ResolvedOptions{NumberingSystem: "latn"}}
 	format.gregorian.DayPeriods.AM.Abbr = "AM"
-	if got := format.dayPeriodPatternName(5, time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC)); got != "AM" {
+	morning := gregoryLocalTime(time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC))
+	afternoon := gregoryLocalTime(time.Date(2026, time.May, 8, 13, 0, 0, 0, time.UTC))
+	if got := format.dayPeriodPatternName(5, morning); got != "AM" {
 		t.Fatalf("dayPeriodPatternName(narrow fallback) = %q, want AM", got)
 	}
-	if got := format.dayPeriodPatternName(4, time.Date(2026, time.May, 8, 13, 0, 0, 0, time.UTC)); got != "PM" {
+	if got := format.dayPeriodPatternName(4, afternoon); got != "PM" {
 		t.Fatalf("dayPeriodPatternName(pm default fallback) = %q, want PM", got)
 	}
-	if got := format.flexibleDayPeriodPatternName(4, time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC)); got != "AM" {
+	if got := format.flexibleDayPeriodPatternName(4, morning); got != "AM" {
 		t.Fatalf("flexibleDayPeriodPatternName(fallback) = %q, want AM", got)
 	}
 
-	datePart := format.datePatternPart('Q', 2, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC))
+	datePart := format.datePatternPart('Q', 2, morning)
 	if datePart.Type != PartLiteral || datePart.Value != "QQ" {
 		t.Fatalf("datePatternPart(unknown) = %#v, want literal QQ", datePart)
 	}
-	timePart, ok := format.timePatternPart('?', 2, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC))
+	timePart, ok := format.timePatternPart('?', 2, morning)
 	if !ok || timePart.Type != PartLiteral || timePart.Value != "??" {
 		t.Fatalf("timePatternPart(unknown) = %#v, %v; want literal ??", timePart, ok)
 	}

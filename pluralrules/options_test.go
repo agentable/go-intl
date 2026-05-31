@@ -34,8 +34,9 @@ func TestPluralRulesMinimumSignificantDigitsDefaultsMaximum(t *testing.T) {
 	}
 
 	resolved := rules.ResolvedOptions()
-	if resolved.MinimumSignificantDigits != 2 || resolved.MaximumSignificantDigits != 21 {
-		t.Fatalf("ResolvedOptions() significant digits = %d/%d, want 2/21", resolved.MinimumSignificantDigits, resolved.MaximumSignificantDigits)
+	if resolved.MinimumSignificantDigits == nil || resolved.MaximumSignificantDigits == nil ||
+		*resolved.MinimumSignificantDigits != 2 || *resolved.MaximumSignificantDigits != 21 {
+		t.Fatalf("ResolvedOptions() significant digits = %v/%v, want 2/21", resolved.MinimumSignificantDigits, resolved.MaximumSignificantDigits)
 	}
 }
 
@@ -110,7 +111,9 @@ func TestPluralRulesResolvedOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := rules.ResolvedOptions()
-	if got.Locale.String() != "en" || got.Type != Cardinal || got.MinimumFractionDigits != 0 || got.MaximumFractionDigits != 3 || got.MinimumIntegerDigits != 1 {
+	if got.MinimumFractionDigits == nil || got.MaximumFractionDigits == nil ||
+		got.Locale.String() != "en" || got.Type != Cardinal ||
+		*got.MinimumFractionDigits != 0 || *got.MaximumFractionDigits != 3 || got.MinimumIntegerDigits != 1 {
 		t.Fatalf("ResolvedOptions() = %#v", got)
 	}
 	if got.Notation != StandardNotation || got.RoundingIncrement != 1 || got.RoundingMode != HalfExpandRoundingMode || got.RoundingPriority != AutoRoundingPriority || got.TrailingZeroDisplay != AutoTrailingZeroDisplay {
@@ -136,11 +139,14 @@ func TestPluralRulesResolvedOptionsSignificantDigits(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := rules.ResolvedOptions()
-	if got.Notation != CompactNotation || got.CompactDisplay != LongCompactDisplay || got.MinimumSignificantDigits != 2 || got.MaximumSignificantDigits != 4 {
+	if got.Notation != CompactNotation || got.CompactDisplay != LongCompactDisplay ||
+		got.MinimumSignificantDigits == nil || got.MaximumSignificantDigits == nil ||
+		*got.MinimumSignificantDigits != 2 || *got.MaximumSignificantDigits != 4 {
 		t.Fatalf("ResolvedOptions() = %#v", got)
 	}
-	if got.MinimumFractionDigits != 0 || got.MaximumFractionDigits != 3 {
-		t.Fatalf("ResolvedOptions() fraction digits = %d/%d, want default fraction digit surface", got.MinimumFractionDigits, got.MaximumFractionDigits)
+	if got.MinimumFractionDigits == nil || got.MaximumFractionDigits == nil ||
+		*got.MinimumFractionDigits != 0 || *got.MaximumFractionDigits != 3 {
+		t.Fatalf("ResolvedOptions() fraction digits = %v/%v, want default fraction digit surface", got.MinimumFractionDigits, got.MaximumFractionDigits)
 	}
 	if got.RoundingMode != HalfEvenRoundingMode || got.RoundingPriority != MorePrecisionRoundingPriority || got.TrailingZeroDisplay != StripIfIntegerTrailingZeroDisplay {
 		t.Fatalf("ResolvedOptions() rounding options = %#v", got)

@@ -248,14 +248,14 @@ func localizeNumberString(s string, symbols cldrnumber.NumberSymbols) string {
 }
 
 func (f *NumberFormat) localizeParts(parts []Part) []Part {
-	if f.resolved.NumberingSystem == "" || f.resolved.NumberingSystem == "latn" {
+	if !f.localizeDigits {
 		return parts
 	}
 	out := slices.Clone(parts)
 	for i := range out {
 		switch out[i].Type {
 		case PartInteger, PartFraction, PartExponentInteger:
-			out[i].Value = ecma402.LocalizeDigits(out[i].Value, f.resolved.NumberingSystem)
+			out[i].Value = ecma402.LocalizeDigits(out[i].Value, f.numberingSystem)
 		case PartGroup, PartDecimal, PartCurrency, PartPercentSign, PartMinusSign, PartPlusSign, PartNaN, PartInfinity, PartUnit, PartLiteral, PartExponentSeparator, PartExponentMinusSign, PartCompact, PartApproximatelySign:
 		}
 	}

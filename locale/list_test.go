@@ -28,13 +28,13 @@ func TestParseListRejectsInvalidLocale(t *testing.T) {
 	}
 }
 
-func TestCanonicalizeListDedupesAndPreservesOrder(t *testing.T) {
+func TestListCanonicalizationDedupesAndPreservesOrder(t *testing.T) {
 	t.Parallel()
 
 	enUS := MustParse("en-us")
 	zh := MustParse("zh-Hans-CN-u-nu-latn")
 
-	got := CanonicalizeList(List{
+	got := canonicalizeList(List{
 		enUS,
 		MustParse("en-US"),
 		zh,
@@ -42,23 +42,23 @@ func TestCanonicalizeListDedupesAndPreservesOrder(t *testing.T) {
 	})
 	want := List{enUS, zh}
 	if len(got) != len(want) {
-		t.Fatalf("CanonicalizeList() length = %d, want %d", len(got), len(want))
+		t.Fatalf("canonicalizeList() length = %d, want %d", len(got), len(want))
 	}
 	for i := range want {
 		if got[i].String() != want[i].String() {
-			t.Fatalf("CanonicalizeList()[%d] = %q, want %q", i, got[i].String(), want[i].String())
+			t.Fatalf("canonicalizeList()[%d] = %q, want %q", i, got[i].String(), want[i].String())
 		}
 	}
 }
 
-func TestCanonicalizeListClonesInput(t *testing.T) {
+func TestListCanonicalizationClonesInput(t *testing.T) {
 	t.Parallel()
 
 	input := List{MustParse("en-US")}
-	got := CanonicalizeList(input)
+	got := canonicalizeList(input)
 	input[0] = MustParse("fr")
 	if got[0].String() != "en-US" {
-		t.Fatalf("CanonicalizeList() shares input backing array, got %q", got[0].String())
+		t.Fatalf("canonicalizeList() shares input backing array, got %q", got[0].String())
 	}
 }
 

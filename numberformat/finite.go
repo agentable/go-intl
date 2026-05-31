@@ -9,17 +9,7 @@ import (
 )
 
 func (f *NumberFormat) formatFiniteResult(d decimal.Decimal) ecma402nf.FormattedNumeric {
-	return ecma402nf.FormatNumericToString(d, ecma402nf.DigitOptions{
-		MinimumIntegerDigits:     f.digits.minInt,
-		MinimumFractionDigits:    f.digits.minFrac,
-		MaximumFractionDigits:    f.digits.maxFrac,
-		MinimumSignificantDigits: f.digits.minSig,
-		MaximumSignificantDigits: f.digits.maxSig,
-		RoundingIncrement:        f.resolved.RoundingIncrement,
-		RoundingMode:             string(f.resolved.RoundingMode),
-		RoundingPriority:         string(f.resolved.RoundingPriority),
-		TrailingZeroDisplay:      string(f.resolved.TrailingZeroDisplay),
-	})
+	return ecma402nf.FormatNumericToString(d, f.digitOptions)
 }
 
 type digitGrouping struct {

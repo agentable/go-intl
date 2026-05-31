@@ -8,7 +8,7 @@
 
 ## Overview
 
-`locale.Locale` is the input parameter type of all locale-aware operations in the go-intl public API. It is the Go representation of `Intl.Locale`, wrapping the BCP 47 parsing capabilities of [`golang.org/x/text/language.Tag`](https://pkg.go.dev/golang.org/x/text/language#Tag), overlaying ECMA-402/UTS #35 Unicode extension state, and exposing properties required by the spec via read-only getters.
+`locale.Locale` is the input parameter type of all locale-aware operations in the go-intl public API. It is the Go representation of `Intl.Locale`, wrapping the BCP 47 parsing capabilities of [`golang.org/x/text/language.Tag`](https://pkg.go.dev/golang.org/x/text/language#Tag), overlaying ECMA-402/UTS #35 Unicode extension state through `internal/localeid`, and exposing properties required by the spec via read-only getters.
 
 This SPEC defines the `Locale` structure, constructor (`New` / `FromTag` / `Parse` / `MustParse`), locale-list helper (`ParseList` / `MustParseList`), normalization (`Maximize` / `Minimize`), getter materialization strategy, string round trip, comparability. **Do not** define best-fit matching algorithm (SPEC 11), CLDR data format (SPEC 50), formatter internal slot (SPEC 12 / 20 / 30 / 40).
 
@@ -194,6 +194,8 @@ func (l Locale) String() string
 5. **Numeric=true outputs `-u-kn`** (no value table true, consistent with spec); Numeric=false does not output (default value is omitted).
 6. **CaseFirst=`"false"` outputs `-u-kf-false`** (literal legal value).
 7. **Calendar / NumberingSystem / Collation alias normalization** (`gregorian` → `gregory`, `islamic-civil` → `islamicc`).
+8. **Duplicate Unicode extension keys are first-wins**, matching ECMA-402 `UnicodeExtensionComponents` and Node/V8 behavior (`en-u-ca-buddhist-ca-gregory` canonicalizes to `en-u-ca-buddhist`).
+9. **Unicode extension insertion precedes private-use extension** (`en-u-ca-gregory-x-private`, not `en-x-private-u-ca-gregory`).
 
 Example:
 

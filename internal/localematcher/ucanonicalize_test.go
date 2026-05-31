@@ -43,4 +43,9 @@ func TestInsertUnicodeExtensionAndCanonicalize(t *testing.T) {
 	if got != want {
 		t.Fatalf("InsertUnicodeExtensionAndCanonicalize() = %q, want %q", got, want)
 	}
+	got = InsertUnicodeExtensionAndCanonicalize("en-x-private", keywords)
+	want = "en-u-ca-islamic-civil-kn-nu-arab-x-private"
+	if got != want {
+		t.Fatalf("InsertUnicodeExtensionAndCanonicalize(private) = %q, want %q", got, want)
+	}
 }

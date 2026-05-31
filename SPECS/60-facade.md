@@ -1,6 +1,6 @@
 # SPEC 60 — Root `Intl` Namespace
 
-> **Status:** Revised (2026-05-20)
+> **Status:** Revised (2026-05-31)
 > **Type:** Consumer API Spec — defines the public entry surface for the root `go-intl` package.
 > **Authority:** ECMA-402 `.references/ecma402/spec/intl.html` is the normative source. This spec records the current root package contract. SPECS 10/20/30/40/41/42/43/44/45/46 record the active constructor package contracts.
 
@@ -69,6 +69,8 @@ Mapping:
 | `SupportedUnits` | `Intl.supportedValuesOf("unit")` |
 
 `GetCanonicalLocales` accepts `locale.Locale` values because Go should parse raw strings once at the boundary. If callers need to canonicalize raw tags, they call `locale.Parse` or `locale.MustParse` first. This is the Go typed bridge for ECMA-402 `CanonicalizeLocaleList`.
+
+This is the only public locale-list canonicalization entrypoint. The lower-level canonical locale-list operation stays in `internal/ecma402` for constructor initialization and `SupportedLocalesOf`; package-level abstract-operation helpers must not be reintroduced.
 
 Implementation organization stays package-scoped: `intl.go` owns the root
 constructor aliases and `GetCanonicalLocales`, while `supported.go` owns the
@@ -288,6 +290,7 @@ Rules:
 - [ ] README documents direct constructor package imports as the preferred production path for services that need one formatter.
 - [ ] Root package build-size and dependency graph measurements are labeled as aggregate facade cost and kept separate from per-surface package measurements.
 - [ ] `GetCanonicalLocales` preserves order, canonicalizes, and deduplicates.
+- [ ] `GetCanonicalLocales` is the only public locale-list canonicalization helper; root and `locale` do not expose ECMA-402 abstract-operation helpers.
 - [ ] Supported-value accessors cover exactly the ECMA-402 keys in this spec and return generated canonical values.
 - [ ] Supported-value accessors live in the root package, conventionally in `supported.go`, without creating public data-layer packages.
 - [ ] The root package does not expose `SupportedValueKey`, `SupportedValue*` constants, or `SupportedValuesOf`.

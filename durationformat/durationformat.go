@@ -14,6 +14,7 @@ type DurationFormat struct {
 	resolved    ResolvedOptions
 	unitOptions [unitCount]resolvedUnitConfig
 	separator   string
+	formatters  durationFormatters
 }
 
 var durationLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
@@ -65,7 +66,11 @@ func New(locales locale.List, opts Options) (*DurationFormat, error) {
 	if separator == "" {
 		separator = ":"
 	}
-	return &DurationFormat{resolved: resolved, unitOptions: unitOptions, separator: separator}, nil
+	formatters, err := buildDurationFormatters(resolved, unitOptions)
+	if err != nil {
+		return nil, err
+	}
+	return &DurationFormat{resolved: resolved, unitOptions: unitOptions, separator: separator, formatters: formatters}, nil
 }
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrnumber.Locale, string) {

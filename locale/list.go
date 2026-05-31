@@ -27,9 +27,7 @@ func MustParseList(tags ...string) List {
 	return locales
 }
 
-// CanonicalizeList returns the first occurrence of each canonical locale while
-// preserving request order.
-func CanonicalizeList(locales List) List {
+func canonicalizeList(locales List) List {
 	seen := map[string]bool{}
 	out := make(List, 0, len(locales))
 	for _, loc := range locales {
@@ -45,7 +43,7 @@ func CanonicalizeList(locales List) List {
 
 // Strings returns the canonical locale identifiers in request order.
 func (l List) Strings() []string {
-	canonical := CanonicalizeList(l)
+	canonical := canonicalizeList(l)
 	out := make([]string, len(canonical))
 	for i, loc := range canonical {
 		out[i] = loc.String()

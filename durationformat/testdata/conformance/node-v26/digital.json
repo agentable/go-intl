@@ -1,0 +1,206 @@
+[
+  {
+    "id": "durationformat-node-v26-digital-hours-minutes-seconds",
+    "source": "node:v26.0.0:durationformat:digital",
+    "locale": "en",
+    "options": {
+      "style": "digital"
+    },
+    "input": {
+      "hours": 5,
+      "minutes": 30,
+      "seconds": 15
+    },
+    "expected": "5:30:15",
+    "expectedParts": [
+      {
+        "type": "integer",
+        "value": "5",
+        "unit": "hour"
+      },
+      {
+        "type": "literal",
+        "value": ":"
+      },
+      {
+        "type": "integer",
+        "value": "30",
+        "unit": "minute"
+      },
+      {
+        "type": "literal",
+        "value": ":"
+      },
+      {
+        "type": "integer",
+        "value": "15",
+        "unit": "second"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "days": "short",
+      "daysDisplay": "auto",
+      "hours": "numeric",
+      "hoursDisplay": "always",
+      "locale": "en",
+      "microseconds": "numeric",
+      "microsecondsDisplay": "auto",
+      "milliseconds": "numeric",
+      "millisecondsDisplay": "auto",
+      "minutes": "2-digit",
+      "minutesDisplay": "always",
+      "months": "short",
+      "monthsDisplay": "auto",
+      "nanoseconds": "numeric",
+      "nanosecondsDisplay": "auto",
+      "numberingSystem": "latn",
+      "seconds": "2-digit",
+      "secondsDisplay": "always",
+      "style": "digital",
+      "weeks": "short",
+      "weeksDisplay": "auto",
+      "years": "short",
+      "yearsDisplay": "auto"
+    }
+  },
+  {
+    "id": "durationformat-node-v26-digital-fractional-seconds",
+    "source": "node:v26.0.0:durationformat:digital",
+    "locale": "en",
+    "options": {
+      "fractionalDigits": 3,
+      "style": "digital"
+    },
+    "input": {
+      "hours": 5,
+      "milliseconds": 123,
+      "minutes": 30,
+      "seconds": 15
+    },
+    "expected": "5:30:15.123",
+    "expectedParts": [
+      {
+        "type": "integer",
+        "value": "5",
+        "unit": "hour"
+      },
+      {
+        "type": "literal",
+        "value": ":"
+      },
+      {
+        "type": "integer",
+        "value": "30",
+        "unit": "minute"
+      },
+      {
+        "type": "literal",
+        "value": ":"
+      },
+      {
+        "type": "integer",
+        "value": "15",
+        "unit": "second"
+      },
+      {
+        "type": "decimal",
+        "value": ".",
+        "unit": "second"
+      },
+      {
+        "type": "fraction",
+        "value": "123",
+        "unit": "second"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "days": "short",
+      "daysDisplay": "auto",
+      "fractionalDigits": 3,
+      "hours": "numeric",
+      "hoursDisplay": "always",
+      "locale": "en",
+      "microseconds": "numeric",
+      "microsecondsDisplay": "auto",
+      "milliseconds": "numeric",
+      "millisecondsDisplay": "auto",
+      "minutes": "2-digit",
+      "minutesDisplay": "always",
+      "months": "short",
+      "monthsDisplay": "auto",
+      "nanoseconds": "numeric",
+      "nanosecondsDisplay": "auto",
+      "numberingSystem": "latn",
+      "seconds": "2-digit",
+      "secondsDisplay": "always",
+      "style": "digital",
+      "weeks": "short",
+      "weeksDisplay": "auto",
+      "years": "short",
+      "yearsDisplay": "auto"
+    }
+  },
+  {
+    "id": "durationformat-node-v26-digital-zero-hours",
+    "source": "node:v26.0.0:durationformat:digital",
+    "locale": "en",
+    "options": {
+      "style": "digital"
+    },
+    "input": {
+      "minutes": 30,
+      "seconds": 15
+    },
+    "expected": "0:30:15",
+    "expectedParts": [
+      {
+        "type": "integer",
+        "value": "0",
+        "unit": "hour"
+      },
+      {
+        "type": "literal",
+        "value": ":"
+      },
+      {
+        "type": "integer",
+        "value": "30",
+        "unit": "minute"
+      },
+      {
+        "type": "literal",
+        "value": ":"
+      },
+      {
+        "type": "integer",
+        "value": "15",
+        "unit": "second"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "days": "short",
+      "daysDisplay": "auto",
+      "hours": "numeric",
+      "hoursDisplay": "always",
+      "locale": "en",
+      "microseconds": "numeric",
+      "microsecondsDisplay": "auto",
+      "milliseconds": "numeric",
+      "millisecondsDisplay": "auto",
+      "minutes": "2-digit",
+      "minutesDisplay": "always",
+      "months": "short",
+      "monthsDisplay": "auto",
+      "nanoseconds": "numeric",
+      "nanosecondsDisplay": "auto",
+      "numberingSystem": "latn",
+      "seconds": "2-digit",
+      "secondsDisplay": "always",
+      "style": "digital",
+      "weeks": "short",
+      "weeksDisplay": "auto",
+      "years": "short",
+      "yearsDisplay": "auto"
+    }
+  }
+]

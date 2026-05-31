@@ -180,7 +180,7 @@ func defaultString(value, fallback string) string {
 }
 
 func validateRequestedCalendars(locales locale.List) error {
-	for _, loc := range locale.CanonicalizeList(locales) {
+	for _, loc := range ecma402.CanonicalLocaleList(locales) {
 		if calendar := loc.Calendar(); calendar != "" && !isSupportedCalendar(calendar) {
 			return unsupportedCalendar(calendar, loc)
 		}
@@ -197,7 +197,7 @@ func (f *DateTimeFormat) Format(t time.Time) string {
 	if f.location != nil {
 		t = t.In(f.location)
 	}
-	return string(f.appendDateTime(nil, t))
+	return string(f.appendDateTime(nil, f.localTime(t)))
 }
 
 func withDefaultDateFields(c config) config {

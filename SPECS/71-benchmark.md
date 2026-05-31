@@ -1,6 +1,6 @@
 # SPEC 71 — Benchmark Strategy & Performance Telemetry
 
-> **Status:** Draft (2026-05-08)
+> **Status:** Revised (2026-05-31)
 > **Type:** Rule + Flow — defines how go-intl measures hot-path performance without turning benchmark numbers into merge gates.
 > **Authority:** This spec records benchmark layout, baseline selection, non-blocking telemetry, and `benchstat` report flow. SPEC 70 records correctness gates; this spec records performance evidence.
 
@@ -29,8 +29,9 @@ baseline = `golang.org/x/text/message` + `golang.org/x/text/feature/plural` (std
 | `numberformat/` | `numberformat/benchmark_test.go` | NumberFormat PerCall + Cached |
 | `datetimeformat/` | `datetimeformat/benchmark_test.go` | DateTimeFormat PerCall + Cached |
 | `pluralrules/` | `pluralrules/benchmark_test.go` | PluralRules Cardinal/Ordinal Cached(PerCall can be omitted) |
-| `locale/` | `locale/benchmark_test.go` | `locale.Parse(string)` boundary analysis + `locale.New(string, Options{})` construction + `BestFitMatcher` |
-| baseline | `<package>/benchmark_baseline_test.go` | `x/text/message` / `x/text/feature/plural` comparison |
+| `durationformat/` | `durationformat/benchmark_test.go` | DurationFormat PerCall + Cached, including digital formatting |
+| `locale/` | `locale/benchmark_test.go` | `locale.Parse(string)` boundary analysis + `locale.New(string, Options{})` construction |
+| baseline | `<package>/benchmark_baseline_test.go` | `x/text/message` / `x/text/feature/plural` comparison for NumberFormat / PluralRules only |
 
 **Rules**:
 
@@ -60,9 +61,15 @@ func BenchmarkPluralRules_Ordinal_Cached(b *testing.B)
 func BenchmarkPluralRules_SelectRange_Cached(b *testing.B)
 
 // DateTimeFormat
+func BenchmarkDateTimeFormat_DateStyleShort_PerCall(b *testing.B)
 func BenchmarkDateTimeFormat_DateStyleShort_Cached(b *testing.B)
 func BenchmarkDateTimeFormat_DateTimeRange_Cached(b *testing.B)
 func BenchmarkDateTimeFormat_FormatToParts_Cached(b *testing.B)
+
+// DurationFormat
+func BenchmarkDurationFormat_Short_PerCall(b *testing.B)
+func BenchmarkDurationFormat_Short_Cached(b *testing.B)
+func BenchmarkDurationFormat_Digital_Cached(b *testing.B)
 
 // Construction period (measured separately)
 func BenchmarkNumberFormat_New(b *testing.B)
@@ -77,7 +84,7 @@ func BenchmarkBaseline_XText_Plural_Cardinal(b *testing.B)
 
 1. The benchmark function name **MUST** be the `Benchmark<Type>_<Feature>_<Layer>` three-part formula; **implicit abbreviations are prohibited** (such as `BenchmarkNF`).
 2. The baseline benchmark **MUST** be prefixed with `BenchmarkBaseline_` to visually distinguish it from the production benchmark.
-3. PerCall benchmark **MUST** contain a complete `numberformat.New(...)` call; Cached benchmark **MUST** be constructed before b.Loop().
+3. PerCall benchmark **MUST** contain a complete constructor `New(...)` call; Cached benchmark **MUST** be constructed before `b.Loop()`.
 
 ### 1.3 b.Loop mandatory use
 
@@ -85,7 +92,6 @@ func BenchmarkBaseline_XText_Plural_Cardinal(b *testing.B)
 func BenchmarkNumberFormat_Decimal_Cached(b *testing.B) {
     b.ReportAllocs()
     nf, _ := numberformat.New(en, numberformat.Options{Style: numberformat.DecimalStyle})
-    b.Loop()
     for b.Loop() {
         _ = nf.Format(numberformat.Int(42))
     }
@@ -169,6 +175,7 @@ The following expressions are investigation priority and magnitude judgment, not
 | `BenchmarkNumberFormat_Decimal_PerCall` vs baseline | If go-intl is slower than baseline/2.0, investigate first | Contains structure, allowing higher cost |
 | `BenchmarkPluralRules_Cardinal_Cached` vs baseline | If go-intl is slower than baseline / 1.5, investigate first | The codegen path should be close to stdlib |
 | `BenchmarkDateTimeFormat_*` | Only `b.ReportAllocs()`, no baseline | x/text has no corresponding API |
+| `BenchmarkDurationFormat_*` | Only `b.ReportAllocs()`, no baseline | ECMA-402 duration composition has no x/text equivalent |
 | `BenchmarkNumberFormat_Compact_Cached` | only `b.ReportAllocs()`, no baseline | x/text no compact |
 | `BenchmarkNumberFormat_Currency_Cached` | Only `b.ReportAllocs()`, no baseline | x/text/currency form does not correspond |
 
@@ -235,7 +242,7 @@ file is a release-maintenance act, not a correctness gate.
 ## 5. Forbidden
 
 - **BANNED** Old-style `for i := 0; i < b.N; i++` loops (requires `b.Loop()`).
-- **BANNED** from calling `numberformat.New(...)` within the Cached benchmark (that is PerCall scope).
+- **BANNED** from calling formatter `New(...)` within a Cached benchmark (that is PerCall scope).
 - **FORBIDDEN** Add `golang.org/x/perf` to `go.mod` (benchstat is CLI, not go-import dependent).
 - **BANNED** Baseline via embedded JS engine (SPEC §2.2).
 - **FORBIDDEN** active scope introduces `clipperhouse/uax29`, `bojanz/currency` and other consumer-driven expansion candidates as baseline - baseline only `x/text`.
@@ -251,7 +258,7 @@ file is a release-maintenance act, not a correctness gate.
 
 ### Layout
 
-- [ ] Per formatter package there are `benchmark_test.go` and `benchmark_baseline_test.go` (the latter only NumberFormat / PluralRules).
+- [ ] Active benchmarked formatter packages have `benchmark_test.go`; `benchmark_baseline_test.go` exists only for NumberFormat / PluralRules.
 - [ ] benchmark naming follows the `Benchmark<Type>_<Feature>_<Layer>` three-part formula.
 - [ ] All benchmarks use `b.Loop()` and `b.ReportAllocs()`.
 - [ ] baseline benchmark prefix `BenchmarkBaseline_`.

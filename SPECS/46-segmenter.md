@@ -81,6 +81,10 @@ Current tier: **narrowed implementation gap**.
 | Removal path | Add or select a segmentation backend with dictionary/CJK tailoring, generate native Node/V8 fixtures for affected locales, then expand `internal/segmentation.SupportedLocales()`. |
 
 This gap is not an accepted divergence from ECMA-402. It is an honest supported-locale boundary until go-intl can implement locale-tailored segmentation.
+The dependency evidence lives in `reports/github.com-rivo-uniseg.md`. Node v26
+tailored-locale fixtures under `segmenter/testdata/conformance/node-v26/` must
+remain XFAIL until the backend can match those boundaries and the supported
+locale allowlist expands in the same change.
 
 ---
 

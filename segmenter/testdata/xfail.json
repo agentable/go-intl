@@ -1,0 +1,20 @@
+[
+  {
+    "id": "segmenter-node-v26-th-word-tailored-contract",
+    "reason": "active uniseg backend has no Thai dictionary word segmentation",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-46"
+  },
+  {
+    "id": "segmenter-node-v26-ja-word-tailored-contract",
+    "reason": "active uniseg backend has no Japanese dictionary/CJK word tailoring",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-46"
+  },
+  {
+    "id": "segmenter-node-v26-zh-hant-word-tailored-contract",
+    "reason": "active uniseg backend has no Traditional Chinese CJK word tailoring",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-46"
+  }
+]

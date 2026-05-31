@@ -76,6 +76,10 @@ is considered.
 
 The dependency evidence for keeping these gaps narrow lives in
 `reports/golang.org-x-text.md`.
+Node v26 backend-proof fixtures under `collator/testdata/conformance/node-v26/`
+cover the default sort behavior the active backend can already apply; option
+contract fixtures plus XFAIL entries cover behavior that must not be accepted
+until the backend proves it.
 
 | Gap | Current behavior | Rationale | review_after | Removal path |
 |-----|------------------|-----------|--------------|--------------|

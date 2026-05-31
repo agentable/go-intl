@@ -56,7 +56,7 @@ func (f *NumberFormat) compactPatternForFormatted(entry compactPatternEntry, for
 	if !entry.other.set {
 		return compactAffixPattern{}
 	}
-	plural := pluralCategoryWithExponent(f.resolved.Locale.Tag().String(), strings.TrimPrefix(formatted, "-"), entry.exponent)
+	plural := f.pluralCategoryWithExponent(strings.TrimPrefix(formatted, "-"), entry.exponent)
 	return entry.pattern(plural)
 }
 
@@ -100,7 +100,11 @@ func (f *NumberFormat) formatScientificAppend(parts []Part, d decimal.Decimal) (
 		parts = append(parts, Part{Type: PartExponentMinusSign, Value: symbols.Minus})
 		exponent = -exponent
 	}
-	parts = append(parts, Part{Type: PartExponentInteger, Value: ecma402.LocalizeDigits(strconv.Itoa(exponent), f.resolved.NumberingSystem)})
+	exponentInteger := strconv.Itoa(exponent)
+	if f.localizeDigits {
+		exponentInteger = ecma402.LocalizeDigits(exponentInteger, f.numberingSystem)
+	}
+	parts = append(parts, Part{Type: PartExponentInteger, Value: exponentInteger})
 	return parts, result.Rounded
 }
 

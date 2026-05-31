@@ -1,8 +1,6 @@
 package datetimeformat
 
-import "time"
-
-func (f *DateTimeFormat) appendDateTime(dst []byte, t time.Time) []byte {
+func (f *DateTimeFormat) appendDateTime(dst []byte, t localTime) []byte {
 	switch f.pattern.kind {
 	case patternDate:
 		return f.appendDatePattern(dst, f.pattern.date, t)
@@ -19,15 +17,15 @@ func (f *DateTimeFormat) appendDateTime(dst []byte, t time.Time) []byte {
 	return dst
 }
 
-func (f *DateTimeFormat) appendDatePattern(dst []byte, pattern string, t time.Time) []byte {
+func (f *DateTimeFormat) appendDatePattern(dst []byte, pattern string, t localTime) []byte {
 	return f.appendPattern(dst, pattern, t)
 }
 
-func (f *DateTimeFormat) appendTimePattern(dst []byte, pattern string, t time.Time) []byte {
+func (f *DateTimeFormat) appendTimePattern(dst []byte, pattern string, t localTime) []byte {
 	return f.appendPattern(dst, pattern, t)
 }
 
-func (f *DateTimeFormat) appendPattern(dst []byte, pattern string, t time.Time) []byte {
+func (f *DateTimeFormat) appendPattern(dst []byte, pattern string, t localTime) []byte {
 	for pattern != "" {
 		r := rune(pattern[0])
 		if r == '\'' {

@@ -44,7 +44,7 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 | Locale accessors | `Intl.Locale.prototype` getters | `Calendar`, `Collation`, `HourCycle`, `CaseFirst`, `Numeric`, `NumberingSystem`, `FirstDayOfWeek`, `Language`, `Script`, `Region`, `Variants` | `locale/construct_test.go`, `locale/extension_test.go` |
 | Locale maximize/minimize | `maximize`, `minimize` | `locale/canonical.go` | `locale/canonical_test.go`, CLDR likely-subtag tests |
 | Locale info methods | `getCalendars`, `getCollations`, `getHourCycles`, `getNumberingSystems`, `getTimeZones`, `getWeekInfo`, `getTextInfo` | `locale/info.go` | `locale/info_test.go`, `locale/info_ownership_test.go` |
-| Locale list bridge | `CanonicalizeLocaleList` typed bridge | `locale/list.go`, `locale.ParseList`, `locale.MustParseList`, `internal/ecma402/locale_list.go` | `locale/list_test.go`, formatter constructor tests |
+| Locale list bridge | `CanonicalizeLocaleList` typed bridge | `locale/list.go`, `locale.ParseList`, `locale.MustParseList`, `internal/ecma402.CanonicalLocaleList` | `locale/list_test.go`, `internal/ecma402/locale_list_test.go`, formatter constructor tests |
 
 ---
 

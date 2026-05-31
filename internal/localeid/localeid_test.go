@@ -1,6 +1,7 @@
 package localeid
 
 import (
+	"strings"
 	"testing"
 
 	"golang.org/x/text/language"
@@ -38,5 +39,41 @@ func TestMaximize(t *testing.T) {
 	}
 	if got := Maximize("fr-CA", maximizer); got != "fr-CA" {
 		t.Fatalf("Maximize(fr-CA) = %q, want parsed fallback", got)
+	}
+}
+
+func TestUnicodeExtensionCanonicalization(t *testing.T) {
+	t.Parallel()
+
+	ext, err := ParseUnicodeExtension("-u-attr2-attr1-ca-buddhist-ca-gregory-kk-true")
+	if err != nil {
+		t.Fatalf("ParseUnicodeExtension() error = %v", err)
+	}
+	if got, want := ext.ValueForKey("ca"), "buddhist"; got != want {
+		t.Fatalf("ValueForKey(ca) = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(ext.Parts(), "-"), "attr1-attr2-ca-buddhist-kk"; got != want {
+		t.Fatalf("Parts() = %q, want %q", got, want)
+	}
+}
+
+func TestRemoveUnicodeExtensionPreservesOtherExtensions(t *testing.T) {
+	t.Parallel()
+
+	base, extension, err := RemoveUnicodeExtension("sr-cyrl-rs-t-ja-u-ca-islamic-x-whatever")
+	if err != nil {
+		t.Fatalf("RemoveUnicodeExtension() error = %v", err)
+	}
+	if base != "sr-cyrl-rs-t-ja-x-whatever" || extension != "-u-ca-islamic" {
+		t.Fatalf("RemoveUnicodeExtension() = %q, %q; want base without u and u extension", base, extension)
+	}
+}
+
+func TestInsertUnicodeExtensionBeforePrivateUse(t *testing.T) {
+	t.Parallel()
+
+	got := InsertUnicodeExtension("en-x-private", nil, []UnicodeKeyword{{Key: "ca", Value: "gregory"}})
+	if want := "en-u-ca-gregory-x-private"; got != want {
+		t.Fatalf("InsertUnicodeExtension() = %q, want %q", got, want)
 	}
 }

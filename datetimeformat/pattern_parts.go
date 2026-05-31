@@ -3,21 +3,20 @@ package datetimeformat
 import (
 	"strconv"
 	"strings"
-	"time"
 
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	"github.com/agentable/go-intl/internal/ecma402"
 )
 
-func (f *DateTimeFormat) formatDatePattern(pattern string, t time.Time) []Part {
+func (f *DateTimeFormat) formatDatePattern(pattern string, t localTime) []Part {
 	return f.formatPattern(pattern, t)
 }
 
-func (f *DateTimeFormat) formatTimePattern(pattern string, t time.Time) []Part {
+func (f *DateTimeFormat) formatTimePattern(pattern string, t localTime) []Part {
 	return f.formatPattern(pattern, t)
 }
 
-func (f *DateTimeFormat) formatPattern(pattern string, t time.Time) []Part {
+func (f *DateTimeFormat) formatPattern(pattern string, t localTime) []Part {
 	parts := make([]Part, 0, len(pattern))
 	for pattern != "" {
 		r := rune(pattern[0])
@@ -48,23 +47,23 @@ func (f *DateTimeFormat) formatPattern(pattern string, t time.Time) []Part {
 	return parts
 }
 
-func (f *DateTimeFormat) datePatternPart(field rune, width int, t time.Time) Part {
+func (f *DateTimeFormat) datePatternPart(field rune, width int, t localTime) Part {
 	switch field {
 	case 'E', 'e', 'c':
-		return Part{Type: PartWeekday, Value: f.weekdayName(t.Weekday(), width)}
+		return Part{Type: PartWeekday, Value: f.weekdayName(t.Weekday, width)}
 	case 'M', 'L':
-		return Part{Type: PartMonth, Value: f.monthName(t.Month(), width)}
+		return Part{Type: PartMonth, Value: f.monthName(t.Month, width)}
 	case 'd':
-		return Part{Type: PartDay, Value: f.numericDateValue(t.Day(), width)}
+		return Part{Type: PartDay, Value: f.numericDateValue(t.Day, width)}
 	case 'y':
-		return Part{Type: PartYear, Value: f.numericDateValue(t.Year(), width)}
+		return Part{Type: PartYear, Value: f.numericDateValue(t.displayYear(), width)}
 	case 'G':
-		return Part{Type: PartEra, Value: f.eraName(t.Year(), width)}
+		return Part{Type: PartEra, Value: f.eraName(t.Era, width)}
 	}
 	return Part{Type: PartLiteral, Value: strings.Repeat(string(field), width)}
 }
 
-func (f *DateTimeFormat) timePatternPart(field rune, width int, t time.Time) (Part, bool) {
+func (f *DateTimeFormat) timePatternPart(field rune, width int, t localTime) (Part, bool) {
 	switch field {
 	case 'h', 'H', 'K', 'k':
 		if f.uses24HourTime() && (field == 'h' || field == 'K') && width < 2 {
@@ -72,11 +71,11 @@ func (f *DateTimeFormat) timePatternPart(field rune, width int, t time.Time) (Pa
 		}
 		return Part{Type: PartHour, Value: f.numericDateValue(f.hourPatternValue(field, t), width)}, true
 	case 'm':
-		return Part{Type: PartMinute, Value: f.numericDateValue(t.Minute(), width)}, true
+		return Part{Type: PartMinute, Value: f.numericDateValue(t.Minute, width)}, true
 	case 's':
-		return Part{Type: PartSecond, Value: f.numericDateValue(t.Second(), width)}, true
+		return Part{Type: PartSecond, Value: f.numericDateValue(t.Second, width)}, true
 	case 'S':
-		return Part{Type: PartFractionalSecondDigits, Value: f.fractionalSecondValue(t.Nanosecond(), width)}, true
+		return Part{Type: PartFractionalSecondDigits, Value: f.fractionalSecondValue(t.Nanosecond, width)}, true
 	case 'a':
 		if f.uses24HourTime() {
 			return Part{}, false
@@ -85,11 +84,11 @@ func (f *DateTimeFormat) timePatternPart(field rune, width int, t time.Time) (Pa
 	case 'B', 'b':
 		return Part{Type: PartDayPeriod, Value: f.flexibleDayPeriodPatternName(width, t)}, true
 	case 'z':
-		return Part{Type: PartTimeZoneName, Value: f.timeZonePatternName(width, t)}, true
+		return Part{Type: PartTimeZoneName, Value: f.timeZonePatternName(width, t.Time)}, true
 	case 'v':
-		return Part{Type: PartTimeZoneName, Value: f.genericTimeZonePatternName(width, t)}, true
+		return Part{Type: PartTimeZoneName, Value: f.genericTimeZonePatternName(width, t.Time)}, true
 	case 'Z', 'O', 'X', 'x':
-		return Part{Type: PartTimeZoneName, Value: f.offsetTimeZonePatternName(width, t)}, true
+		return Part{Type: PartTimeZoneName, Value: f.offsetTimeZonePatternName(width, t.Time)}, true
 	}
 	return Part{Type: PartLiteral, Value: strings.Repeat(string(field), width)}, true
 }
@@ -107,25 +106,25 @@ func (f *DateTimeFormat) uses24HourTime() bool {
 	return false
 }
 
-func (f *DateTimeFormat) hourPatternValue(field rune, t time.Time) int {
+func (f *DateTimeFormat) hourPatternValue(field rune, t localTime) int {
 	if f.uses24HourTime() {
-		if field == 'k' && t.Hour() == 0 {
+		if field == 'k' && t.Hour == 0 {
 			return 24
 		}
-		return t.Hour()
+		return t.Hour
 	}
 	switch field {
 	case 'H':
-		return t.Hour()
+		return t.Hour
 	case 'K':
-		return t.Hour() % 12
+		return t.Hour % 12
 	case 'k':
-		if t.Hour() == 0 {
+		if t.Hour == 0 {
 			return 24
 		}
-		return t.Hour()
+		return t.Hour
 	}
-	hour := t.Hour() % 12
+	hour := t.Hour % 12
 	if hour == 0 {
 		return 12
 	}
@@ -156,8 +155,8 @@ func (f *DateTimeFormat) localizeDigits(s string) string {
 	return ecma402.LocalizeDigits(s, f.resolved.NumberingSystem)
 }
 
-func (f *DateTimeFormat) flexibleDayPeriodPatternName(width int, t time.Time) string {
-	period := cldrdate.DayPeriodFor(f.cldrLoc, t.Hour(), t.Minute())
+func (f *DateTimeFormat) flexibleDayPeriodPatternName(width int, t localTime) string {
+	period := cldrdate.DayPeriodFor(f.cldrLoc, t.Hour, t.Minute)
 	names := f.gregorian.DayPeriods.Flex[period]
 	if width == 5 && names.Narrow != "" {
 		return names.Narrow

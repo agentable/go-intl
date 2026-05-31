@@ -1,10 +1,13 @@
 package gointl
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/agentable/go-intl/collator"
@@ -143,6 +146,43 @@ func TestSupportedValuesMatchFacadeAccessors(t *testing.T) {
 				t.Fatalf("%s supported values = %v, want %v", tt.name, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestNodeSupportedValuesWitnessIsReferenceOnly(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("testdata/native/node-v26/supported-values.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var witness struct {
+		Source   string              `json:"source"`
+		Versions map[string]string   `json:"versions"`
+		Values   map[string][]string `json:"values"`
+	}
+	if err := json.Unmarshal(data, &witness); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(witness.Source, "node:v26.") {
+		t.Fatalf("native supported-values source = %q, want node v26 witness", witness.Source)
+	}
+	for _, key := range []string{"node", "v8", "icu", "cldr", "tz"} {
+		if witness.Versions[key] == "" {
+			t.Fatalf("native supported-values witness missing %q version", key)
+		}
+	}
+	if !slices.Contains(witness.Values["calendar"], "buddhist") {
+		t.Fatal("native supported-values witness must record Node's broader calendar support")
+	}
+	if slices.Contains(SupportedCalendars(), "buddhist") {
+		t.Fatal("go-intl must not mirror Node calendar values until DateTimeFormat can format them truthfully")
+	}
+	if !slices.Contains(witness.Values["collation"], "emoji") {
+		t.Fatal("native supported-values witness must record Node's broader collation support")
+	}
+	if slices.Contains(SupportedCollations(), "emoji") {
+		t.Fatal("go-intl must not mirror Node collation values until Collator can apply them truthfully")
 	}
 }
 

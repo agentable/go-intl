@@ -22,7 +22,7 @@ func NumberSupportedLocales() []string {
 	return numberSupportedLocales
 }
 
-// DateSupportedLocales returns locales with generated Gregorian date data.
+// DateSupportedLocales returns locales with generated date data.
 func DateSupportedLocales() []string {
 	dateSupportedLocalesOnce.Do(func() {
 		dateSupportedLocales = supportedLocaleTags(dateDataByLocale())
@@ -40,9 +40,6 @@ func UnitSupportedLocales() []string {
 
 // SupportedCalendars returns canonical ECMA-402 calendar identifiers backed by generated date data.
 func SupportedCalendars() []string {
-	supportedCalendarsOnce.Do(func() {
-		supportedCalendars = supportedCalendarValues()
-	})
 	return supportedCalendars
 }
 
@@ -53,9 +50,6 @@ func SupportedCollations() []string {
 
 // SupportedCurrencies returns canonical ISO 4217 currency codes backed by generated number data.
 func SupportedCurrencies() []string {
-	supportedCurrenciesOnce.Do(func() {
-		supportedCurrencies = supportedCurrencyValues()
-	})
 	return supportedCurrencies
 }
 
@@ -91,7 +85,7 @@ type DateLocaleData struct{}
 func (DateLocaleData) For(locale, key string) []string {
 	switch key {
 	case "ca":
-		return []string{"gregory", "iso8601"}
+		return SupportedCalendars()
 	case "hc":
 		return hourCycleLocaleData(locale)
 	case "nu":
@@ -105,20 +99,530 @@ var (
 	numberSupportedLocalesOnce    sync.Once
 	dateSupportedLocalesOnce      sync.Once
 	unitSupportedLocalesOnce      sync.Once
-	supportedCalendarsOnce        sync.Once
-	supportedCurrenciesOnce       sync.Once
 	supportedNumberingSystemsOnce sync.Once
 	supportedTimeZonesOnce        sync.Once
 
 	numberSupportedLocales    []string
 	dateSupportedLocales      []string
 	unitSupportedLocales      []string
-	supportedCalendars        []string
 	supportedCollations       = collationValues
-	supportedCurrencies       []string
 	supportedNumberingSystems []string
 	supportedTimeZones        []string
 )
+
+var supportedCalendars = []string{
+	"gregory",
+	"iso8601",
+}
+
+var supportedCurrencies = []string{
+	"ADP",
+	"AFN",
+	"ALL",
+	"AMD",
+	"AUD",
+	"BHD",
+	"BIF",
+	"BRL",
+	"BYN",
+	"BYR",
+	"CAD",
+	"CHF",
+	"CLF",
+	"CLP",
+	"CNY",
+	"COP",
+	"CRC",
+	"CZK",
+	"DJF",
+	"DKK",
+	"ESP",
+	"EUR",
+	"GBP",
+	"GNF",
+	"GYD",
+	"HKD",
+	"HUF",
+	"IDR",
+	"ILS",
+	"INR",
+	"IQD",
+	"IRR",
+	"ISK",
+	"ITL",
+	"JOD",
+	"JPY",
+	"KMF",
+	"KPW",
+	"KRW",
+	"KWD",
+	"LAK",
+	"LBP",
+	"LUF",
+	"LYD",
+	"MGA",
+	"MGF",
+	"MMK",
+	"MNT",
+	"MRO",
+	"MUR",
+	"MXN",
+	"MYR",
+	"NOK",
+	"NZD",
+	"OMR",
+	"PHP",
+	"PKR",
+	"PLN",
+	"PYG",
+	"RSD",
+	"RUB",
+	"RWF",
+	"SEK",
+	"SGD",
+	"SLE",
+	"SLL",
+	"SOS",
+	"STD",
+	"SYP",
+	"THB",
+	"TMM",
+	"TND",
+	"TRL",
+	"TRY",
+	"TWD",
+	"TZS",
+	"UGX",
+	"USD",
+	"UYI",
+	"UYW",
+	"UZS",
+	"VEF",
+	"VND",
+	"VUV",
+	"XAD",
+	"XAF",
+	"XAU",
+	"XOF",
+	"XPF",
+	"YER",
+	"ZAR",
+	"ZMK",
+	"ZWD",
+}
+
+var supportedNumberingSystemExtras = []string{
+	"arab",
+	"arabext",
+	"beng",
+	"deva",
+	"latn",
+	"mymr",
+}
+
+var supportedTimeZoneCandidates = []string{
+	"Africa/Abidjan",
+	"Africa/Accra",
+	"Africa/Addis_Ababa",
+	"Africa/Algiers",
+	"Africa/Asmera",
+	"Africa/Bamako",
+	"Africa/Bangui",
+	"Africa/Banjul",
+	"Africa/Bissau",
+	"Africa/Blantyre",
+	"Africa/Brazzaville",
+	"Africa/Bujumbura",
+	"Africa/Cairo",
+	"Africa/Casablanca",
+	"Africa/Ceuta",
+	"Africa/Conakry",
+	"Africa/Dakar",
+	"Africa/Dar_es_Salaam",
+	"Africa/Djibouti",
+	"Africa/Douala",
+	"Africa/El_Aaiun",
+	"Africa/Freetown",
+	"Africa/Gaborone",
+	"Africa/Harare",
+	"Africa/Johannesburg",
+	"Africa/Juba",
+	"Africa/Kampala",
+	"Africa/Khartoum",
+	"Africa/Kigali",
+	"Africa/Kinshasa",
+	"Africa/Lagos",
+	"Africa/Libreville",
+	"Africa/Lome",
+	"Africa/Luanda",
+	"Africa/Lubumbashi",
+	"Africa/Lusaka",
+	"Africa/Malabo",
+	"Africa/Maputo",
+	"Africa/Maseru",
+	"Africa/Mbabane",
+	"Africa/Mogadishu",
+	"Africa/Monrovia",
+	"Africa/Nairobi",
+	"Africa/Ndjamena",
+	"Africa/Niamey",
+	"Africa/Nouakchott",
+	"Africa/Ouagadougou",
+	"Africa/Porto-Novo",
+	"Africa/Sao_Tome",
+	"Africa/Tripoli",
+	"Africa/Tunis",
+	"Africa/Windhoek",
+	"America/Adak",
+	"America/Anchorage",
+	"America/Anguilla",
+	"America/Antigua",
+	"America/Araguaina",
+	"America/Aruba",
+	"America/Asuncion",
+	"America/Bahia",
+	"America/Bahia_Banderas",
+	"America/Barbados",
+	"America/Belem",
+	"America/Belize",
+	"America/Blanc-Sablon",
+	"America/Boa_Vista",
+	"America/Bogota",
+	"America/Boise",
+	"America/Buenos_Aires",
+	"America/Cambridge_Bay",
+	"America/Campo_Grande",
+	"America/Cancun",
+	"America/Caracas",
+	"America/Catamarca",
+	"America/Cayenne",
+	"America/Cayman",
+	"America/Chicago",
+	"America/Chihuahua",
+	"America/Ciudad_Juarez",
+	"America/Coral_Harbour",
+	"America/Cordoba",
+	"America/Costa_Rica",
+	"America/Coyhaique",
+	"America/Creston",
+	"America/Cuiaba",
+	"America/Curacao",
+	"America/Danmarkshavn",
+	"America/Dawson",
+	"America/Dawson_Creek",
+	"America/Denver",
+	"America/Detroit",
+	"America/Dominica",
+	"America/Edmonton",
+	"America/Eirunepe",
+	"America/El_Salvador",
+	"America/Fort_Nelson",
+	"America/Fortaleza",
+	"America/Glace_Bay",
+	"America/Godthab",
+	"America/Goose_Bay",
+	"America/Grand_Turk",
+	"America/Grenada",
+	"America/Guadeloupe",
+	"America/Guatemala",
+	"America/Guayaquil",
+	"America/Guyana",
+	"America/Halifax",
+	"America/Havana",
+	"America/Hermosillo",
+	"America/Indianapolis",
+	"America/Inuvik",
+	"America/Iqaluit",
+	"America/Jamaica",
+	"America/Jujuy",
+	"America/Juneau",
+	"America/Kralendijk",
+	"America/La_Paz",
+	"America/Lima",
+	"America/Los_Angeles",
+	"America/Louisville",
+	"America/Lower_Princes",
+	"America/Maceio",
+	"America/Managua",
+	"America/Manaus",
+	"America/Marigot",
+	"America/Martinique",
+	"America/Matamoros",
+	"America/Mazatlan",
+	"America/Mendoza",
+	"America/Menominee",
+	"America/Merida",
+	"America/Metlakatla",
+	"America/Mexico_City",
+	"America/Miquelon",
+	"America/Moncton",
+	"America/Monterrey",
+	"America/Montevideo",
+	"America/Montserrat",
+	"America/Nassau",
+	"America/New_York",
+	"America/Nome",
+	"America/Noronha",
+	"America/Ojinaga",
+	"America/Panama",
+	"America/Paramaribo",
+	"America/Phoenix",
+	"America/Port-au-Prince",
+	"America/Port_of_Spain",
+	"America/Porto_Velho",
+	"America/Puerto_Rico",
+	"America/Punta_Arenas",
+	"America/Rankin_Inlet",
+	"America/Recife",
+	"America/Regina",
+	"America/Resolute",
+	"America/Rio_Branco",
+	"America/Santarem",
+	"America/Santiago",
+	"America/Santo_Domingo",
+	"America/Sao_Paulo",
+	"America/Scoresbysund",
+	"America/Sitka",
+	"America/St_Barthelemy",
+	"America/St_Johns",
+	"America/St_Kitts",
+	"America/St_Lucia",
+	"America/St_Thomas",
+	"America/St_Vincent",
+	"America/Swift_Current",
+	"America/Tegucigalpa",
+	"America/Thule",
+	"America/Tijuana",
+	"America/Toronto",
+	"America/Tortola",
+	"America/Vancouver",
+	"America/Whitehorse",
+	"America/Winnipeg",
+	"America/Yakutat",
+	"Antarctica/Casey",
+	"Antarctica/Davis",
+	"Antarctica/DumontDUrville",
+	"Antarctica/Macquarie",
+	"Antarctica/Mawson",
+	"Antarctica/McMurdo",
+	"Antarctica/Palmer",
+	"Antarctica/Rothera",
+	"Antarctica/Syowa",
+	"Antarctica/Troll",
+	"Antarctica/Vostok",
+	"Arctic/Longyearbyen",
+	"Asia/Aden",
+	"Asia/Almaty",
+	"Asia/Amman",
+	"Asia/Anadyr",
+	"Asia/Aqtau",
+	"Asia/Aqtobe",
+	"Asia/Ashgabat",
+	"Asia/Atyrau",
+	"Asia/Baghdad",
+	"Asia/Bahrain",
+	"Asia/Baku",
+	"Asia/Bangkok",
+	"Asia/Barnaul",
+	"Asia/Beirut",
+	"Asia/Bishkek",
+	"Asia/Brunei",
+	"Asia/Calcutta",
+	"Asia/Chita",
+	"Asia/Colombo",
+	"Asia/Damascus",
+	"Asia/Dhaka",
+	"Asia/Dili",
+	"Asia/Dubai",
+	"Asia/Dushanbe",
+	"Asia/Famagusta",
+	"Asia/Gaza",
+	"Asia/Hebron",
+	"Asia/Hong_Kong",
+	"Asia/Hovd",
+	"Asia/Irkutsk",
+	"Asia/Jakarta",
+	"Asia/Jayapura",
+	"Asia/Jerusalem",
+	"Asia/Kabul",
+	"Asia/Kamchatka",
+	"Asia/Karachi",
+	"Asia/Katmandu",
+	"Asia/Khandyga",
+	"Asia/Krasnoyarsk",
+	"Asia/Kuala_Lumpur",
+	"Asia/Kuching",
+	"Asia/Kuwait",
+	"Asia/Macau",
+	"Asia/Magadan",
+	"Asia/Makassar",
+	"Asia/Manila",
+	"Asia/Muscat",
+	"Asia/Nicosia",
+	"Asia/Novokuznetsk",
+	"Asia/Novosibirsk",
+	"Asia/Omsk",
+	"Asia/Oral",
+	"Asia/Phnom_Penh",
+	"Asia/Pontianak",
+	"Asia/Pyongyang",
+	"Asia/Qatar",
+	"Asia/Qostanay",
+	"Asia/Qyzylorda",
+	"Asia/Rangoon",
+	"Asia/Riyadh",
+	"Asia/Saigon",
+	"Asia/Sakhalin",
+	"Asia/Samarkand",
+	"Asia/Seoul",
+	"Asia/Shanghai",
+	"Asia/Singapore",
+	"Asia/Srednekolymsk",
+	"Asia/Taipei",
+	"Asia/Tashkent",
+	"Asia/Tbilisi",
+	"Asia/Tehran",
+	"Asia/Thimphu",
+	"Asia/Tokyo",
+	"Asia/Tomsk",
+	"Asia/Ulaanbaatar",
+	"Asia/Urumqi",
+	"Asia/Ust-Nera",
+	"Asia/Vientiane",
+	"Asia/Vladivostok",
+	"Asia/Yakutsk",
+	"Asia/Yekaterinburg",
+	"Asia/Yerevan",
+	"Atlantic/Azores",
+	"Atlantic/Bermuda",
+	"Atlantic/Canary",
+	"Atlantic/Cape_Verde",
+	"Atlantic/Faeroe",
+	"Atlantic/Madeira",
+	"Atlantic/Reykjavik",
+	"Atlantic/South_Georgia",
+	"Atlantic/St_Helena",
+	"Atlantic/Stanley",
+	"Australia/Adelaide",
+	"Australia/Brisbane",
+	"Australia/Broken_Hill",
+	"Australia/Darwin",
+	"Australia/Eucla",
+	"Australia/Hobart",
+	"Australia/Lindeman",
+	"Australia/Lord_Howe",
+	"Australia/Melbourne",
+	"Australia/Perth",
+	"Australia/Sydney",
+	"Etc/GMT",
+	"Europe/Amsterdam",
+	"Europe/Andorra",
+	"Europe/Astrakhan",
+	"Europe/Athens",
+	"Europe/Belgrade",
+	"Europe/Berlin",
+	"Europe/Bratislava",
+	"Europe/Brussels",
+	"Europe/Bucharest",
+	"Europe/Budapest",
+	"Europe/Busingen",
+	"Europe/Chisinau",
+	"Europe/Copenhagen",
+	"Europe/Dublin",
+	"Europe/Gibraltar",
+	"Europe/Guernsey",
+	"Europe/Helsinki",
+	"Europe/Isle_of_Man",
+	"Europe/Istanbul",
+	"Europe/Jersey",
+	"Europe/Kaliningrad",
+	"Europe/Kiev",
+	"Europe/Kirov",
+	"Europe/Lisbon",
+	"Europe/Ljubljana",
+	"Europe/London",
+	"Europe/Luxembourg",
+	"Europe/Madrid",
+	"Europe/Malta",
+	"Europe/Mariehamn",
+	"Europe/Minsk",
+	"Europe/Monaco",
+	"Europe/Moscow",
+	"Europe/Oslo",
+	"Europe/Paris",
+	"Europe/Podgorica",
+	"Europe/Prague",
+	"Europe/Riga",
+	"Europe/Rome",
+	"Europe/Samara",
+	"Europe/San_Marino",
+	"Europe/Sarajevo",
+	"Europe/Saratov",
+	"Europe/Simferopol",
+	"Europe/Skopje",
+	"Europe/Sofia",
+	"Europe/Stockholm",
+	"Europe/Tallinn",
+	"Europe/Tirane",
+	"Europe/Ulyanovsk",
+	"Europe/Vaduz",
+	"Europe/Vatican",
+	"Europe/Vienna",
+	"Europe/Vilnius",
+	"Europe/Volgograd",
+	"Europe/Warsaw",
+	"Europe/Zagreb",
+	"Europe/Zurich",
+	"Indian/Antananarivo",
+	"Indian/Chagos",
+	"Indian/Christmas",
+	"Indian/Cocos",
+	"Indian/Comoro",
+	"Indian/Kerguelen",
+	"Indian/Mahe",
+	"Indian/Maldives",
+	"Indian/Mauritius",
+	"Indian/Mayotte",
+	"Indian/Reunion",
+	"Pacific/Apia",
+	"Pacific/Auckland",
+	"Pacific/Bougainville",
+	"Pacific/Chatham",
+	"Pacific/Easter",
+	"Pacific/Efate",
+	"Pacific/Enderbury",
+	"Pacific/Fakaofo",
+	"Pacific/Fiji",
+	"Pacific/Funafuti",
+	"Pacific/Galapagos",
+	"Pacific/Gambier",
+	"Pacific/Guadalcanal",
+	"Pacific/Guam",
+	"Pacific/Honolulu",
+	"Pacific/Kiritimati",
+	"Pacific/Kosrae",
+	"Pacific/Kwajalein",
+	"Pacific/Majuro",
+	"Pacific/Marquesas",
+	"Pacific/Midway",
+	"Pacific/Nauru",
+	"Pacific/Niue",
+	"Pacific/Norfolk",
+	"Pacific/Noumea",
+	"Pacific/Pago_Pago",
+	"Pacific/Palau",
+	"Pacific/Pitcairn",
+	"Pacific/Ponape",
+	"Pacific/Port_Moresby",
+	"Pacific/Rarotonga",
+	"Pacific/Saipan",
+	"Pacific/Tahiti",
+	"Pacific/Tarawa",
+	"Pacific/Tongatapu",
+	"Pacific/Truk",
+	"Pacific/Wake",
+	"Pacific/Wallis",
+}
 
 func supportedLocaleTags[T any](data map[Locale]T) []string {
 	tags := make([]string, 0, len(data))
@@ -131,47 +635,20 @@ func supportedLocaleTags[T any](data map[Locale]T) []string {
 	return tags
 }
 
-func supportedCalendarValues() []string {
-	return []string{"gregory", "iso8601"}
-}
-
-func supportedCurrencyValues() []string {
-	seen := map[string]bool{}
-	for code := range currencyFractionData() {
-		if code != "DEFAULT" {
-			seen[code] = true
-		}
-	}
-	for _, currencies := range currencyDataByLocale() {
-		for code := range currencies {
-			seen[code] = true
-		}
-	}
-	return slices.Sorted(maps.Keys(seen))
-}
-
 func supportedNumberingSystemValues() []string {
-	seen := map[string]bool{}
-	for _, numberingSystem := range numbering.SimpleNumberingSystems {
-		seen[numberingSystem] = true
-	}
-	for _, data := range numberDataByLocale() {
-		if data.defaultNS != "" {
-			seen[data.defaultNS] = true
-		}
-		for numberingSystem := range data.symbols {
-			seen[numberingSystem] = true
+	out := slices.Clone(numbering.SimpleNumberingSystems)
+	for _, numberingSystem := range supportedNumberingSystemExtras {
+		if numberingSystem != "" && !slices.Contains(out, numberingSystem) {
+			out = append(out, numberingSystem)
 		}
 	}
-	return slices.Sorted(maps.Keys(seen))
+	slices.Sort(out)
+	return out
 }
 
 func supportedTimeZoneValues() []string {
 	seen := map[string]bool{}
-	for zone := range zoneMetazoneData() {
-		if zone == "Etc/Unknown" {
-			continue
-		}
+	for _, zone := range supportedTimeZoneCandidates {
 		seen[CanonicalTimeZoneLink(zone)] = true
 	}
 	return slices.Sorted(maps.Keys(seen))

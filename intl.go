@@ -5,6 +5,7 @@ import (
 	"github.com/agentable/go-intl/datetimeformat"
 	"github.com/agentable/go-intl/displaynames"
 	"github.com/agentable/go-intl/durationformat"
+	"github.com/agentable/go-intl/internal/ecma402"
 	"github.com/agentable/go-intl/listformat"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/numberformat"
@@ -25,5 +26,5 @@ type Collator = collator.Collator
 type Segmenter = segmenter.Segmenter
 
 func GetCanonicalLocales(locales locale.List) locale.List {
-	return locale.CanonicalizeList(locales)
+	return ecma402.CanonicalLocaleList(locales)
 }

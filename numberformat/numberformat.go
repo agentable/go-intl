@@ -6,20 +6,28 @@ import (
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
+	"github.com/agentable/go-intl/internal/cldr/plural"
 	"github.com/agentable/go-intl/internal/ecma402"
+	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
 	"github.com/agentable/go-intl/internal/localematcher"
+	pluralop "github.com/agentable/go-intl/internal/plural"
 	"github.com/agentable/go-intl/locale"
 )
 
 type NumberFormat struct {
-	resolved      ResolvedOptions
-	digits        digitState
-	cldrLoc       cldrnumber.Locale
-	numberSymbols cldrnumber.NumberSymbols
-	grouping      digitGrouping
-	currency      currencyPatternSet
-	unit          unitPatternSet
-	compact       compactPatternSet
+	resolved               ResolvedOptions
+	digitOptions           ecma402nf.DigitOptions
+	cardinalRule           func(pluralop.OperandsRecord) pluralop.Category
+	digits                 digitState
+	cldrLoc                cldrnumber.Locale
+	numberSymbols          cldrnumber.NumberSymbols
+	grouping               digitGrouping
+	currency               currencyPatternSet
+	unit                   unitPatternSet
+	compact                compactPatternSet
+	numberingSystem        string
+	localizeDigits         bool
+	decimalIntegerFastPath bool
 }
 
 var numberLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
@@ -43,34 +51,18 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 	if cfg.notation == "compact" && opts.UseGrouping == "" {
 		cfg.useGrouping = string(UseGroupingMin2)
 	}
-	if cfg.style == "percent" && !cfg.hasMaxFracDigits {
-		cfg.maxFracDigits = 0
-	}
 	if cfg.style == "currency" && cfg.currency != "" {
 		cfg.currency = strings.ToUpper(cfg.currency)
-		if cfg.notation == "standard" {
-			currency := cldrnumber.CurrencyDigits(cfg.currency)
-			if !cfg.hasMinFracDigits {
-				cfg.minFracDigits = currency.DefaultDigits
-			}
-			if !cfg.hasMaxFracDigits {
-				cfg.maxFracDigits = currency.DefaultDigits
-			}
-		}
-	}
-	// ECMA-402 SetNumberFormatDigitOptions: when only one of mnfd/mxfd is
-	// provided, the other defaults are adjusted to keep mnfd <= mxfd
-	// (step 18.a/b: max(mxfdDefault, mnfd) / min(mnfdDefault, mxfd)).
-	if cfg.hasMinFracDigits && !cfg.hasMaxFracDigits && cfg.minFracDigits > cfg.maxFracDigits {
-		cfg.maxFracDigits = cfg.minFracDigits
-	}
-	if cfg.hasMaxFracDigits && !cfg.hasMinFracDigits && cfg.maxFracDigits < cfg.minFracDigits {
-		cfg.minFracDigits = cfg.maxFracDigits
 	}
 	if err := cfg.validate(validationLocale); err != nil {
 		return nil, err
 	}
-	cfg = resolveDigitDefaults(cfg)
+	mnfdDefault, mxfdDefault := digitDefaults(cfg)
+	resolvedDigits, invalid, ok := ecma402nf.SetNumberFormatDigitOptions(cfg.digitOptionInput(), mnfdDefault, mxfdDefault, cfg.notation)
+	if ok {
+		return nil, invalidOption(invalid.Name, invalid.Value, validationLocale)
+	}
+	cfg.applyResolvedDigits(resolvedDigits)
 	resolvedLocale, cldrLoc, numberingSystem := resolveLocale(locales, validationLocale, cfg)
 	digits := digitState{
 		minInt:  cfg.minIntDigits,
@@ -79,13 +71,6 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 		minSig:  cfg.minSigDigits,
 		maxSig:  cfg.maxSigDigits,
 	}
-	// ECMA-402 SetNumberFormatDigitOptions: when sig digits are set and
-	// rounding priority is "auto", fraction digits step out of the effective
-	// rounding path (kept as 0/0 internally).
-	if cfg.roundingPriority == "auto" && (cfg.hasMinSigDigits || cfg.hasMaxSigDigits) {
-		digits.minFrac, digits.maxFrac = 0, 0
-	}
-	roundingType := resolvedRoundingType(cfg)
 	resolved := ResolvedOptions{
 		Locale:               resolvedLocale,
 		NumberingSystem:      numberingSystem,
@@ -102,12 +87,12 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 	}
 	// ECMA-402 §15.5.2: only the active rounding-type pair appears in
 	// resolvedOptions. The opposite pair must remain absent (nil here).
-	switch roundingType {
-	case "fractionDigits":
+	switch cfg.roundingType {
+	case ecma402nf.RoundingTypeFractionDigits:
 		minFrac, maxFrac := digits.minFrac, digits.maxFrac
 		resolved.MinimumFractionDigits = &minFrac
 		resolved.MaximumFractionDigits = &maxFrac
-	case "significantDigits":
+	case ecma402nf.RoundingTypeSignificantDigits:
 		minSig, maxSig := digits.minSig, digits.maxSig
 		resolved.MinimumSignificantDigits = &minSig
 		resolved.MaximumSignificantDigits = &maxSig
@@ -129,32 +114,32 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 		resolved.UnitDisplay = UnitDisplay(cfg.unitDisplay)
 	}
 	return &NumberFormat{
-		cldrLoc:       cldrLoc,
-		resolved:      resolved,
-		digits:        digits,
-		numberSymbols: numberSymbolsForNumberFormat(cldrLoc, numberingSystem),
-		grouping:      groupingForNumberFormat(cldrLoc, resolved),
-		currency:      currencyPatternsForNumberFormat(cldrLoc, resolved),
-		unit:          unitPatternsForNumberFormat(cldrLoc, resolved),
-		compact:       compactPatternsForNumberFormat(cldrLoc, resolved),
+		cldrLoc:                cldrLoc,
+		resolved:               resolved,
+		digitOptions:           resolvedDigits.DigitOptions,
+		cardinalRule:           cardinalRuleForNumberFormat(resolvedLocale),
+		digits:                 digits,
+		numberSymbols:          numberSymbolsForNumberFormat(cldrLoc, numberingSystem),
+		grouping:               groupingForNumberFormat(cldrLoc, resolved),
+		currency:               currencyPatternsForNumberFormat(cldrLoc, resolved),
+		unit:                   unitPatternsForNumberFormat(cldrLoc, resolved),
+		compact:                compactPatternsForNumberFormat(cldrLoc, resolved),
+		numberingSystem:        numberingSystem,
+		localizeDigits:         numberingSystem != "" && numberingSystem != "latn",
+		decimalIntegerFastPath: canUseDecimalIntegerFastPath(resolved, digits),
 	}, nil
 }
 
-// resolvedRoundingType mirrors ECMA-402 §15.5 ResolveRoundingType:
-//   - morePrecision / lessPrecision when roundingPriority selects either;
-//   - significantDigits when only sig digit options are set;
-//   - fractionDigits otherwise.
-func resolvedRoundingType(cfg config) string {
-	switch cfg.roundingPriority {
-	case "morePrecision":
-		return "morePrecision"
-	case "lessPrecision":
-		return "lessPrecision"
+func cardinalRuleForNumberFormat(loc locale.Locale) func(pluralop.OperandsRecord) pluralop.Category {
+	if rule, ok := plural.CardinalRule(loc.Tag().String()); ok {
+		return rule
 	}
-	if cfg.hasMinSigDigits || cfg.hasMaxSigDigits {
-		return "significantDigits"
+	if rule, ok := plural.CardinalRule("en"); ok {
+		return rule
 	}
-	return "fractionDigits"
+	return func(pluralop.OperandsRecord) pluralop.Category {
+		return pluralop.Other
+	}
 }
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrnumber.Locale, string) {
@@ -184,26 +169,13 @@ func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (loc
 	return resolvedLocale, cldrLoc, numberingSystem
 }
 
-func resolveDigitDefaults(cfg config) config {
-	if cfg.roundingPriority == "auto" &&
-		cfg.notation == "compact" &&
-		!cfg.hasMinSigDigits && !cfg.hasMaxSigDigits &&
-		!cfg.hasMinFracDigits && !cfg.hasMaxFracDigits {
-		cfg.minFracDigits = 0
-		cfg.maxFracDigits = 0
-		cfg.minSigDigits = 1
-		cfg.maxSigDigits = 2
-		cfg.roundingPriority = "morePrecision"
-		return cfg
+func digitDefaults(cfg config) (minimumFractionDigits, maximumFractionDigits int) {
+	if cfg.style == "currency" && cfg.notation == "standard" {
+		currency := cldrnumber.CurrencyDigits(cfg.currency)
+		return currency.DefaultDigits, currency.DefaultDigits
 	}
-	if !cfg.hasMinSigDigits && !cfg.hasMaxSigDigits && cfg.roundingPriority == "auto" {
-		return cfg
+	if cfg.style == "percent" {
+		return 0, 0
 	}
-	if !cfg.hasMinSigDigits {
-		cfg.minSigDigits = 1
-	}
-	if !cfg.hasMaxSigDigits {
-		cfg.maxSigDigits = 21
-	}
-	return cfg
+	return 0, 3
 }

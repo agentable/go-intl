@@ -157,6 +157,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 
 - **Intl namespace first** - The root package is not a constructor and should not behave like a per-locale session object. It represents the JavaScript `Intl` namespace as closely as Go allows.
 - **Native API mapping is mandatory** - Before adding or changing exported API, identify the exact ECMA-402 JavaScript owner: `Intl`, `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.PluralRules`, `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DurationFormat`, `Intl.DisplayNames`, `Intl.Collator`, or `Intl.Segmenter`. If no native owner exists, do not add it unless it is a narrow Go typed bridge for an existing native operation.
+- **Public surface earns its place** - Exported symbols must be recorded in SPECS/72 with an ECMA-402 owner or narrow typed-bridge rationale. ECMA-402 abstract operations stay in `internal/*`; callers see native owners, not implementation steps.
 - **Constructor parity** - Formatter `New` functions mirror `new Intl.<Constructor>(locales, options)`: callers pass exactly one typed `Options` value, and zero-valued `Options{}` means the ECMA-402 empty options object.
 - **Typed bridges only** - Typed Go values such as `numberformat.Int` and `numberformat.Decimal` are bridges for JavaScript methods like `format(value)`; they must not introduce behavior that native Intl lacks.
 - **Typed boundaries** - User locale identifiers enter through `locale.Parse`, `locale.ParseList`, or `locale.New`; formatter constructors receive `locale.List`, while `locale.FromTag` is the explicit `language.Tag` bridge. `language.Tag` is the only `golang.org/x/text` type allowed in exported signatures; secondary `x/text` types stay internal.
@@ -173,12 +174,14 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Validate formatter options in constructors. After construction, method error behavior must match the corresponding ECMA-402 operation: invalid typed inputs return errors where JavaScript would throw `TypeError` or `RangeError`; ordinary formatting does not hide constructor failures.
 - Wrap user-fixable errors with package context and a sentinel error so callers can use `errors.Is` / `errors.As`.
 - Keep generated CLDR/runtime data out of hot-path file I/O. Runtime data lives in generated Go source under `internal/cldr`.
+- Keep locale-list canonicalization internal. Public callers use root `GetCanonicalLocales`; formatter packages use `internal/ecma402.CanonicalLocaleList`, `RequestedLocaleStrings`, and `SupportedLocalesOf`. Do not expose formatter-independent canonicalize-list helpers or any other public abstract-operation helper.
 - Keep formatter supported locale lists generated from actual CLDR payload maps or truthful engine capability accessors. Constructor `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` with generated accessors instead of duplicating matcher, filtering, or requested-locale dedupe loops.
 - Keep shared string and integer option validation in `internal/ecma402`. Formatter packages pass formatter-owned allowed values through helpers such as `RequiredStringOption`, `OptionalStringOption`, `InvalidStringOption`, and `InvalidIntegerOption`; do not hand-roll equivalent `switch` or `slices.Contains` loops.
 - Keep root supported-value accessors in the root package, conventionally in `supported.go`, backed by CLDR/tz data, active collation capability, or ECMA-402 sanctioned constants. Do not create public `cldr`, `ecma402`, or `supported` packages for this data. Calendars must include `iso8601`; numbering systems must include the ECMA-402 simple digit table; do not add ad hoc runtime lists.
 - Keep `DateTimeFormat` calendar support tied to `internal/cldr.SupportedCalendars()` and generated date data; do not copy calendar allow-lists into constructors.
 - Keep `Segmenter` supported locales honest. Do not advertise dictionary or CJK-tailored locales such as `ja`, `th`, or `zh-Hant` until the active segmentation backend supports their word-boundary behavior.
 - Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it resolved digit options and consume the rounded numeric value.
+- Freeze constructor-derived hot-path state on formatter instances. Cached method calls must not redo locale negotiation, option validation, digit-option resolution, plural-rule lookup, or embedded formatter construction. `DurationFormat` composes constructor-resolved `NumberFormat` and `ListFormat` instances.
 - Keep constructor and `SupportedLocalesOf` options aligned with the JavaScript single-options-object model. Public Go entrypoints receive exactly one typed `Options` value; use `Options{}` for omitted or empty JS options instead of variadic `Options`.
 - Keep NumberFormat unit identifiers exact and case-sensitive. `UnitIdentifier("METER")` must not silently become `"meter"`; native `Intl.NumberFormat` rejects non-canonical unit casing.
 - Represent optional scalar input options as pointers (`*int`, `*bool`, `*string`) and use root helpers `gointl.Int`, `gointl.Bool`, and `gointl.String` at call sites. Constructor code must copy pointed-to scalar values into internal config before storing anything on formatter instances.
@@ -195,6 +198,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - No root diagnostic APIs such as `Version()`; CLDR, ICU, and tzdata pins are internal metadata.
 - No back-compat shims, alias APIs, or parallel v2 names unless a SPEC explicitly requires them.
 - No root-level one-shot helpers or per-locale `Intl` session APIs unless their SPEC maps them to the ECMA-402 `Intl` namespace. JavaScript `Intl` is not a constructor.
+- No public ECMA-402 abstract-operation helpers such as canonicalize-list helpers, `ResolveLocale`, `GetOption`, or `PartitionPattern`. Keep abstract operations under `internal/ecma402`, `internal/localematcher`, or formatter internals.
 - No documentation masquerading as code: do not encode spec prose as constants or tables no program consumes.
 - No hand-written formatter supported-locale lists; update CLDR codegen, generated supported accessors, or the engine-specific support boundary instead.
 - No `strconv.ParseFloat`, `math.Log10`, or `math.Pow10` in NumberFormat decimal formatting, compact scaling, scientific notation, or percent math. Use `internal/decimal`.
@@ -248,6 +252,7 @@ Add runtime dependencies only when an active SPEC requires them.
 
 - Benchmark telemetry lives in `Benchmark*` functions and `SPECS/71-benchmark.md`.
 - Use representative `go test -bench` commands when changing formatter hot paths.
+- Cached formatter benchmarks must measure method calls after construction; embedded formatters and CLDR data lookup belong to constructors, not cached loops.
 - Use `task bench` with `BASELINE=<file>` for non-blocking benchstat comparisons.
 - Use `task build:size` when reviewing CLDR data size changes.
 

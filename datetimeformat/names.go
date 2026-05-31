@@ -31,9 +31,9 @@ func (f *DateTimeFormat) monthName(month time.Month, width int) string {
 	}
 }
 
-func (f *DateTimeFormat) eraName(year int, width int) string {
+func (f *DateTimeFormat) eraName(era string, width int) string {
 	idx := 1
-	if year <= 0 {
+	if era == "BC" {
 		idx = 0
 	}
 	if width == 5 {
@@ -52,10 +52,10 @@ func (f *DateTimeFormat) numericDateValue(value int, width int) string {
 	return f.localizeDigits(strconv.Itoa(value))
 }
 
-func (f *DateTimeFormat) dayPeriodPatternName(width int, t time.Time) string {
+func (f *DateTimeFormat) dayPeriodPatternName(width int, t localTime) string {
 	names := f.gregorian.DayPeriods.AM
 	fallback := "AM"
-	if t.Hour() >= 12 {
+	if t.Hour >= 12 {
 		names = f.gregorian.DayPeriods.PM
 		fallback = "PM"
 	}

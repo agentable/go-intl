@@ -1,13 +1,11 @@
 package numberformat
 
 import (
-	"fmt"
 	"strings"
 
-	"github.com/agentable/go-intl/internal/intlerr"
-
-	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/ecma402"
+	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
+	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -62,6 +60,7 @@ type config struct {
 	roundingPriority    string
 	roundingIncrement   int
 	roundingMode        string
+	roundingType        ecma402nf.RoundingType
 	trailingZeroDisplay string
 	notation            string
 	compactDisplay      string
@@ -171,9 +170,6 @@ func (c config) validate(loc locale.Locale) error {
 		ecma402.RequiredStringOption("currencySign", c.currencySign, "standard", "accounting"),
 		ecma402.RequiredStringOption("unitDisplay", c.unitDisplay, "short", "narrow", "long"),
 		ecma402.RequiredStringOption("signDisplay", c.signDisplay, "auto", "always", "exceptZero", "negative", "never"),
-		ecma402.RequiredStringOption("roundingMode", c.roundingMode, "ceil", "floor", "expand", "trunc", "halfCeil", "halfFloor", "halfExpand", "halfTrunc", "halfEven"),
-		ecma402.RequiredStringOption("roundingPriority", c.roundingPriority, "auto", "morePrecision", "lessPrecision"),
-		ecma402.RequiredStringOption("trailingZeroDisplay", c.trailingZeroDisplay, "auto", "stripIfInteger"),
 		ecma402.RequiredStringOption("useGrouping", c.useGrouping, "min2", "auto", "always", "false"),
 		ecma402.LocaleMatcherOption(c.localeMatcher),
 	}
@@ -182,30 +178,6 @@ func (c config) validate(loc locale.Locale) error {
 	}
 	if c.numberingSystem != "" && !ecma402.IsWellFormedUnicodeType(c.numberingSystem) {
 		return invalidOption("numberingSystem", c.numberingSystem, loc)
-	}
-	integerChecks := []ecma402.IntegerOption{
-		{Name: "minimumIntegerDigits", Value: c.minIntDigits, Min: 1, Max: 21, Set: true},
-		{Name: "minimumFractionDigits", Value: c.minFracDigits, Min: 0, Max: 100, Set: true},
-		{Name: "maximumFractionDigits", Value: c.maxFracDigits, Min: 0, Max: 100, Set: true},
-		{Name: "minimumSignificantDigits", Value: c.minSigDigits, Min: 1, Max: 21, Set: c.hasMinSigDigits},
-		{Name: "maximumSignificantDigits", Value: c.maxSigDigits, Min: 1, Max: 21, Set: c.hasMaxSigDigits},
-	}
-	if check, ok := ecma402.InvalidIntegerOption(integerChecks...); ok {
-		return invalidOption(check.Name, fmt.Sprint(check.Value), loc)
-	}
-	if c.maxFracDigits < c.minFracDigits {
-		return invalidOption("maximumFractionDigits", fmt.Sprint(c.maxFracDigits), loc)
-	}
-	if c.hasMaxSigDigits && c.hasMinSigDigits && c.maxSigDigits < c.minSigDigits {
-		return invalidOption("maximumSignificantDigits", fmt.Sprint(c.maxSigDigits), loc)
-	}
-	if !decimal.IsValidRoundingIncrement(c.roundingIncrement) {
-		return invalidOption("roundingIncrement", fmt.Sprint(c.roundingIncrement), loc)
-	}
-	if c.roundingIncrement != 1 {
-		if c.hasMinSigDigits || c.hasMaxSigDigits || c.roundingPriority != "auto" || c.minFracDigits != c.maxFracDigits {
-			return invalidOption("roundingIncrement", fmt.Sprint(c.roundingIncrement), loc)
-		}
 	}
 	if c.style == "currency" && c.currency == "" {
 		return invalidOption("currency", c.currency, loc)
@@ -220,6 +192,37 @@ func (c config) validate(loc locale.Locale) error {
 		return invalidOption("unit", c.unit, loc)
 	}
 	return nil
+}
+
+func (c config) digitOptionInput() ecma402nf.DigitOptionInput {
+	return ecma402nf.DigitOptionInput{
+		MinimumIntegerDigits:        c.minIntDigits,
+		MinimumFractionDigits:       c.minFracDigits,
+		MaximumFractionDigits:       c.maxFracDigits,
+		MinimumSignificantDigits:    c.minSigDigits,
+		MaximumSignificantDigits:    c.maxSigDigits,
+		RoundingIncrement:           c.roundingIncrement,
+		RoundingMode:                c.roundingMode,
+		RoundingPriority:            c.roundingPriority,
+		TrailingZeroDisplay:         c.trailingZeroDisplay,
+		HasMinimumFractionDigits:    c.hasMinFracDigits,
+		HasMaximumFractionDigits:    c.hasMaxFracDigits,
+		HasMinimumSignificantDigits: c.hasMinSigDigits,
+		HasMaximumSignificantDigits: c.hasMaxSigDigits,
+	}
+}
+
+func (c *config) applyResolvedDigits(digits ecma402nf.ResolvedDigitOptions) {
+	c.minIntDigits = digits.MinimumIntegerDigits
+	c.minFracDigits = digits.MinimumFractionDigits
+	c.maxFracDigits = digits.MaximumFractionDigits
+	c.minSigDigits = digits.MinimumSignificantDigits
+	c.maxSigDigits = digits.MaximumSignificantDigits
+	c.roundingIncrement = digits.RoundingIncrement
+	c.roundingMode = digits.RoundingMode
+	c.roundingPriority = digits.RoundingPriority
+	c.trailingZeroDisplay = digits.TrailingZeroDisplay
+	c.roundingType = digits.RoundingType
 }
 
 func invalidOption(name, value string, loc locale.Locale) error {

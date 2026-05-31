@@ -1,0 +1,29 @@
+[
+  {
+    "id": "locale-node-v26-duplicate-calendar-first-wins",
+    "source": "node:v26.0.0:locale:canonicalization",
+    "locale": "en",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "en-u-ca-buddhist-ca-gregory",
+    "expected": "en-u-ca-buddhist"
+  },
+  {
+    "id": "locale-node-v26-duplicate-case-first-first-wins",
+    "source": "node:v26.0.0:locale:canonicalization",
+    "locale": "en",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "en-u-kf-upper-kf-lower",
+    "expected": "en-u-kf-upper"
+  },
+  {
+    "id": "locale-node-v26-private-use-after-unicode-extension",
+    "source": "node:v26.0.0:locale:canonicalization",
+    "locale": "en",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "en-u-ca-gregory-x-private",
+    "expected": "en-u-ca-gregory-x-private"
+  }
+]

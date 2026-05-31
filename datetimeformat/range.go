@@ -50,36 +50,38 @@ func (f *DateTimeFormat) normalizeRange(start, end time.Time) normalizedRange {
 }
 
 func (f *DateTimeFormat) formatIntervalRangeToParts(start, end time.Time) ([]RangePart, bool) {
+	startLocal := f.localTime(start)
+	endLocal := f.localTime(end)
 	switch f.pattern.kind {
 	case patternDate:
-		pattern, ok := f.dateIntervalPattern(start, end)
+		pattern, ok := f.dateIntervalPattern(startLocal, endLocal)
 		if !ok {
 			return nil, false
 		}
-		return f.formatIntervalPattern(pattern, start, end), true
+		return f.formatIntervalPattern(pattern, startLocal, endLocal), true
 	case patternTime:
-		pattern, ok := f.timeIntervalPattern(start, end)
+		pattern, ok := f.timeIntervalPattern(startLocal, endLocal)
 		if !ok {
 			return nil, false
 		}
-		return f.formatIntervalPattern(pattern, start, end), true
+		return f.formatIntervalPattern(pattern, startLocal, endLocal), true
 	case patternDateTime:
-		if !sameDate(start, end) {
+		if !sameDate(startLocal, endLocal) {
 			return nil, false
 		}
-		pattern, ok := f.timeIntervalPattern(start, end)
+		pattern, ok := f.timeIntervalPattern(startLocal, endLocal)
 		if !ok {
 			return nil, false
 		}
-		dateParts := rangeParts(f.formatDatePattern(f.pattern.date, start), SourceShared)
-		timeParts := f.formatIntervalPattern(pattern, start, end)
+		dateParts := rangeParts(f.formatDatePattern(f.pattern.date, startLocal), SourceShared)
+		timeParts := f.formatIntervalPattern(pattern, startLocal, endLocal)
 		return interpolateDateTimeRangeParts(f.pattern.dateTime, dateParts, timeParts), true
 	case patternNone:
 	}
 	return nil, false
 }
 
-func (f *DateTimeFormat) dateIntervalPattern(start, end time.Time) (string, bool) {
+func (f *DateTimeFormat) dateIntervalPattern(start, end localTime) (string, bool) {
 	diffFields, ok := dateRangeDiffFields(start, end)
 	if !ok {
 		return "", false
@@ -87,20 +89,20 @@ func (f *DateTimeFormat) dateIntervalPattern(start, end time.Time) (string, bool
 	return f.intervalPatternForSkeleton(f.pattern.dateSkeleton, diffFields, f.pattern.dateIntervalOptions)
 }
 
-func dateRangeDiffFields(start, end time.Time) ([]rune, bool) {
+func dateRangeDiffFields(start, end localTime) ([]rune, bool) {
 	switch {
-	case start.Year() != end.Year():
+	case start.Year != end.Year:
 		return []rune{'y'}, true
-	case start.Month() != end.Month():
+	case start.Month != end.Month:
 		return []rune{'M', 'L'}, true
-	case start.Day() != end.Day():
+	case start.Day != end.Day:
 		return []rune{'d'}, true
 	default:
 		return nil, false
 	}
 }
 
-func (f *DateTimeFormat) timeIntervalPattern(start, end time.Time) (string, bool) {
+func (f *DateTimeFormat) timeIntervalPattern(start, end localTime) (string, bool) {
 	diffFields, ok := f.timeRangeDiffFields(start, end)
 	if !ok {
 		return "", false
@@ -108,26 +110,26 @@ func (f *DateTimeFormat) timeIntervalPattern(start, end time.Time) (string, bool
 	return f.intervalPatternForSkeleton(f.pattern.timeSkeleton, diffFields, f.pattern.timeIntervalOptions)
 }
 
-func (f *DateTimeFormat) timeRangeDiffFields(start, end time.Time) ([]rune, bool) {
+func (f *DateTimeFormat) timeRangeDiffFields(start, end localTime) ([]rune, bool) {
 	if f.resolved.DayPeriod != "" && cldrDayPeriod(f, start) != cldrDayPeriod(f, end) {
 		return []rune{'B', 'b', 'a', f.hourIntervalField(), 'h', 'H'}, true
 	}
-	if start.Hour() != end.Hour() {
+	if start.Hour != end.Hour {
 		return []rune{f.hourIntervalField(), 'h', 'H', 'K', 'k'}, true
 	}
-	if start.Minute() != end.Minute() {
+	if start.Minute != end.Minute {
 		return []rune{'m'}, true
 	}
-	if start.Second() != end.Second() {
+	if start.Second != end.Second {
 		return []rune{'s'}, true
 	}
-	if f.resolved.FractionalSecondDigits != 0 && f.fractionalSecondValue(start.Nanosecond(), f.resolved.FractionalSecondDigits) != f.fractionalSecondValue(end.Nanosecond(), f.resolved.FractionalSecondDigits) {
+	if f.resolved.FractionalSecondDigits != 0 && f.fractionalSecondValue(start.Nanosecond, f.resolved.FractionalSecondDigits) != f.fractionalSecondValue(end.Nanosecond, f.resolved.FractionalSecondDigits) {
 		return []rune{'S', 's'}, true
 	}
 	return nil, false
 }
 
-func cldrDayPeriod(f *DateTimeFormat, t time.Time) string {
+func cldrDayPeriod(f *DateTimeFormat, t localTime) string {
 	return f.flexibleDayPeriodPatternName(4, t)
 }
 
@@ -162,11 +164,11 @@ func (f *DateTimeFormat) intervalPatternForSkeleton(skeleton string, fields []ru
 	return "", false
 }
 
-func sameDate(start, end time.Time) bool {
-	return start.Year() == end.Year() && start.Month() == end.Month() && start.Day() == end.Day()
+func sameDate(start, end localTime) bool {
+	return start.Year == end.Year && start.Month == end.Month && start.Day == end.Day
 }
 
-func (f *DateTimeFormat) formatIntervalPattern(pattern string, start, end time.Time) []RangePart {
+func (f *DateTimeFormat) formatIntervalPattern(pattern string, start, end localTime) []RangePart {
 	tokens := tokenizeIntervalPattern(pattern)
 	counts := intervalFieldCounts(tokens)
 	seen := map[rune]int{}
@@ -298,7 +300,7 @@ func intervalFieldKey(field rune) rune {
 	}
 }
 
-func (f *DateTimeFormat) intervalPatternPart(field rune, width int, t time.Time) Part {
+func (f *DateTimeFormat) intervalPatternPart(field rune, width int, t localTime) Part {
 	if isDatePatternField(field) {
 		return f.datePatternPart(field, width, t)
 	}

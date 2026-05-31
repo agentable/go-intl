@@ -7,18 +7,58 @@ import (
 	"testing"
 )
 
-func TestRunImportsSyntheticNodeSmokeFixtures(t *testing.T) {
+func TestRunImportsSyntheticNodeWitnessFixtures(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	nodePath := filepath.Join(root, "localizationData-v76.1.json")
-	if err := os.WriteFile(nodePath, []byte(`{
-		"en-US": {
-			"numberFormats": [{"input": 1234.5, "expected": "1,234.5"}],
-			"dateFormats": [{"input": "2026-05-08T12:00:00Z", "expected": "May 8, 2026"}]
-		}
-	}`), 0o666); err != nil {
-		t.Fatalf("write node fixture: %v", err)
+	nodePath := filepath.Join(root, "node")
+	if err := os.WriteFile(nodePath, []byte(`#!/bin/sh
+cat <<'JSON'
+{
+  "nodeVersion": "v26.0.0",
+  "versions": {"node": "26.0.0", "v8": "14.0.365.4-node.2", "icu": "78.1", "cldr": "48.0", "tz": "2025b"},
+  "numberFormatResolved": [
+    {
+      "id": "numberformat-node-v26-resolved-decimal-default",
+      "source": "node:v26.0.0:numberformat:resolved-options",
+      "locale": "en",
+      "options": {},
+      "input": 12345.6,
+      "expected": "12,345.6",
+      "expectedResolvedOptions": {"locale": "en", "numberingSystem": "latn", "style": "decimal"}
+    }
+  ],
+  "durationFormatDigital": [
+    {
+      "id": "durationformat-node-v26-digital-hours-minutes-seconds",
+      "source": "node:v26.0.0:durationformat:digital",
+      "locale": "en",
+      "options": {"style": "digital"},
+      "input": {"hours": 5, "minutes": 30, "seconds": 15},
+      "expected": "5:30:15",
+      "expectedParts": [
+        {"type": "integer", "value": "5", "unit": "hour"},
+        {"type": "literal", "value": ":"},
+        {"type": "integer", "value": "30", "unit": "minute"},
+        {"type": "literal", "value": ":"},
+        {"type": "integer", "value": "15", "unit": "second"}
+      ],
+      "expectedResolvedOptions": {"locale": "en", "numberingSystem": "latn", "style": "digital"}
+    }
+  ],
+  "supportedValues": {
+    "source": "node:v26.0.0:intl:supportedValuesOf",
+    "versions": {"node": "26.0.0", "icu": "78.1", "cldr": "48.0", "tz": "2025b"},
+    "values": {
+      "calendar": ["gregory", "iso8601"],
+      "collation": ["emoji"],
+      "unit": ["acre"]
+    }
+  }
+}
+JSON
+`), 0o777); err != nil {
+		t.Fatalf("write fake node executable: %v", err)
 	}
 	out := filepath.Join(root, "out")
 
@@ -26,26 +66,65 @@ func TestRunImportsSyntheticNodeSmokeFixtures(t *testing.T) {
 		t.Fatalf("run() error = %v", err)
 	}
 
-	numberData, err := os.ReadFile(filepath.Join(out, "numberformat", "testdata", "conformance", "node-v76", "smoke.json"))
+	numberData, err := os.ReadFile(filepath.Join(out, "numberformat", "testdata", "conformance", "node-v26", "resolved-options.json"))
 	if err != nil {
-		t.Fatalf("read number smoke: %v", err)
+		t.Fatalf("read number resolved-options: %v", err)
 	}
-	if !strings.Contains(string(numberData), "numberformat-node-v76-en-us-0") {
-		t.Fatalf("number smoke fixture = %s, want deterministic ID", numberData)
+	for _, want := range []string{
+		`"id": "numberformat-node-v26-resolved-decimal-default"`,
+		`"source": "node:v26.0.0:numberformat:resolved-options"`,
+		`"expectedResolvedOptions"`,
+	} {
+		if !strings.Contains(string(numberData), want) {
+			t.Fatalf("number witness fixture = %s, want %s", numberData, want)
+		}
 	}
-	dateData, err := os.ReadFile(filepath.Join(out, "datetimeformat", "testdata", "conformance", "node-v76", "smoke.json"))
+	durationData, err := os.ReadFile(filepath.Join(out, "durationformat", "testdata", "conformance", "node-v26", "digital.json"))
 	if err != nil {
-		t.Fatalf("read date smoke: %v", err)
+		t.Fatalf("read duration digital: %v", err)
 	}
-	if !strings.Contains(string(dateData), "datetimeformat-node-v76-en-us-0") {
-		t.Fatalf("date smoke fixture = %s, want deterministic ID", dateData)
+	for _, want := range []string{
+		`"id": "durationformat-node-v26-digital-hours-minutes-seconds"`,
+		`"expectedParts"`,
+		`"unit": "hour"`,
+		`"expectedResolvedOptions"`,
+	} {
+		if !strings.Contains(string(durationData), want) {
+			t.Fatalf("duration witness fixture = %s, want %s", durationData, want)
+		}
 	}
-	skipData, err := os.ReadFile(filepath.Join(out, ".skip-list.json"))
+	supportedData, err := os.ReadFile(filepath.Join(out, "testdata", "native", "node-v26", "supported-values.json"))
 	if err != nil {
-		t.Fatalf("read skip list: %v", err)
+		t.Fatalf("read supported-values witness: %v", err)
 	}
-	if !strings.Contains(string(skipData), `"source": "formatjs"`) || !strings.Contains(string(skipData), "formatjs path not provided") {
-		t.Fatalf("skip list = %s, want missing FormatJS entry", skipData)
+	for _, want := range []string{
+		`"source": "node:v26.0.0:intl:supportedValuesOf"`,
+		`"calendar"`,
+		`"collation"`,
+		`"unit"`,
+		`"icu": "78.1"`,
+	} {
+		if !strings.Contains(string(supportedData), want) {
+			t.Fatalf("supported-values witness = %s, want %s", supportedData, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(out, ".skip-list.json")); !os.IsNotExist(err) {
+		t.Fatalf("node-only import wrote .skip-list.json: %v", err)
+	}
+}
+
+func TestNodeFixtureDir(t *testing.T) {
+	t.Parallel()
+
+	got, err := nodeFixtureDir("v26.0.0")
+	if err != nil {
+		t.Fatalf("nodeFixtureDir(v26.0.0) error = %v", err)
+	}
+	if got != "node-v26" {
+		t.Fatalf("nodeFixtureDir(v26.0.0) = %q, want node-v26", got)
+	}
+	if _, err := nodeFixtureDir("not-node"); err == nil {
+		t.Fatal("nodeFixtureDir(not-node) error = nil, want error")
 	}
 }
 

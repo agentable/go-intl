@@ -6,7 +6,7 @@ import (
 )
 
 func (f *NumberFormat) formatFastInt64(v int64) (string, bool) {
-	if !f.canUseDecimalIntegerFastPath() {
+	if !f.decimalIntegerFastPath {
 		return "", false
 	}
 	var scratch [20]byte
@@ -19,7 +19,7 @@ func (f *NumberFormat) formatFastInt64(v int64) (string, bool) {
 }
 
 func (f *NumberFormat) formatFastUint64(v uint64) (string, bool) {
-	if !f.canUseDecimalIntegerFastPath() {
+	if !f.decimalIntegerFastPath {
 		return "", false
 	}
 	var scratch [20]byte
@@ -27,20 +27,20 @@ func (f *NumberFormat) formatFastUint64(v uint64) (string, bool) {
 	return f.formatFastInteger(raw, false)
 }
 
-func (f *NumberFormat) canUseDecimalIntegerFastPath() bool {
-	return f.resolved.Style == DecimalStyle &&
-		f.resolved.Notation == StandardNotation &&
-		f.resolved.SignDisplay == AutoSignDisplay &&
-		f.resolved.NumberingSystem == "latn" &&
-		f.digits.minInt == 1 &&
-		f.digits.minFrac == 0 &&
-		f.digits.maxFrac == 3 &&
-		f.digits.minSig == 0 &&
-		f.digits.maxSig == 0 &&
-		f.resolved.RoundingIncrement == 1 &&
-		f.resolved.RoundingMode == HalfExpandRoundingMode &&
-		f.resolved.RoundingPriority == AutoRoundingPriority &&
-		f.resolved.TrailingZeroDisplay == AutoTrailingZeroDisplay
+func canUseDecimalIntegerFastPath(resolved ResolvedOptions, digits digitState) bool {
+	return resolved.Style == DecimalStyle &&
+		resolved.Notation == StandardNotation &&
+		resolved.SignDisplay == AutoSignDisplay &&
+		resolved.NumberingSystem == "latn" &&
+		digits.minInt == 1 &&
+		digits.minFrac == 0 &&
+		digits.maxFrac == 3 &&
+		digits.minSig == 0 &&
+		digits.maxSig == 0 &&
+		resolved.RoundingIncrement == 1 &&
+		resolved.RoundingMode == HalfExpandRoundingMode &&
+		resolved.RoundingPriority == AutoRoundingPriority &&
+		resolved.TrailingZeroDisplay == AutoTrailingZeroDisplay
 }
 
 func (f *NumberFormat) formatFastInteger(digits []byte, negative bool) (string, bool) {

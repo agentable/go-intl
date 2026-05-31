@@ -1,8 +1,8 @@
 # SPEC 11 — Locale Matching
 
-> **Status:** Draft (2026-05-08)
+> **Status:** Revised (2026-05-31)
 > **Priority:** High (locale parsing layer that all formatters must pass through; blocking SPEC 20 / 30 / 40 / 60)
-> **Authority:** ECMA-402 `.references/ecma402/spec/negotiation.html` is the normative source. This SPEC documents the current Go contract for the `internal/localematcher` package, `CanonicalizeLocaleList`, `LookupMatchingLocaleByPrefix`, `LookupMatchingLocaleByBestFit`, `ResolveOptions`, `ResolveLocale`, `FilterLocales`, UTS #35 distance table and three-level matching algorithm.
+> **Authority:** ECMA-402 `.references/ecma402/spec/negotiation.html` is the normative source. This SPEC documents the current Go contract for `internal/ecma402.CanonicalLocaleList`, the `internal/localematcher` package, `LookupMatchingLocaleByPrefix`, `LookupMatchingLocaleByBestFit`, `ResolveOptions`, `ResolveLocale`, `FilterLocales`, compiled matcher indexes, and the active bounded distance model.
 
 ---
 
@@ -13,7 +13,7 @@ ECMA-402 locale negotiation is a locale selection algorithm that all formatters 
 This SPEC decision:
 
 1. **Do not** reuse `golang.org/x/text/language.Matcher` (output `Confidence` instead of CLDR distance, not comparable to ECMA-402 conformance).
-2. In `internal/localematcher/` **self-implemented** ECMA-402 lookup, and transplant the three-layer matching algorithm of FormatJS `intl-localematcher` + UTS #35 distance table in the implementation-defined part of best-fit.
+2. In `internal/localematcher/` **self-implemented** ECMA-402 lookup and best-fit locale matching. Best-fit keeps the FormatJS three-tier shape while using the active bounded Go distance model; a full CLDR `languageMatching` codegen table is not part of the current runtime contract.
 3. `LookupMatchingLocaleByBestFit` is an enhancement of `LookupMatchingLocaleByPrefix`; both share the subtag truncation and canonicalization subroutines.
 4. `ResolveOptions` reads `locales` and `options.localeMatcher`, calls `ResolveLocale`, and returns the Go equivalent of options object, resolved locale record, and resolution option record.
 5. `FilterLocales` is the only semantic source of constructor `supportedLocalesOf`.
@@ -26,10 +26,10 @@ Go APIs do not accept arbitrary JavaScript values, but the semantic pipeline mus
 
 | ECMA-402 operation | Go responsibility |
 |--------------------|-------------------|
-| `CanonicalizeLocaleList(locales)` | Parse/canonicalize/deduplicate requested `locale.Locale` values while preserving order |
+| `CanonicalizeLocaleList(locales)` | Deduplicate already-parsed requested `locale.Locale` values while preserving order through `internal/ecma402.CanonicalLocaleList` |
 | `ResolveOptions(constructor, localeData, locales, options, ...)` | Resolve locale/options for formatter constructors from typed `Options` |
 | `LookupMatchingLocaleByPrefix` | Implement RFC 4647 lookup ignoring Unicode extension sequences |
-| `LookupMatchingLocaleByBestFit` | Implementation-defined best-fit, using the selected formatjs/UTS #35 distance algorithm |
+| `LookupMatchingLocaleByBestFit` | Implementation-defined best-fit, using the selected FormatJS three-tier shape and active bounded distance model |
 | `ResolveLocale` | Merge matched locale data, relevant extension keys, Unicode extension requests, and explicit option overrides |
 | `FilterLocales` | Implement `Intl.<Constructor>.supportedLocalesOf` |
 
@@ -50,20 +50,32 @@ Rules:
 
 ```text
 internal/localematcher/
-├── match.go ← Public entrance Match / ResolveLocale and Algorithm enumeration
-├── lookup.go       ← LookupMatcher(ECMA-402 §9.2.6) + BestAvailableLocale
-├── best_fit.go ← BestFitMatcher three-layer algorithm (Tier 1 / Tier 2 / Tier 3)
-├── distance.go ← findMatchingDistance + UTS #35 Table query + sync.Map memoize
-├── resolve.go ← ResolveLocale(ECMA-402 §9.2.7)+ relevantExtensionKeys processing
-├── ucanonicalize.go← UnicodeExtensionValue / InsertUnicodeExtensionAndCanonicalize
-├── canonicalize.go ← CanonicalizeLocaleList(ECMA-402 §6.2.1)
-└── data.go ← languageMatching / paradigmLocales / matchVariables data accessor wrapper
+├── available.go     ← ECMA-402 Available Locales expansion and data-locale mapping
+├── compiled.go      ← compiled Matcher indexes for repeated constructor negotiation
+├── match.go         ← Match / MatchWithMaximizer and Algorithm enumeration
+├── lookup.go        ← LookupMatcher(ECMA-402 §9.2.6) + BestAvailableLocale
+├── best_fit.go      ← BestFitMatcher three-layer algorithm (Tier 1 / Tier 2 / Tier 3)
+├── distance.go      ← bounded matching distance + sync.Map memoize
+├── filter.go        ← FilterLocales / FilterLocalesWithMaximizer
+├── resolve.go       ← ResolveLocale(ECMA-402 §9.2.7) + relevantExtensionKeys processing
+└── ucanonicalize.go ← UnicodeExtensionValue / InsertUnicodeExtensionAndCanonicalize
 ```
+
+Unicode extension parsing and insertion are delegated to `internal/localeid`
+so `locale.Parse`, `ResolveLocale`, and supported-locales filtering share the
+same ECMA-402 first-wins keyword behavior and private-use insertion rule.
+
+Locale-list canonicalization for public Go APIs is deliberately outside
+`internal/localematcher`: raw strings are parsed at `locale.Parse` /
+`locale.ParseList`, root `GetCanonicalLocales` exposes the public
+`Intl.getCanonicalLocales` bridge, and formatter constructors use
+`internal/ecma402.CanonicalLocaleList` / `RequestedLocaleStrings` before they
+enter matching.
 
 > **Why**:
 > 1. **`internal/`** - matcher is the implementation details of formatter entry and is not exposed to users; SPEC 00 §3 has defined `internal/localematcher`.
 > 2. **Files are split according to ECMA-402 abstract operation** - one file corresponds to a section of spec (`LookupMatcher.ts` / `BestFitMatcher.ts` / `ResolveLocale.ts`), mirroring FormatJS 1:1 to reduce migration costs.
-> 3. **Data accesses `internal/cldr` indirectly through `data.go`** - matcher does not access `import internal/cldr` directly, but through the interface provided by `data.go` (SPEC 50 §6 Data Access API); avoid the circular dependency between SPEC 11 and SPEC 50.
+> 3. **Data is injected by callers** - matcher does not import `internal/cldr`; formatter constructors pass generated supported-locale lists, maximizers, and relevant-extension-key data lookups.
 >
 > **Rejected**:
 > - **Public `localematcher` package** - users never construct matcher directly; `internal/` enforces hidden implementation.
@@ -80,13 +92,14 @@ type Algorithm int
 
 const (
 AlgorithmLookup Algorithm = iota // sec-LookupMatcher(accurate + subtag truncation)
-AlgorithmBestFit // sec-BestFitMatcher (three layers + UTS #35 distance)
+AlgorithmBestFit // sec-BestFitMatcher (three tiers + bounded distance model)
 )
 
 // Result is an internal product of matcher, not ResolvedLocale; the latter is composed of ResolveLocale.
 type Result struct {
 Locale string // Hit supported locale string (canonical BCP 47)
-DataLocale string // locale used to check CLDR data (remove -u- expansion)
+DataLocale string // Locale used for CLDR data lookup.
+Extension string // Unicode extension sequence from the matched request, when present.
 Distance int // 0 = completely equivalent; >= threshold is considered a miss
 }
 
@@ -203,7 +216,7 @@ That is, spec **does not force** a specific algorithm. This gives three options 
 
 | Candidate | Decision | Reason |
 |------|------|------|
-| Transplanted FormatJS three-tier algorithm (Tier 1 accurate / Tier 2 maximize+truncation / Tier 3 UTS #35) | ✅ Selected | There is a public test baseline; aligned with the conformance goal |
+| FormatJS three-tier algorithm shape (Tier 1 exact / Tier 2 maximize+truncation / Tier 3 bounded distance) | ✅ Selected | There is a public test baseline; aligned with the conformance goal without shipping an unused generated distance table |
 | Reuse `golang.org/x/text/language.Matcher` | ❌ Reject | Output `Confidence`(No/Low/High/Exact) is not CLDR distance; tie-breaking is determined by `x/text`, inconsistent with FormatJS; `x/text`'s CLDR data version is not synchronized with `internal/cldr` |
 | ICU-only simplified heuristic | ❌ Reject | No fixture exposed; cannot reverse verify from conformance test |
 
@@ -259,11 +272,11 @@ if candidate == desired: continue # Tier 1 Checked
 if result.matchedSupported != "" and lowestDistance == 0:
 return result # Tier 2 finds distance=0 and returns directly
 
-# === TIER 3 — Complete UTS #35 Distance Calculation ===
-lowestDistance = +Inf # Reset: Tier 2's "position penalty" is not comparable to CLDR distance
+# === TIER 3 — Bounded distance calculation ===
+lowestDistance = +Inf # Reset: Tier 2's "position penalty" is not comparable to distance output
 for i, desired in requested:
     for k, candidate in supported:
-        d = findMatchingDistance(desired, candidate)
+        d = matchingDistance(desired, candidate, maximize(desired), maximize(candidate))
         finalDistance = d + i*40
         result.distances[desired][candidate] = finalDistance
         if finalDistance < lowestDistance:
@@ -277,7 +290,7 @@ if lowestDistance >= threshold:
 return result
 ```
 
-> **Why Tier 3 reset `lowestDistance`**: The distance of Tier 2 is the "subtag removal position × 10 + request order × 40" heuristic, which is a different scale from the CLDR distance of Tier 3 (based on paradigmLocales / matchVariables table). Mixing will result in "Tier 2 gives es→es-MX = 20, Tier 3 gives es-419 = 39", misjudgment that es is better than es-419 (the latter is closer in the CLDR table).
+> **Why Tier 3 reset `lowestDistance`**: The distance of Tier 2 is the "subtag removal position × 10 + request order × 40" heuristic, which is a different scale from the bounded matching distance used in Tier 3. Mixing the two turns an implementation detail of fallback order into a false semantic distance.
 >
 > **Why position penalty `i*40`**:FormatJS verbatim;ECMA-402 does not support `Accept-Language`'s `q=0.1` weighting, but preserves request order as weak priority.
 
@@ -289,53 +302,48 @@ return result
 // BestFitMatcher implements ECMA-402 §9.2.5 (FormatJS three-layer algorithm).
 func BestFitMatcher(requested, supported []string, defaultLocale string) Result
 
-// findBestMatch is the core three-layer entrance, wrapped by BestFitMatcher.
+// BestFitMatcherWithMaximizer lets tests and constructors inject the same
+// maximizer used by Locale maximize/minimize.
+func BestFitMatcherWithMaximizer(requested, supported []string, defaultLocale string, maximizer Maximizer) Result
+
+// findBestMatch is the core three-tier entrance on a compiled Matcher.
 type bestMatchResult struct {
     matchedDesired   string
     matchedSupported string
-    distances        map[string]map[string]int
+    distance         int
 }
 
-func findBestMatch(requested, supported []string, threshold int) bestMatchResult
+func (m *Matcher) findBestMatch(requested []string, threshold int) bestMatchResult
 
 // getFallbackCandidates truncate the maximize results according to the right-to-left subtag to generate candidates.
 // Example: "zh-Hant-TW" → ["zh-Hant-TW", "zh-Hant", "zh"]
 func getFallbackCandidates(maximized string) []string
 
-// findMatchingDistance goes to the UTS #35 distance table (memoized via sync.Map).
-func findMatchingDistance(desired, supported string) int
+// matchingDistance returns the active bounded best-fit distance (memoized via sync.Map).
+func matchingDistance(desired, supported, maximizedDesired, maximizedSupported string) int
 ```
 
-> **Why `findBestMatch` is not exported**: It returns `distances` map for debugging/fixture comparison, but the production code only uses `BestFitMatcher`’s `Result`; not exported to avoid ABI exposure.
+> **Why `findBestMatch` is not exported**: It is a compiled matcher implementation detail. Public callers only need the selected `Result`; exposing the candidate-distance internals would freeze a non-ECMA-402 detail.
 >
-> **Why `findMatchingDistance` memoize with `sync.Map`**: Repeated calculation of the same pair of (desired, supported) distances in formatRange / large batch request scenarios; `sync.Map` has zero lock overhead for concurrent reading and writing.
+> **Why matching distance memoizes with `sync.Map`**: Repeated calculation of the same requested/supported/maximized tuple appears during constructor-heavy workloads and supported-locale filtering. The cache is process-local, bounded by locale-pair variety, and removes duplicate distance work without adding formatter-level cache controls.
 
-### 3.4 UTS #35 Distance Table
+### 3.4 Active bounded distance model
 
-`findMatchingDistance` depends on CLDR `languageMatching.json` derived table:
+`matchingDistance` is intentionally small and local to the active ECMA-402
+surface. It is not a generated CLDR `languageMatching.json` table.
 
-| Data item | Value range | Source |
-|-------|-------|------|
-| `paradigmLocales` | Collection: `{en, en-GB, es, es-419, pt-BR, pt-PT}` | CLDR `cldr-core/supplemental/languageMatching.json` |
-| `matchVariables` | `$enUS` / `$cnsar` / `$americas` / `$maghreb` and other regional macros | Same as above |
-| Distance weight | language=80 / script=20-50 / region=4-50 | Same as above (depends on paradigm and variable hits) |
+| Case | Distance |
+|------|----------|
+| Requested and supported tags are identical | `0` |
+| Maximized requested and supported tags are identical | `0` |
+| Fixture-backed FormatJS-sensitive pairs, such as `en-CA` vs `en-US` or `es-KY` vs `es-419` | Recorded fixture distance |
+| Same language without a fixture override | `40` |
+| Different language | `840` |
 
-The data is output to `internal/cldr/locale_matching.go` by SPEC 50 §6 codegen, and this SPEC is accessed indirectly through `data.go` accessor.
+`Matcher` adds request-order penalties and derived-fallback penalties around this
+base distance, then compares the result against `DefaultMatchingThreshold`.
 
-```go
-// internal/localematcher/data.go (signature)
-
-// Indirect accessor - do not directly import internal/cldr to avoid SPEC 11 ↔ SPEC 50 circular references.
-type LanguageMatchingData interface {
-    ParadigmLocales() map[string]struct{}
-    MatchVariables(name string) []string
-    DistanceFor(desiredLSR, supportedLSR string) int
-}
-
-func data() LanguageMatchingData // Singleton; injected by internal/cldr
-```
-
-> **Why interface boundary**: SPEC 50 codegen directly generates `internal/cldr` to implement the concrete type of `LanguageMatchingData`; `internal/localematcher` only relies on the interface. In this way, SPEC 50 data update (CLDR upgrade) does not force SPEC 11 to change the code.
+> **Why no generated languageMatching table**: ECMA-402 leaves best-fit matching implementation-defined. The active product profile needs stable, auditable behavior for the supported locale set, not an unused generated table that suggests broader ICU parity than the runtime can verify.
 
 ### 3.5 Performance Targets
 
@@ -387,18 +395,21 @@ override value(options priority > extension)
 
 // ResolveOptions is the input (options + context) of ResolveLocale.
 type ResolveOptions struct {
-    Algorithm             Algorithm                  // "lookup" | "best fit"
-Requested []string // CanonicalizeLocaleList output
-    Supported             []string                   // available locales
-    DefaultLocale         string                     // matcher fallback
-RelevantExtensionKeys []string // Example: `["nu"]`(NumberFormat)
-    Options               map[string]string          // user-provided -u- overrides
-LocaleData LocaleDataLookup // Inject from internal/cldr
+    Algorithm             Algorithm        // "lookup" | "best fit"
+    Matcher               *Matcher         // optional compiled supported-locale index
+    Requested             []string         // internal/ecma402.RequestedLocaleStrings output
+    Supported             []string         // available locales when Matcher is nil
+    DefaultLocale         string           // matcher fallback
+    RelevantExtensionKeys []string         // Example: ["nu"] (NumberFormat)
+    OptionValues          []Option         // explicit option overrides in stable order
+    Options               map[string]string // map bridge for callers that already build keyed option data
+    LocaleData            LocaleDataLookup // Inject from internal/cldr
+    Maximizer             Maximizer        // optional maximize function when Matcher is nil
 }
 
 // LocaleDataLookup is a subset of the SPEC 12 §5 / SPEC 50 §6 data provider.
 type LocaleDataLookup interface {
-// For returns a list of legal values of locale on key. The first item is the default value of locale.
+// For returns a list of legal values for a locale key. The first item is the locale default.
     For(locale, key string) []string
 }
 
@@ -465,47 +476,50 @@ func UnicodeExtensionValue(extension, key string) string
 
 ### 5.1 Algorithm
 
-ECMA-402 §6.2.1 `CanonicalizeLocaleList(locales)`:
+ECMA-402 §6.2.1 `CanonicalizeLocaleList(locales)` accepts JavaScript dynamic
+values, validates strings / `Intl.Locale` instances, canonicalizes each entry,
+and returns the first occurrence of every canonical locale identifier.
 
-```text
-1. If locales = undefined, return []
-2. seen := []
-3. If typeof locales = "string" or Locale instance, O := [locales]; otherwise O := ToObject(locales)
-4. for k from 0 to O.length-1:
-   a. tag := O[k]
-b. If tag is not string / Locale, RangeError
-c. If tag is Locale, canonicalizedTag := tag.toString(); otherwise canonicalizedTag := CanonicalizeUnicodeLocaleId(tag)
-d. If canonicalizedTag ∉ seen,seen.push(canonicalizedTag)
-5. Return seen
-```
+Go splits that operation at a typed boundary:
+
+1. Raw strings enter through `locale.Parse`, `locale.ParseList`, or `locale.New`.
+2. Parsed `locale.Locale` values already hold canonical Unicode locale IDs.
+3. `internal/ecma402.CanonicalLocaleList` removes duplicates by `Locale.String()` while preserving first-seen order.
+4. Root `gointl.GetCanonicalLocales` is the only public ECMA-402 bridge for this operation.
+5. Formatter constructors and `SupportedLocalesOf` use the internal helper; formatter-independent public canonicalize-list helpers and `any`-accepting public helpers are not part of the surface.
 
 ### 5.2 Go signature
 
 ```go
-// internal/localematcher/canonicalize.go(signature)
+// internal/ecma402/locale_list.go(signature)
 
-// CanonicalizeLocaleList implements ECMA-402 §6.2.1.
-// Accepts multiple forms of input such as []string / locale.List / locale.Locale / string, etc.
-// Return the canonical BCP 47 string slice after deduplication.
-func CanonicalizeLocaleList(locales any) ([]string, error)
+// CanonicalLocaleList returns the first occurrence of each canonical locale
+// while preserving request order.
+func CanonicalLocaleList(locales locale.List) locale.List
+
+// RequestedLocaleStrings returns canonical requested locale identifiers for
+// ResolveLocale. nil means the locales argument was omitted or empty.
+func RequestedLocaleStrings(locales locale.List) []string
+
+// ValidationLocale returns a concrete locale for constructor option error
+// context before locale negotiation has resolved.
+func ValidationLocale(locales locale.List) locale.Locale
 ```
 
-> **Why `any`**: ECMA-402 accepts polymorphic input; Go has no union types, `any` + reflection / type switch is the only solution.
+> **Why no public `any` API**: ECMA-402 needs `any` because JavaScript accepts strings, arrays, and `Intl.Locale` objects at runtime. Go callers should parse raw strings once and then pass `locale.List`. Simulating JavaScript's dynamic boundary in public Go API would make every formatter call less clear without improving conformance.
 >
-> **Why returns error instead of panic**: Invalid BCP 47 tag is user error, and errors matching `gointl.ErrInvalidValue` are uniformly returned at the boundary; CLAUDE.md red line "no panic in production".
+> **Why no error return**: Canonical locale-list dedupe is error-free after parsing. Invalid BCP 47 input remains the responsibility of `locale.Parse` / `locale.ParseList`.
 
 ### 5.3 Input normalization
 
 | Input type | Processing |
 |---------|------|
-| `nil` | Returns an empty slice |
-| `string` | Single element slice, normalized by `language.Parse` |
-| `locale.Locale` | Single element slice, use `loc.String()` |
-| `[]string` | Item-by-item `language.Parse` Normalization |
-| `locale.List` | Item by item `loc.String()` |
-| Others | Return errors matching `gointl.ErrInvalidValue` |
+| `nil` / empty `locale.List` | Return an empty `locale.List`; `RequestedLocaleStrings` returns `nil` |
+| `locale.List` | Keep the first locale for each canonical `loc.String()` |
+| Raw strings | Parse first with `locale.Parse` / `locale.ParseList`; do not pass raw strings to internal canonicalization |
 
-> **Why `[]any`** is not accepted: Go style favors named slice types; mixed type slices are extremely rare in Go. To mix, first turn to `[]string`.
+This keeps ECMA-402 behavior while preserving the repository rule that public
+exported symbols map to native owners, not abstract operations.
 
 ---
 
@@ -513,7 +527,7 @@ func CanonicalizeLocaleList(locales any) ([]string, error)
 
 ### 6.1 Purpose of FilterLocales
 
-`Intl.NumberFormat.supportedLocalesOf(locales, options)` etc. The semantic source of spec static methods. Go typed bridge receives the value that has been parse into `locale.Locale`, but it still must be deduplicated according to the canonical locale string, and then press `options.localeMatcher` to choose between `lookup` and `best fit`. Returns a subset of the requested locale that can be matched by the supported list, preserving the requested locale itself, relative order, and Unicode extensions.
+`Intl.NumberFormat.supportedLocalesOf(locales, options)` etc. The semantic source of spec static methods. Go typed bridge receives values already parsed into `locale.Locale`; it then deduplicates by canonical locale string and applies `options.localeMatcher` to choose between `lookup` and `best fit`. The result is the subset of requested locales that can be matched by the supported list, preserving the requested locale value, relative order, and Unicode extensions.
 
 ### 6.2 Go signature
 
@@ -554,7 +568,7 @@ func LookupSupportedLocales(supported, requested []string) []string
 // Call example (exposed by formatter package)
 out := localematcher.LookupSupportedLocales(
     cldrnumber.SupportedLocales(),
-    []string{"zh-TW", "fr-FR", "xx-INVALID"},
+    []string{"zh-TW", "fr-FR"},
 )
 fmt.Println(out) // For example ["zh-TW", "fr-FR"]
 ```
@@ -565,9 +579,8 @@ fmt.Println(out) // For example ["zh-TW", "fr-FR"]
 
 ### 7.1 Sentinel Error
 
-```go
-Locale parsing failures classify through root `gointl.ErrInvalidValue`.
-```
+Locale parsing failures classify through root `gointl.ErrInvalidValue` before
+values enter matcher code.
 
 > **Why there is no matcher’s own sentinel**: matcher internal `Match` / `ResolveLocale` **does not return an error** (spec requires always falling back to `defaultLocale`); only the locale input parsing phase will fail and be uniformly mapped to the root category.
 
@@ -585,19 +598,19 @@ Locale parsing errors classify through `gointl.ErrInvalidValue`; `internal/local
 
 | SPEC | Provide | Consumption |
 |------|------|------|
-| SPEC 11 (this) | `ResolveLocale` returns `ResolvedLocale` | calls SPEC 12 §3 `CanonicalizeLocaleList` etc. abstract op? **No** —— `CanonicalizeLocaleList` is owned by this SPEC (ECMA-402 §6.2.1) |
+| SPEC 11 (this) | `ResolveLocale` returns `ResolvedLocale` and documents the locale-list abstract operation contract | consumes `internal/ecma402.CanonicalLocaleList` output and generated supported-locale data |
 | SPEC 12 | Validators / pattern / decimal boundary for production path reuse | No consumption SPEC 11 |
 
-> **DECISION**: "locale-shape abstract operations" such as `CanonicalizeLocaleList` and `BestAvailableLocale` are currently documented in **SPEC 11**(this). typed formatter constructors own option validation; SPEC 12 no longer carries the JS options-object pipeline.
+> **DECISION**: "locale-shape abstract operations" such as canonical locale-list dedupe, `BestAvailableLocale`, and `ResolveLocale` are documented in **SPEC 11**. The reusable typed helper for canonical locale lists lives in `internal/ecma402` because root `GetCanonicalLocales` and formatter constructors both need it, while the actual matching algorithms stay in `internal/localematcher`.
 
 ### 8.2 Relationship with SPEC 50
 
 | SPEC | Provide | Consumption |
 |------|------|------|
-| SPEC 11 (this) | `LanguageMatchingData` / `LocaleDataLookup` interface | indirect reading through `data.go` accessor |
-| SPEC 50 | Concrete type that implements the interface (output to `internal/cldr/locale_matching.go` / `internal/cldr/likely_subtags.go` by codegen) | Not consumed SPEC 11 |
+| SPEC 11 (this) | `Matcher`, `Maximizer`, and `LocaleDataLookup` interfaces | receives supported-locale slices, maximizers, and locale-data lookups from formatter constructors |
+| SPEC 50 | generated supported-locale accessors, locale maximizer, and relevant-extension-key data providers | Not consumed directly by SPEC 11 |
 
-Dependency direction: **SPEC 11 → SPEC 50 interface** + **SPEC 50 implementation injection**. No loops.
+Dependency direction: formatter packages inject SPEC 50 data into SPEC 11 algorithms. `internal/localematcher` must not import `internal/cldr` directly.
 
 ---
 
@@ -622,19 +635,17 @@ res := localematcher.Match(
 ### 9.2 ❌ Do not use `import internal/cldr` directly in matcher
 
 ```go
-// ❌ Error: Circular dependency risk + SPEC 11 and SPEC 50 are tightly coupled
+// ❌ Error: SPEC 11 and SPEC 50 become tightly coupled.
 import "github.com/agentable/go-intl/internal/cldr"
-func findMatchingDistance(...) int {
-    return cldr.LanguageMatching.Distance(...)
+func NewMatcherForNumbers() *Matcher {
+    return NewMatcher(cldr.NumberSupportedLocales(), cldr.Maximize)
 }
 
-// ✅ Correct: injected through the LanguageMatchingData interface
-func findMatchingDistance(d, s string) int {
-    return data().DistanceFor(toLSR(d), toLSR(s))
-}
+// ✅ Correct: formatter packages inject generated data.
+matcher := localematcher.NewMatcher(cldrnumber.SupportedLocales(), cldrlocale.Maximize)
 ```
 
-> **Why**: CLDR data updates (SPEC 50) should not force matcher code changes; interface isolation allows SPEC 50 to evolve independently.
+> **Why**: CLDR data updates (SPEC 50) should not force matcher package changes. Formatter packages already own the constructor/data boundary and can inject exactly the data family they use.
 
 ### 9.3 ❌ Do not return error in `Match` / `ResolveLocale`
 
@@ -646,7 +657,7 @@ func Match(...) (Result, error)
 func Match(requested, supported []string, defaultLocale string, alg Algorithm) Result
 ```
 
-> **Why**: ECMA-402 §9.2.5 / §9.2.6 both stipulate that "no match returns defaultLocale"; let the caller handle the error, which increases the cognitive load and is inconsistent with the spec. `CanonicalizeLocaleList` is the only possible boundary for errors (user input parsing).
+> **Why**: ECMA-402 §9.2.5 / §9.2.6 both stipulate that "no match returns defaultLocale"; making the caller handle a matcher error adds cognitive load and contradicts the spec. User-input errors belong at the raw locale parsing boundary before matcher code runs.
 
 ### 9.4 ❌ Don’t panic
 
@@ -696,28 +707,28 @@ lowestDistance = math.MaxInt
 for ... { /* Tier 3 */ }
 ```
 
-> **Why**: Tier 2 distance is heuristic (subtag position × 10), Tier 3 is CLDR measured distance (0-840); the two are not in the same scale. FormatJS `utils.ts` comment explicitly states that.
+> **Why**: Tier 2 distance is heuristic (subtag position × 10), while Tier 3 uses the active bounded matching distance plus request-order and derived-fallback penalties. The two are not the same scale.
 
-### 9.7 ❌ Don’t memoize in `findMatchingDistance`
+### 9.7 ❌ Don’t skip memoization in matching distance
 
 ```go
-// ❌ Error: Check the CLDR table again for each match
-func findMatchingDistance(d, s string) int {
-return data().DistanceFor(toLSR(d), toLSR(s)) // Call 100 times = Check 100 times
+// ❌ Error: recompute the same distance tuple repeatedly.
+func cachedMatchingDistance(d, s, md, ms string) int {
+    return matchingDistance(d, s, md, ms)
 }
 
-// ✅ Correct: sync.Map memoize
-var distanceCache sync.Map  // map[[2]string]int
-func findMatchingDistance(d, s string) int {
-    key := [2]string{d, s}
+// ✅ Correct: sync.Map memoize.
+var distanceCache sync.Map // map[[4]string]int
+func cachedMatchingDistance(d, s, md, ms string) int {
+    key := [4]string{d, s, md, ms}
     if v, ok := distanceCache.Load(key); ok { return v.(int) }
-    dist := data().DistanceFor(toLSR(d), toLSR(s))
+    dist := matchingDistance(d, s, md, ms)
     distanceCache.Store(key, dist)
     return dist
 }
 ```
 
-> **Why**: Tier 3 requires 10,000 distance calculations in a 100-locale scenario; memoize reduces the steady state to 0 µs/time.
+> **Why**: Tier 3 compares every requested locale with every supported locale. Memoization removes repeated tuple work across constructors without creating public cache controls.
 
 ### 9.8 ❌ Do not compare strings for equivalence `Result`
 
@@ -737,8 +748,8 @@ if res1.Locale == res2.Locale { /* ... */ }
 
 ### Package structure
 
-- [ ] `internal/localematcher/` subdirectory is divided into files `match.go` / `lookup.go` / `best_fit.go` / `distance.go` / `resolve.go` / `ucanonicalize.go` / `canonicalize.go` / `data.go` / `errors.go`.
-- [ ] `internal/localematcher` is not directly accessed `import "github.com/agentable/go-intl/internal/cldr"`; indirectly accessed through the `data.go` interface.
+- [ ] `internal/localematcher/` subdirectory is divided into files `available.go` / `compiled.go` / `match.go` / `lookup.go` / `best_fit.go` / `distance.go` / `filter.go` / `resolve.go` / `ucanonicalize.go`.
+- [ ] `internal/localematcher` is not directly accessed `import "github.com/agentable/go-intl/internal/cldr"`; callers inject generated supported-locale slices, maximizers, and locale-data lookups.
 - [ ] `internal/localematcher` is not directly `import "github.com/agentable/go-intl/internal/ecma402"` (SPEC 12 is option-shape; this SPEC is locale-shape; there is no loop between the two).
 
 ### LookupMatcher
@@ -749,10 +760,10 @@ if res1.Locale == res2.Locale { /* ... */ }
 
 ### BestFitMatcher
 
-- [ ] `BestFitMatcher(requested, supported, defaultLocale) Result` implements the three-tier algorithm (Tier 1 accurate / Tier 2 maximize+truncation / Tier 3 UTS #35).
+- [ ] `BestFitMatcher(requested, supported, defaultLocale) Result` implements the three-tier algorithm (Tier 1 exact / Tier 2 maximize+truncation / Tier 3 bounded distance).
 - [ ] `findBestMatch` resets `lowestDistance = +Inf` on Tier 3 entry (not mixed with Tier 2 heuristics).
 - [ ] `getFallbackCandidates(maximized)` output `["zh-Hant-TW","zh-Hant","zh"]` (right-to-left subtag truncation).
-- [ ] `findMatchingDistance` uses `sync.Map` memoize (the same (desired, supported) pair is only looked up once).
+- [ ] `cachedMatchingDistance` uses `sync.Map` memoize for the same desired/supported/maximized tuple.
 - [ ] `DefaultMatchingThreshold = 838`(FormatJS verbatim).
 - [ ] FormatJS `intl-localematcher/tests/BestFitMatcher.test.ts` and `tests/conformance.test.ts` all fixtures pass in `internal/localematcher/best_fit_test.go`.
 
@@ -766,9 +777,10 @@ if res1.Locale == res2.Locale { /* ... */ }
 
 ### CanonicalizeLocaleList
 
-- [ ] `locale.CanonicalizeList(locale.List) locale.List` accepts `nil` / empty `locale.List` / ordered locale request list.
+- [ ] `internal/ecma402.CanonicalLocaleList(locale.List) locale.List` accepts `nil` / empty `locale.List` / ordered locale request list.
 - [ ] raw string locale only occurs at `locale.Parse` boundaries; locale-list canonicalization does not create impossible errors.
 - [ ] Keep the order of first appearance after deduplication.
+- [ ] No public formatter-independent canonicalize-list helper or `any`-accepting canonical locale-list helper exists.
 
 ### LookupSupportedLocales
 
@@ -781,7 +793,7 @@ if res1.Locale == res2.Locale { /* ... */ }
 
 ### Error
 
-- [ ] `errors.Is(err, gointl.ErrInvalidValue)` returns true if locale list parsing fails.
+- [ ] Raw locale-list parsing errors are owned by `locale.Parse` / `locale.ParseList`; canonical locale-list dedupe is error-free after parsing.
 - [ ] `Match` / `ResolveLocale` does not return error (always falls back to `defaultLocale`).
 - [ ] There is **no** `panic` call in the package (the test covers various abnormal inputs).
 
@@ -828,7 +840,7 @@ if res1.Locale == res2.Locale { /* ... */ }
 - `.references/formatjs/packages/intl-localematcher/abstract/UnicodeExtensionValue.ts`
 - `.references/formatjs/packages/intl-localematcher/abstract/CanonicalizeLocaleList.ts`
 - `.references/formatjs/packages/intl-localematcher/abstract/LookupSupportedLocales.ts`
-- `.references/formatjs/packages/intl-localematcher/abstract/languageMatching.ts` —— CLDR matching data table (paradigmLocales: en, en-GB, es, es-419, pt-BR, pt-PT; matchVariables: $enUS, $cnsar, $americas, $maghreb; distance weight)
+- `.references/formatjs/packages/intl-localematcher/abstract/languageMatching.ts` —— Reference-only CLDR matching table for future best-fit expansion; generated CLDR accessors are not consumed by the active matcher.
 - `.references/formatjs/packages/intl-localematcher/tests/conformance.test.ts` —— ICU4J alignment fixture
 - `.references/formatjs/packages/intl-localematcher/tests/locale-match-fixtures.json` —— table-driven fixture
 - `.references/ext/src/ecma402/locale.cpp` —— PHP `ecma402_bestAvailableLocale` via ICU (same as spec but different path)
@@ -840,10 +852,10 @@ if res1.Locale == res2.Locale { /* ... */ }
 - [SPEC 10 §1 — Locale structure](./10-locale.md#1-locale-structure) — `Locale.String()` is the matcher input
 - [SPEC 12 §3 — Option Validation](./12-abstract-operations.md#3-option-validation) —— matcher does not implement formatter option validation repeatedly
 - [SPEC 12 §5 — Internal Slots](./12-abstract-operations.md#5-internal-slots) —— `[[Locale]]` slot holds `ResolvedLocale.Locale`
-- [SPEC 50 §6 — Data Access API](./50-cldr-data.md#6-data-access-api) —— `LanguageMatchingData` / `LocaleDataLookup` implements injection
+- [SPEC 50 §6 — Data Access API](./50-cldr-data.md#6-data-access-api) —— generated supported-locale accessors, maximizers, and `LocaleDataLookup` providers
 - [SPEC 70 §Conformance](./70-conformance.md) —— matcher fixture is part of conformance test
 
 
 ---
 
-> This SPEC is a maintenance record for `internal/localematcher`. New ECMA-402 matcher subroutine (rare) or CLDR `languageMatching.json` data structure changes trigger this SPEC revision; specific data updates for the UTS #35 distance table are completed by the SPEC 50 codegen.
+> This SPEC is a maintenance record for `internal/localematcher`. New ECMA-402 matcher subroutines or a deliberate move to generated CLDR `languageMatching.json` data trigger this SPEC revision before code changes.

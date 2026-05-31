@@ -1,0 +1,78 @@
+[
+  {
+    "id": "numberformat-node-v26-resolved-decimal-default",
+    "source": "node:v26.0.0:numberformat:resolved-options",
+    "locale": "en",
+    "options": {},
+    "input": 12345.6,
+    "expected": "12,345.6",
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "maximumFractionDigits": 3,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "auto",
+      "signDisplay": "auto",
+      "style": "decimal",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": "auto"
+    }
+  },
+  {
+    "id": "numberformat-node-v26-resolved-significant-digits",
+    "source": "node:v26.0.0:numberformat:resolved-options",
+    "locale": "en",
+    "options": {
+      "minimumSignificantDigits": 3
+    },
+    "input": 1.2,
+    "expected": "1.20",
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "maximumSignificantDigits": 21,
+      "minimumIntegerDigits": 1,
+      "minimumSignificantDigits": 3,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "auto",
+      "signDisplay": "auto",
+      "style": "decimal",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": "auto"
+    }
+  },
+  {
+    "id": "numberformat-node-v26-resolved-compact-defaults",
+    "source": "node:v26.0.0:numberformat:resolved-options",
+    "locale": "en",
+    "options": {
+      "notation": "compact"
+    },
+    "input": 1200,
+    "expected": "1.2K",
+    "expectedResolvedOptions": {
+      "compactDisplay": "short",
+      "locale": "en",
+      "maximumFractionDigits": 0,
+      "maximumSignificantDigits": 2,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "minimumSignificantDigits": 1,
+      "notation": "compact",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "morePrecision",
+      "signDisplay": "auto",
+      "style": "decimal",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": "min2"
+    }
+  }
+]

@@ -28,10 +28,12 @@ const (
 )
 
 type PluralRules struct {
-	loc         locale.Locale
-	rangeLocale string
-	cfg         config
-	rule        func(ecma402pr.OperandsRecord) ecma402pr.Category
+	loc             locale.Locale
+	rangeLocale     string
+	cfg             config
+	digitOptions    ecma402nf.DigitOptions
+	integerOperands bool
+	rule            func(ecma402pr.OperandsRecord) ecma402pr.Category
 }
 
 var pluralRulesLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
@@ -43,7 +45,11 @@ func New(locales locale.List, opts Options) (*PluralRules, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	cfg = resolveDigitDefaults(cfg)
+	resolvedDigits, invalid, ok := ecma402nf.SetNumberFormatDigitOptions(cfg.digitOptionInput(), 0, 3, cfg.notation)
+	if ok {
+		return nil, invalidOption(invalid.Name, invalid.Value)
+	}
+	cfg.applyResolvedDigits(resolvedDigits)
 	loc := ecma402.ValidationLocale(locales)
 	defaultLocale := ecma402.DefaultLocale()
 	dataLocale := defaultLocale
@@ -65,12 +71,19 @@ func New(locales locale.List, opts Options) (*PluralRules, error) {
 	if !ok {
 		rule, _ = plural.CardinalRule("en")
 	}
-	return &PluralRules{loc: loc, rangeLocale: loc.Tag().String(), cfg: cfg, rule: rule}, nil
+	return &PluralRules{
+		loc:             loc,
+		rangeLocale:     loc.Tag().String(),
+		cfg:             cfg,
+		digitOptions:    resolvedDigits.DigitOptions,
+		integerOperands: cfg.canUseIntegerOperands(),
+		rule:            rule,
+	}, nil
 }
 
 // Select returns the plural category for a numeric value.
 func (f *PluralRules) Select(v Value) (Category, error) {
-	if f.cfg.canUseIntegerOperands() {
+	if f.integerOperands {
 		switch v.kind {
 		case valueInt64:
 			return f.selectInteger(v.int64), nil
@@ -96,7 +109,7 @@ func parseFiniteDecimalValue(name, value string) (decimal.Decimal, error) {
 
 // SelectRange returns the plural category for a numeric range.
 func (f *PluralRules) SelectRange(start, end Value) (Category, error) {
-	if f.cfg.canUseIntegerOperands() {
+	if f.integerOperands {
 		switch {
 		case start.kind == valueInt64 && end.kind == valueInt64:
 			startCategory := f.selectInteger(start.int64)
@@ -154,7 +167,7 @@ func (f *PluralRules) resolveDecimal(d decimal.Decimal) (string, decimal.Decimal
 	if exponent != 0 {
 		d = decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent is derived from decimal.Log10Floor int32.
 	}
-	result := formatDecimal(d, f.cfg)
+	result := ecma402nf.FormatNumericToString(d, f.digitOptions)
 	formatted := strings.TrimPrefix(result.Formatted, "-")
 	ops := ecma402pr.GetOperands(formatted, exponent)
 	return formatted, result.Rounded, f.rule(ops)
@@ -196,23 +209,6 @@ func positiveMod(n, mod int) int {
 		out += mod
 	}
 	return out
-}
-
-func formatDecimal(d decimal.Decimal, cfg config) ecma402nf.FormattedNumeric {
-	return ecma402nf.FormatNumericToString(d, cfg.digitOptions())
-}
-
-func resolveDigitDefaults(cfg config) config {
-	if !cfg.hasMinSigDigits && !cfg.hasMaxSigDigits && cfg.roundingPriority == "auto" {
-		return cfg
-	}
-	if !cfg.hasMinSigDigits {
-		cfg.minSigDigits = 1
-	}
-	if !cfg.hasMaxSigDigits {
-		cfg.maxSigDigits = 21
-	}
-	return cfg
 }
 
 func invalidOption(name, value string) error {

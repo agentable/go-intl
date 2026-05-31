@@ -46,6 +46,14 @@ func TestRunGeneratesUnits(t *testing.T) {
 	if !containsAll(string(supported), "func UnitSupportedLocales") {
 		t.Fatalf("supported.go missing unit supported locales:\n%s", supported)
 	}
+	if !containsAll(string(supported), "var supportedCalendars", "var supportedCurrencies", "var supportedNumberingSystemExtras", "var supportedTimeZoneCandidates") {
+		t.Fatalf("supported.go missing generated supported-value indexes:\n%s", supported)
+	}
+	for _, forbidden := range []string{"func supportedCalendarValues", "func supportedCurrencyValues", "zoneMetazoneData()"} {
+		if containsAll(string(supported), forbidden) {
+			t.Fatalf("supported.go derives supported values from runtime payload %q:\n%s", forbidden, supported)
+		}
+	}
 	stringsData := readGeneratedStringTable(t, filepath.Join(out, "strings.go"))
 	if !containsAll(stringsData, "{0}/{1}", "{0} meter", "{0} meters", "{0} hour", "{0} hr", "{0}ms") {
 		t.Fatalf("strings.go missing expected unit strings:\n%s", stringsData)

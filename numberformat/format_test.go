@@ -1014,8 +1014,14 @@ func TestNumberFormatRoundingPriority(t *testing.T) {
 func TestNumberFormatRoundingIncrementRequiresFixedFractionDigits(t *testing.T) {
 	t.Parallel()
 
-	if _, err := New(locale.List{locale.MustParse("en")}, Options{RoundingIncrement: intPtr(5)}); !errors.Is(err, intlerr.ErrInvalidOption) {
-		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
+	defaults, err := New(locale.List{locale.MustParse("en")}, Options{RoundingIncrement: intPtr(5)})
+	if err != nil {
+		t.Fatalf("New() error = %v, want nil", err)
+	}
+	resolved := defaults.ResolvedOptions()
+	if resolved.MinimumFractionDigits == nil || resolved.MaximumFractionDigits == nil ||
+		*resolved.MinimumFractionDigits != 0 || *resolved.MaximumFractionDigits != 0 {
+		t.Fatalf("fraction digits = %v/%v, want 0/0", resolved.MinimumFractionDigits, resolved.MaximumFractionDigits)
 	}
 	if _, err := New(locale.List{locale.MustParse("en")}, Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), RoundingIncrement: intPtr(5)}); err != nil {
 		t.Fatalf("New() error = %v, want nil", err)

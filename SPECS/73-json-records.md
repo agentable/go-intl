@@ -79,10 +79,10 @@ Go record types that mirror ECMA-402 objects use `encoding/json` tags as the hos
 | `pluralrules.ResolvedOptions` | `Locale` | `locale` | Always |
 | `pluralrules.ResolvedOptions` | `Type` | `type` | Always |
 | `pluralrules.ResolvedOptions` | `MinimumIntegerDigits` | `minimumIntegerDigits` | Always |
-| `pluralrules.ResolvedOptions` | `MinimumFractionDigits` | `minimumFractionDigits` | Always |
-| `pluralrules.ResolvedOptions` | `MaximumFractionDigits` | `maximumFractionDigits` | Always |
-| `pluralrules.ResolvedOptions` | `MinimumSignificantDigits` | `minimumSignificantDigits` | Significant digit branch |
-| `pluralrules.ResolvedOptions` | `MaximumSignificantDigits` | `maximumSignificantDigits` | Significant digit branch |
+| `pluralrules.ResolvedOptions` | `MinimumFractionDigits` | `minimumFractionDigits` | Fraction or precision branch |
+| `pluralrules.ResolvedOptions` | `MaximumFractionDigits` | `maximumFractionDigits` | Fraction or precision branch |
+| `pluralrules.ResolvedOptions` | `MinimumSignificantDigits` | `minimumSignificantDigits` | Significant or precision branch |
+| `pluralrules.ResolvedOptions` | `MaximumSignificantDigits` | `maximumSignificantDigits` | Significant or precision branch |
 | `pluralrules.ResolvedOptions` | `PluralCategories` | `pluralCategories` | Always |
 | `pluralrules.ResolvedOptions` | `Notation` | `notation` | Always |
 | `pluralrules.ResolvedOptions` | `CompactDisplay` | `compactDisplay` | Always |
