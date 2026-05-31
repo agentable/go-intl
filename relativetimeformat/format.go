@@ -125,7 +125,15 @@ func (f *RelativeTimeFormat) formatDecimalToParts(value string, unit Unit) ([]Pa
 		return nil, invalidValue("value", value)
 	}
 	numberParts := f.number.FormatToParts(numberValue)
-	return f.numericParts(value, strings.HasPrefix(value, "-"), category.String(), numberParts, unit)
+	return f.numericParts(decimalRelativeLiteralKey(value), strings.HasPrefix(value, "-"), category.String(), numberParts, unit)
+}
+
+func decimalRelativeLiteralKey(value string) string {
+	d, err := ecma402.ParseFiniteDecimalInput(value)
+	if err != nil {
+		return value
+	}
+	return d.String()
 }
 
 func (f *RelativeTimeFormat) numericParts(literalKey string, past bool, plural string, numberParts []numberformat.Part, unit Unit) ([]Part, error) {

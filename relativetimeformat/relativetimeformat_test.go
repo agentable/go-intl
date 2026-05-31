@@ -183,6 +183,31 @@ func TestRelativeTimeFormatNumericAutoLiteralToParts(t *testing.T) {
 	}
 }
 
+func TestRelativeTimeFormatNumericAutoDecimalNegativeZeroLiteral(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{locale.MustParse("en-US")}, Options{Numeric: NumericAuto})
+	if err != nil {
+		t.Fatalf("New(en-US) error = %v", err)
+	}
+
+	got, err := format.FormatDecimal("-0", Day)
+	if err != nil {
+		t.Fatalf("FormatDecimal(-0, Day) error = %v", err)
+	}
+	if got != "today" {
+		t.Fatalf("FormatDecimal(-0, Day) = %q, want %q", got, "today")
+	}
+
+	parts, err := format.FormatDecimalToParts("-0", Day)
+	if err != nil {
+		t.Fatalf("FormatDecimalToParts(-0, Day) error = %v", err)
+	}
+	if len(parts) != 1 || parts[0].Type != PartLiteral || parts[0].Value != "today" || parts[0].Unit != "" {
+		t.Fatalf("FormatDecimalToParts(-0, Day) = %#v, want literal today without unit", parts)
+	}
+}
+
 func TestRelativeTimeFormatPluralUnitAliases(t *testing.T) {
 	t.Parallel()
 
