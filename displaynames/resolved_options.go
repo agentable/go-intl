@@ -14,5 +14,10 @@ type ResolvedOptions struct {
 }
 
 func (d *DisplayNames) ResolvedOptions() ResolvedOptions {
-	return d.resolved
+	resolved := d.resolved
+	if resolved.LanguageDisplay != nil {
+		languageDisplay := *resolved.LanguageDisplay
+		resolved.LanguageDisplay = &languageDisplay
+	}
+	return resolved
 }

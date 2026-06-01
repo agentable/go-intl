@@ -158,5 +158,18 @@ type ResolvedOptions struct {
 }
 
 func (f *NumberFormat) ResolvedOptions() ResolvedOptions {
-	return f.resolved
+	resolved := f.resolved
+	resolved.MinimumFractionDigits = cloneInt(resolved.MinimumFractionDigits)
+	resolved.MaximumFractionDigits = cloneInt(resolved.MaximumFractionDigits)
+	resolved.MinimumSignificantDigits = cloneInt(resolved.MinimumSignificantDigits)
+	resolved.MaximumSignificantDigits = cloneInt(resolved.MaximumSignificantDigits)
+	return resolved
+}
+
+func cloneInt(v *int) *int {
+	if v == nil {
+		return nil
+	}
+	clone := *v
+	return &clone
 }

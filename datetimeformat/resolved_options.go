@@ -169,5 +169,10 @@ type ResolvedOptions struct {
 }
 
 func (f *DateTimeFormat) ResolvedOptions() ResolvedOptions {
-	return f.resolved
+	resolved := f.resolved
+	if resolved.Hour12 != nil {
+		hour12 := *resolved.Hour12
+		resolved.Hour12 = &hour12
+	}
+	return resolved
 }

@@ -111,5 +111,10 @@ type ResolvedOptions struct {
 }
 
 func (f *DurationFormat) ResolvedOptions() ResolvedOptions {
-	return f.resolved
+	resolved := f.resolved
+	if resolved.FractionalDigits != nil {
+		fractionalDigits := *resolved.FractionalDigits
+		resolved.FractionalDigits = &fractionalDigits
+	}
+	return resolved
 }
