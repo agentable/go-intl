@@ -71,6 +71,21 @@ func TestParseVariantGetters(t *testing.T) {
 	}
 }
 
+func TestParsePrivateUseDoesNotPromoteUnicodeExtension(t *testing.T) {
+	t.Parallel()
+
+	loc, err := Parse("en-x-foo-u-ca-gregory")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if got := loc.String(); got != "en-x-foo-u-ca-gregory" {
+		t.Fatalf("String() = %q, want private-use u preserved", got)
+	}
+	if got := loc.Calendar(); got != "" {
+		t.Fatalf("Calendar() = %q, want empty for private-use u", got)
+	}
+}
+
 func TestLocaleMaximizeAndMinimize(t *testing.T) {
 	t.Parallel()
 

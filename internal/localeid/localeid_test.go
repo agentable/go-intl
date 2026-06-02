@@ -69,6 +69,18 @@ func TestRemoveUnicodeExtensionPreservesOtherExtensions(t *testing.T) {
 	}
 }
 
+func TestRemoveUnicodeExtensionIgnoresPrivateUseU(t *testing.T) {
+	t.Parallel()
+
+	base, extension, err := RemoveUnicodeExtension("en-x-foo-u-ca-gregory")
+	if err != nil {
+		t.Fatalf("RemoveUnicodeExtension() error = %v", err)
+	}
+	if base != "en-x-foo-u-ca-gregory" || extension != "" {
+		t.Fatalf("RemoveUnicodeExtension() = %q, %q; want private-use u left untouched", base, extension)
+	}
+}
+
 func TestInsertUnicodeExtensionBeforePrivateUse(t *testing.T) {
 	t.Parallel()
 

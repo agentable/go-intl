@@ -35,6 +35,9 @@ func SplitUnicodeExtension(tag string) (string, UnicodeExtension, error) {
 func RemoveUnicodeExtension(tag string) (base, extension string, err error) {
 	parts := strings.Split(tag, "-")
 	for i := range parts {
+		if parts[i] == "x" {
+			break
+		}
 		if parts[i] != "u" {
 			continue
 		}
