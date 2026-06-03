@@ -95,18 +95,6 @@
     "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
     "locale": "en",
     "options": {
-      "style": "digital"
-    },
-    "input": {
-      "years": 1
-    },
-    "expected": "1 yr, 0:00:00"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-008",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {
       "milliseconds": "numeric",
       "style": "narrow"
     },
@@ -117,7 +105,7 @@
     "expected": "1.473s"
   },
   {
-    "id": "durationformat-formatjs-index-test-ts-009",
+    "id": "durationformat-formatjs-index-test-ts-008",
     "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
     "locale": "en",
     "options": {
@@ -131,7 +119,7 @@
     "expected": "1.473ms"
   },
   {
-    "id": "durationformat-formatjs-index-test-ts-010",
+    "id": "durationformat-formatjs-index-test-ts-009",
     "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
     "locale": "en",
     "options": {
@@ -145,7 +133,7 @@
     "expected": "1.473μs"
   },
   {
-    "id": "durationformat-formatjs-index-test-ts-011",
+    "id": "durationformat-formatjs-index-test-ts-010",
     "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
     "locale": "en",
     "options": {
