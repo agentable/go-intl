@@ -48,7 +48,7 @@ func TestParseRoundingModeInvalid(t *testing.T) {
 	}
 }
 
-func TestGetUnsignedRoundingMode(t *testing.T) {
+func TestUnsignedRoundingMode(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -73,9 +73,9 @@ func TestGetUnsignedRoundingMode(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.mode.String(), func(t *testing.T) {
 			t.Parallel()
-			got := GetUnsignedRoundingMode(tc.mode, tc.negative)
+			got := UnsignedRoundingMode(tc.mode, tc.negative)
 			if got != tc.want {
-				t.Fatalf("GetUnsignedRoundingMode(%v, %v) = %v, want %v", tc.mode, tc.negative, got, tc.want)
+				t.Fatalf("UnsignedRoundingMode(%v, %v) = %v, want %v", tc.mode, tc.negative, got, tc.want)
 			}
 		})
 	}

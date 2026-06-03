@@ -128,7 +128,7 @@ func roundFixed(d decimal.Decimal, opts DigitOptions) (decimal.Decimal, bool) {
 	if err != nil {
 		mode = decimal.RoundHalfExpand
 	}
-	mode = decimal.GetUnsignedRoundingMode(mode, negative)
+	mode = decimal.UnsignedRoundingMode(mode, negative)
 	scale := -int32(opts.MaximumFractionDigits) // #nosec G115 -- validated to ECMA-402 fraction digit range before construction.
 	rounded := decimal.QuantizeToIncrement(unsigned, opts.RoundingIncrement, scale, mode)
 	return rounded, negative
@@ -150,7 +150,7 @@ func roundSignificant(d decimal.Decimal, opts DigitOptions) (decimal.Decimal, bo
 	if err != nil {
 		mode = decimal.RoundHalfExpand
 	}
-	mode = decimal.GetUnsignedRoundingMode(mode, negative)
+	mode = decimal.UnsignedRoundingMode(mode, negative)
 	scale := magnitude - int32(opts.MaximumSignificantDigits) + 1 // #nosec G115 -- validated significant digit range is 1..21.
 	return decimal.QuantizeToIncrement(unsigned, 1, scale, mode), negative
 }

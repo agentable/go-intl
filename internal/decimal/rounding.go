@@ -70,7 +70,7 @@ func ParseRoundingMode(s string) (RoundingMode, error) {
 	}
 }
 
-func GetUnsignedRoundingMode(mode RoundingMode, isNegative bool) RoundingMode {
+func UnsignedRoundingMode(mode RoundingMode, isNegative bool) RoundingMode {
 	if isNegative {
 		switch mode {
 		case RoundCeil, RoundTrunc:
