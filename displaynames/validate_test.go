@@ -48,3 +48,26 @@ func TestDisplayNames_OfRejectsInvalidShape(t *testing.T) {
 		})
 	}
 }
+
+func TestDisplayNames_OfInvalidCodeDoesNotMatchInvalidOption(t *testing.T) {
+	t.Parallel()
+
+	dn, err := displaynames.New(locale.List{locale.MustParse("en")}, displaynames.Options{Type: displaynames.Language})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = dn.Of("bad_code")
+	if !errors.Is(err, intlerr.ErrInvalidCode) {
+		t.Fatalf("Of(invalid code) error = %v, want intlerr.ErrInvalidCode", err)
+	}
+	if errors.Is(err, intlerr.ErrInvalidOption) {
+		t.Fatalf("Of(invalid code) error = %v, must not match intlerr.ErrInvalidOption", err)
+	}
+	detail, ok := errors.AsType[*intlerr.Error](err)
+	if !ok {
+		t.Fatalf("Of(invalid code) error = %v, want *intlerr.Error", err)
+	}
+	if detail.Kind != intlerr.InvalidCode || detail.Owner != "displaynames" || detail.Name != string(displaynames.Language) {
+		t.Fatalf("Of(invalid code) detail = %#v, want displaynames invalid-code detail", detail)
+	}
+}

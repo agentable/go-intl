@@ -56,6 +56,16 @@ func localeErrorCause(sentinel, err error) error {
 	return errors.Join(sentinel, err)
 }
 
+func normalizeLocaleAliases(tag string) string {
+	base, privateUse, hasPrivateUse := strings.Cut(tag, "-x-")
+	base = normalizeCalendarAliases(base)
+	base = normalizeFirstDayAliases(base)
+	if !hasPrivateUse {
+		return base
+	}
+	return base + "-x-" + privateUse
+}
+
 func normalizeCalendarAliases(tag string) string {
 	tag = strings.ReplaceAll(tag, "-ca-gregorian", "-ca-gregory")
 	tag = strings.ReplaceAll(tag, "-ca-islamic-civil", "-ca-islamicc")

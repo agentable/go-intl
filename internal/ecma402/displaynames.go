@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/agentable/go-intl/internal/intlerr"
+
 	"golang.org/x/text/language"
 )
 
@@ -174,5 +176,5 @@ func isASCIIDigit(value byte) bool {
 }
 
 func invalidDisplayNamesCode(typ, code string) error {
-	return fmt.Errorf("ecma402: invalid DisplayNames %s code %q: %w", typ, code, ErrInvalidOption)
+	return fmt.Errorf("ecma402: invalid DisplayNames %s code %q: %w", typ, code, intlerr.ErrInvalidCode)
 }

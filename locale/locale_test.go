@@ -86,6 +86,21 @@ func TestParsePrivateUseDoesNotPromoteUnicodeExtension(t *testing.T) {
 	}
 }
 
+func TestParsePrivateUseKeepsUnicodeAliasTextOpaque(t *testing.T) {
+	t.Parallel()
+
+	loc, err := Parse("en-x-foo-u-ca-islamic-civil-fw-0")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if got, want := loc.String(), "en-x-foo-u-ca-islamic-civil-fw-0"; got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+	if loc.Calendar() != "" || loc.FirstDayOfWeek() != "" {
+		t.Fatalf("private-use extensions promoted to locale fields: calendar=%q firstDayOfWeek=%q", loc.Calendar(), loc.FirstDayOfWeek())
+	}
+}
+
 func TestLocaleMaximizeAndMinimize(t *testing.T) {
 	t.Parallel()
 

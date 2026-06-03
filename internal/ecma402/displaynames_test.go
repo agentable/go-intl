@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/agentable/go-intl/internal/ecma402"
+	"github.com/agentable/go-intl/internal/intlerr"
 )
 
 func TestCanonicalCodeForDisplayNamesCanonicalizesValidCodes(t *testing.T) {
@@ -70,8 +71,11 @@ func TestCanonicalCodeForDisplayNamesRejectsInvalidCodes(t *testing.T) {
 			t.Parallel()
 
 			_, err := ecma402.CanonicalCodeForDisplayNames(tc.typ, tc.code)
-			if !errors.Is(err, ecma402.ErrInvalidOption) {
-				t.Fatalf("CanonicalCodeForDisplayNames(%q, %q) error = %v, want ErrInvalidOption", tc.typ, tc.code, err)
+			if !errors.Is(err, intlerr.ErrInvalidCode) {
+				t.Fatalf("CanonicalCodeForDisplayNames(%q, %q) error = %v, want ErrInvalidCode", tc.typ, tc.code, err)
+			}
+			if errors.Is(err, ecma402.ErrInvalidOption) {
+				t.Fatalf("CanonicalCodeForDisplayNames(%q, %q) error = %v, must not match ErrInvalidOption", tc.typ, tc.code, err)
 			}
 		})
 	}

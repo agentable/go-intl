@@ -125,27 +125,54 @@ func TestSupportedLocalesOfMatchesCapabilityAccessors(t *testing.T) {
 func TestSupportedValuesMatchFacadeAccessors(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name   string
-		values func() []string
-		want   []string
-	}{
-		{name: "calendar", values: SupportedCalendars, want: cldr.SupportedCalendars()},
-		{name: "collation", values: SupportedCollations, want: internalcollation.SupportedCollations()},
-		{name: "currency", values: SupportedCurrencies, want: cldr.SupportedCurrencies()},
-		{name: "numberingSystem", values: SupportedNumberingSystems, want: cldr.SupportedNumberingSystems()},
-		{name: "timeZone", values: SupportedTimeZones, want: cldr.SupportedTimeZones()},
-		{name: "unit", values: SupportedUnits, want: ecma402.SanctionedSimpleUnitIdentifiers()},
-	}
+	tests := supportedValueTests()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			got := tt.values()
-			if !slices.Equal(got, tt.want) {
-				t.Fatalf("%s supported values = %v, want %v", tt.name, got, tt.want)
+			if !slices.Equal(got, tt.want()) {
+				t.Fatalf("%s supported values = %v, want %v", tt.name, got, tt.want())
 			}
 		})
+	}
+}
+
+func TestSupportedValuesReturnFreshSlices(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range supportedValueTests() {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.values()
+			if len(got) == 0 {
+				return
+			}
+			original := tt.want()
+			got[0] = "mutated"
+			again := tt.values()
+			if !slices.Equal(again, original) {
+				t.Fatalf("%s supported values share mutable backing storage: got %v, want %v", tt.name, again, original)
+			}
+		})
+	}
+}
+
+type supportedValueTest struct {
+	name   string
+	values func() []string
+	want   func() []string
+}
+
+func supportedValueTests() []supportedValueTest {
+	return []supportedValueTest{
+		{name: "calendar", values: SupportedCalendars, want: cldr.SupportedCalendars},
+		{name: "collation", values: SupportedCollations, want: internalcollation.SupportedCollations},
+		{name: "currency", values: SupportedCurrencies, want: cldr.SupportedCurrencies},
+		{name: "numberingSystem", values: SupportedNumberingSystems, want: cldr.SupportedNumberingSystems},
+		{name: "timeZone", values: SupportedTimeZones, want: cldr.SupportedTimeZones},
+		{name: "unit", values: SupportedUnits, want: ecma402.SanctionedSimpleUnitIdentifiers},
 	}
 }
 

@@ -34,8 +34,7 @@ func Parse(s string) (Locale, error) {
 	if s == "" || strings.Contains(s, "_") || strings.HasPrefix(lower, "x-") {
 		return Locale{}, invalidLocaleValue("languageTag", s, nil)
 	}
-	lower = normalizeCalendarAliases(lower)
-	lower = normalizeFirstDayAliases(lower)
+	lower = normalizeLocaleAliases(lower)
 	base, unicodeExtension, err := localeid.SplitUnicodeExtension(lower)
 	if err != nil {
 		return Locale{}, invalidLocaleValue("languageTag", s, err)
