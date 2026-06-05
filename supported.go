@@ -3,13 +3,16 @@ package gointl
 import (
 	"slices"
 
-	"github.com/agentable/go-intl/internal/cldr"
+	cldrcurrency "github.com/agentable/go-intl/internal/cldr/currency"
+	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
+	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
+	cldrtimezone "github.com/agentable/go-intl/internal/cldr/timezone"
 	"github.com/agentable/go-intl/internal/collation"
 	"github.com/agentable/go-intl/internal/ecma402"
 )
 
 func SupportedCalendars() []string {
-	return slices.Clone(cldr.SupportedCalendars())
+	return slices.Clone(cldrdate.SupportedCalendars())
 }
 
 func SupportedCollations() []string {
@@ -17,15 +20,15 @@ func SupportedCollations() []string {
 }
 
 func SupportedCurrencies() []string {
-	return slices.Clone(cldr.SupportedCurrencies())
+	return slices.Clone(cldrcurrency.SupportedCodes())
 }
 
 func SupportedNumberingSystems() []string {
-	return slices.Clone(cldr.SupportedNumberingSystems())
+	return slices.Clone(cldrnumber.SupportedNumberingSystems())
 }
 
 func SupportedTimeZones() []string {
-	return slices.Clone(cldr.SupportedTimeZones())
+	return slices.Clone(cldrtimezone.SupportedTimeZones())
 }
 
 func SupportedUnits() []string {

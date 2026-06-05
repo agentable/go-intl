@@ -9,7 +9,6 @@ import (
 
 	"github.com/agentable/go-intl/internal/intlerr"
 
-	"github.com/agentable/go-intl/internal/cldr"
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/ecma402"
@@ -189,7 +188,7 @@ func validateRequestedCalendars(locales locale.List) error {
 }
 
 func isSupportedCalendar(calendar string) bool {
-	return slices.Contains(cldr.SupportedCalendars(), calendar)
+	return slices.Contains(cldrdate.SupportedCalendars(), calendar)
 }
 
 func (f *DateTimeFormat) Format(t time.Time) string {

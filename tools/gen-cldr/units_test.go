@@ -6,10 +6,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestRunGeneratesUnits(t *testing.T) {
+// TestRunGeneratesUnitDomain asserts the generator emits the unit domain as a
+// self-contained const-only payload at internal/cldr/unit/data.go, and no longer
+// emits the retired root units.go or the root UnitSupportedLocales accessor.
+func TestRunGeneratesUnitDomain(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -29,38 +33,44 @@ func TestRunGeneratesUnits(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	units, err := os.ReadFile(filepath.Join(out, "units.go"))
+	// The retired root literal renderer must not produce units.go anymore.
+	if _, err := os.Stat(filepath.Join(out, "units.go")); !os.IsNotExist(err) {
+		t.Fatalf("root units.go should no longer be generated, stat err = %v", err)
+	}
+
+	// The unit domain payload is a const-only data.go carrying the blobs and the
+	// private _data table the decoder reads.
+	payload, err := os.ReadFile(filepath.Join(out, "unit", "data.go"))
 	if err != nil {
-		t.Fatalf("read units.go: %v", err)
+		t.Fatalf("read unit/data.go: %v", err)
 	}
-	if !containsAll(string(units), "func (l Locale) UnitPattern", "func (l Locale) CompoundUnitPattern") {
-		t.Fatalf("units.go missing expected generated content:\n%s", units)
+	if !containsAll(string(payload), "package unit", "const _data", "_unitPatternBlob", "_compoundUnitBlob", "_unitNameBlob", "_unitSupportedBlob") {
+		t.Fatalf("unit/data.go missing expected const payload:\n%s", payload)
 	}
-	if containsAll(string(units), "map[string]map[string]map[string]string") {
-		t.Fatalf("units.go still emits nested unit pattern maps:\n%s", units)
+	if !containsAll(string(payload), "{0} meter", "{0} meters", "{0} hour", "{0} hr", "{0}ms") {
+		t.Fatalf("unit/data.go _data missing expected unit strings:\n%s", payload)
 	}
-	supported, err := os.ReadFile(filepath.Join(out, "supported.go"))
+
+	// The retired root supported.go literal file must no longer be generated; the
+	// unit domain owns its own narrow supported index, and currency / numbering /
+	// timezone supported values are owned by their domains.
+	if _, err := os.Stat(filepath.Join(out, "supported.go")); !os.IsNotExist(err) {
+		t.Fatalf("root supported.go should no longer be generated, stat err = %v", err)
+	}
+
+	// The number domain owns the numbering-system narrow index now.
+	numberPayload, err := os.ReadFile(filepath.Join(out, "number", "data.go"))
 	if err != nil {
-		t.Fatalf("read supported.go: %v", err)
+		t.Fatalf("read number/data.go: %v", err)
 	}
-	if !containsAll(string(supported), "func UnitSupportedLocales") {
-		t.Fatalf("supported.go missing unit supported locales:\n%s", supported)
-	}
-	if !containsAll(string(supported), "var supportedCalendars", "var supportedCurrencies", "var supportedNumberingSystemExtras", "var supportedTimeZoneCandidates") {
-		t.Fatalf("supported.go missing generated supported-value indexes:\n%s", supported)
-	}
-	for _, forbidden := range []string{"func supportedCalendarValues", "func supportedCurrencyValues", "zoneMetazoneData()"} {
-		if containsAll(string(supported), forbidden) {
-			t.Fatalf("supported.go derives supported values from runtime payload %q:\n%s", forbidden, supported)
-		}
-	}
-	stringsData := readGeneratedStringTable(t, filepath.Join(out, "strings.go"))
-	if !containsAll(stringsData, "{0}/{1}", "{0} meter", "{0} meters", "{0} hour", "{0} hr", "{0}ms") {
-		t.Fatalf("strings.go missing expected unit strings:\n%s", stringsData)
+	if !containsAll(string(numberPayload), "package number", "_numberingSystemBlob") {
+		t.Fatalf("number/data.go missing numbering-system narrow blob:\n%s", numberPayload)
 	}
 }
 
-func TestRunAcceptsHeterogeneousUnitFields(t *testing.T) {
+// TestRunDropsUnsupportedUnitsFromDomain asserts units outside the sanctioned
+// set (here: furlong) never reach the generated unit domain payload.
+func TestRunDropsUnsupportedUnitsFromDomain(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -86,12 +96,12 @@ func TestRunAcceptsHeterogeneousUnitFields(t *testing.T) {
 	if err := Run(context.Background(), Config{CLDRDir: root, OutDir: out, VersionFile: versionPath, ProfileFile: writeLocaleProfileFixture(t, dir)}, log); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	generated, err := os.ReadFile(filepath.Join(out, "units.go"))
+	payload, err := os.ReadFile(filepath.Join(out, "unit", "data.go"))
 	if err != nil {
-		t.Fatalf("read units.go: %v", err)
+		t.Fatalf("read unit/data.go: %v", err)
 	}
-	if containsAll(string(generated), "furlong") {
-		t.Fatalf("units.go contains unsupported furlong patterns:\n%s", generated)
+	if strings.Contains(string(payload), "yards") || strings.Contains(string(payload), "{0}yd") {
+		t.Fatalf("unit/data.go contains unsupported furlong patterns:\n%s", payload)
 	}
 }
 

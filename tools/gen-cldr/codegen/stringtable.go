@@ -20,10 +20,6 @@ func (r StringRef) String() string {
 	return r.table.data[r.start : r.start+r.length]
 }
 
-func (r StringRef) GoLiteral() string {
-	return fmt.Sprintf("sliceRef{start: %d, length: %d}", r.start, r.length)
-}
-
 type StringTable struct {
 	data string
 	refs map[string]StringRef
@@ -43,35 +39,23 @@ func (t *StringTable) Add(s string) StringRef {
 	return ref
 }
 
-func (t *StringTable) Emit(w io.Writer) error {
-	return t.EmitPackage(w, "cldr")
+// EmitDataConst writes only the string table body as a chunked const with the
+// given name. It emits no package clause, type, or method: the caller owns
+// those. This is the const-only payload form a domain data.go uses, where the
+// sliceRef type and string() method live in the hand-written decode.go instead.
+func (t *StringTable) EmitDataConst(w io.Writer, name string) error {
+	return emitStringConst(w, name, t.data)
 }
 
-func (t *StringTable) EmitPackage(w io.Writer, packageName string) error {
-	if _, err := fmt.Fprintf(w, "package %s\n", packageName); err != nil {
+// emitStringConst writes a string value as a chunked "" + "…" const so the
+// generated source line length stays bounded regardless of payload size.
+func emitStringConst(w io.Writer, name, value string) error {
+	if _, err := fmt.Fprintf(w, "const %s = \"\" +\n", name); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(w); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(w, "type sliceRef struct{ start, length uint32 }"); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(w); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(w, "func (r sliceRef) string() string { return _data[r.start : r.start+r.length] }"); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(w); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(w, "const _data = \"\" +"); err != nil {
-		return err
-	}
-	for start := 0; start < len(t.data); start += 64 {
-		end := min(start+64, len(t.data))
-		if _, err := fmt.Fprintf(w, "\t%s +\n", strconv.Quote(t.data[start:end])); err != nil {
+	for start := 0; start < len(value); start += 64 {
+		end := min(start+64, len(value))
+		if _, err := fmt.Fprintf(w, "\t%s +\n", strconv.Quote(value[start:end])); err != nil {
 			return err
 		}
 	}

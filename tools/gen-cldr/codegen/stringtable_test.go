@@ -24,14 +24,14 @@ func TestStringTable_DeduplicatesAndEmitsData(t *testing.T) {
 	}
 
 	var out strings.Builder
-	if err := table.Emit(&out); err != nil {
-		t.Fatalf("Emit: %v", err)
+	if err := table.EmitDataConst(&out, "_data"); err != nil {
+		t.Fatalf("EmitDataConst: %v", err)
 	}
 	src := out.String()
 	if !strings.Contains(src, "const _data =") {
-		t.Fatalf("Emit output missing _data const:\n%s", src)
+		t.Fatalf("EmitDataConst output missing _data const:\n%s", src)
 	}
 	if strings.Count(src, "January") != 1 {
-		t.Fatalf("Emit output should contain January exactly once:\n%s", src)
+		t.Fatalf("EmitDataConst output should contain January exactly once:\n%s", src)
 	}
 }

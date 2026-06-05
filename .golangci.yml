@@ -75,6 +75,15 @@ linters:
         text: G204
         linters:
           - gosec
+      # Domain decode.go layers narrow uvarint streams back into the bounded
+      # types the generator wrote (locale handles into uint16, durations and
+      # rounding magnitudes into int). The codec trust contract guarantees these
+      # values fit by construction and the round-trip gate proves it, so the
+      # G115 overflow conversions here are safe by design.
+      - path: ^internal/cldr/[^/]+/decode\.go$
+        text: G115
+        linters:
+          - gosec
 
 formatters:
   enable:

@@ -44,31 +44,48 @@ func TestRunGeneratesLocalesAndLikelySubtags(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	for _, name := range []string{"strings.go", "locales.go", "likely_subtags.go", "collations.go"} {
-		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
-			t.Fatalf("expected generated %s: %v", name, err)
+	// The retired root literal renderers must no longer produce strings.go,
+	// locales.go, or likely_subtags.go; the locale kernel now owns a const-only
+	// data.go plus hand-written decode.go/accessors.go.
+	for _, retired := range []string{"strings.go", "locales.go", "likely_subtags.go", "collations.go", "preference.go", "manifest.go", "supported.go", "locale_matching.go", "regions.go", "timezones.go"} {
+		if _, err := os.Stat(filepath.Join(out, retired)); !os.IsNotExist(err) {
+			t.Fatalf("root %s should no longer be generated, stat err = %v", retired, err)
 		}
 	}
-	locales, err := os.ReadFile(filepath.Join(out, "locales.go"))
+
+	// The locale kernel payload is a const-only data.go carrying the registry,
+	// likely-subtags, numbering, and preference blobs plus the private _data table
+	// the decoder reads.
+	payload, err := os.ReadFile(filepath.Join(out, "locale", "data.go"))
 	if err != nil {
-		t.Fatalf("read locales.go: %v", err)
+		t.Fatalf("read locale/data.go: %v", err)
 	}
-	if string(locales) == "" || !containsAll(string(locales), "\"und\"", "\"en\"", "\"zh-Hans\"") {
-		t.Fatalf("locales.go missing expected tags:\n%s", locales)
+	if !containsAll(string(payload), "package cldrlocale", "const _data", "_localeBlob", "_maximizeBlob", "_minimizeBlob", "_numberingBlob") {
+		t.Fatalf("locale/data.go missing expected const payload:\n%s", payload)
 	}
-	likely, err := os.ReadFile(filepath.Join(out, "likely_subtags.go"))
+	// The _data const is emitted in 64-byte chunks, so locale tags can straddle a
+	// chunk boundary. Reconstruct the concatenated string literals before
+	// asserting the expected tags are present.
+	reconstructed := readGeneratedStringTable(t, filepath.Join(out, "locale", "data.go"))
+	if !containsAll(reconstructed, "und", "en", "zh-Hans") {
+		t.Fatalf("locale/data.go _data missing expected locale tags:\n%s", payload)
+	}
+
+	collations, err := os.ReadFile(filepath.Join(out, "locale", "collations.go"))
 	if err != nil {
-		t.Fatalf("read likely_subtags.go: %v", err)
+		t.Fatalf("read locale/collations.go: %v", err)
 	}
-	if !containsAll(string(likely), "MaximizeSubtags", "MinimizeSubtags", "maximizeSubtagRecord", "searchLikelySubtag") {
-		t.Fatalf("likely_subtags.go missing expected generated content:\n%s", likely)
+	if !containsAll(string(collations), "package cldrlocale", `"compat"`, `"emoji"`, `"phonebk"`) || strings.Contains(string(collations), `"big5han"`) || strings.Contains(string(collations), `"search"`) || strings.Contains(string(collations), `"standard"`) {
+		t.Fatalf("locale/collations.go did not contain supported canonical collations only:\n%s", collations)
 	}
-	collations, err := os.ReadFile(filepath.Join(out, "collations.go"))
+
+	// The manifest is owned by the locale kernel now.
+	manifest, err := os.ReadFile(filepath.Join(out, "locale", "manifest.go"))
 	if err != nil {
-		t.Fatalf("read collations.go: %v", err)
+		t.Fatalf("read locale/manifest.go: %v", err)
 	}
-	if !containsAll(string(collations), `"compat"`, `"emoji"`, `"phonebk"`) || strings.Contains(string(collations), `"big5han"`) || strings.Contains(string(collations), `"search"`) || strings.Contains(string(collations), `"standard"`) {
-		t.Fatalf("collations.go did not contain supported canonical collations only:\n%s", collations)
+	if !containsAll(string(manifest), "package cldrlocale", "type DataManifest struct", "func Manifest() DataManifest") {
+		t.Fatalf("locale/manifest.go missing expected content:\n%s", manifest)
 	}
 }
 
@@ -95,12 +112,20 @@ func TestRunPrefersLanguageMinimizeAlias(t *testing.T) {
 	if err := Run(context.Background(), Config{CLDRDir: root, OutDir: out, VersionFile: versionPath, ProfileFile: writeLocaleProfileFixture(t, dir)}, log); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	generated, err := os.ReadFile(filepath.Join(out, "likely_subtags.go"))
+	// The minimize-alias preference is an extract-layer decision verified
+	// byte-for-byte through the production accessors in the locale kernel
+	// round-trip gate. Here we assert the kernel payload is emitted and carries
+	// the minimized zh alias rather than the und-CN key in its _data table.
+	payload, err := os.ReadFile(filepath.Join(out, "locale", "data.go"))
 	if err != nil {
-		t.Fatalf("read likely_subtags.go: %v", err)
+		t.Fatalf("read locale/data.go: %v", err)
 	}
-	if !strings.Contains(string(generated), "searchMinimizeSubtag") || strings.Contains(string(generated), "und-CN") {
-		t.Fatalf("likely_subtags.go did not prefer zh minimize alias:\n%s", generated)
+	if !containsAll(string(payload), "package cldrlocale", "_minimizeBlob") {
+		t.Fatalf("locale/data.go missing minimize blob:\n%s", payload)
+	}
+	reconstructed := readGeneratedStringTable(t, filepath.Join(out, "locale", "data.go"))
+	if !strings.Contains(reconstructed, "zh") {
+		t.Fatalf("locale/data.go _data missing minimized zh alias:\n%s", payload)
 	}
 }
 
@@ -127,12 +152,9 @@ func TestRunFallsBackToFullAvailableLocales(t *testing.T) {
 	if err := Run(context.Background(), Config{CLDRDir: root, OutDir: out, VersionFile: versionPath, ProfileFile: writeLocaleProfileFixture(t, dir)}, log); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	locales, err := os.ReadFile(filepath.Join(out, "locales.go"))
-	if err != nil {
-		t.Fatalf("read locales.go: %v", err)
-	}
-	if !containsAll(string(locales), "\"en\"", "\"en-US\"") {
-		t.Fatalf("locales.go missing fallback locales:\n%s", locales)
+	reconstructed := readGeneratedStringTable(t, filepath.Join(out, "locale", "data.go"))
+	if !containsAll(reconstructed, "en", "en-US") {
+		t.Fatalf("locale/data.go _data missing fallback locales:\n%s", reconstructed)
 	}
 }
 

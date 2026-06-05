@@ -269,10 +269,10 @@ func main() {}`,
 			name: "cldr-available",
 			source: `package main
 
-import "github.com/agentable/go-intl/internal/cldr"
+import cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 
 func main() {
-	_ = cldr.AvailableLocales()
+	_ = cldrlocale.AvailableLocales()
 }`,
 		},
 		{

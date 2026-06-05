@@ -9,7 +9,12 @@ import (
 	"testing"
 )
 
-func TestRunGeneratesTimeZones(t *testing.T) {
+// TestRunGeneratesTimezoneDomain asserts the generator emits the timezone domain
+// as a self-contained const-only payload at internal/cldr/timezone/data.go, no
+// longer emits the retired root metazones.go literal renderer or the timezone
+// alias facade, and that root supported.go forwards SupportedTimeZones to the
+// domain instead of deriving it from runtime metazone data.
+func TestRunGeneratesTimezoneDomain(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -29,16 +34,35 @@ func TestRunGeneratesTimeZones(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	metazones, err := os.ReadFile(filepath.Join(out, "metazones.go"))
+	// The retired root literal renderer must not produce metazones.go anymore.
+	if _, err := os.Stat(filepath.Join(out, "metazones.go")); !os.IsNotExist(err) {
+		t.Fatalf("root metazones.go should no longer be generated, stat err = %v", err)
+	}
+	// The alias facade timezone/names.go is retired in favour of hand-written
+	// accessors.go; the generator must not emit it.
+	if _, err := os.Stat(filepath.Join(out, "timezone", "names.go")); !os.IsNotExist(err) {
+		t.Fatalf("timezone/names.go should no longer be generated, stat err = %v", err)
+	}
+
+	// The timezone domain payload is a const-only data.go carrying the blobs and
+	// the private _data table the decoder reads.
+	payload, err := os.ReadFile(filepath.Join(out, "timezone", "data.go"))
 	if err != nil {
-		t.Fatalf("read metazones.go: %v", err)
+		t.Fatalf("read timezone/data.go: %v", err)
 	}
-	if !containsAll(string(metazones), "type metazonePeriod struct", "type TimeZoneFormats struct", "func TimeZoneMetazone", "func ZoneToMetazone", "func (l Locale) TimeZoneName", "func (l Locale) MetazoneName", "func (l Locale) ExemplarCity", "func (l Locale) TimeZoneFormats", "Europe/Moscow", "Europe/London", "1293840000000", "1385856000000") {
-		t.Fatalf("metazones.go missing expected generated content:\n%s", metazones)
+	if !containsAll(string(payload), "package timezone", "const _data",
+		"_tzMetazonePeriodBlob", "_tzNamesBlob", "_tzFormatsBlob", "_tzSupportedBlob") {
+		t.Fatalf("timezone/data.go missing expected const payload:\n%s", payload)
 	}
-	stringsData := readGeneratedStringTable(t, filepath.Join(out, "strings.go"))
-	if !containsAll(stringsData, "America_Pacific", "Eastern Time", "British Summer Time", "GMT{0}") {
-		t.Fatalf("strings.go missing expected time-zone strings:\n%s", stringsData)
+	joined := dewrapStringLiterals(string(payload))
+	if !containsAll(joined, "America_Pacific", "Eastern Time", "British Summer Time", "GMT{0}") {
+		t.Fatalf("timezone/data.go _data missing expected time-zone strings:\n%s", payload)
+	}
+
+	// The retired root supported.go literal file must no longer be generated; the
+	// timezone domain owns SupportedTimeZones through its own narrow blob.
+	if _, err := os.Stat(filepath.Join(out, "supported.go")); !os.IsNotExist(err) {
+		t.Fatalf("root supported.go should no longer be generated, stat err = %v", err)
 	}
 }
 

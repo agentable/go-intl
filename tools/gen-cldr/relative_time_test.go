@@ -9,7 +9,11 @@ import (
 	"testing"
 )
 
-func TestRunGeneratesRelativeTimeFields(t *testing.T) {
+// TestRunGeneratesRelativeTimeDomain asserts the generator emits the
+// relativetime domain as a self-contained const-only payload at
+// internal/cldr/relativetime/data.go, and no longer emits the retired root
+// relative_time.go literal renderer or the relativetime/accessors.go wrapper.
+func TestRunGeneratesRelativeTimeDomain(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -30,23 +34,31 @@ func TestRunGeneratesRelativeTimeFields(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	generated, err := os.ReadFile(filepath.Join(out, "relative_time.go"))
+	// The retired root literal renderer must not produce relative_time.go anymore.
+	if _, err := os.Stat(filepath.Join(out, "relative_time.go")); !os.IsNotExist(err) {
+		t.Fatalf("root relative_time.go should no longer be generated, stat err = %v", err)
+	}
+	// The alias wrapper is retired; the domain owns hand-written accessors.go that
+	// the generator never produces.
+	if _, err := os.Stat(filepath.Join(out, "relativetime", "accessors.go")); !os.IsNotExist(err) {
+		t.Fatalf("relativetime/accessors.go wrapper should no longer be generated, stat err = %v", err)
+	}
+
+	// The relativetime domain payload is a const-only data.go carrying the blobs
+	// and the private _data table the decoder reads.
+	payload, err := os.ReadFile(filepath.Join(out, "relativetime", "data.go"))
 	if err != nil {
-		t.Fatalf("read relative_time.go: %v", err)
+		t.Fatalf("read relativetime/data.go: %v", err)
 	}
-	if !containsAll(string(generated), "type RelativeTimeField struct", "func RelativeTimeSupportedLocales", "func (l Locale) RelativeTimeFields") {
-		t.Fatalf("relative_time.go missing expected generated content:\n%s", generated)
+	if !containsAll(string(payload), "package relativetime", "const _data", "_relativeTimeFieldBlob", "_relativeTimeSupportedBlob") {
+		t.Fatalf("relativetime/data.go missing expected const payload:\n%s", payload)
 	}
-	wrapper, err := os.ReadFile(filepath.Join(out, "relativetime", "accessors.go"))
-	if err != nil {
-		t.Fatalf("read relativetime/accessors.go: %v", err)
-	}
-	if !containsAll(string(wrapper), "func SupportedLocales() []string", "func FieldsFor(loc Locale) RelativeTimeFields") {
-		t.Fatalf("relativetime/accessors.go missing expected generated content:\n%s", wrapper)
-	}
-	stringsData := readGeneratedStringTable(t, filepath.Join(out, "strings.go"))
-	if !containsAll(stringsData, "{0} second ago", "in {0} seconds", "yesterday") {
-		t.Fatalf("strings.go missing expected relative time strings:\n%s", stringsData)
+	// The _data const is emitted in 64-byte chunks, so human-readable patterns can
+	// straddle a chunk boundary. Reconstruct the concatenated string literals
+	// before asserting the expected patterns are present.
+	reconstructed := readGeneratedStringTable(t, filepath.Join(out, "relativetime", "data.go"))
+	if !containsAll(reconstructed, "{0} second ago", "in {0} seconds", "yesterday") {
+		t.Fatalf("relativetime/data.go _data missing expected relative time strings:\n%s", payload)
 	}
 }
 

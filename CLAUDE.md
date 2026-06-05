@@ -57,7 +57,7 @@ go-intl/
 ├── segmenter/             # Intl.Segmenter grapheme/word/sentence segmentation
 ├── internal/
 │   ├── ecma402/           # Shared ECMA-402 abstract operations
-│   ├── cldr/              # Generated CLDR data and runtime accessors
+│   ├── cldr/              # Per-domain CLDR packages (number/date/currency/unit/list/relativetime/timezone/displaynames/plural) + locale kernel + codec; const-only data.go, hand-written decode.go/accessors.go
 │   ├── collation/         # Collator backend capability metadata
 │   ├── decimal/           # apd-backed decimal math for Intl mathematical values
 │   ├── localematcher/     # Lookup/best-fit locale matching
@@ -147,7 +147,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 ## Design Philosophy
 
 - **KISS** - One representation per concept: one `Locale`, one option struct per formatter, one formatter type per ECMA-402 surface.
-- **DRY** - Shared ECMA-402 rules live in `internal/ecma402`; generated CLDR data is consumed through one accessor layer in `internal/cldr`.
+- **DRY** - Shared ECMA-402 rules live in `internal/ecma402`; generated CLDR data is consumed through per-domain accessor packages under `internal/cldr/<domain>` (number, date, timezone, currency, unit, list, relativetime, displaynames, plural) plus the `internal/cldr/locale` kernel.
 - **YAGNI** - The active surface is exactly the ten ECMA-402 constructors plus the root namespace helpers (`getCanonicalLocales` and typed supported-value accessors). New ECMA-402 additions wait for a new edition.
 - **Native Intl alignment over local invention** - Public APIs must map to ECMA-402 constructors, methods, options, resolved options, part records, range sources, or error conditions. Go type bridges are allowed; new semantics are not.
 - **Errors as teachers** - Constructor errors name the option, value, and locale whenever possible.
@@ -178,7 +178,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep formatter supported locale lists generated from actual CLDR payload maps or truthful engine capability accessors. Constructor `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` with generated accessors instead of duplicating matcher, filtering, or requested-locale dedupe loops.
 - Keep shared string and integer option validation in `internal/ecma402`. Formatter packages pass formatter-owned allowed values through helpers such as `RequiredStringOption`, `OptionalStringOption`, `InvalidStringOption`, and `InvalidIntegerOption`; do not hand-roll equivalent `switch` or `slices.Contains` loops.
 - Keep root supported-value accessors in the root package, conventionally in `supported.go`, backed by CLDR/tz data, active collation capability, or ECMA-402 sanctioned constants. Do not create public `cldr`, `ecma402`, or `supported` packages for this data. Calendars must include `iso8601`; numbering systems must include the ECMA-402 simple digit table; do not add ad hoc runtime lists.
-- Keep `DateTimeFormat` calendar support tied to `internal/cldr.SupportedCalendars()` and generated date data; do not copy calendar allow-lists into constructors.
+- Keep `DateTimeFormat` calendar support tied to `internal/cldr/date.SupportedCalendars()` and generated date data; do not copy calendar allow-lists into constructors.
 - Keep `Segmenter` supported locales honest. Do not advertise dictionary or CJK-tailored locales such as `ja`, `th`, or `zh-Hant` until the active segmentation backend supports their word-boundary behavior.
 - Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it resolved digit options and consume the rounded numeric value.
 - Freeze constructor-derived hot-path state on formatter instances. Cached method calls must not redo locale negotiation, option validation, digit-option resolution, plural-rule lookup, or embedded formatter construction. `DurationFormat` composes constructor-resolved `NumberFormat` and `ListFormat` instances.

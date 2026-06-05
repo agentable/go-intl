@@ -30,31 +30,40 @@ func TestRunGeneratesNumbersAndCurrencies(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	for _, name := range []string{"numbers.go", "currencies.go"} {
+	for _, name := range []string{filepath.Join("number", "data.go"), filepath.Join("currency", "data.go")} {
 		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
 			t.Fatalf("expected generated %s: %v", name, err)
 		}
 	}
-	numbers, err := os.ReadFile(filepath.Join(out, "numbers.go"))
+	// Number data is now a const-only domain payload: a private _data string
+	// table plus the main and supported blobs. The patterns live in that
+	// domain-private _data, not the shared strings.go table.
+	number, err := os.ReadFile(filepath.Join(out, "number", "data.go"))
 	if err != nil {
-		t.Fatalf("read numbers.go: %v", err)
+		t.Fatalf("read number/data.go: %v", err)
 	}
-	if !containsAll(string(numbers), "type NumberSymbols", "func (l Locale) NumberSymbols", "func (l Locale) CurrencyPattern", "TimeSeparator") {
-		t.Fatalf("numbers.go missing expected generated content:\n%s", numbers)
+	if !containsAll(string(number), "package number", "const _data", "_numberBlob", "_numberSupportedBlob") {
+		t.Fatalf("number/data.go missing expected generated content:\n%s", number)
 	}
-	stringsData := readGeneratedStringTable(t, filepath.Join(out, "strings.go"))
-	if !containsAll(stringsData, "#,##0.###", "¤#,##0.00", "¤#,##0.00;(¤#,##0.00)", "0K", "0 thousand") {
-		t.Fatalf("strings.go missing expected number pattern strings:\n%s", stringsData)
+	// Search the decoded const payload so a chunk boundary cannot split a pattern.
+	numberData := readGeneratedStringTable(t, filepath.Join(out, "number", "data.go"))
+	if !containsAll(numberData, "#,##0.###", "¤#,##0.00", "¤#,##0.00;(¤#,##0.00)", "0K", "0 thousand") {
+		t.Fatalf("number/data.go missing expected number pattern strings:\n%s", numberData)
 	}
-	currencies, err := os.ReadFile(filepath.Join(out, "currencies.go"))
+	// Currency data is now a const-only domain payload: a private _data string
+	// table plus the fraction/names/supported blobs. The display names live in
+	// that domain-private _data, not the shared strings.go table.
+	currency, err := os.ReadFile(filepath.Join(out, "currency", "data.go"))
 	if err != nil {
-		t.Fatalf("read currencies.go: %v", err)
+		t.Fatalf("read currency/data.go: %v", err)
 	}
-	if !containsAll(string(currencies), "type CurrencyData", "func CurrencyDigits", "func (l Locale) CurrencyDisplayName") {
-		t.Fatalf("currencies.go missing expected generated content:\n%s", currencies)
+	if !containsAll(string(currency), "package currency", "const _data", "_currencyFractionBlob", "_currencyNamesBlob", "_currencySupportedBlob") {
+		t.Fatalf("currency/data.go missing expected generated content:\n%s", currency)
 	}
-	if !containsAll(stringsData, "US dollar", "Japanese yen") {
-		t.Fatalf("strings.go missing expected currency display names:\n%s", stringsData)
+	// Search the decoded const payload so a chunk boundary cannot split a name.
+	currencyData := readGeneratedStringTable(t, filepath.Join(out, "currency", "data.go"))
+	if !containsAll(currencyData, "US dollar", "Japanese yen") {
+		t.Fatalf("currency/data.go missing expected currency display names:\n%s", currencyData)
 	}
 }
 

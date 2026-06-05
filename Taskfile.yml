@@ -236,24 +236,59 @@ tasks:
         -profile ../locale-profile.json
       # displaynames/accessors.go is hand-written lookup policy; compare the
       # generated DisplayNames payload explicitly.
+      # codec is a hand-written decode package; accessors.go and decode.go are
+      # the hand-written per-domain query/decode layers. Only the generated
+      # data.go payload is compared for each migrated domain.
       - >-
         diff -ru
         -x VERSION
         -x '*_test.go'
         -x cldr.go
         -x doc.go
+        -x version.go
         -x displaynames
+        -x codec
+        -x accessors.go
+        -x decode.go
         internal/cldr .tmp/cldr-check
       - >-
         diff -u
         internal/cldr/displaynames/data.go
         .tmp/cldr-check/displaynames/data.go
+      - >-
+        diff -u
+        internal/cldr/unit/data.go
+        .tmp/cldr-check/unit/data.go
+      - >-
+        diff -u
+        internal/cldr/date/data.go
+        .tmp/cldr-check/date/data.go
+      - >-
+        diff -u
+        internal/cldr/relativetime/data.go
+        .tmp/cldr-check/relativetime/data.go
+      - >-
+        diff -u
+        internal/cldr/currency/data.go
+        .tmp/cldr-check/currency/data.go
+      - >-
+        diff -u
+        internal/cldr/number/data.go
+        .tmp/cldr-check/number/data.go
+      - >-
+        diff -u
+        internal/cldr/timezone/data.go
+        .tmp/cldr-check/timezone/data.go
+      - >-
+        diff -u
+        internal/cldr/locale/data.go
+        .tmp/cldr-check/locale/data.go
       - task: data:contract
 
   data:contract:
     desc: Verify generated CLDR data contracts without regeneration
     cmds:
-      - go test -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile)$' ./internal/cldr
+      - go test -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile|GeneratedDataShape|CLDRImportGraphDirection|NoImportOfRetiredRootCLDR)$' ./internal/cldr/locale
 
   build:size:
     desc: Report direct formatter, root facade, and CLDR binary size deltas

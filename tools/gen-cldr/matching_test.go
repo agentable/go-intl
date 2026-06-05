@@ -9,7 +9,14 @@ import (
 	"testing"
 )
 
-func TestRunGeneratesLocaleMatching(t *testing.T) {
+// TestRunRetiresRootLocaleMatching asserts the generator no longer emits the
+// retired root locale_matching.go / regions.go literal files. The CLDR
+// language-matching distance data has no production consumer (the runtime
+// matcher in internal/localematcher carries its own distance table), so it
+// retired with the root internal/cldr package. The generator still parses the
+// languageMatching / territoryContainment fixtures without error; it just emits
+// nothing for them.
+func TestRunRetiresRootLocaleMatching(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -30,49 +37,9 @@ func TestRunGeneratesLocaleMatching(t *testing.T) {
 	}
 
 	for _, name := range []string{"locale_matching.go", "regions.go"} {
-		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
-			t.Fatalf("expected generated %s: %v", name, err)
+		if _, err := os.Stat(filepath.Join(out, name)); !os.IsNotExist(err) {
+			t.Fatalf("root %s should no longer be generated, stat err = %v", name, err)
 		}
-	}
-	matching, err := os.ReadFile(filepath.Join(out, "locale_matching.go"))
-	if err != nil {
-		t.Fatalf("read locale_matching.go: %v", err)
-	}
-	if !containsAll(string(matching), "func MatchingDistance", "func ParadigmLocales", "func MatchVariables", "en-GB") {
-		t.Fatalf("locale_matching.go missing expected content:\n%s", matching)
-	}
-}
-
-func TestRunAcceptsRealLanguageMatchingShape(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	root := filepath.Join(dir, "node_modules")
-	writeRuntimeCLDRFixtures(t, root)
-	supp := filepath.Join(root, "cldr-core", "supplemental")
-	languageMatching := `{"supplemental":{"languageMatching":{"written-new":{"paradigmLocales":{"_locales":["en","en-GB"]},"matchVariables":{"$enUS":{"_value":"US+GB"}},"languageMatch":[{"_desired":"en","_supported":"en-GB","_distance":3}]}}}}`
-	if err := os.WriteFile(filepath.Join(supp, "languageMatching.json"), []byte(languageMatching), 0o666); err != nil {
-		t.Fatalf("write languageMatching: %v", err)
-	}
-	out := filepath.Join(dir, "out")
-	if err := os.MkdirAll(out, 0o777); err != nil {
-		t.Fatalf("mkdir out: %v", err)
-	}
-	versionPath := filepath.Join(out, "VERSION")
-	if err := os.WriteFile(versionPath, []byte("cldr=48.1.0\nicu=78\ntzdata=2025b\n"), 0o666); err != nil {
-		t.Fatalf("write VERSION: %v", err)
-	}
-
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if err := Run(context.Background(), Config{CLDRDir: root, OutDir: out, VersionFile: versionPath, ProfileFile: writeLocaleProfileFixture(t, dir)}, log); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	matching, err := os.ReadFile(filepath.Join(out, "locale_matching.go"))
-	if err != nil {
-		t.Fatalf("read locale_matching.go: %v", err)
-	}
-	if !containsAll(string(matching), "en-GB", "distance: 3", "\"$enUS\": {\"US\", \"GB\"") {
-		t.Fatalf("locale_matching.go missing real CLDR matching data:\n%s", matching)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"sync"
 
+	cldrcurrency "github.com/agentable/go-intl/internal/cldr/currency"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	"github.com/agentable/go-intl/internal/cldr/plural"
@@ -20,6 +21,7 @@ type NumberFormat struct {
 	cardinalRule           func(pluralop.OperandsRecord) pluralop.Category
 	digits                 digitState
 	cldrLoc                cldrnumber.Locale
+	currencyLoc            cldrcurrency.Locale
 	numberSymbols          cldrnumber.NumberSymbols
 	grouping               digitGrouping
 	currency               currencyPatternSet
@@ -63,7 +65,7 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 		return nil, invalidOption(invalid.Name, invalid.Value, validationLocale)
 	}
 	cfg.applyResolvedDigits(resolvedDigits)
-	resolvedLocale, cldrLoc, numberingSystem := resolveLocale(locales, validationLocale, cfg)
+	resolvedLocale, cldrLoc, unitLoc, numberingSystem := resolveLocale(locales, validationLocale, cfg)
 	digits := digitState{
 		minInt:  cfg.minIntDigits,
 		minFrac: cfg.minFracDigits,
@@ -115,14 +117,15 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 	}
 	return &NumberFormat{
 		cldrLoc:                cldrLoc,
+		currencyLoc:            unitLoc,
 		resolved:               resolved,
 		digitOptions:           resolvedDigits.DigitOptions,
 		cardinalRule:           cardinalRuleForNumberFormat(resolvedLocale),
 		digits:                 digits,
 		numberSymbols:          numberSymbolsForNumberFormat(cldrLoc, numberingSystem),
 		grouping:               groupingForNumberFormat(cldrLoc, resolved),
-		currency:               currencyPatternsForNumberFormat(cldrLoc, resolved),
-		unit:                   unitPatternsForNumberFormat(cldrLoc, resolved),
+		currency:               currencyPatternsForNumberFormat(cldrLoc, unitLoc, resolved),
+		unit:                   unitPatternsForNumberFormat(unitLoc, resolved),
 		compact:                compactPatternsForNumberFormat(cldrLoc, resolved),
 		numberingSystem:        numberingSystem,
 		localizeDigits:         numberingSystem != "" && numberingSystem != "latn",
@@ -142,7 +145,7 @@ func cardinalRuleForNumberFormat(loc locale.Locale) func(pluralop.OperandsRecord
 	}
 }
 
-func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrnumber.Locale, string) {
+func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrnumber.Locale, cldrlocale.Locale, string) {
 	defaultLocale := ecma402.DefaultLocale()
 	matcher, _ := ecma402.LocaleMatcherAlgorithm(cfg.localeMatcher)
 	result := localematcher.ResolveLocale(localematcher.ResolveOptions{
@@ -158,6 +161,10 @@ func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (loc
 	if !ok {
 		cldrLoc, _ = cldrnumber.ResolveLocale(defaultLocale)
 	}
+	unitLoc, ok := cldrlocale.ResolveLocale(result.DataLocale)
+	if !ok {
+		unitLoc, _ = cldrlocale.ResolveLocale(defaultLocale)
+	}
 	numberingSystem := result.Extensions["nu"]
 	if numberingSystem == "" {
 		numberingSystem = cldrLoc.DefaultNumberingSystem()
@@ -166,12 +173,12 @@ func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (loc
 	if err != nil {
 		resolvedLocale = fallback
 	}
-	return resolvedLocale, cldrLoc, numberingSystem
+	return resolvedLocale, cldrLoc, unitLoc, numberingSystem
 }
 
 func digitDefaults(cfg config) (minimumFractionDigits, maximumFractionDigits int) {
 	if cfg.style == "currency" && cfg.notation == "standard" {
-		currency := cldrnumber.CurrencyDigits(cfg.currency)
+		currency := cldrcurrency.Digits(cfg.currency)
 		return currency.DefaultDigits, currency.DefaultDigits
 	}
 	if cfg.style == "percent" {

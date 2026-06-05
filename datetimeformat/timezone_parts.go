@@ -29,20 +29,27 @@ func (f *DateTimeFormat) offsetTimeZonePatternName(_ int, t time.Time) string {
 	if f.resolved.TimeZoneName == LongOffsetTimeZoneName {
 		form = cldrtimezone.TimeZoneNameLongOffset
 	}
-	return cldrtimezone.GMTOffsetName(f.cldrLoc, info.OffsetMs, form)
+	return cldrtimezone.GMTOffsetName(f.timeZoneLoc(), info.OffsetMs, form)
 }
 
 func (f *DateTimeFormat) localizedTimeZonePatternName(form cldrtimezone.TimeZoneName, width int, t time.Time) string {
 	zone, info := f.timeZoneInfo(t)
 	if zone != "" && zone != "Local" {
-		if name := cldrtimezone.TimeZoneDisplayName(f.cldrLoc, zone, form, info.IsDST, t.UnixMilli(), info.OffsetMs); name != "" {
+		if name := cldrtimezone.TimeZoneDisplayName(f.timeZoneLoc(), zone, form, info.IsDST, t.UnixMilli(), info.OffsetMs); name != "" {
 			return name
 		}
 	}
 	if form == cldrtimezone.TimeZoneNameShort && width < 4 && info.Abbrv != "" {
 		return info.Abbrv
 	}
-	return cldrtimezone.GMTOffsetName(f.cldrLoc, info.OffsetMs, form)
+	return cldrtimezone.GMTOffsetName(f.timeZoneLoc(), info.OffsetMs, form)
+}
+
+// timeZoneLoc bridges the date-domain locale handle to the timezone domain.
+// Both are aliases of the same kernel locale handle type, so the conversion is
+// an identity, not a numeric reinterpretation.
+func (f *DateTimeFormat) timeZoneLoc() cldrtimezone.Locale {
+	return cldrtimezone.Locale(f.cldrLoc)
 }
 
 func (f *DateTimeFormat) timeZoneInfo(t time.Time) (string, tz.ZoneInfo) {

@@ -3,7 +3,10 @@ package numberformat
 import (
 	"strings"
 
+	cldrcurrency "github.com/agentable/go-intl/internal/cldr/currency"
+	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
+	cldrunit "github.com/agentable/go-intl/internal/cldr/unit"
 	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 )
 
@@ -49,24 +52,24 @@ func (f *NumberFormat) applyUnitPatternForPlural(parts []Part, plural string) []
 }
 
 func (f *NumberFormat) currencyDisplay(plural string) string {
-	return currencyDisplayForNumberFormat(f.cldrLoc, f.resolved, plural)
+	return currencyDisplayForNumberFormat(f.currencyLoc, f.resolved, plural)
 }
 
-func currencyDisplayForNumberFormat(loc cldrnumber.Locale, opts ResolvedOptions, plural string) string {
+func currencyDisplayForNumberFormat(loc cldrcurrency.Locale, opts ResolvedOptions, plural string) string {
 	code := opts.Currency
 	switch opts.CurrencyDisplay {
 	case CurrencyDisplayCode:
 		return code
 	case CurrencyDisplayName:
-		if name := loc.CurrencyDisplayName(code, plural); name != "" {
+		if name := cldrcurrency.DisplayName(loc, code, plural); name != "" {
 			return name
 		}
 	case CurrencyDisplayNarrowSymbol:
-		if symbol := loc.CurrencySymbol(code, "narrow"); symbol != "" {
+		if symbol := cldrcurrency.Symbol(loc, code, "narrow"); symbol != "" {
 			return symbol
 		}
 	case CurrencyDisplaySymbol:
-		if symbol := loc.CurrencySymbol(code, "symbol"); symbol != "" {
+		if symbol := cldrcurrency.Symbol(loc, code, "symbol"); symbol != "" {
 			return symbol
 		}
 	default:
@@ -101,7 +104,7 @@ type currencyPatternSet struct {
 	hasNegative bool
 }
 
-func currencyPatternsForNumberFormat(loc cldrnumber.Locale, opts ResolvedOptions) currencyPatternSet {
+func currencyPatternsForNumberFormat(loc cldrnumber.Locale, currencyLoc cldrcurrency.Locale, opts ResolvedOptions) currencyPatternSet {
 	if opts.Style != CurrencyStyle || opts.CurrencyDisplay == CurrencyDisplayName {
 		return currencyPatternSet{}
 	}
@@ -110,7 +113,7 @@ func currencyPatternsForNumberFormat(loc cldrnumber.Locale, opts ResolvedOptions
 		pattern = "¤#,##0.00"
 	}
 	positive, negative, hasNegative := strings.Cut(pattern, ";")
-	affix := Part{Type: PartCurrency, Value: currencyDisplayForNumberFormat(loc, opts, "other")}
+	affix := Part{Type: PartCurrency, Value: currencyDisplayForNumberFormat(currencyLoc, opts, "other")}
 	set := currencyPatternSet{positive: compileNumberAffixPattern(positive, affix)}
 	if hasNegative {
 		set.negative = compileNumberAffixPattern(negative, affix)
@@ -174,17 +177,17 @@ type unitPatternSet struct {
 	zero, one, two, few, many, other simpleUnitPattern
 }
 
-func unitPatternsForNumberFormat(loc cldrnumber.Locale, opts ResolvedOptions) unitPatternSet {
+func unitPatternsForNumberFormat(loc cldrlocale.Locale, opts ResolvedOptions) unitPatternSet {
 	if opts.Style != UnitStyle {
 		return unitPatternSet{}
 	}
 	width := string(opts.UnitDisplay)
-	other := loc.UnitPattern(opts.Unit, width, "other")
+	other := cldrunit.UnitPattern(loc, opts.Unit, width, "other")
 	if other == "" {
 		other = defaultUnitPattern(opts.Unit)
 	}
 	compile := func(plural string) simpleUnitPattern {
-		pattern := loc.UnitPattern(opts.Unit, width, plural)
+		pattern := cldrunit.UnitPattern(loc, opts.Unit, width, plural)
 		if pattern == "" {
 			pattern = other
 		}

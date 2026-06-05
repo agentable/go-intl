@@ -6,9 +6,15 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 )
 
+// TestRunGeneratesDatesAndPreference asserts the generator emits the date domain
+// as a self-contained const-only payload at internal/cldr/date/data.go, no longer
+// emits the retired root dates.go literal renderer, and still emits the unchanged
+// preference.go.
 func TestRunGeneratesDatesAndPreference(t *testing.T) {
 	t.Parallel()
 
@@ -29,28 +35,37 @@ func TestRunGeneratesDatesAndPreference(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	for _, name := range []string{"dates.go", "preference.go"} {
-		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
-			t.Fatalf("expected generated %s: %v", name, err)
-		}
+	// The retired root literal renderer must not produce dates.go anymore.
+	if _, err := os.Stat(filepath.Join(out, "dates.go")); !os.IsNotExist(err) {
+		t.Fatalf("root dates.go should no longer be generated, stat err = %v", err)
 	}
-	dates, err := os.ReadFile(filepath.Join(out, "dates.go"))
+
+	// The date domain payload is a const-only data.go carrying the blobs and the
+	// private _data table the decoder reads.
+	payload, err := os.ReadFile(filepath.Join(out, "date", "data.go"))
 	if err != nil {
-		t.Fatalf("read dates.go: %v", err)
+		t.Fatalf("read date/data.go: %v", err)
 	}
-	if !containsAll(string(dates), "type Gregorian struct", "type DayPeriodRange struct", "func GregorianFor", "func DayPeriodFor", "morning1", "afternoon1", "midnight", "appendItems") {
-		t.Fatalf("dates.go missing expected generated content:\n%s", dates)
+	if !containsAll(string(payload), "package date", "const _data", "_dateGregorianBlob", "_dateDayPeriodBlob", "_dateSupportedBlob", "_dateCalendarBlob") {
+		t.Fatalf("date/data.go missing expected const payload:\n%s", payload)
 	}
-	stringsData := readGeneratedStringTable(t, filepath.Join(out, "strings.go"))
-	if !containsAll(stringsData, "Anno Domini", "EEEE, MMMM d, y") {
-		t.Fatalf("strings.go missing expected date strings:\n%s", stringsData)
+	joined := dewrapStringLiterals(string(payload))
+	if !containsAll(joined, "Anno Domini", "EEEE, MMMM d, y", "morning1", "afternoon1", "midnight") {
+		t.Fatalf("date/data.go _data missing expected date strings:\n%s", payload)
 	}
-	preference, err := os.ReadFile(filepath.Join(out, "preference.go"))
+
+	// The retired root literal renderer must no longer produce preference.go; the
+	// hour-cycle, week, and calendar preference data is owned by the locale kernel
+	// payload now.
+	if _, err := os.Stat(filepath.Join(out, "preference.go")); !os.IsNotExist(err) {
+		t.Fatalf("root preference.go should no longer be generated, stat err = %v", err)
+	}
+	kernel, err := os.ReadFile(filepath.Join(out, "locale", "data.go"))
 	if err != nil {
-		t.Fatalf("read preference.go: %v", err)
+		t.Fatalf("read locale/data.go: %v", err)
 	}
-	if !containsAll(string(preference), "func HourCyclePreference", "func FirstDayOfWeek", "func Weekend", "func CalendarPreference", "time.Sunday") {
-		t.Fatalf("preference.go missing expected generated content:\n%s", preference)
+	if !containsAll(string(kernel), "package cldrlocale", "_hourCycleBlob", "_weekBlob", "_calendarBlob") {
+		t.Fatalf("locale/data.go missing preference blobs:\n%s", kernel)
 	}
 }
 
@@ -78,14 +93,27 @@ func TestRunAcceptsUnwrappedDayPeriodRules(t *testing.T) {
 	if err := Run(context.Background(), Config{CLDRDir: root, OutDir: out, VersionFile: versionPath, ProfileFile: writeLocaleProfileFixture(t, dir)}, log); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	dates, err := os.ReadFile(filepath.Join(out, "dates.go"))
+	payload, err := os.ReadFile(filepath.Join(out, "date", "data.go"))
 	if err != nil {
-		t.Fatalf("read dates.go: %v", err)
+		t.Fatalf("read date/data.go: %v", err)
 	}
-	if !containsAll(string(dates), "[]DayPeriodRange", "Type:", "morning1", "afternoon1", "midnight", "noon") {
-		t.Fatalf("dates.go missing unwrapped day period rules:\n%s", dates)
+	// The _data const is emitted as line-wrapped concatenated string literals, so a
+	// rule-type string can straddle a wrap boundary. Join the literal chunks before
+	// asserting the unwrapped day-period rule types reached the payload.
+	joined := dewrapStringLiterals(string(payload))
+	if !containsAll(joined, "morning1", "afternoon1", "midnight", "noon") {
+		t.Fatalf("date/data.go missing unwrapped day period rule types:\n%s", payload)
 	}
 }
+
+// dewrapStringLiterals collapses the `" +\n<ws>"` continuation sequences the
+// generator emits between adjacent string-literal chunks, so substring assertions
+// see the logical concatenated text rather than the line-wrapped source form.
+func dewrapStringLiterals(src string) string {
+	return literalContinuation.ReplaceAllString(src, "")
+}
+
+var literalContinuation = regexp.MustCompile(`" \+\n\s*"`)
 
 func TestRunFillsWeekDataFromWorldDefaults(t *testing.T) {
 	t.Parallel()
@@ -111,12 +139,20 @@ func TestRunFillsWeekDataFromWorldDefaults(t *testing.T) {
 	if err := Run(context.Background(), Config{CLDRDir: root, OutDir: out, VersionFile: versionPath, ProfileFile: writeLocaleProfileFixture(t, dir)}, log); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	preference, err := os.ReadFile(filepath.Join(out, "preference.go"))
+	// The week-data world-default fill is an extract-layer decision verified
+	// byte-for-byte through the production accessors in the locale kernel
+	// round-trip gate. Here we assert the kernel payload carries the week blob and
+	// the US region key in its _data table.
+	payload, err := os.ReadFile(filepath.Join(out, "locale", "data.go"))
 	if err != nil {
-		t.Fatalf("read preference.go: %v", err)
+		t.Fatalf("read locale/data.go: %v", err)
 	}
-	if !containsAll(string(preference), `"US":`, `first: time.Sunday`, `weekendStart: time.Saturday`, `weekendEnd: time.Sunday`, `minDays: 1`) {
-		t.Fatalf("preference.go missing week fallback data:\n%s", preference)
+	if !containsAll(string(payload), "package cldrlocale", "_weekBlob") {
+		t.Fatalf("locale/data.go missing week blob:\n%s", payload)
+	}
+	reconstructed := readGeneratedStringTable(t, filepath.Join(out, "locale", "data.go"))
+	if !strings.Contains(reconstructed, "US") {
+		t.Fatalf("locale/data.go _data missing US region key:\n%s", payload)
 	}
 }
 

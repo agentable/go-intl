@@ -14,13 +14,15 @@ import (
 	"github.com/agentable/go-intl/datetimeformat"
 	"github.com/agentable/go-intl/displaynames"
 	"github.com/agentable/go-intl/durationformat"
-	"github.com/agentable/go-intl/internal/cldr"
+	cldrcurrency "github.com/agentable/go-intl/internal/cldr/currency"
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	cldrdisplaynames "github.com/agentable/go-intl/internal/cldr/displaynames"
 	cldrlist "github.com/agentable/go-intl/internal/cldr/list"
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	cldrplural "github.com/agentable/go-intl/internal/cldr/plural"
 	cldrrelativetime "github.com/agentable/go-intl/internal/cldr/relativetime"
+	cldrtimezone "github.com/agentable/go-intl/internal/cldr/timezone"
+	cldrunit "github.com/agentable/go-intl/internal/cldr/unit"
 	internalcollation "github.com/agentable/go-intl/internal/collation"
 	"github.com/agentable/go-intl/internal/ecma402"
 	internalsegmentation "github.com/agentable/go-intl/internal/segmentation"
@@ -167,11 +169,11 @@ type supportedValueTest struct {
 
 func supportedValueTests() []supportedValueTest {
 	return []supportedValueTest{
-		{name: "calendar", values: SupportedCalendars, want: cldr.SupportedCalendars},
+		{name: "calendar", values: SupportedCalendars, want: cldrdate.SupportedCalendars},
 		{name: "collation", values: SupportedCollations, want: internalcollation.SupportedCollations},
-		{name: "currency", values: SupportedCurrencies, want: cldr.SupportedCurrencies},
-		{name: "numberingSystem", values: SupportedNumberingSystems, want: cldr.SupportedNumberingSystems},
-		{name: "timeZone", values: SupportedTimeZones, want: cldr.SupportedTimeZones},
+		{name: "currency", values: SupportedCurrencies, want: cldrcurrency.SupportedCodes},
+		{name: "numberingSystem", values: SupportedNumberingSystems, want: cldrnumber.SupportedNumberingSystems},
+		{name: "timeZone", values: SupportedTimeZones, want: cldrtimezone.SupportedTimeZones},
 		{name: "unit", values: SupportedUnits, want: ecma402.SanctionedSimpleUnitIdentifiers},
 	}
 }
@@ -264,7 +266,7 @@ func relativeTimeSupportedLocaleContract() []string {
 func durationSupportedLocaleContract() []string {
 	lists := cldrlist.SupportedLocales()
 	plurals := cldrplural.SupportedLocales()
-	units := cldr.UnitSupportedLocales()
+	units := cldrunit.SupportedLocales()
 
 	out := slices.Clone(cldrnumber.SupportedLocales())
 	return slices.DeleteFunc(out, func(loc string) bool {

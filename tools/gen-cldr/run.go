@@ -61,7 +61,6 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 	likely := extract.ExtractLikelySubtags(source.LikelySubtags)
 	numbers := extract.ExtractNumbers(source.Numbers, profile.Locales)
 	currencies := extract.ExtractCurrencies(source.CurrencyFractions, source.Currencies, profile.Locales)
-	matching := extract.ExtractLocaleMatching(source.LanguageMatching, source.Regions)
 	dates := extract.ExtractDates(source.Dates, profile.Locales)
 	preference := extract.ExtractPreference(source.Preference)
 	metazones := extract.ExtractMetazones(source.Metazones, profile.Locales)
@@ -70,20 +69,19 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 	relativeTime := extract.ExtractRelativeTimeFields(source.RelativeTime, profile.Locales)
 	displayNames := extract.ExtractDisplayNames(source.DisplayNames, profile.Locales)
 	input := codegen.RuntimeInput{
-		Manifest:       manifest,
-		Locales:        locales,
-		LikelySubtags:  likely,
-		Numbers:        numbers,
-		Currencies:     currencies,
-		Collations:     source.Collations,
-		LocaleMatching: matching,
-		Dates:          dates,
-		Preferences:    preference,
-		Metazones:      metazones,
-		Units:          units,
-		ListPatterns:   listPatterns,
-		RelativeTime:   relativeTime,
-		DisplayNames:   displayNames,
+		Manifest:      manifest,
+		Locales:       locales,
+		LikelySubtags: likely,
+		Numbers:       numbers,
+		Currencies:    currencies,
+		Collations:    source.Collations,
+		Dates:         dates,
+		Preferences:   preference,
+		Metazones:     metazones,
+		Units:         units,
+		ListPatterns:  listPatterns,
+		RelativeTime:  relativeTime,
+		DisplayNames:  displayNames,
 	}
 	if err := codegen.RenderRuntime(cfg.OutDir, input); err != nil {
 		return fmt.Errorf("render runtime data: %w", err)

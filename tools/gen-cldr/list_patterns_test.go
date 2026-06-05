@@ -30,30 +30,36 @@ func TestRunGeneratesListPatterns(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	generated, err := os.ReadFile(filepath.Join(out, "list_patterns.go"))
+	// The retired root literal renderer must no longer produce list_patterns.go,
+	// and the retired root string table must no longer produce strings.go; the
+	// list domain now owns a const-only data.go plus hand-written
+	// decode.go/accessors.go.
+	for _, retired := range []string{"list_patterns.go", "strings.go"} {
+		if _, err := os.Stat(filepath.Join(out, retired)); !os.IsNotExist(err) {
+			t.Fatalf("root %s should no longer be generated, stat err = %v", retired, err)
+		}
+	}
+	for _, retired := range []string{"patterns.go", "strings.go", "likely_subtags.go", "locale.go"} {
+		if _, err := os.Stat(filepath.Join(out, "list", retired)); !os.IsNotExist(err) {
+			t.Fatalf("list/%s should no longer be generated, stat err = %v", retired, err)
+		}
+	}
+
+	// The list domain payload is a const-only data.go carrying the blobs and the
+	// private _data table the decoder reads.
+	payload, err := os.ReadFile(filepath.Join(out, "list", "data.go"))
 	if err != nil {
-		t.Fatalf("read list_patterns.go: %v", err)
+		t.Fatalf("read list/data.go: %v", err)
 	}
-	if !containsAll(string(generated), "type ListPattern struct", "func ListSupportedLocales", "func (l Locale) ListPattern") {
-		t.Fatalf("list_patterns.go missing expected generated content:\n%s", generated)
+	if !containsAll(string(payload), "package list", "const _data", "_listPatternBlob", "_listSupportedBlob") {
+		t.Fatalf("list/data.go missing expected const payload:\n%s", payload)
 	}
-	if !containsAll(string(generated), `localeIndex["en-US"]`, `localeIndex["zh-Hans-CN"]`) {
-		t.Fatalf("list_patterns.go missing inherited profile locales:\n%s", generated)
-	}
-	leaf, err := os.ReadFile(filepath.Join(out, "list", "patterns.go"))
-	if err != nil {
-		t.Fatalf("read list/patterns.go: %v", err)
-	}
-	if !containsAll(string(leaf), "package list", "func SupportedLocales() []string", "func Pattern(locale Locale, typ, style string) ListPattern") {
-		t.Fatalf("list/patterns.go missing expected generated content:\n%s", leaf)
-	}
-	stringsData := readGeneratedStringTable(t, filepath.Join(out, "strings.go"))
-	if !containsAll(stringsData, "{0} and {1}", "{0}, and {1}", "{0} or {1}", "{0} {1}") {
-		t.Fatalf("strings.go missing expected list pattern strings:\n%s", stringsData)
-	}
-	listStringsData := readGeneratedStringTable(t, filepath.Join(out, "list", "strings.go"))
-	if !containsAll(listStringsData, "{0} and {1}", "{0}, and {1}", "{0} or {1}", "{0} {1}") {
-		t.Fatalf("list/strings.go missing expected list pattern strings:\n%s", listStringsData)
+	// The _data const is emitted in 64-byte chunks, so human-readable patterns can
+	// straddle a chunk boundary. Reconstruct the concatenated string literals
+	// before asserting the expected patterns are present.
+	reconstructed := readGeneratedStringTable(t, filepath.Join(out, "list", "data.go"))
+	if !containsAll(reconstructed, "{0} and {1}", "{0}, and {1}", "{0} or {1}", "{0} {1}") {
+		t.Fatalf("list/data.go _data missing expected list pattern strings:\n%s", payload)
 	}
 }
 

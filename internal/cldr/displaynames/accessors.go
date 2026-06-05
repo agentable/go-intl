@@ -1,12 +1,14 @@
-// Package displaynames provides runtime accessors for ECMA-402 DisplayNames
-// data backed by generated CLDR locale-names tables. Currency display names
-// reuse the existing internal/cldr currency accessors.
+// Hand-written accessor layer for the displaynames domain. The query semantics
+// mirror the legacy root cldr displaynames accessors exactly, so DisplayNames
+// output is byte-for-byte unchanged. Currency display names reuse the
+// internal/cldr currency accessors.
+
 package displaynames
 
 import (
 	"strings"
 
-	"github.com/agentable/go-intl/internal/cldr"
+	"github.com/agentable/go-intl/internal/cldr/currency"
 	"github.com/agentable/go-intl/internal/pattern"
 )
 
@@ -51,7 +53,8 @@ var dateTimeFieldAlias = map[string]string{
 	"dayPeriod": "dayperiod",
 }
 
-// SupportedLocales returns the locale tags with display-name data.
+// SupportedLocales returns the locale tags with display-name data. It reads only
+// the narrow supported blob and never triggers any names blob decode.
 func SupportedLocales() []string {
 	return displayNamesSupportedLocales()
 }
@@ -65,33 +68,41 @@ func parentTag(tag string) string {
 }
 
 func lookup(tag, kind, style, languageDisplay, code, fallback string) (string, bool) {
-	loc, ok := displayNamesData()[tag]
-	if !ok {
-		return "", false
-	}
 	switch kind {
 	case "language":
-		display := loc.languages.dialect
+		rec, ok := languageData()[tag]
+		if !ok {
+			return "", false
+		}
+		display := rec.display.dialect
 		if languageDisplay == "standard" {
-			display = loc.languages.standard
+			display = rec.display.standard
 		}
 		if value, ok := resolveStyled(display, style, code); ok {
 			return value, true
 		}
-		return resolveLanguage(loc, display, style, code, fallback == "code")
+		return resolveLanguage(tag, rec.localePattern, display, style, code, fallback == "code")
 	case "region":
-		return resolveStyled(loc.territories, style, code)
+		return resolveStyledForTag(territoryData(), tag, style, code)
 	case "script":
-		return resolveStyled(loc.scripts, style, code)
+		return resolveStyledForTag(scriptData(), tag, style, code)
 	case "calendar":
-		return resolveStyled(loc.calendars, style, code)
+		return resolveStyledForTag(calendarData(), tag, style, code)
 	case "dateTimeField":
-		return resolveStyled(loc.dateTimeFields, style, code)
+		return resolveStyledForTag(fieldData(), tag, style, code)
 	}
 	return "", false
 }
 
-func resolveLanguage(loc localeData, display styledNames, style, code string, fallbackCode bool) (string, bool) {
+func resolveStyledForTag(byLocale map[string]styledNames, tag, style, code string) (string, bool) {
+	s, ok := byLocale[tag]
+	if !ok {
+		return "", false
+	}
+	return resolveStyled(s, style, code)
+}
+
+func resolveLanguage(tag, localePattern string, display styledNames, style, code string, fallbackCode bool) (string, bool) {
 	parts := strings.Split(code, "-")
 	if len(parts) == 1 {
 		return "", false
@@ -105,14 +116,14 @@ func resolveLanguage(loc localeData, display styledNames, style, code string, fa
 		return base, true
 	}
 
-	regionName, ok := resolveStyled(loc.territories, style, region)
+	regionName, ok := resolveStyledForTag(territoryData(), tag, style, region)
 	if !ok {
 		if !fallbackCode {
 			return "", false
 		}
 		regionName = region
 	}
-	return applyLocalePattern(loc.localePattern, base, regionName), true
+	return applyLocalePattern(localePattern, base, regionName), true
 }
 
 func languageBaseAndRegion(display styledNames, style string, parts []string) (base, region string, ok bool) {
@@ -170,21 +181,21 @@ func resolveStyled(s styledNames, style, code string) (string, bool) {
 }
 
 func currencyDisplay(dataLocale, style, code string) (string, bool) {
-	loc, ok := cldr.ResolveLocale(dataLocale)
+	loc, ok := currency.ResolveLocale(dataLocale)
 	if !ok {
-		loc, _ = cldr.ResolveLocale("en")
+		loc, _ = currency.ResolveLocale("en")
 	}
 	switch style {
 	case "narrow":
-		if symbol := loc.CurrencySymbol(code, "narrow"); symbol != "" {
+		if symbol := currency.Symbol(loc, code, "narrow"); symbol != "" {
 			return symbol, true
 		}
 	case "short":
-		if symbol := loc.CurrencySymbol(code, ""); symbol != "" {
+		if symbol := currency.Symbol(loc, code, ""); symbol != "" {
 			return symbol, true
 		}
 	}
-	if name := loc.CurrencyCanonicalName(code); name != "" {
+	if name := currency.CanonicalName(loc, code); name != "" {
 		return name, true
 	}
 	return "", false

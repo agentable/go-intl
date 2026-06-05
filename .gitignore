@@ -35,6 +35,8 @@ build/
 tools/gen-cldr/.cldr-json/node_modules/
 tools/gen-fixtures-from-formatjs/gen-fixtures-from-formatjs
 .plans/
+improve*.md
+refactor*.md
 
 # Mac OS files
 **/.DS_Store
