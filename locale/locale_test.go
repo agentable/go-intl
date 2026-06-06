@@ -115,6 +115,20 @@ func TestLocaleMaximizeAndMinimize(t *testing.T) {
 	}
 }
 
+func TestLocaleEqualUsesCanonicalForm(t *testing.T) {
+	t.Parallel()
+
+	loc := MustParse("en-us-U-Ca-Gregorian-Hc-H23")
+	same := MustParse("en-US-u-hc-h23-ca-gregory")
+	if !loc.Equal(same) {
+		t.Fatalf("Equal() = false, want true for %q and %q", loc.String(), same.String())
+	}
+	different := MustParse("en-US-u-ca-buddhist-hc-h23")
+	if loc.Equal(different) {
+		t.Fatalf("Equal() = true, want false for %q and %q", loc.String(), different.String())
+	}
+}
+
 func TestLocaleNewAppliesAndValidatesOptions(t *testing.T) {
 	t.Parallel()
 

@@ -38,6 +38,18 @@ func (l *Locale) readExtensions(ext localeid.UnicodeExtension) error {
 	return nil
 }
 
+func (e extensions) empty() bool {
+	return e.calendar == "" &&
+		e.collation == "" &&
+		e.hourCycle == "" &&
+		e.caseFirst == "" &&
+		!e.numericSet &&
+		e.numberingSystem == "" &&
+		e.firstDayOfWeek == "" &&
+		len(e.attributes) == 0 &&
+		len(e.keywords) == 0
+}
+
 func unicodeTypeForKey(ext localeid.UnicodeExtension, key string) string {
 	value, _ := ext.TypeForKey(key)
 	return value

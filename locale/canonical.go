@@ -12,6 +12,7 @@ func (l Locale) Maximize() Locale {
 	if maxLang, maxScript, maxRegion, ok := cldrlocale.MaximizeSubtags(lang, script, region); ok {
 		l.tag = mustLanguageTag(joinTagParts(maxLang, maxScript, maxRegion))
 	}
+	l.freeze()
 	return l
 }
 
@@ -19,6 +20,7 @@ func (l Locale) Minimize() Locale {
 	lang, script, region := tagParts(l.tag)
 	if minLang, minScript, minRegion, ok := cldrlocale.MinimizeSubtags(lang, script, region); ok {
 		l.tag = mustLanguageTag(joinTagParts(minLang, minScript, minRegion))
+		l.freeze()
 		return l
 	}
 	max := l.Maximize().tag.String()
@@ -34,9 +36,11 @@ func (l Locale) Minimize() Locale {
 		trial.tag = mustLanguageTag(candidate)
 		if trial.Maximize().tag.String() == max {
 			l.tag = trial.tag
+			l.freeze()
 			return l
 		}
 	}
+	l.freeze()
 	return l
 }
 

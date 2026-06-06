@@ -10,9 +10,10 @@ import (
 )
 
 type Locale struct {
-	_   [0]func()
-	tag language.Tag
-	ext extensions
+	_         [0]func()
+	tag       language.Tag
+	ext       extensions
+	canonical string
 }
 
 type extensions struct {
@@ -48,6 +49,7 @@ func Parse(s string) (Locale, error) {
 	if err := loc.readExtensions(unicodeExtension); err != nil {
 		return Locale{}, err
 	}
+	loc.freeze()
 	return loc, nil
 }
 
@@ -71,6 +73,7 @@ func New(tag string, opts Options) (Locale, error) {
 	if err := loc.validate(); err != nil {
 		return Locale{}, err
 	}
+	loc.freeze()
 	return loc, nil
 }
 
@@ -79,7 +82,26 @@ func FromTag(tag language.Tag, opts Options) (Locale, error) {
 }
 
 func (l Locale) String() string {
-	return localeid.InsertUnicodeExtension(l.BaseName(), l.ext.attributes, l.unicodeExtensionKeywords())
+	return l.canonicalString()
+}
+
+func (l Locale) canonicalString() string {
+	if l.canonical != "" {
+		return l.canonical
+	}
+	return l.formatString()
+}
+
+func (l Locale) formatString() string {
+	base := l.BaseName()
+	if l.ext.empty() {
+		return base
+	}
+	return localeid.InsertUnicodeExtension(base, l.ext.attributes, l.unicodeExtensionKeywords())
+}
+
+func (l *Locale) freeze() {
+	l.canonical = l.formatString()
 }
 
 func (l Locale) BaseName() string {
@@ -150,7 +172,7 @@ func (l Locale) Variants() []string {
 }
 
 func (l Locale) Equal(other Locale) bool {
-	return l.String() == other.String()
+	return l.canonicalString() == other.canonicalString()
 }
 
 func (l Locale) MarshalText() ([]byte, error) {
