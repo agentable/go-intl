@@ -351,12 +351,13 @@ tasks:
       - go vet ./...
 
   conformance:verify:
-    desc: Validate conformance fixtures, skip-list, coverage, and divergence audit
+    desc: Validate conformance fixtures, skip-list, coverage, Node witness matrix, and divergence audit
     cmds:
       - >-
         go run ./tools/check-conformance
         -skip-list .skip-list.json
         -coverage
+        -node-witness
         ./locale ./numberformat ./datetimeformat ./pluralrules ./listformat ./relativetimeformat ./durationformat ./displaynames ./collator ./segmenter
 
   verify:

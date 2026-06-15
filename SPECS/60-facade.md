@@ -34,7 +34,7 @@ Formatter construction and behavior live in the active constructor packages:
 - `collator`
 - `segmenter`
 
-The root package may provide discoverability aliases and static common namespace functions. It must not contain formatting logic.
+The root package exposes active constructor aliases as the Go bridge for ECMA-402 constructor properties, plus static common namespace functions. It must not contain formatting logic.
 
 All ten ECMA-402 active constructors are aliased on the root package once each package passes its own conformance gate.
 
@@ -79,7 +79,7 @@ convention, not a new public namespace.
 
 ### 1.2 Active constructor aliases
 
-The root package may expose type aliases matching constructor properties for discoverability:
+The root package **MUST** expose type aliases matching ECMA-402 constructor properties for every active constructor:
 
 ```go
 type Locale = locale.Locale
@@ -109,9 +109,11 @@ col, err := collator.New(locales, collator.Options{})
 seg, err := segmenter.New(locales, segmenter.Options{})
 ```
 
-> **Why**: JavaScript can write `new Intl.NumberFormat(...)` because `Intl.NumberFormat` is a constructor property. Go cannot expose a package-level property that acts like a subpackage constructor without either hiding the real package or introducing a misleading factory. Aliases preserve the visible namespace relationship while the constructor packages preserve typed options and package ownership.
+> **Why**: JavaScript can write `new Intl.NumberFormat(...)` because `Intl.NumberFormat` is a constructor property. Go cannot expose a package-level property that acts like a subpackage constructor without either hiding the real package or introducing a misleading factory. Type aliases are the current Go bridge for constructor-property parity: they preserve the visible namespace relationship while the constructor packages preserve typed options and package ownership.
 >
 > **Rejected**: root `NewNumberFormat`, `NewDateTimeFormat`, `NewPluralRules`, `NewListFormat`, `NewRelativeTimeFormat`, or `NewDurationFormat`. Those names are Go inventions, not ECMA-402 names, and duplicate constructor package APIs.
+>
+> **Rejected**: deleting root constructor aliases because direct constructor packages already exist. Direct packages are the production construction path, but the root package still represents the ECMA-402 `Intl` namespace object; removing constructor properties to reduce aggregate imports would make the facade less faithful.
 
 ### 1.3 Import-cost policy
 
@@ -122,8 +124,9 @@ Rules:
 1. Performance-sensitive applications that need one formatter should import that formatter subpackage directly.
 2. Root package benchmarks, build-size reports, and dependency graph reports must label the result as aggregate facade cost.
 3. Per-surface measurements must be reported separately from root package measurements.
-4. Constructor aliases must not be removed from the root package merely to hide compile cost.
-5. Root one-shot helpers and public cache controls remain forbidden; they are not an acceptable response to facade import cost.
+4. Constructor aliases must not be removed from the root package to reduce aggregate import cost or make dependency reports look smaller.
+5. An active constructor alias can disappear only if the corresponding constructor leaves the active ECMA-402 surface, or if a future Go API design preserves constructor-property parity more faithfully than aliases and updates this SPEC first.
+6. Root one-shot helpers and public cache controls remain forbidden; they are not an acceptable response to facade import cost.
 
 > **Why**: JavaScript `Intl` exposes constructor properties on one namespace object. Go can mirror that shape only by importing the constructor packages that provide the aliased types. Hiding those imports would make the documented namespace shape misleading, while treating the root result as a single-formatter cost would mislead performance work.
 >
@@ -285,6 +288,8 @@ Rules:
 - [ ] `go doc github.com/agentable/go-intl` presents the package as the `Intl` namespace, not a constructor.
 - [ ] The root package has no `Intl` struct and no root `New`.
 - [ ] The root package exposes no typed one-shot formatting helpers.
+- [ ] The root package exposes active constructor aliases as the Go bridge for ECMA-402 `Intl` constructor properties.
+- [ ] Constructor aliases are not removed for import-cost or build-size reasons; aggregate facade cost is measured and documented separately.
 - [ ] The root package exposes no public cache controls.
 - [ ] The root package exposes the canonical Intl error categories and no formatter-specific error aliases.
 - [ ] README documents direct constructor package imports as the preferred production path for services that need one formatter.

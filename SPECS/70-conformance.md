@@ -140,8 +140,10 @@ Each fixture **MUST** conform to the following schema (JSON object):
 `tools/check-conformance/` is the single conformance audit CLI. It delegates to
 the shared `tools/conformance` package and owns fixture schema validation,
 XFAIL validation, skip-list validation, divergence/source integrity checks, and
-coverage health output. Formatter packages must not grow parallel fixture or
-divergence validators.
+coverage health output. It also owns the required Node witness coverage matrix:
+required native topics are enforced as fixture data, while intentional gaps
+must carry a reason in the matrix. Formatter packages must not grow parallel
+fixture, divergence, or native-witness validators.
 
 `.skip-list.json` category value **MUST** be from the following collection:
 
@@ -159,7 +161,8 @@ The new category must be implemented in the same PR of extractor, `tools/check-c
 3. `.skip-list.json` is an extraction audit, not a test skip mechanism. Generated but failed fixtures must go through divergences.md or xfail.json; ungenerated sources can appear in the skip-list.
 4. `tools/check-conformance` **MUST** verify fixture schema, XFAIL schema, skip-list schema, active skip-list categories, source uniqueness, and divergence-to-fixture consistency.
 5. `task conformance:verify` **MUST** output coverage health: the number of fixture sources for each package, the number of manual / FormatJS / node fixtures, the number of active divergence, the number of xfail, and the skip-list category count.
-6. Non-mechanizable fixtures, such as Date literals, callbacks, and complex error assertions, must be migrated manually; silently skipping is prohibited.
+6. `task conformance:verify` **MUST** validate the Node witness matrix for every active package passed to `tools/check-conformance`; a missing required topic is a conformance audit failure, and an intentional gap without a reason is invalid.
+7. Non-mechanizable fixtures, such as Date literals, callbacks, and complex error assertions, must be migrated manually; silently skipping is prohibited.
 
 > **Why**: The extraction script is the only trusted bridge between FormatJS and go-intl; idempotence ensures that diff is readable when upgrading FormatJS.
 > **Rejected**: Blind AST full porting - Incomplete AST rules can generate fixtures that look formal but have incorrect input/options. Rather write complex sources into the source/reason skip-list than generate untrusted fixtures.
@@ -329,6 +332,7 @@ XFAIL entry **MUST** be located in `<package>/testdata/xfail.json`, field:
 ### Fixture Sources
 
 - [ ] `tools/gen-fixtures-from-formatjs/` is a standalone Go module; currently generated gate outputs at least NumberFormat format / parts / range, DateTimeFormat format / range, PluralRules select / selectRange, Locale canonicalization, ListFormat format, RelativeTimeFormat format, and DurationFormat format fixtures. DisplayNames must retain at least Node/V8 smoke fixtures; Collator and Segmenter must retain product-contract Node/V8 fixtures until FormatJS or native extractor covers a more complete test matrix.
+- [ ] `tools/check-conformance -node-witness` enforces the Node witness matrix: required native topics exist as fixtures, and intentional gaps are explicitly reasoned.
 - [ ] The root directory `.skip-list.json` exists, each record contains `source`, `category` and `reason`, and covers FormatJS `.test.ts` sources / partial sources that cannot be mechanically extracted or exceed the current generated gate.
 - [ ] FormatJS reference is pinned to `tools/.gen-versions`; CI check exists.
 - [ ] A host consumer profile is loaded by a root consumer-profile test and covers supported-set boundaries plus reversed ranges.

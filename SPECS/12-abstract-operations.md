@@ -27,6 +27,7 @@ Current layout:
 ```text
 internal/ecma402/
 ├── constants.go            # sanctioned unit constants
+├── constructor_locale.go   # shared constructor ResolveLocale wrapper
 ├── decimal.go              # decimal-string bridge parsing and finite checks
 ├── doc.go                  # package boundary
 ├── errors.go               # ErrInvalidOption and structured OptionError helpers
@@ -62,6 +63,7 @@ Surviving algorithms keep spec or reference names when that name remains honest:
 | currency syntax | `IsWellFormedCurrencyCode` |
 | sanctioned unit syntax | `IsSanctionedSimpleUnitIdentifier` / `IsWellFormedUnitIdentifier` |
 | mathematical value conversion | `ToIntlMathematicalValue`, `ParseDecimalInput`, `ParseFiniteDecimalInput`, `RequireFiniteDecimalInput` |
+| constructor locale negotiation | `ResolveConstructorLocale` typed wrapper around locale-list, matcher, default-locale, and relevant-extension processing |
 | option resolution | `options.One`, `LocaleMatcherAlgorithm`, `LocaleMatcherOption`, `SupportedLocalesOf`, `InvalidStringOption`, `InvalidIntegerOption`, `GetOption`-family helpers or typed equivalents that preserve ECMA-402 semantics |
 | digit rounding and padding stage | `numberformat.FormatNumericToString` |
 | date skeleton parsing | `datetimeformat.ParseSkeleton`-family internals |
@@ -91,6 +93,7 @@ The abstract layer should provide reusable option and syntax helpers when they e
 - `options.One`
 - `LocaleMatcherAlgorithm`
 - `LocaleMatcherOption`
+- `ResolveConstructorLocale`
 - `SupportedLocalesOf`
 - `InvalidStringOption`
 - `InvalidIntegerOption`
@@ -101,6 +104,8 @@ The abstract layer should provide reusable option and syntax helpers when they e
 - `numberformat.FormatNumericToString`
 
 It must not reintroduce a generic `map[string]any` option pipeline unless a production path needs JavaScript-value coercion. Typed Go `Options` can feed the same abstract rules without using dynamic maps.
+
+`ResolveConstructorLocale` is the only shared constructor-locale wrapper. It may combine `RequestedLocaleStrings`, `LocaleMatcherAlgorithm`, `DefaultLocale`, and `internal/localematcher.ResolveLocale`, then parse the resolved locale into a Go `locale.Locale`. It must not own formatter data fallback, formatter-specific relevant-extension defaults, unsupported-option errors, CLDR accessor selection, pattern selection, digit resolution, time-zone handling, or embedded formatter construction.
 
 Time-zone name and offset validation live in `internal/tz` per [SPEC 32](./32-datetimeformat-tz.md). They are data-coupled to DateTimeFormat rather than formatter-independent abstract helpers.
 
@@ -220,6 +225,7 @@ var slots sync.Map // map[*NumberFormat]map[string]any
 - `internal/ecma402/types.go` contains `Part`, `Pattern`, and `MathematicalValue`, with no option discriminator.
 - `internal/ecma402/errors.go` declares `ErrInvalidOption` plus shared option-error context helpers.
 - Root `errors.go` exposes `ErrorKind`, `Error`, and the seven category sentinels; `internal/intlerr/errors_test.go` proves `errors.Is`, `errors.AsType`, and `expected ...; got ...` text behavior.
+- `ResolveConstructorLocale` has production constructor callers and internal tests for localeMatcher dispatch plus relevant-extension option override behavior.
 - Any `GetOption` / `GetNumberOption` / typed equivalent has a production caller and is covered by constructor error/resolved-options tests.
 - No `audit_test.go` in `internal/ecma402` or `internal/cldr` maintains pending implementation rows.
 - `go test ./internal/ecma402/...` passes.

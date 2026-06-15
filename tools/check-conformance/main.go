@@ -29,6 +29,7 @@ func run(args []string, stdout io.Writer) error {
 	fs.SetOutput(io.Discard)
 	skipListPath := fs.String("skip-list", "", "root .skip-list.json path")
 	coverage := fs.Bool("coverage", false, "print conformance coverage health")
+	nodeWitness := fs.Bool("node-witness", false, "validate required Node witness coverage")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -43,6 +44,11 @@ func run(args []string, stdout io.Writer) error {
 	}
 	if *skipListPath != "" {
 		if err := conformance.ValidateSkipList(*skipListPath, roots); err != nil {
+			return err
+		}
+	}
+	if *nodeWitness {
+		if err := conformance.ValidateNodeWitnessCoverage(roots); err != nil {
 			return err
 		}
 	}

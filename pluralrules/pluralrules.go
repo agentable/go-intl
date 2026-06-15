@@ -50,19 +50,16 @@ func New(locales locale.List, opts Options) (*PluralRules, error) {
 		return nil, invalidOption(invalid.Name, invalid.Value)
 	}
 	cfg.applyResolvedDigits(resolvedDigits)
-	loc := ecma402.ValidationLocale(locales)
-	defaultLocale := ecma402.DefaultLocale()
-	dataLocale := defaultLocale
-	alg := localematcher.AlgorithmBestFit
-	if cfg.localeMatcher == string(LookupLocaleMatcher) {
-		alg = localematcher.AlgorithmLookup
-	}
-	matched := pluralRulesLocaleMatcher().Match(ecma402.RequestedLocaleStrings(locales), defaultLocale, alg)
-	if matched.DataLocale != "" {
-		dataLocale = matched.DataLocale
-		if matchedLoc, err := locale.Parse(matched.Locale); err == nil {
-			loc = matchedLoc
-		}
+	validationLocale := ecma402.ValidationLocale(locales)
+	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
+		Locales:       locales,
+		Fallback:      validationLocale,
+		LocaleMatcher: cfg.localeMatcher,
+		Matcher:       pluralRulesLocaleMatcher(),
+	})
+	dataLocale := resolution.DataLocale
+	if dataLocale == "" {
+		dataLocale = ecma402.DefaultLocale()
 	}
 	rule, ok := plural.CardinalRule(dataLocale)
 	if cfg.typ == Ordinal {
@@ -72,8 +69,8 @@ func New(locales locale.List, opts Options) (*PluralRules, error) {
 		rule, _ = plural.CardinalRule("en")
 	}
 	return &PluralRules{
-		loc:             loc,
-		rangeLocale:     loc.Tag().String(),
+		loc:             resolution.Locale,
+		rangeLocale:     resolution.Locale.Tag().String(),
 		cfg:             cfg,
 		digitOptions:    resolvedDigits.DigitOptions,
 		integerOperands: cfg.canUseIntegerOperands(),

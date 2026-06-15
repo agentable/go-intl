@@ -15,7 +15,7 @@ This SPEC decision:
 1. **Do not** reuse `golang.org/x/text/language.Matcher` (output `Confidence` instead of CLDR distance, not comparable to ECMA-402 conformance).
 2. In `internal/localematcher/` **self-implemented** ECMA-402 lookup and best-fit locale matching. Best-fit keeps the FormatJS three-tier shape while using the active bounded Go distance model; a full CLDR `languageMatching` codegen table is not part of the current runtime contract.
 3. `LookupMatchingLocaleByBestFit` is an enhancement of `LookupMatchingLocaleByPrefix`; both share the subtag truncation and canonicalization subroutines.
-4. `ResolveOptions` reads `locales` and `options.localeMatcher`, calls `ResolveLocale`, and returns the Go equivalent of options object, resolved locale record, and resolution option record.
+4. Formatter constructors use `internal/ecma402.ResolveConstructorLocale` as the narrow Go typed wrapper over requested-locale preparation, `localeMatcher` algorithm selection, default-locale fallback, and `ResolveLocale`.
 5. `FilterLocales` is the only semantic source of constructor `supportedLocalesOf`.
 
 This SPEC **does not** define the `Locale` type itself (SPEC 10), the field mapping of the `-u-` extended key (SPEC 10 §1), the CLDR data format and generator (SPEC 50), and the internal slots of the formatter (SPEC 12).
@@ -132,7 +132,7 @@ Formatter callers **MUST** pass in a supported list aligned with the formatter p
 | NumberFormat | `internal/cldr/number.SupportedLocales()` |
 | DateTimeFormat | `internal/cldr/date.SupportedLocales()` |
 | PluralRules | `internal/cldr/plural.SupportedLocales()` |
-| Locale-only operations | `internal/cldr.AvailableLocales()` |
+| Locale-only operations | `internal/cldr/locale.AvailableLocales()` |
 
 `internal/cldrmatch` is the only encapsulation point for this mapping; the public formatter package is prohibited from maintaining its own supported-locale list.
 
@@ -424,6 +424,36 @@ Extensions map[string]string //The final value of relevantExtensionKeys (option 
 func ResolveLocale(opts ResolveOptions) ResolvedLocale
 ```
 
+Formatter constructors do not build this input ad hoc. They pass typed
+constructor state through `internal/ecma402.ResolveConstructorLocale`, which
+owns only the shared negotiation wrapper:
+
+```go
+// internal/ecma402/constructor_locale.go(signature)
+type ConstructorLocaleOptions struct {
+    Locales               locale.List
+    Fallback              locale.Locale
+    LocaleMatcher         string
+    Matcher               *localematcher.Matcher
+    RelevantExtensionKeys []string
+    OptionValues          []localematcher.Option
+    LocaleData            localematcher.LocaleDataLookup
+}
+
+type ConstructorLocaleResolution struct {
+    Locale     locale.Locale
+    DataLocale string
+    Extensions map[string]string
+}
+
+func ResolveConstructorLocale(opts ConstructorLocaleOptions) ConstructorLocaleResolution
+```
+
+The wrapper must not absorb formatter-owned behavior: CLDR data fallback,
+unsupported-option errors, pattern selection, calendar/hour-cycle defaults,
+numbering-system fallback, plural-rule lookup, time-zone handling, and embedded
+formatter construction remain in the constructor package.
+
 Call example:
 
 ```go
@@ -442,7 +472,7 @@ fmt.Println(res.Extensions["nu"])  // "hanidec"
 
 > **Why `Extensions` is `map[string]string`**: `relevantExtensionKeys` is dynamic (NumberFormat uses `["nu"]`, DateTimeFormat uses `["ca","nu","hc"]`, PluralRules uses `["nu"]`); hard-coded fields will be repeatedly defined.
 >
-> **Why `LocaleData` is an interface rather than a specific type**: Same as §3.4 - Decoupling the implementation details of SPEC 11 and SPEC 50. formatter passes in specific types such as `internal/cldr.NumberFormatLocaleData()` when calling `New()`.
+> **Why `LocaleData` is an interface rather than a specific type**: Same as §3.4 - Decoupling the implementation details of SPEC 11 and SPEC 50. formatter passes in specific types such as `internal/cldr/number.NumberLocaleData{}` or `internal/cldr/date.DateLocaleData{}` when calling `New()`.
 
 ### 4.3 InsertUnicodeExtensionAndCanonicalize
 
@@ -598,10 +628,10 @@ Locale parsing errors classify through `gointl.ErrInvalidValue`; `internal/local
 
 | SPEC | Provide | Consumption |
 |------|------|------|
-| SPEC 11 (this) | `ResolveLocale` returns `ResolvedLocale` and documents the locale-list abstract operation contract | consumes `internal/ecma402.CanonicalLocaleList` output and generated supported-locale data |
-| SPEC 12 | Validators / pattern / decimal boundary for production path reuse | No consumption SPEC 11 |
+| SPEC 11 (this) | `ResolveLocale` returns `ResolvedLocale` and documents the locale-list abstract operation contract | receives requested-locale strings and option data from `internal/ecma402.ResolveConstructorLocale` |
+| SPEC 12 | Formatter-independent wrappers / validators / pattern / decimal boundary for production path reuse | wraps SPEC 11 algorithms without importing generated CLDR data |
 
-> **DECISION**: "locale-shape abstract operations" such as canonical locale-list dedupe, `BestAvailableLocale`, and `ResolveLocale` are documented in **SPEC 11**. The reusable typed helper for canonical locale lists lives in `internal/ecma402` because root `GetCanonicalLocales` and formatter constructors both need it, while the actual matching algorithms stay in `internal/localematcher`.
+> **DECISION**: "locale-shape abstract operations" such as `BestAvailableLocale` and `ResolveLocale` are documented in **SPEC 11**. Reusable typed constructor-entry helpers such as canonical locale-list dedupe and `ResolveConstructorLocale` live in `internal/ecma402` because formatter constructors need a Go typed boundary, while the actual matching algorithms stay in `internal/localematcher`.
 
 ### 8.2 Relationship with SPEC 50
 
@@ -795,6 +825,7 @@ if res1.Locale == res2.Locale { /* ... */ }
 
 - [ ] Raw locale-list parsing errors are owned by `locale.Parse` / `locale.ParseList`; canonical locale-list dedupe is error-free after parsing.
 - [ ] `Match` / `ResolveLocale` does not return error (always falls back to `defaultLocale`).
+- [ ] Formatter constructors use `internal/ecma402.ResolveConstructorLocale` for common negotiation unless they need a formatter-owned pre-resolution check such as Collator unsupported Unicode extension refusal.
 - [ ] There is **no** `panic` call in the package (the test covers various abnormal inputs).
 
 ### Performance

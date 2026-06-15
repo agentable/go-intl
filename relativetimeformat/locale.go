@@ -15,31 +15,26 @@ import (
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrrelativetime.Locale, string) {
 	defaultLocale := ecma402.DefaultLocale()
-	matcher, _ := ecma402.LocaleMatcherAlgorithm(cfg.localeMatcher)
-	result := localematcher.ResolveLocale(localematcher.ResolveOptions{
-		Algorithm:             matcher,
+	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
+		Locales:               locales,
+		Fallback:              fallback,
+		LocaleMatcher:         cfg.localeMatcher,
 		Matcher:               relativeTimeLocaleMatcher(),
-		Requested:             ecma402.RequestedLocaleStrings(locales),
-		DefaultLocale:         defaultLocale,
 		RelevantExtensionKeys: []string{"nu"},
 		OptionValues:          []localematcher.Option{{Key: "nu", Value: cfg.numberingSystem}},
 		LocaleData:            cldrnumber.NumberLocaleData{},
 	})
-	cldrLoc, ok := cldrrelativetime.ResolveLocale(result.DataLocale)
+	cldrLoc, ok := cldrrelativetime.ResolveLocale(resolution.DataLocale)
 	if !ok {
 		cldrLoc, _ = cldrrelativetime.ResolveLocale(defaultLocale)
 	}
-	numberingSystem := result.Extensions["nu"]
+	numberingSystem := resolution.Extensions["nu"]
 	if numberingSystem == "" {
-		if loc, ok := cldrlocale.ResolveLocale(result.DataLocale); ok {
+		if loc, ok := cldrlocale.ResolveLocale(resolution.DataLocale); ok {
 			numberingSystem = loc.DefaultNumberingSystem()
 		}
 	}
-	resolvedLocale, err := locale.Parse(result.Locale)
-	if err != nil {
-		resolvedLocale = fallback
-	}
-	return resolvedLocale, cldrLoc, numberingSystem
+	return resolution.Locale, cldrLoc, numberingSystem
 }
 
 var supportedLocales = sync.OnceValue(func() []string {

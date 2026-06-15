@@ -25,6 +25,15 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 	minFrac, maxFrac := 0, 3
 	hour12 := false
 	fractionalDigits := 2
+	significantNumber := mustNumberFormat(t, numberformat.Options{MinimumSignificantDigits: intPtr(3)}).ResolvedOptions()
+	significantPlural := mustPluralRules(t, pluralrules.Options{MinimumSignificantDigits: intPtr(2)}).ResolvedOptions()
+	styleDateTime := mustDateTimeFormat(t, datetimeformat.Options{
+		DateStyle: datetimeformat.MediumDateTimeStyle,
+		TimeStyle: datetimeformat.ShortDateTimeStyle,
+	}).ResolvedOptions()
+	defaultCollator := mustCollator(t, collator.Options{}).ResolvedOptions()
+	wordSegment := mustFirstSegment(t, "hello!", segmenter.WordGranularity)
+	rtlTextInfo := locale.MustParse("ar").GetTextInfo()
 
 	tests := []struct {
 		name   string
@@ -63,6 +72,15 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			absent: []string{`"currency"`, `"unit"`, `"minimumSignificantDigits"`},
 		},
 		{
+			name:  "number significant digit resolved options",
+			value: significantNumber,
+			want: []string{
+				`"minimumSignificantDigits":3`,
+				`"maximumSignificantDigits":21`,
+			},
+			absent: []string{`"minimumFractionDigits"`, `"maximumFractionDigits"`},
+		},
+		{
 			name:  "number range part",
 			value: numberformat.RangePart{Type: numberformat.PartInteger, Value: "10", Source: numberformat.SourceStartRange},
 			want:  []string{`"type":"integer"`, `"value":"10"`, `"source":"startRange"`},
@@ -88,6 +106,19 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			absent: []string{`"weekday"`, `"fractionalSecondDigits"`},
 		},
 		{
+			name:  "datetime style shortcut resolved options",
+			value: styleDateTime,
+			want:  []string{`"dateStyle":"medium"`, `"timeStyle":"short"`},
+			absent: []string{
+				`"year"`,
+				`"month"`,
+				`"day"`,
+				`"hour"`,
+				`"minute"`,
+				`"second"`,
+			},
+		},
+		{
 			name: "plural resolved options",
 			value: pluralrules.ResolvedOptions{
 				Locale:                loc,
@@ -105,6 +136,15 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			},
 			want:   []string{`"type":"cardinal"`, `"pluralCategories":["one","other"]`},
 			absent: []string{`"minimumSignificantDigits"`},
+		},
+		{
+			name:  "plural significant digit resolved options",
+			value: significantPlural,
+			want: []string{
+				`"minimumSignificantDigits":2`,
+				`"maximumSignificantDigits":21`,
+			},
+			absent: []string{`"minimumFractionDigits"`, `"maximumFractionDigits"`},
 		},
 		{
 			name:  "list part",
@@ -167,6 +207,16 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			want: []string{`"fractionalDigits":2`, `"millisecondsDisplay":"auto"`},
 		},
 		{
+			name: "duration record includes subsecond fields",
+			value: durationformat.Duration{
+				Seconds:      1,
+				Milliseconds: 2,
+				Microseconds: 3,
+				Nanoseconds:  4,
+			},
+			want: []string{`"seconds":1`, `"milliseconds":2`, `"microseconds":3`, `"nanoseconds":4`},
+		},
+		{
 			name: "display names resolved options omits language display",
 			value: displaynames.ResolvedOptions{
 				Locale:   loc,
@@ -191,10 +241,20 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			absent: []string{`"collation"`},
 		},
 		{
+			name:  "collator resolved options includes default collation",
+			value: defaultCollator,
+			want:  []string{`"collation":"default"`},
+		},
+		{
 			name:   "segment record uses code unit index",
 			value:  segmenter.Segment{Segment: "🙂", CodeUnitIndex: 2, ByteIndex: 4, Input: "a🙂", IsWordLike: false},
 			want:   []string{`"segment":"🙂"`, `"index":2`, `"input":"a🙂"`, `"isWordLike":false`},
 			absent: []string{`"ByteIndex"`, `"byteIndex"`},
+		},
+		{
+			name:  "segment word record includes word-like true",
+			value: wordSegment,
+			want:  []string{`"segment":"hello"`, `"index":0`, `"input":"hello!"`, `"isWordLike":true`},
 		},
 		{
 			name: "segmenter resolved options",
@@ -213,6 +273,11 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			name:  "text info",
 			value: locale.TextInfo{Direction: "ltr"},
 			want:  []string{`"direction":"ltr"`},
+		},
+		{
+			name:  "text info from rtl locale",
+			value: rtlTextInfo,
+			want:  []string{`"direction":"rtl"`},
 		},
 	}
 
@@ -245,6 +310,64 @@ func TestDurationJSONAcceptsCamelCaseRecord(t *testing.T) {
 	if duration.Hours != 1 || duration.Milliseconds != 2 {
 		t.Fatalf("json.Unmarshal(Duration) = %+v, want hours=1 milliseconds=2", duration)
 	}
+}
+
+func intPtr(v int) *int {
+	return &v
+}
+
+func mustNumberFormat(t *testing.T, opts numberformat.Options) *numberformat.NumberFormat {
+	t.Helper()
+
+	format, err := numberformat.New(locale.List{locale.MustParse("en")}, opts)
+	if err != nil {
+		t.Fatalf("numberformat.New() error = %v", err)
+	}
+	return format
+}
+
+func mustDateTimeFormat(t *testing.T, opts datetimeformat.Options) *datetimeformat.DateTimeFormat {
+	t.Helper()
+
+	format, err := datetimeformat.New(locale.List{locale.MustParse("en-US")}, opts)
+	if err != nil {
+		t.Fatalf("datetimeformat.New() error = %v", err)
+	}
+	return format
+}
+
+func mustPluralRules(t *testing.T, opts pluralrules.Options) *pluralrules.PluralRules {
+	t.Helper()
+
+	rules, err := pluralrules.New(locale.List{locale.MustParse("en")}, opts)
+	if err != nil {
+		t.Fatalf("pluralrules.New() error = %v", err)
+	}
+	return rules
+}
+
+func mustCollator(t *testing.T, opts collator.Options) *collator.Collator {
+	t.Helper()
+
+	c, err := collator.New(locale.List{locale.MustParse("en")}, opts)
+	if err != nil {
+		t.Fatalf("collator.New() error = %v", err)
+	}
+	return c
+}
+
+func mustFirstSegment(t *testing.T, input string, granularity segmenter.Granularity) segmenter.Segment {
+	t.Helper()
+
+	s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{Granularity: granularity})
+	if err != nil {
+		t.Fatalf("segmenter.New() error = %v", err)
+	}
+	for segment := range s.Segment(input).All() {
+		return segment
+	}
+	t.Fatalf("Segment(%q).All() returned no records", input)
+	return segmenter.Segment{}
 }
 
 func mustMarshalJSON(t *testing.T, value any) string {

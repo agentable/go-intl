@@ -15,7 +15,7 @@ task verify               # deps + fmt + vet + lint + test + conformance + data 
 task vuln                 # govulncheck ./...
 task deps                 # go mod download && go mod tidy
 task deps:update          # update root and nested module dependencies
-task conformance:verify   # fixture schema + XFAIL + skip-list + divergence audit + coverage
+task conformance:verify   # fixture schema + XFAIL + skip-list + divergence audit + coverage + Node witness matrix
 task data                 # regenerate CLDR data from local npm CLDR checkout
 task data:check           # verify generated CLDR data is byte-identical
 task data:contract        # generated CLDR data contract tests
@@ -156,6 +156,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 ## API Design Principles
 
 - **Intl namespace first** - The root package is not a constructor and should not behave like a per-locale session object. It represents the JavaScript `Intl` namespace as closely as Go allows.
+- **Constructor-property parity** - Keep active root constructor aliases as the Go bridge for ECMA-402 `Intl.<Constructor>` properties. Do not delete aliases to reduce aggregate root import cost; document that cost and recommend direct constructor packages for one-formatter services.
 - **Native API mapping is mandatory** - Before adding or changing exported API, identify the exact ECMA-402 JavaScript owner: `Intl`, `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.PluralRules`, `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DurationFormat`, `Intl.DisplayNames`, `Intl.Collator`, or `Intl.Segmenter`. If no native owner exists, do not add it unless it is a narrow Go typed bridge for an existing native operation.
 - **Public surface earns its place** - Exported symbols must be recorded in SPECS/72 with an ECMA-402 owner or narrow typed-bridge rationale. ECMA-402 abstract operations stay in `internal/*`; callers see native owners, not implementation steps.
 - **Constructor parity** - Formatter `New` functions mirror `new Intl.<Constructor>(locales, options)`: callers pass exactly one typed `Options` value, and zero-valued `Options{}` means the ECMA-402 empty options object.
@@ -171,10 +172,12 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Follow Google Go Style Decisions: <https://google.github.io/go-style/decisions>.
 - Keep interfaces small and consumer-owned; do not expose broad internal abstractions.
 - Every exported symbol must map to an ECMA-402 constructor, method, option, resolved option, part record, range source, static `Intl` function, or a Go-only typed bridge for one of those items.
+- Keep active root constructor aliases in place for ECMA-402 constructor-property parity; root import cost is aggregate facade cost, not grounds for API deletion.
 - Validate formatter options in constructors. After construction, method error behavior must match the corresponding ECMA-402 operation: invalid typed inputs return errors where JavaScript would throw `TypeError` or `RangeError`; ordinary formatting does not hide constructor failures.
 - Wrap user-fixable errors with package context and a sentinel error so callers can use `errors.Is` / `errors.As`.
 - Keep generated CLDR/runtime data out of hot-path file I/O. Runtime data lives in generated Go source under `internal/cldr`.
-- Keep locale-list canonicalization internal. Public callers use root `GetCanonicalLocales`; formatter packages use `internal/ecma402.CanonicalLocaleList`, `RequestedLocaleStrings`, and `SupportedLocalesOf`. Do not expose formatter-independent canonicalize-list helpers or any other public abstract-operation helper.
+- Keep locale-list canonicalization and constructor locale negotiation internal. Public callers use root `GetCanonicalLocales`; formatter packages use `internal/ecma402.CanonicalLocaleList`, `RequestedLocaleStrings`, `ResolveConstructorLocale`, and `SupportedLocalesOf`. Do not expose formatter-independent canonicalize-list helpers or any other public abstract-operation helper.
+- Keep `ResolveConstructorLocale` narrow. It owns shared requested-locale preparation, `localeMatcher` dispatch, default-locale fallback, and relevant-extension merging only; formatter packages still own CLDR data fallback, unsupported-option errors, pattern/data selection, numbering-system defaults, and embedded formatter construction.
 - Keep formatter supported locale lists generated from actual CLDR payload maps or truthful engine capability accessors. Constructor `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` with generated accessors instead of duplicating matcher, filtering, or requested-locale dedupe loops.
 - Keep shared string and integer option validation in `internal/ecma402`. Formatter packages pass formatter-owned allowed values through helpers such as `RequiredStringOption`, `OptionalStringOption`, `InvalidStringOption`, and `InvalidIntegerOption`; do not hand-roll equivalent `switch` or `slices.Contains` loops.
 - Keep root supported-value accessors in the root package, conventionally in `supported.go`, backed by CLDR/tz data, active collation capability, or ECMA-402 sanctioned constants. Do not create public `cldr`, `ecma402`, or `supported` packages for this data. Calendars must include `iso8601`; numbering systems must include the ECMA-402 simple digit table; do not add ad hoc runtime lists.
@@ -226,7 +229,7 @@ When you encounter a bug, limitation, or unexpected behavior in a dependency:
 - Unextracted or partially extracted FormatJS sources must appear in root `.skip-list.json` with `source`, `category`, and `reason`.
 - `.skip-list.json` is extraction audit only. A generated fixture that fails must be handled through `testdata/divergences.md` or `testdata/xfail.json`, never by removing it from testdata.
 - Record accepted reference mismatches in `<package>/testdata/divergences.md` only when that package has active or resolved divergence entries; empty placeholder files are not required. Keep IDs auditable by `task conformance:verify`.
-- Run `task conformance:verify` after fixture, skip-list, XFAIL, or divergence changes; the unified checker validates schema, source ownership, expiration, divergence references, and coverage health.
+- Run `task conformance:verify` after fixture, skip-list, XFAIL, divergence, or Node witness changes; the unified checker validates schema, source ownership, expiration, divergence references, coverage health, and the Node witness matrix.
 - Public formatters should have runnable `Example*` functions when adding meaningful new surface.
 
 ## Dependencies

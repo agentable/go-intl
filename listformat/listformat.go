@@ -35,20 +35,15 @@ func New(locales locale.List, opts Options) (*ListFormat, error) {
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrlist.Locale, cldrlist.ListPattern) {
 	defaultLocale := ecma402.DefaultLocale()
-	matcher, _ := ecma402.LocaleMatcherAlgorithm(cfg.localeMatcher)
-	result := localematcher.ResolveLocale(localematcher.ResolveOptions{
-		Algorithm:     matcher,
+	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
+		Locales:       locales,
+		Fallback:      fallback,
+		LocaleMatcher: cfg.localeMatcher,
 		Matcher:       listLocaleMatcher(),
-		Requested:     ecma402.RequestedLocaleStrings(locales),
-		DefaultLocale: defaultLocale,
 	})
-	cldrLoc, ok := cldrlist.ResolveLocale(result.DataLocale)
+	cldrLoc, ok := cldrlist.ResolveLocale(resolution.DataLocale)
 	if !ok {
 		cldrLoc, _ = cldrlist.ResolveLocale(defaultLocale)
 	}
-	resolvedLocale, err := locale.Parse(result.Locale)
-	if err != nil {
-		resolvedLocale = fallback
-	}
-	return resolvedLocale, cldrLoc, cldrlist.Pattern(cldrLoc, cfg.typ, cfg.style)
+	return resolution.Locale, cldrLoc, cldrlist.Pattern(cldrLoc, cfg.typ, cfg.style)
 }

@@ -248,6 +248,30 @@ func TestRunValidatesSkipListAndWritesCoverageReport(t *testing.T) {
 	}
 }
 
+func TestRunValidatesNodeWitnessCoverage(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	packageDir := writeFixtureFile(t, root, "numberformat", "numberformat/testdata/conformance/node-v26/smoke.json", `[
+		{"id":"numberformat-node-v26-smoke","source":"node:v26.0.0:numberformat","locale":"en-US","options":{},"input":1,"expected":"1"}
+	]`)
+
+	err := run([]string{"-node-witness", packageDir}, io.Discard)
+	if err == nil {
+		t.Fatal("run(-node-witness) succeeded, want missing coverage error")
+	}
+	if !strings.Contains(err.Error(), "numberformat") || !strings.Contains(err.Error(), "resolved-options") {
+		t.Fatalf("run(-node-witness) error = %v, want numberformat resolved-options guidance", err)
+	}
+
+	writeFixtureFile(t, root, "numberformat", "numberformat/testdata/conformance/node-v26/resolved-options.json", `[
+		{"id":"numberformat-node-v26-resolved","source":"node:v26.0.0:numberformat:resolved-options","locale":"en-US","options":{},"input":1,"expected":"1","expectedResolvedOptions":{"locale":"en-US"}}
+	]`)
+	if err := run([]string{"-node-witness", packageDir}, io.Discard); err != nil {
+		t.Fatalf("run(-node-witness) error = %v, want nil", err)
+	}
+}
+
 func TestRunRejectsInvalidFlags(t *testing.T) {
 	t.Parallel()
 

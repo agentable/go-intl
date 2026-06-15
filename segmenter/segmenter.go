@@ -41,21 +41,16 @@ func New(locales locale.List, opts Options) (*Segmenter, error) {
 		return nil, err
 	}
 
-	matcher, _ := ecma402.LocaleMatcherAlgorithm(cfg.localeMatcher)
-	resolved := localematcher.ResolveLocale(localematcher.ResolveOptions{
-		Algorithm:     matcher,
+	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
+		Locales:       locales,
+		Fallback:      validationLocale,
+		LocaleMatcher: cfg.localeMatcher,
 		Matcher:       segmenterLocaleMatcher(),
-		Requested:     ecma402.RequestedLocaleStrings(locales),
-		DefaultLocale: ecma402.DefaultLocale(),
 	})
-	resolvedLocale, err := locale.Parse(resolved.Locale)
-	if err != nil {
-		resolvedLocale = validationLocale
-	}
 
 	return &Segmenter{
 		resolved: ResolvedOptions{
-			Locale:      resolvedLocale,
+			Locale:      resolution.Locale,
 			Granularity: Granularity(cfg.granularity),
 		},
 	}, nil

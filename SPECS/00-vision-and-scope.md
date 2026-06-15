@@ -95,6 +95,7 @@ Only reference trees with compatible root licensing and direct project value bel
 5. **`.references/node/` breaks native-engine ties** when ECMA-402 leaves behavior implementation-defined or when Node/V8/ICU output is the observable compatibility target.
 6. **CLDR is the data oracle.** When tables disagree, trust the CLDR version pinned in `internal/cldr/VERSION` and document the divergence.
 7. **No local convenience beats native ownership.** Go typed bridges are allowed, but helper shape, cache knobs, or historical ergonomics must not override the native `Intl` owner model.
+8. **No import-cost shortcut beats the `Intl` namespace.** The root package represents ECMA-402 `Intl`; active constructor aliases are the current Go bridge for constructor properties such as `Intl.NumberFormat`. Measure and document aggregate facade cost separately instead of deleting constructor properties to make dependency reports smaller.
 
 ### 2.3 Test fixture policy
 
@@ -166,9 +167,9 @@ The maintained surface is the minimum viable API needed by the primary consumers
 | `github.com/agentable/go-intl/displaynames` | `DisplayNames`, `New`, `SupportedLocalesOf`, `.Of`, `.ResolvedOptions` | `Intl.DisplayNames` |
 | `github.com/agentable/go-intl/collator` | `Collator`, `New`, `SupportedLocalesOf`, `.Compare`, `.ResolvedOptions` | `Intl.Collator` |
 | `github.com/agentable/go-intl/segmenter` | `Segmenter`, `New`, `SupportedLocalesOf`, `.Segment`, `.ResolvedOptions` | `Intl.Segmenter` |
-| `github.com/agentable/go-intl` (root) | `GetCanonicalLocales`, root supported-value accessors, active constructor type aliases, `ErrorKind`, `Error`, root category sentinels | `Intl` namespace object plus Go error bridge for ECMA-402 `RangeError` / `TypeError`-equivalent failures |
+| `github.com/agentable/go-intl` (root) | `GetCanonicalLocales`, root supported-value accessors, active constructor type aliases, `ErrorKind`, `Error`, root category sentinels | `Intl` namespace object, constructor-property bridge, plus Go error bridge for ECMA-402 `RangeError` / `TypeError`-equivalent failures |
 
-The root package mirrors the JavaScript `Intl` namespace object as closely as Go allows. JavaScript `Intl` is not a constructor and has no per-locale instance state; therefore root `New`, root typed one-shot helpers, and root cache controls are outside the long-term public surface. Detailed formatter options live in their formatter packages.
+The root package mirrors the JavaScript `Intl` namespace object as closely as Go allows. JavaScript `Intl` is not a constructor and has no per-locale instance state; therefore root `New`, root typed one-shot helpers, and root cache controls are outside the long-term public surface. JavaScript `Intl` also exposes constructor properties; root type aliases are the current Go bridge for that shape and must not be removed merely to reduce aggregate root import cost. Detailed formatter options live in their formatter packages.
 
 Every exported API must have an identified native JavaScript owner before it is added. Go-only typed bridges are allowed only when they preserve a native operation's semantics while replacing JavaScript dynamic values with Go types; they must not widen the observable Intl surface.
 
@@ -227,44 +228,40 @@ go-intl/
 ├── collator/               # Intl.Collator
 ├── segmenter/              # Intl.Segmenter
 └── internal/
-    ├── ecma402/            # Production-used abstract operations:
-    │                       #   PartitionPattern, ToIntlMathematicalValue, validators, etc.
-    ├── ecma402/numberformat/    # InitializeNumberFormat, PartitionNumberPattern, …
-    ├── ecma402/datetimeformat/  # InitializeDateTimeFormat, PartitionDateTimePattern, …
-    ├── ecma402/pluralrules/     # GetOperands, OperandsRecord, plural categories
-    ├── localematcher/      # ResolveLocale (lookup + best-fit)
+    ├── ecma402/            # Production-used abstract operations, constructor-locale wrapper, validators
+    ├── ecma402/numberformat/    # digit option resolution and FormatNumericToString
+    ├── ecma402/datetimeformat/  # skeleton parser and DateTimeFormat pattern matcher
+    ├── ecma402/pluralrules/     # operands and plural categories
+    ├── localematcher/      # ResolveLocale, lookup, best-fit, supported-locale filtering
     ├── cldrmatch/          # formatter-family data-locale resolution over generated CLDR subsets
-    ├── cachekey/           # canonical option key helpers for formatter caches
     ├── decimal/            # apd-backed Decimal for ToIntlMathematicalValue
     ├── intlerr/            # Cycle-free implementation backing root error aliases
     ├── collation/          # Collator backend capability metadata
-    ├── cldr/               # Generated CLDR Go data + accessors
-    │   ├── cldr.go         # locale handles, version parsing, shared accessors
-    │   ├── strings.go      # generated deduplicated string table
-    │   ├── supported.go    # generated/derived supported locales and CLDR-backed supported-value inputs
-    │   ├── collations.go   # generated CLDR BCP47 collation candidate identifiers; active Collator support remains engine-owned
-    │   ├── numbers.go      # symbols, time separators, currencies, unit patterns, compact tables
-    │   ├── dates.go        # era/month/weekday names, skeleton patterns, range patterns
-    │   ├── list_patterns.go # list pattern payloads for Intl.ListFormat
-    │   ├── relative_time.go # relative field payloads for Intl.RelativeTimeFormat
-    │   ├── units.go        # unit pattern payloads for NumberFormat and DurationFormat
-    │   ├── metazones.go    # time-zone display names and metazone periods
-    │   ├── plurals.go      # Locale facade over compiled plural rule selectors
-    │   ├── preference.go   # week info, hour cycle, calendar preference
-    │   └── plural/         # generated cardinal/ordinal/category/range rules
+    ├── cldr/               # Generated CLDR data split by domain package
+    │   ├── codec/          # generated-blob decoding helpers
+    │   ├── locale/         # locale kernel, likely subtags, preferences, profile gates
+    │   ├── number/         # number symbols, compact tables, numbering-system locale data
+    │   ├── date/           # Gregorian date names, skeleton/range patterns, calendars
+    │   ├── currency/       # currency digits and display data
+    │   ├── unit/           # unit pattern payloads
+    │   ├── list/           # list pattern payloads
+    │   ├── relativetime/   # relative-time field payloads
+    │   ├── displaynames/   # locale/currency/language/region/script display names
+    │   ├── plural/         # supported plural locales
+    │   └── timezone/       # generated CLDR time-zone display/link data
     └── tz/                 # IANA timezone data + offset arithmetic (DateTimeFormat dep)
 ```
 
 ### 5.2 Layering rules
 
 1. **Formatter packages depend on `internal/*`; `internal/*` never depends on public formatter packages.** Structured error construction lives in `internal/intlerr` so formatter packages can build root-category errors without importing the root facade and creating a cycle.
-2. **`internal/cldr` is the only place that touches generated data tables.** Every other package goes through its accessors. This keeps regeneration painless.
+2. **`internal/cldr/<domain>` packages are the only places that touch generated data tables.** Every other package goes through narrow domain accessors. The retired root `internal/cldr` package is not a data owner.
 3. **`internal/ecma402` keeps production-used abstract algorithms.** Go does not expose arbitrary JavaScript objects as options, but typed `Options` must preserve ECMA-402 option coercion, defaulting, validation, and resolved-state semantics.
-4. **The root namespace is thin.** It exposes only ECMA-402 common namespace functions and active constructor aliases where useful. It contains no formatting logic of its own.
+4. **The root namespace is thin and native-shaped.** It exposes ECMA-402 common namespace functions, active constructor aliases for constructor-property parity, and root error bridges. It contains no formatting logic of its own.
 
 ### 5.3 Data strategy
 
-CLDR data is **compiled into Go source** via a generator under `tools/gen-cldr/`. The runtime reads generated Go literals from `internal/cldr/`; it does not embed CLDR JSON, parse JSON at startup, or perform file I/O on formatting paths. We follow the pattern from `translate-agent/intl`: a single generated package under `internal/cldr/` whose update cadence is "regenerate when CLDR releases or when a new locale is needed."
+CLDR data is **compiled into Go source** via a generator under `tools/gen-cldr/`. The runtime reads generated Go literals from domain packages under `internal/cldr/<domain>/`; it does not embed CLDR JSON, parse JSON at startup, or perform file I/O on formatting paths. The durable layout is SPEC 50's per-domain package model: each formatter imports only the generated payload families it can observe, and the retired root `internal/cldr` package must not return as a data owner.
 
 Decisions:
 

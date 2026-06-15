@@ -258,7 +258,7 @@ func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error)
 
 MUST rules:
 
-1. Use the generated RelativeTimeFormat supported locale set. Under SPEC 50 §1.3's single-tier contract this set equals the generated number and plural sets; deriving from any of the three is equivalent.
+1. Use the intersection of generated RelativeTimeFormat, NumberFormat, and PluralRules supported locale sets. Do not derive from `tools/locale-profile.json` or from one payload family alone.
 2. Call `localematcher.FilterLocalesWithMaximizer`.
 3. Accept one `Options` value; `Options{}` represents omitted static-method options.
 4. Read only `LocaleMatcher`; ignore formatting options for this static method.

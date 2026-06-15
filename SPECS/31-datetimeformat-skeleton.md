@@ -29,16 +29,17 @@ internal/ecma402/datetimeformat/
 ├── matcher.go # Algorithm: BasicFormatMatcher, BestFitFormatMatcher, adjustFieldTypes
 └── tokens.go # Type: TokenLabel, Formats, SkeletonField
 
-internal/cldr/
-├── dates.go # Data: per-locale availableFormats / intervalFormats / formats table
-└── ...
+internal/cldr/date/
+├── data.go      # Generated const blobs: per-locale availableFormats / intervalFormats / formats payload
+├── decode.go    # Lazy decode into runtime records
+└── accessors.go # GregorianFor, DayPeriodFor, SupportedLocales, SupportedCalendars
 ```
 
 **MUST** Rules:
 
 1. The `internal/ecma402/datetimeformat/` algorithm layer **MUST** be stateless (no package-level mutable var, no `init()` side effects).
 2. `internal/ecma402/datetimeformat/` **Must not** directly import `internal/cldr`; CLDR data slices are injected by the caller (`datetimeformat/` package) through parameters when `New`.
-3. `internal/cldr/dates.go` is a per-locale generated data record, produced by codegen, and handwritten mapping tables are prohibited.
+3. `internal/cldr/date/data.go` is a per-locale generated const-blob payload, produced by codegen and decoded through `internal/cldr/date`; handwritten mapping tables are prohibited.
 4. The `Formats` structure (per-skeleton pattern table) in `tokens.go` must be aligned one-to-one with the `Formats` fields output by FormatJS `parseDateTimeSkeleton`.
 
 > **Why**: Upgrading LDML does not trigger data regeneration (the algorithm is stable); upgrading CLDR does not trigger algorithm modification (the data is stable); the conformance test can independently replace the algorithm or data for difference.
@@ -212,11 +213,12 @@ score -= delta == 2 ? longMore: shortMore // or longLess / shortLess
 1. The Skeleton algorithm layer **MUST** accept `Formats[]` slices as input parameters; **forbid** the algorithm layer to check CLDR by itself.
 2. Call flow (`datetimeformat.New` internal):
    ```text
-   1. cldrFormats := internal/cldr.AvailableFormatsFor(loc, "gregorian")
-   2. result     := skeleton.Match(options, cldrFormats)  // BestFitFormatMatcher
-3. f.pattern := result.Pattern // Cache to DateTimeFormat slot
+   1. gregorian   := internal/cldr/date.GregorianFor(loc)
+   2. cldrFormats := gregorian.AvailableFormats
+   3. result      := skeleton.Match(options, cldrFormats)  // BestFitFormatMatcher
+   4. f.pattern   := result.Pattern // Cache to DateTimeFormat slot
    ```
-3. The `Formats[]` slice **MUST** have been parsed by `parseDateTimeSkeleton` (at codegen time, or cached after lazy parsing in the `internal/cldr` accessor), and the algorithm layer receives the parsed `Formats` structure.
+3. The `Formats[]` slice **MUST** have been parsed by `parseDateTimeSkeleton` (at codegen time, or cached after lazy parsing in the `internal/cldr/date` accessor), and the algorithm layer receives the parsed `Formats` structure.
 
 ```go
 // Algorithm layer signature (no implementation)

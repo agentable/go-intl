@@ -73,20 +73,15 @@ func (d *DisplayNames) Of(code string) (string, bool, error) {
 }
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, string) {
-	matcher, _ := ecma402.LocaleMatcherAlgorithm(cfg.localeMatcher)
-	result := localematcher.ResolveLocale(localematcher.ResolveOptions{
-		Algorithm:     matcher,
+	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
+		Locales:       locales,
+		Fallback:      fallback,
+		LocaleMatcher: cfg.localeMatcher,
 		Matcher:       displayNamesLocaleMatcher(),
-		Requested:     ecma402.RequestedLocaleStrings(locales),
-		DefaultLocale: ecma402.DefaultLocale(),
 	})
-	dataLocale := result.DataLocale
+	dataLocale := resolution.DataLocale
 	if dataLocale == "" {
 		dataLocale = ecma402.DefaultLocale()
 	}
-	resolvedLocale, err := locale.Parse(result.Locale)
-	if err != nil {
-		resolvedLocale = fallback
-	}
-	return resolvedLocale, dataLocale
+	return resolution.Locale, dataLocale
 }

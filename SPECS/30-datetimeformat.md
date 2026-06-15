@@ -287,8 +287,8 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 
 **MUST** Rules:
 
-1. Calendar data (era / month / weekday / dayPeriod name) **MUST** be accessed through [SPEC 32 §Calendar Data](./32-datetimeformat-tz.md#calendar-data); `internal/cldr/dates.go` is a generated data record.
-2. The `New` period **MUST** first parse the public `locale.Locale` into `cldr.Locale`, and then pull active Gregorian data once through `internal/cldr.GregorianFor(cldrLoc)` and freeze it into the `DateTimeFormat` internal slot.
+1. Calendar data (era / month / weekday / dayPeriod name) **MUST** be accessed through [SPEC 32 §Calendar Data](./32-datetimeformat-tz.md#calendar-data); `internal/cldr/date` owns the generated date payload and accessors.
+2. The `New` period **MUST** first resolve the public `locale.Locale` into `date.Locale`, and then pull active Gregorian data once through `internal/cldr/date.GregorianFor(cldrLoc)` and freeze it into the `DateTimeFormat` internal slot.
 3. Expanding beyond Gregorian / ISO-8601 **MUST** add the generated calendar payload, calendar-specific local-time projection, pattern / part behavior, and Node or FormatJS fixtures in the same change before adding the calendar to `SupportedCalendars()`.
 
 ---
@@ -319,7 +319,7 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 **MUST** Rules:
 
 1. `Format` / `FormatToParts` paths **must not** call `time.LoadLocation` / `internal/tz.Resolve`.
-2. The `Format` path **must not** parse `metaZones.json` or do file I/O; the time zone display name (`shortGeneric` / `longGeneric`, etc.) is obtained through the generated `internal/cldr.TimeZoneDisplayName(cldrLoc, zone, form, isDST, instant, offsetMs)` table lookup and GMT fallback.
+2. The `Format` path **must not** parse `metaZones.json` or do file I/O; the time zone display name (`shortGeneric` / `longGeneric`, etc.) is obtained through the generated `internal/cldr/timezone.TimeZoneDisplayName(cldrLoc, zone, form, isDST, instant, offsetMs)` table lookup and GMT fallback.
 
 > **Why**: hot path should not be used for time zone parsing or runtime JSON; CLDR metazone/exemplar city data has been compiled into a Go table during codegen, and only memory table lookup and necessary GMT fallback are performed during the call period.
 
@@ -376,7 +376,7 @@ Type string // Strict enumeration, not open
        pattern := "{0} – {1}"  // dateTimeFormats.intervalFormatFallback
    return apply(pattern, format(start), format(end))
    ```
-2. `intervalFormats` data **MUST** be obtained through `internal/cldr.IntervalFormatsFor(loc, calendar)` (data comes from CLDR `ca-gregorian.json` `dateTimeFormats.intervalFormats`).
+2. `intervalFormats` data **MUST** be obtained from the constructor-resolved `internal/cldr/date.GregorianFor(loc).IntervalFormats` data (CLDR `ca-gregorian.json` `dateTimeFormats.intervalFormats`).
 3. `FormatRangeToParts` **MUST** return the `[]Part` element with the `Source` field (`"startRange" | "endRange" | "shared"`); the `Part` type is expanded to:
    ```go
    type RangePart struct {

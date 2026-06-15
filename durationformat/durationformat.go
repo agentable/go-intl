@@ -75,29 +75,24 @@ func New(locales locale.List, opts Options) (*DurationFormat, error) {
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrnumber.Locale, string) {
 	defaultLocale := ecma402.DefaultLocale()
-	matcher, _ := ecma402.LocaleMatcherAlgorithm(cfg.localeMatcher)
-	result := localematcher.ResolveLocale(localematcher.ResolveOptions{
-		Algorithm:             matcher,
+	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
+		Locales:               locales,
+		Fallback:              fallback,
+		LocaleMatcher:         cfg.localeMatcher,
 		Matcher:               durationLocaleMatcher(),
-		Requested:             ecma402.RequestedLocaleStrings(locales),
-		DefaultLocale:         defaultLocale,
 		RelevantExtensionKeys: []string{"nu"},
 		OptionValues:          []localematcher.Option{{Key: "nu", Value: cfg.numberingSystem}},
 		LocaleData:            cldrnumber.NumberLocaleData{},
 	})
-	cldrLoc, ok := cldrnumber.ResolveLocale(result.DataLocale)
+	cldrLoc, ok := cldrnumber.ResolveLocale(resolution.DataLocale)
 	if !ok {
 		cldrLoc, _ = cldrnumber.ResolveLocale(defaultLocale)
 	}
-	numberingSystem := result.Extensions["nu"]
+	numberingSystem := resolution.Extensions["nu"]
 	if numberingSystem == "" {
 		numberingSystem = cldrLoc.DefaultNumberingSystem()
 	}
-	resolvedLocale, err := locale.Parse(result.Locale)
-	if err != nil {
-		resolvedLocale = fallback
-	}
-	return resolvedLocale, cldrLoc, numberingSystem
+	return resolution.Locale, cldrLoc, numberingSystem
 }
 
 func publicUnitStyle(style UnitStyle) UnitStyle {

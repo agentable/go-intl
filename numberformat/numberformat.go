@@ -147,33 +147,28 @@ func cardinalRuleForNumberFormat(loc locale.Locale) func(pluralop.OperandsRecord
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrnumber.Locale, cldrlocale.Locale, string) {
 	defaultLocale := ecma402.DefaultLocale()
-	matcher, _ := ecma402.LocaleMatcherAlgorithm(cfg.localeMatcher)
-	result := localematcher.ResolveLocale(localematcher.ResolveOptions{
-		Algorithm:             matcher,
+	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
+		Locales:               locales,
+		Fallback:              fallback,
+		LocaleMatcher:         cfg.localeMatcher,
 		Matcher:               numberLocaleMatcher(),
-		Requested:             ecma402.RequestedLocaleStrings(locales),
-		DefaultLocale:         defaultLocale,
 		RelevantExtensionKeys: []string{"nu"},
 		OptionValues:          []localematcher.Option{{Key: "nu", Value: cfg.numberingSystem}},
 		LocaleData:            cldrnumber.NumberLocaleData{},
 	})
-	cldrLoc, ok := cldrnumber.ResolveLocale(result.DataLocale)
+	cldrLoc, ok := cldrnumber.ResolveLocale(resolution.DataLocale)
 	if !ok {
 		cldrLoc, _ = cldrnumber.ResolveLocale(defaultLocale)
 	}
-	unitLoc, ok := cldrlocale.ResolveLocale(result.DataLocale)
+	unitLoc, ok := cldrlocale.ResolveLocale(resolution.DataLocale)
 	if !ok {
 		unitLoc, _ = cldrlocale.ResolveLocale(defaultLocale)
 	}
-	numberingSystem := result.Extensions["nu"]
+	numberingSystem := resolution.Extensions["nu"]
 	if numberingSystem == "" {
 		numberingSystem = cldrLoc.DefaultNumberingSystem()
 	}
-	resolvedLocale, err := locale.Parse(result.Locale)
-	if err != nil {
-		resolvedLocale = fallback
-	}
-	return resolvedLocale, cldrLoc, unitLoc, numberingSystem
+	return resolution.Locale, cldrLoc, unitLoc, numberingSystem
 }
 
 func digitDefaults(cfg config) (minimumFractionDigits, maximumFractionDigits int) {

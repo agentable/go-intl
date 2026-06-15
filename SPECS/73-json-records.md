@@ -1,7 +1,7 @@
 # SPEC 73 — JSON Record Field Names
 
-> **Status:** Draft (2026-05-21)
-> **Priority:** Medium(host-boundary stability for resolved options, parts, and locale info records)
+> **Status:** Revised (2026-06-15)
+> **Priority:** Medium (host-boundary stability for resolved options, parts, and locale info records)
 > **Authority:** ECMA-402 resolvedOptions objects, part records, segment records, and locale info records define observable JSON field names. Go struct fields are typed bridges only.
 
 ---
@@ -17,6 +17,18 @@ Go record types that mirror ECMA-402 objects use `encoding/json` tags as the hos
 5. `locale.Locale` marshals as the canonical BCP 47 string through `encoding.TextMarshaler`.
 
 `record_json_test.go` is the project-wide guard for this policy. Formatter-specific conformance tests remain responsible for comparing values against FormatJS / Node fixtures.
+
+The guard must exercise host-boundary records through real constructors or public accessors wherever possible, not only by marshaling hand-built structs. It must cover every record family branch whose JSON presence can change without a Go type change:
+
+- NumberFormat and PluralRules fraction-digit, significant-digit, and precision branches.
+- DateTimeFormat style shortcuts versus granular date/time fields.
+- DurationFormat duration records, digital subsecond fields, and `fractionalDigits` presence.
+- DisplayNames language-only `languageDisplay`.
+- Collator `collation` present and absent states.
+- Segmenter word records, including `isWordLike` and omitted `ByteIndex`.
+- Locale info records, including week information and text direction.
+
+Adding a public record field or changing `omitempty` behavior without updating this guard is a SPEC violation.
 
 ---
 

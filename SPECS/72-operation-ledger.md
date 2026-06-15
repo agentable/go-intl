@@ -18,11 +18,12 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 5. Rows for implementation gaps must point to the owning SPEC's support-tier section; the ledger itself does not accept divergences.
 6. `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf`, which parses `localeMatcher`, returns formatter-owned `OptionError` values for invalid matcher input, and delegates to `internal/ecma402.SupportedLocales`.
 7. Constructor and `SupportedLocalesOf` entrypoints must receive a single typed `Options` value; option count is enforced by the public Go signature.
-8. `localeMatcher` parsing must use `internal/ecma402.LocaleMatcherAlgorithm` directly or through `internal/ecma402.SupportedLocalesOf`; constructor validation should use `internal/ecma402.LocaleMatcherOption`.
+8. `localeMatcher` parsing must use `internal/ecma402.LocaleMatcherAlgorithm` through `internal/ecma402.ResolveConstructorLocale`, `internal/ecma402.SupportedLocalesOf`, or a formatter-owned pre-resolution check; constructor validation should use `internal/ecma402.LocaleMatcherOption`.
 9. String-backed enum validation must use `internal/ecma402.InvalidStringOption` unless the option needs package-specific unsupported-state handling.
 10. Integer range validation must use `internal/ecma402.InvalidIntegerOption`; cross-field constraints stay in the owning formatter package.
 11. Public record structs that cross host/API boundaries must marshal with ECMA-402 field names and omission semantics; do not introduce parallel `map[string]any` record APIs.
 12. Every partial capability must have a capability-slice row before the public API can advertise it. The row must name the native owner, supported slice, refused slice, sentinel, truthful supported-set rule, verification, review date, and exit path.
+13. Every supported-value or supported-locale expansion must land with executable owner proof: one accepted advertised case, one refused unsupported case when the domain has a known unsupported slice, resolved-options proof where the option is observable, and CLDR/backend/Node evidence for the advertised behavior.
 
 > **Why**: The stable API is small enough to review by ledger. Keeping this as prose plus file references is clearer than generating a brittle public-symbol manifest.
 >
@@ -53,7 +54,7 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 | Surface | ECMA-402 owner / operation | Go entrypoints | Verification |
 |---------|----------------------------|----------------|--------------|
 | Constructor options object | `new Intl.<Constructor>(locales, options?)` | package `New(locales locale.List, opts Options)` | package constructor and resolved-options tests |
-| Locale negotiation | `ResolveLocale`, relevant extension keys | package constructors, `internal/localematcher`, `internal/ecma402.LocaleMatcherAlgorithm` | package resolved-options tests, `internal/localematcher/*_test.go`, derived available-locale alias tests |
+| Locale negotiation | `ResolveLocale`, relevant extension keys | package constructors, `internal/ecma402.ResolveConstructorLocale`, `internal/localematcher` | package resolved-options tests, `internal/ecma402/locale_matcher_test.go`, `internal/localematcher/*_test.go`, derived available-locale alias tests |
 | Supported locales | `Intl.<Constructor>.supportedLocalesOf` | package `SupportedLocalesOf`, `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` | package `TestSupportedLocalesOf`, `internal/localematcher/filter_test.go`, derived available-locale alias tests |
 | Resolved options | `resolvedOptions()` | package `ResolvedOptions` methods | package resolved-options tests |
 
@@ -128,6 +129,7 @@ rationale, `review_after`, and removal path.
 - [ ] Deleted public surfaces remove their ledger row and any README/SPEC references.
 - [ ] Rows for narrowed implementation gaps link to the owning SPEC section with current behavior, `review_after`, and removal path.
 - [ ] New partial capabilities update the capability-slice ledger before they are advertised by public supported-locale or supported-value APIs.
+- [ ] Supported-locale and supported-value expansions include accepted, refused, resolved-options, and CLDR/backend/Node proof at the owner package or conformance layer.
 - [ ] Public supported-locale and supported-value APIs do not advertise refused capability slices.
 - [ ] `task lint` and `task test` pass after ledger-affecting code changes.
 - [ ] `task conformance:verify` passes when fixture or divergence references change.

@@ -175,7 +175,7 @@ Compact and scientific/engineering are adjusted in SetNumberFormatDigitOptions
 **MUST** Rules:
 
 1. When `style="currency"` is used, it must be verified that the `currency` option exists and is in the 3-letter ISO 4217 form. Failure to return `ErrInvalidOption`, and the error message contains currency code + locale.
-2. Currency precision **MUST** be obtained through `internal/cldr.CurrencyDigits(code)` (data comes from CLDR `supplemental/currencyData.json` `fractions` node codegen output). **FORBIDDEN** Embedding ISO 4217 static tables. **BANNED** Introduction of `bojanz/currency`.
+2. Currency precision **MUST** be obtained through `internal/cldr/currency.Digits(code)` (data comes from CLDR `supplemental/currencyData.json` `fractions` node codegen output). **FORBIDDEN** Embedding ISO 4217 static tables. **BANNED** Introduction of `bojanz/currency`.
 3. `style="unit"` **MUST** be verified when the `unit` option is sanctioned simple unit or `<numerator>-per-<denominator>` compound form; the sanctioned list comes from the CLDR `units-constants` codegen.
 4. `currencyDisplay` ∈ `code | symbol | narrowSymbol | name`;`currencyDisplay="symbol"` is the ECMA-402 default value.
 5. `currencySign` ∈ `standard | accounting`, default `standard`.
@@ -379,7 +379,7 @@ MaximumSignificantDigits *int // Same as above
 **MUST** Rules:
 
 1. NumberFormat internal state **MUST** all be calculated and frozen at the time of `New`; the `*NumberFormat` returned by `New` is an immutable snapshot.
-2. The CLDR data pointer (`numberSymbols / patterns / compactDecimalFormats`) **MUST** be pulled once through `internal/cldr.NumbersFor(loc)` in `New` and saved to the `NumberFormat` internal slot; the `Format` path **is prohibited** from calling the cldr accessor again.
+2. The CLDR number-domain data (`numberSymbols / patterns / compactDecimalFormats`) **MUST** be pulled once through the resolved `internal/cldr/number.Locale` accessors in `New` and saved to the `NumberFormat` internal slot; the `Format` path **is prohibited** from calling CLDR accessors again.
 3. The PluralRules handle **MUST** be lazy constructed in `New` (only constructed in `notation = compact | scientific | engineering`); the `Format` path **forbids** to reconstruct PluralRules.
 4. `apd.Context` **MUST** be held as an immutable baseline; the `Rounding` field is modified after copying when `Format` is called (to avoid races).
 
@@ -425,7 +425,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - **BANNED** Use `Format` with `fmt.Sprintf("%v", value)` on hot path - trailing-zero behavior is unaligned + ~150 ns per allocation.
 - **FORBIDDEN** NumberFormat parses plural DSL, copies plural rule tables, or selects compact suffix by exposing a `pluralrules.PluralRules` instance; can only call `internal/ecma402/pluralrules.GetOperands` and use `internal/cldr/plural` generated rules.
 - **FORBIDDEN** Extract `CollapseNumberRange` into a cross-package generic - Part fields are different.
-- **FORBIDDEN** Calling the `internal/cldr.*` accessor on the `Format` path; CLDR data must be materialized on `New`.
+- **FORBIDDEN** Calling CLDR domain accessors on the `Format` path; CLDR data must be materialized on `New`.
 - **BANNED** Builder chaining API(`numberformat.NewBuilder().Currency("USD").Build()`); active scope exposes only `New(locale.MustParseList("en-US"), Options{...})` or equivalent `locale.List` variables.
 - **BANNED** Pointer configuration API (`numberformat.New(locales, &Options{...})`) and functional options; the only public configuration form after turning off §8 Q2 is the typed `Options` value.
 - **FORBIDDEN** Self-developed `BigDecimal`; all math layers go through [SPEC 21 §Decimal API](./21-number-math.md#decimal-api)(`apd/v3` backend).

@@ -580,7 +580,7 @@ task fmt                  # Format Go code
 task vet                  # Run go vet
 task test                 # Run go test -race -p 1 ./...
 task lint                 # Run go mod tidy check and golangci-lint
-task conformance:verify   # Validate fixtures, skip-list, coverage, and divergence audit
+task conformance:verify   # Validate fixtures, skip-list, coverage, Node witness matrix, and divergence audit
 task data                 # Regenerate CLDR data into internal/cldr/ (writes back)
 task data:check           # Regenerate CLDR data into a temp tree and compare byte-for-byte
 task data:contract        # Verify generated CLDR data contracts

@@ -167,8 +167,8 @@ MUST rules:
 
 MUST rules:
 
-1. DurationFormat support requires unit pattern data, number symbol data, list pattern data, and plural rule data; all four ship for every locale in `tools/locale-profile.json`'s `locales` list (SPEC 50 §1.3 single-tier contract).
-2. `durationformat.SupportedLocalesOf` must derive its set from the generated supported-locale accessor for one of those payload families (e.g. `internal/cldr/list.SupportedLocales()`); a hand-written list is forbidden.
+1. DurationFormat support requires unit pattern data, number symbol data, list pattern data, and plural rule data. A locale is supported only when all four payload families are present.
+2. `durationformat.SupportedLocalesOf` must derive its set from the intersection of the generated `internal/cldr/unit`, `internal/cldr/number`, `internal/cldr/list`, and `internal/cldr/plural` supported-locale accessors; a hand-written list is forbidden.
 3. Runtime formatting must never read CLDR JSON files.
 
 ---
@@ -202,7 +202,7 @@ func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error)
 
 MUST rules:
 
-1. Use the generated unit supported locale set. Under SPEC 50 §1.3's single-tier contract this set equals the generated number, list, and plural sets; deriving from any of the four is equivalent.
+1. Use the intersection of generated unit, number, list, and plural supported locale sets. Do not derive from `tools/locale-profile.json` or from one payload family alone.
 2. Call `localematcher.FilterLocalesWithMaximizer`.
 3. Accept one `Options` value; `Options{}` represents omitted static-method options.
 4. Read only `LocaleMatcher`; invalid values return `ErrInvalidOption`.

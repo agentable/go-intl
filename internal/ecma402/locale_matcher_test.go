@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/agentable/go-intl/internal/localematcher"
+	"github.com/agentable/go-intl/locale"
 )
 
 func TestLocaleMatcherAlgorithm(t *testing.T) {
@@ -46,5 +47,72 @@ func TestLocaleMatcherOption(t *testing.T) {
 	}
 	if _, ok := InvalidStringOption(LocaleMatcherOption("lookup")); ok {
 		t.Fatal("InvalidStringOption(LocaleMatcherOption(lookup)) ok = true, want false")
+	}
+}
+
+type constructorLocaleData map[string]map[string][]string
+
+func (d constructorLocaleData) For(loc, key string) []string {
+	if keys, ok := d[loc]; ok {
+		return keys[key]
+	}
+	return nil
+}
+
+func TestResolveConstructorLocaleAppliesMatcherAndRelevantExtensions(t *testing.T) {
+	t.Parallel()
+
+	fallback := locale.MustParse("en")
+	requested := locale.List{locale.MustParse("th-u-nu-thai"), locale.MustParse("en")}
+	matcher := localematcher.NewMatcher([]string{"th", "en"}, nil)
+
+	got := ResolveConstructorLocale(ConstructorLocaleOptions{
+		Locales:               requested,
+		Fallback:              fallback,
+		LocaleMatcher:         "lookup",
+		Matcher:               matcher,
+		RelevantExtensionKeys: []string{"nu"},
+		OptionValues:          []localematcher.Option{{Key: "nu", Value: "latn"}},
+		LocaleData: constructorLocaleData{
+			"th": {"nu": []string{"thai", "latn"}},
+		},
+	})
+
+	if got.Locale.String() != "th" {
+		t.Fatalf("ResolveConstructorLocale().Locale = %q, want th", got.Locale.String())
+	}
+	if got.DataLocale != "th" {
+		t.Fatalf("ResolveConstructorLocale().DataLocale = %q, want th", got.DataLocale)
+	}
+	if got.Extensions["nu"] != "latn" {
+		t.Fatalf("ResolveConstructorLocale().Extensions[nu] = %q, want latn", got.Extensions["nu"])
+	}
+}
+
+func TestResolveConstructorLocaleDispatchesLocaleMatcher(t *testing.T) {
+	t.Parallel()
+
+	requested := locale.List{locale.MustParse("zh-TW")}
+	fallback := locale.MustParse("en")
+	matcher := localematcher.NewMatcher([]string{"zh", "zh-Hant", "en"}, nil)
+
+	lookup := ResolveConstructorLocale(ConstructorLocaleOptions{
+		Locales:       requested,
+		Fallback:      fallback,
+		LocaleMatcher: "lookup",
+		Matcher:       matcher,
+	})
+	if lookup.Locale.String() != "zh" {
+		t.Fatalf("ResolveConstructorLocale(lookup).Locale = %q, want zh", lookup.Locale.String())
+	}
+
+	bestFit := ResolveConstructorLocale(ConstructorLocaleOptions{
+		Locales:       requested,
+		Fallback:      fallback,
+		LocaleMatcher: "best fit",
+		Matcher:       matcher,
+	})
+	if bestFit.Locale.String() != "zh-Hant" {
+		t.Fatalf("ResolveConstructorLocale(best fit).Locale = %q, want zh-Hant", bestFit.Locale.String())
 	}
 }

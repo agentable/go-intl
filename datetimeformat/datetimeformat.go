@@ -89,7 +89,6 @@ type localeResolution struct {
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) localeResolution {
 	defaultLocale := ecma402.DefaultLocale()
-	matcher, _ := ecma402.LocaleMatcherAlgorithm(cfg.localeMatcher)
 	options := []localematcher.Option{
 		{Key: "ca", Value: cfg.calendar},
 		{Key: "hc", Value: cfg.hourCycle},
@@ -102,29 +101,25 @@ func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) loca
 			options[1].Value = string(H23HourCycle)
 		}
 	}
-	result := localematcher.ResolveLocale(localematcher.ResolveOptions{
-		Algorithm:             matcher,
+	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
+		Locales:               locales,
+		Fallback:              fallback,
+		LocaleMatcher:         cfg.localeMatcher,
 		Matcher:               dateLocaleMatcher(),
-		Requested:             ecma402.RequestedLocaleStrings(locales),
-		DefaultLocale:         defaultLocale,
 		RelevantExtensionKeys: []string{"ca", "hc", "nu"},
 		OptionValues:          options,
 		LocaleData:            dateLocaleData{},
 	})
-	cldrLoc, ok := cldrdate.ResolveLocale(result.DataLocale)
+	cldrLoc, ok := cldrdate.ResolveLocale(resolution.DataLocale)
 	if !ok {
 		cldrLoc, _ = cldrdate.ResolveLocale(defaultLocale)
 	}
-	resolvedLocale, err := locale.Parse(result.Locale)
-	if err != nil {
-		resolvedLocale = fallback
-	}
 	return localeResolution{
-		locale:          resolvedLocale,
+		locale:          resolution.Locale,
 		cldrLoc:         cldrLoc,
-		calendar:        defaultString(result.Extensions["ca"], "gregory"),
-		numberingSystem: defaultString(result.Extensions["nu"], cldrLoc.DefaultNumberingSystem()),
-		hourCycle:       result.Extensions["hc"],
+		calendar:        defaultString(resolution.Extensions["ca"], "gregory"),
+		numberingSystem: defaultString(resolution.Extensions["nu"], cldrLoc.DefaultNumberingSystem()),
+		hourCycle:       resolution.Extensions["hc"],
 	}
 }
 
