@@ -15,6 +15,11 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 	t.Parallel()
 
 	conformance.RunFixtures(t, ".", func(t *testing.T, fixture conformance.Fixture) {
+		if fixture.Feature == "supportedLocalesOf" {
+			runSupportedLocalesFixture(t, fixture)
+			return
+		}
+
 		format, err := New(locale.List{locale.MustParse(fixture.Locale)}, conformanceCollatorOptions(t, fixture))
 		if fixture.ErrorCode != "" {
 			if !errors.Is(err, conformanceCollatorError(t, fixture.ErrorCode)) {
@@ -42,6 +47,33 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 			t.Fatalf("Compare(%q, %q) sign = %d, want %d", input.Left, input.Right, got, *fixture.ExpectedComparison)
 		}
 	})
+}
+
+func runSupportedLocalesFixture(t *testing.T, fixture conformance.Fixture) {
+	t.Helper()
+
+	var tags []string
+	if err := json.Unmarshal(fixture.Input, &tags); err != nil {
+		t.Fatal(err)
+	}
+	got, err := SupportedLocalesOf(locale.MustParseList(tags...), conformanceCollatorOptions(t, fixture))
+	if fixture.ErrorCode != "" {
+		if !errors.Is(err, conformanceCollatorError(t, fixture.ErrorCode)) {
+			t.Fatalf("SupportedLocalesOf() error = %v, want %q", err, fixture.ErrorCode)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(fixture.ExpectedLocales) {
+		t.Fatalf("SupportedLocalesOf(%v) = %v, want %v", tags, got.Strings(), fixture.ExpectedLocales)
+	}
+	for i, want := range fixture.ExpectedLocales {
+		if got[i].String() != want {
+			t.Fatalf("SupportedLocalesOf(%v)[%d] = %q, want %q", tags, i, got[i].String(), want)
+		}
+	}
 }
 
 func assertCollatorResolvedOptions(t *testing.T, fixture conformance.Fixture, got ResolvedOptions) {

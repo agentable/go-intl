@@ -2,8 +2,10 @@ package segmenter
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -12,7 +14,18 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 	t.Parallel()
 
 	conformance.RunFixtures(t, ".", func(t *testing.T, fixture conformance.Fixture) {
+		if fixture.Feature == "supportedLocalesOf" {
+			runSupportedLocalesFixture(t, fixture)
+			return
+		}
+
 		format, err := New(locale.List{locale.MustParse(fixture.Locale)}, conformanceSegmenterOptions(t, fixture))
+		if fixture.ErrorCode != "" {
+			if !errors.Is(err, conformanceSegmenterError(t, fixture.ErrorCode)) {
+				t.Fatalf("New() error = %v, want %q", err, fixture.ErrorCode)
+			}
+			return
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -31,6 +44,33 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 			assertSegmentRecord(t, input, i, got[i], want)
 		}
 	})
+}
+
+func runSupportedLocalesFixture(t *testing.T, fixture conformance.Fixture) {
+	t.Helper()
+
+	var tags []string
+	if err := json.Unmarshal(fixture.Input, &tags); err != nil {
+		t.Fatal(err)
+	}
+	got, err := SupportedLocalesOf(locale.MustParseList(tags...), conformanceSegmenterOptions(t, fixture))
+	if fixture.ErrorCode != "" {
+		if !errors.Is(err, conformanceSegmenterError(t, fixture.ErrorCode)) {
+			t.Fatalf("SupportedLocalesOf() error = %v, want %q", err, fixture.ErrorCode)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(fixture.ExpectedLocales) {
+		t.Fatalf("SupportedLocalesOf(%v) = %v, want %v", tags, got.Strings(), fixture.ExpectedLocales)
+	}
+	for i, want := range fixture.ExpectedLocales {
+		if got[i].String() != want {
+			t.Fatalf("SupportedLocalesOf(%v)[%d] = %q, want %q", tags, i, got[i].String(), want)
+		}
+	}
 }
 
 func conformanceSegmenterOptions(t *testing.T, fixture conformance.Fixture) Options {
@@ -67,5 +107,17 @@ func assertSegmentRecord(t *testing.T, input string, i int, got Segment, want co
 	}
 	if want.IsWordLike != nil && got.IsWordLike != *want.IsWordLike {
 		t.Fatalf("Segment(%q)[%d].IsWordLike = %v, want %v", input, i, got.IsWordLike, *want.IsWordLike)
+	}
+}
+
+func conformanceSegmenterError(t *testing.T, code string) error {
+	t.Helper()
+
+	switch code {
+	case "invalid_option":
+		return intlerr.ErrInvalidOption
+	default:
+		t.Fatalf("unsupported segmenter errorCode %q", code)
+		return nil
 	}
 }

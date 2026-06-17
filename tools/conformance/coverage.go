@@ -14,13 +14,19 @@ import (
 var (
 	errMissingSkipListField    = errors.New("missing skip-list field")
 	errInvalidSkipListCategory = errors.New("invalid skip-list category")
+	errInvalidSkipListRoute    = errors.New("invalid skip-list route")
 	errDuplicateSkipListSource = errors.New("duplicate skip-list source")
+	errMissingSkipListWitness  = errors.New("missing skip-list witness")
+	errUnknownSkipListWitness  = errors.New("unknown skip-list witness")
+	errInvalidSkipListWitness  = errors.New("invalid skip-list witness")
 )
 
 type skipListEntry struct {
 	Source       string `json:"source"`
 	Category     string `json:"category"`
+	Route        string `json:"route"`
 	Reason       string `json:"reason"`
+	Witness      string `json:"witness,omitempty"`
 	DivergenceID string `json:"divergenceId,omitempty"`
 }
 
@@ -44,6 +50,7 @@ type packageCoverage struct {
 type skipListCoverageReport struct {
 	Entries    int
 	Categories map[string]int
+	Routes     map[string]int
 }
 
 func loadSkipList(path string) ([]skipListEntry, error) {
@@ -58,8 +65,16 @@ func loadSkipList(path string) ([]skipListEntry, error) {
 	return entries, nil
 }
 
-func ValidateSkipList(path string, _ []string) error {
+func ValidateSkipList(path string, packageRoots []string) error {
 	entries, err := loadSkipList(path)
+	if err != nil {
+		return err
+	}
+	return validateSkipListEntries(path, entries, packageRoots)
+}
+
+func validateSkipListEntries(path string, entries []skipListEntry, packageRoots []string) error {
+	witnesses, err := loadSkipListWitnesses(packageRoots)
 	if err != nil {
 		return err
 	}
@@ -75,6 +90,9 @@ func ValidateSkipList(path string, _ []string) error {
 		if err := validateSkipListCategory(path, entry); err != nil {
 			return err
 		}
+		if err := validateSkipListRoute(path, entry, witnesses); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -86,6 +104,8 @@ func validateSkipListRequiredFields(path string, entry skipListEntry) error {
 	switch {
 	case entry.Category == "":
 		return fmt.Errorf("%s: source %q missing required field %q: %w", path, entry.Source, "category", errMissingSkipListField)
+	case entry.Route == "":
+		return fmt.Errorf("%s: source %q missing required field %q: %w", path, entry.Source, "route", errMissingSkipListField)
 	case entry.Reason == "":
 		return fmt.Errorf("%s: source %q missing required field %q: %w", path, entry.Source, "reason", errMissingSkipListField)
 	default:
@@ -101,6 +121,45 @@ func validateSkipListCategory(path string, entry skipListEntry) error {
 		return fmt.Errorf("%s: source %q category %q has divergenceId %q: %w", path, entry.Source, entry.Category, entry.DivergenceID, errInvalidSkipListCategory)
 	}
 	return nil
+}
+
+func validateSkipListRoute(path string, entry skipListEntry, witnesses map[string]Fixture) error {
+	if !isSkipListRoute(entry.Route) {
+		return fmt.Errorf("%s: source %q route %q: %w", path, entry.Source, entry.Route, errInvalidSkipListRoute)
+	}
+	if entry.Route != "native-witness" {
+		if entry.Witness != "" {
+			return fmt.Errorf("%s: source %q route %q has witness %q: %w", path, entry.Source, entry.Route, entry.Witness, errInvalidSkipListWitness)
+		}
+		return nil
+	}
+	if entry.Witness == "" {
+		return fmt.Errorf("%s: source %q route %q missing witness: %w", path, entry.Source, entry.Route, errMissingSkipListWitness)
+	}
+	witness, ok := witnesses[entry.Witness]
+	if !ok {
+		return fmt.Errorf("%s: source %q route %q witness %q does not match any fixture: %w", path, entry.Source, entry.Route, entry.Witness, errUnknownSkipListWitness)
+	}
+	if fixtureSourceKind(witness.Source) != "node" || !fixtureHasNativeExpectation(witness) {
+		return fmt.Errorf("%s: source %q route %q witness %q is not an observable native fixture: %w", path, entry.Source, entry.Route, entry.Witness, errInvalidSkipListWitness)
+	}
+	return nil
+}
+
+func loadSkipListWitnesses(packageRoots []string) (map[string]Fixture, error) {
+	witnesses := map[string]Fixture{}
+	for _, root := range packageRoots {
+		fixtures, err := LoadFixtures(root)
+		if err != nil {
+			return nil, err
+		}
+		for _, fixture := range fixtures {
+			if fixtureSourceKind(fixture.Source) == "node" {
+				witnesses[fixture.ID] = fixture
+			}
+		}
+	}
+	return witnesses, nil
 }
 
 func CoverageReport(packageRoots []string, skipListPath string) (string, error) {
@@ -170,6 +229,11 @@ func formatCoverageReport(report coverageReport) string {
 	for _, category := range categories {
 		fmt.Fprintf(&b, " %s=%d", category, report.SkipList.Categories[category])
 	}
+	routes := slices.Sorted(maps.Keys(report.SkipList.Routes))
+	b.WriteString(" routes")
+	for _, route := range routes {
+		fmt.Fprintf(&b, " %s=%d", route, report.SkipList.Routes[route])
+	}
 	b.WriteByte('\n')
 	return b.String()
 }
@@ -217,9 +281,14 @@ func (p *packageCoverage) add(other packageCoverage) {
 }
 
 func skipListCoverage(entries []skipListEntry) skipListCoverageReport {
-	coverage := skipListCoverageReport{Entries: len(entries), Categories: make(map[string]int, len(entries))}
+	coverage := skipListCoverageReport{
+		Entries:    len(entries),
+		Categories: make(map[string]int, len(entries)),
+		Routes:     make(map[string]int, len(entries)),
+	}
 	for _, entry := range entries {
 		coverage.Categories[entry.Category]++
+		coverage.Routes[entry.Route]++
 	}
 	return coverage
 }
@@ -228,6 +297,17 @@ func isSkipListCategory(category string) bool {
 	switch category {
 	case "unsupported-extractor-shape",
 		"partial-extraction":
+		return true
+	default:
+		return false
+	}
+}
+
+func isSkipListRoute(route string) bool {
+	switch route {
+	case "extractor",
+		"native-witness",
+		"not-applicable":
 		return true
 	default:
 		return false

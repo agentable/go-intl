@@ -1,0 +1,12 @@
+[
+  {
+    "id": "numberformat-node-v26-invalid-style",
+    "source": "node:v26.0.0:numberformat:errors",
+    "locale": "en-US",
+    "options": {
+      "style": "invalid"
+    },
+    "input": 1,
+    "errorCode": "invalid_option"
+  }
+]

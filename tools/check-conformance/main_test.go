@@ -231,7 +231,7 @@ func TestRunValidatesSkipListAndWritesCoverageReport(t *testing.T) {
 	]`)
 	skipListPath := filepath.Join(root, ".skip-list.json")
 	if err := os.WriteFile(skipListPath, []byte(`[
-		{"source":"formatjs:unsupported","category":"unsupported-extractor-shape","reason":"source uses assertions the extractor cannot reduce"}
+		{"source":"formatjs:unsupported","category":"unsupported-extractor-shape","route":"extractor","reason":"source uses assertions the extractor cannot reduce"}
 	]`), 0o666); err != nil {
 		t.Fatalf("write skip-list: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestRunValidatesSkipListAndWritesCoverageReport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run(-coverage) error = %v, want nil", err)
 	}
-	for _, want := range []string{"conformance coverage:", "numberformat:", "formatjs=1", "unsupported-extractor-shape=1"} {
+	for _, want := range []string{"conformance coverage:", "numberformat:", "formatjs=1", "unsupported-extractor-shape=1", "routes extractor=1"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("coverage output = %q, want %q", out.String(), want)
 		}
@@ -266,6 +266,9 @@ func TestRunValidatesNodeWitnessCoverage(t *testing.T) {
 
 	writeFixtureFile(t, root, "numberformat", "numberformat/testdata/conformance/node-v26/resolved-options.json", `[
 		{"id":"numberformat-node-v26-resolved","source":"node:v26.0.0:numberformat:resolved-options","locale":"en-US","options":{},"input":1,"expected":"1","expectedResolvedOptions":{"locale":"en-US"}}
+	]`)
+	writeFixtureFile(t, root, "numberformat", "numberformat/testdata/conformance/node-v26/errors.json", `[
+		{"id":"numberformat-node-v26-invalid-style","source":"node:v26.0.0:numberformat:errors","locale":"en-US","options":{"style":"invalid"},"input":1,"errorCode":"invalid_option"}
 	]`)
 	if err := run([]string{"-node-witness", packageDir}, io.Discard); err != nil {
 		t.Fatalf("run(-node-witness) error = %v, want nil", err)

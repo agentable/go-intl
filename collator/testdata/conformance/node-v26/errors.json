@@ -1,0 +1,15 @@
+[
+  {
+    "id": "collator-node-v26-invalid-sensitivity",
+    "source": "node:v26.0.0:collator:errors",
+    "locale": "en-US",
+    "options": {
+      "sensitivity": "bad"
+    },
+    "input": {
+      "left": "a",
+      "right": "b"
+    },
+    "errorCode": "invalidOption"
+  }
+]

@@ -17,6 +17,9 @@ var (
 	errInvalidDivergenceStatus     = errors.New("invalid divergence status")
 	errInvalidDivergenceReviewDate = errors.New("invalid divergence review date")
 	errDivergenceSourceMismatch    = errors.New("divergence source mismatch")
+	errMissingDivergenceWitness    = errors.New("missing divergence native witness")
+	errUnknownDivergenceWitness    = errors.New("unknown divergence native witness")
+	errInvalidDivergenceWitness    = errors.New("invalid divergence native witness")
 )
 
 func loadDivergenceIDs(path string) (map[string]struct{}, error) {
@@ -73,6 +76,8 @@ func loadActiveDivergences(path string) (map[string]divergenceEntry, error) {
 			current.Owner = value
 		case "reason":
 			current.Reason = value
+		case "native_witness":
+			current.NativeWitness = value
 		case "review_after":
 			current.ReviewAfter = value
 		case "removal_path":
@@ -124,13 +129,14 @@ func missingDivergenceField(entry divergenceEntry) string {
 }
 
 type divergenceEntry struct {
-	ID          string
-	Source      string
-	Owner       string
-	Status      string
-	Reason      string
-	ReviewAfter string
-	RemovalPath string
+	ID            string
+	Source        string
+	Owner         string
+	Status        string
+	Reason        string
+	NativeWitness string
+	ReviewAfter   string
+	RemovalPath   string
 }
 
 func ValidateDivergences(root string) error {
@@ -166,6 +172,42 @@ func ValidateDivergences(root string) error {
 		if divergence.Source != fixture.Source {
 			return fmt.Errorf("%s: divergence id %q source %q does not match fixture source %q: %w", divergencePath, id, divergence.Source, fixture.Source, errDivergenceSourceMismatch)
 		}
+		if err := validateDivergenceNativeWitness(divergencePath, divergence, fixturesByID); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func validateDivergenceNativeWitness(path string, divergence divergenceEntry, fixturesByID map[string]Fixture) error {
+	if divergence.Owner != "datetimeformat" {
+		return nil
+	}
+	if divergence.NativeWitness == "" {
+		return fmt.Errorf("%s: divergence id %q missing native_witness: %w", path, divergence.ID, errMissingDivergenceWitness)
+	}
+	witness, ok := fixturesByID[divergence.NativeWitness]
+	if !ok {
+		return fmt.Errorf("%s: divergence id %q native_witness %q does not match any fixture: %w", path, divergence.ID, divergence.NativeWitness, errUnknownDivergenceWitness)
+	}
+	if fixtureSourceKind(witness.Source) != "node" {
+		return fmt.Errorf("%s: divergence id %q native_witness %q source %q is not node: %w", path, divergence.ID, divergence.NativeWitness, witness.Source, errInvalidDivergenceWitness)
+	}
+	if !fixtureHasNativeExpectation(witness) {
+		return fmt.Errorf("%s: divergence id %q native_witness %q has no observable expectation: %w", path, divergence.ID, divergence.NativeWitness, errInvalidDivergenceWitness)
+	}
+	return nil
+}
+
+func fixtureHasNativeExpectation(fixture Fixture) bool {
+	return fixture.Expected != nil ||
+		fixture.ExpectedOK != nil ||
+		len(fixture.ExpectedLocales) > 0 ||
+		len(fixture.ExpectedParts) > 0 ||
+		fixture.ExpectedRange != nil ||
+		len(fixture.ExpectedRangeParts) > 0 ||
+		fixture.ExpectedComparison != nil ||
+		len(fixture.ExpectedResolved) > 0 ||
+		len(fixture.ExpectedSegments) > 0 ||
+		fixture.ErrorCode != ""
 }

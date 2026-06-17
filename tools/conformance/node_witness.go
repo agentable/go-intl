@@ -73,11 +73,14 @@ func nodeWitnessCoverageMatrix() []nodeWitnessCoverageTopic {
 		requiredNodeTopic("locale", "Unicode extension canonicalization", func(f Fixture) bool {
 			return f.Source == "node:v26.0.0:locale:canonicalization" && f.Feature == "canonicalize" && f.Expected != nil
 		}),
+		requiredNodeTopic("locale", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:locale:errors")),
 		requiredNodeTopic("numberformat", "smoke format", nodeSourceHasExpected("node:v26.0.0:numberformat")),
 		requiredNodeTopic("numberformat", "resolved-options branches", func(f Fixture) bool {
 			return f.Source == "node:v26.0.0:numberformat:resolved-options" && len(f.ExpectedResolved) > 0
 		}),
+		requiredNodeTopic("numberformat", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:numberformat:errors")),
 		requiredNodeTopic("datetimeformat", "smoke format", nodeSourceHasExpected("node:v26.0.0:datetimeformat")),
+		requiredNodeTopic("datetimeformat", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:datetimeformat:errors")),
 		requiredNodeTopic("datetimeformat", "range parts", func(f Fixture) bool {
 			return f.Source == "node:v26.0.0:datetimeformat:p4-deep-contract" && len(f.ExpectedRangeParts) > 0 && len(f.ExpectedResolved) > 0
 		}),
@@ -87,16 +90,22 @@ func nodeWitnessCoverageMatrix() []nodeWitnessCoverageTopic {
 		requiredNodeTopic("pluralrules", "smoke select", func(f Fixture) bool {
 			return f.Source == "node:v26.0.0:pluralrules" && f.Feature == "select" && f.Expected != nil
 		}),
+		requiredNodeTopic("pluralrules", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:pluralrules:errors")),
 		requiredNodeTopic("listformat", "smoke format", nodeSourceHasExpected("node:v26.0.0:listformat")),
+		requiredNodeTopic("listformat", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:listformat:errors")),
 		requiredNodeTopic("relativetimeformat", "numeric auto literal", nodeSourceHasExpected("node:v26.0.0:relativetimeformat")),
+		requiredNodeTopic("relativetimeformat", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:relativetimeformat:errors")),
 		requiredNodeTopic("durationformat", "smoke format", nodeSourceHasExpected("node:v26.0.0:durationformat")),
+		requiredNodeTopic("durationformat", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:durationformat:errors")),
 		requiredNodeTopic("durationformat", "digital parts and resolved options", func(f Fixture) bool {
 			return f.Source == "node:v26.0.0:durationformat:digital" && len(f.ExpectedParts) > 0 && len(f.ExpectedResolved) > 0
 		}),
 		requiredNodeTopic("displaynames", "smoke display name lookup", func(f Fixture) bool {
 			return strings.EqualFold(f.Source, "node:v26.0.0:displaynames") && f.Expected != nil && f.ExpectedOK != nil
 		}),
+		requiredNodeTopic("displaynames", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:displaynames:errors")),
 		requiredNodeTopic("collator", "smoke compare", nodeSourceHasComparison("node:v26.0.0:collator")),
+		requiredNodeTopic("collator", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:collator:errors")),
 		requiredNodeTopic("collator", "option resolved contracts", func(f Fixture) bool {
 			return f.Source == "node:v26.0.0:collator:option-contract" && f.ExpectedComparison != nil && len(f.ExpectedResolved) > 0
 		}),
@@ -104,9 +113,9 @@ func nodeWitnessCoverageMatrix() []nodeWitnessCoverageTopic {
 			return f.Source == "node:v26.0.0:collator:backend-proof" && f.ExpectedComparison != nil && len(f.ExpectedResolved) > 0
 		}),
 		requiredNodeTopic("segmenter", "smoke segmentation", nodeSourceHasSegments("node:v26.0.0:segmenter")),
+		requiredNodeTopic("segmenter", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:segmenter:errors")),
 		requiredNodeTopic("segmenter", "advertised locale word/sentence contract", nodeSourceHasSegments("node:v26.0.0:segmenter:locale-contract")),
 		requiredNodeTopic("segmenter", "tailored locale withheld contract", nodeSourceHasSegments("node:v26.0.0:segmenter:tailored-locale-contract")),
-		intentionalNodeGap("all", "native error/refusal fixtures", "constructor error semantics are currently covered by package tests and manual fixtures; Node-generated error fixtures have not entered the witness generator yet"),
 	}
 }
 
@@ -133,5 +142,11 @@ func nodeSourceHasComparison(source string) func(Fixture) bool {
 func nodeSourceHasSegments(source string) func(Fixture) bool {
 	return func(f Fixture) bool {
 		return f.Source == source && len(f.ExpectedSegments) > 0
+	}
+}
+
+func nodeSourceHasError(source string) func(Fixture) bool {
+	return func(f Fixture) bool {
+		return f.Source == source && f.ErrorCode != ""
 	}
 }

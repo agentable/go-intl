@@ -296,32 +296,6 @@ func TestSupportedLocalesOf(t *testing.T) {
 	}
 }
 
-func TestSupportedLocalesOfDoesNotAdvertiseDictionaryLocales(t *testing.T) {
-	t.Parallel()
-	requested := locale.List{
-		locale.MustParse("en"),
-		locale.MustParse("ja"),
-		locale.MustParse("ja-JP"),
-		locale.MustParse("km"),
-		locale.MustParse("lo"),
-		locale.MustParse("my"),
-		locale.MustParse("th"),
-		locale.MustParse("zh"),
-		locale.MustParse("zh-Hans"),
-		locale.MustParse("zh-Hans-CN"),
-		locale.MustParse("zh-Hant"),
-		locale.MustParse("zh-Hant-TW"),
-	}
-	got, err := segmenter.SupportedLocalesOf(requested, segmenter.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"en"}
-	if !slices.Equal(got.Strings(), want) {
-		t.Errorf("SupportedLocalesOf(dictionary locales) = %v, want %v", got.Strings(), want)
-	}
-}
-
 func TestSupportedLocalesOfErrors(t *testing.T) {
 	t.Parallel()
 

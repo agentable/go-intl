@@ -429,25 +429,6 @@ func TestSupportedLocalesOf(t *testing.T) {
 	}
 }
 
-func TestSupportedLocalesOfFiltersUnsupportedLocaleExtensions(t *testing.T) {
-	t.Parallel()
-
-	requested := locale.MustParseList("de-u-co-phonebk", "en-u-kf-upper", "de", "en-u-kf-false")
-	got, err := collator.SupportedLocalesOf(requested, collator.Options{})
-	if err != nil {
-		t.Fatalf("SupportedLocalesOf() error = %v", err)
-	}
-	want := []string{"de", "en-u-kf-false"}
-	if len(got) != len(want) {
-		t.Fatalf("SupportedLocalesOf() = %v, want %v", got.Strings(), want)
-	}
-	for i := range want {
-		if got[i].String() != want[i] {
-			t.Fatalf("SupportedLocalesOf()[%d] = %q, want %q", i, got[i].String(), want[i])
-		}
-	}
-}
-
 func TestSupportedLocalesOfErrors(t *testing.T) {
 	t.Parallel()
 

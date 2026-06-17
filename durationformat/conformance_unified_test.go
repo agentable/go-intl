@@ -2,9 +2,11 @@ package durationformat
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -21,10 +23,13 @@ func TestDurationFormatConformance(t *testing.T) {
 			t.Parallel()
 			loc := locale.MustParse(fixture.Locale)
 			format, err := New(locale.List{loc}, conformanceDurationOptions(t, fixture))
-			if err != nil {
-				if fixture.ErrorCode == "invalid-option" {
-					return
+			if fixture.ErrorCode != "" {
+				if !errors.Is(err, conformanceDurationError(t, fixture.ErrorCode)) {
+					t.Fatalf("New(%q) error = %v, want %q", fixture.Locale, err, fixture.ErrorCode)
 				}
+				return
+			}
+			if err != nil {
 				t.Fatalf("New(%q) error = %v", fixture.Locale, err)
 			}
 			if len(fixture.ExpectedResolved) != 0 {
@@ -117,6 +122,18 @@ func conformanceDurationOptions(t *testing.T, fixture conformance.Fixture) Optio
 		}
 	}
 	return opts
+}
+
+func conformanceDurationError(t *testing.T, code string) error {
+	t.Helper()
+
+	switch code {
+	case "invalid_option", "invalid-option":
+		return intlerr.ErrInvalidOption
+	default:
+		t.Fatalf("unsupported durationformat errorCode %q", code)
+		return nil
+	}
 }
 
 func conformanceDurationInput(t *testing.T, fixture conformance.Fixture) Duration {

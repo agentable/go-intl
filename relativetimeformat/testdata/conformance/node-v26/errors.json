@@ -1,0 +1,15 @@
+[
+  {
+    "id": "relativetimeformat-node-v26-invalid-numeric",
+    "source": "node:v26.0.0:relativetimeformat:errors",
+    "locale": "en-US",
+    "options": {
+      "numeric": "bad"
+    },
+    "input": {
+      "value": 1,
+      "unit": "day"
+    },
+    "errorCode": "invalid_option"
+  }
+]

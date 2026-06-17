@@ -2,8 +2,10 @@ package locale
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/tools/conformance"
 )
 
@@ -15,10 +17,19 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 		if err := json.Unmarshal(fixture.Input, &input); err != nil {
 			t.Fatal(err)
 		}
+		loc, err := Parse(input)
+		if fixture.ErrorCode != "" {
+			if !errors.Is(err, conformanceLocaleError(t, fixture.ErrorCode)) {
+				t.Fatalf("Parse(%q) error = %v, want %q", input, err, fixture.ErrorCode)
+			}
+			return
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
 		if fixture.Expected == nil {
 			t.Fatal("fixture expected is required")
 		}
-		loc := MustParse(input)
 		got := ""
 		switch fixture.Feature {
 		case "canonicalize":
@@ -34,4 +45,16 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 			t.Fatalf("%s(%q) = %q, want %q", fixture.Feature, input, got, *fixture.Expected)
 		}
 	})
+}
+
+func conformanceLocaleError(t *testing.T, code string) error {
+	t.Helper()
+
+	switch code {
+	case "invalid_value":
+		return intlerr.ErrInvalidValue
+	default:
+		t.Fatalf("unsupported locale errorCode %q", code)
+		return nil
+	}
 }

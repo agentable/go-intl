@@ -15,8 +15,8 @@ func TestValidateSkipListAllowsOnlyExtractorLimitCategories(t *testing.T) {
 	root := t.TempDir()
 	skipListPath := filepath.Join(root, ".skip-list.json")
 	if err := os.WriteFile(skipListPath, []byte(`[
-		{"source":"formatjs:unsupported","category":"unsupported-extractor-shape","reason":"unsupported shape"},
-		{"source":"formatjs:partial","category":"partial-extraction","reason":"remaining assertions"}
+		{"source":"formatjs:unsupported","category":"unsupported-extractor-shape","route":"extractor","reason":"unsupported shape"},
+		{"source":"formatjs:partial","category":"partial-extraction","route":"extractor","reason":"remaining assertions"}
 	]`), 0o666); err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestValidateSkipListAllowsOnlyExtractorLimitCategories(t *testing.T) {
 	}
 
 	if err := os.WriteFile(skipListPath, []byte(`[
-		{"source":"formatjs:invalid","category":"typo","reason":"invalid category"}
+		{"source":"formatjs:invalid","category":"typo","route":"extractor","reason":"invalid category"}
 	]`), 0o666); err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestValidateSkipListAllowsOnlyExtractorLimitCategories(t *testing.T) {
 	}
 
 	if err := os.WriteFile(skipListPath, []byte(`[
-		{"source":"formatjs:snapshot","category":"snapshot-source","reason":"reference snapshot output has no source input mapping"}
+		{"source":"formatjs:snapshot","category":"snapshot-source","route":"extractor","reason":"reference snapshot output has no source input mapping"}
 	]`), 0o666); err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestValidateSkipListAllowsOnlyExtractorLimitCategories(t *testing.T) {
 	}
 
 	if err := os.WriteFile(skipListPath, []byte(`[
-		{"source":"formatjs:accepted","category":"accepted-divergence","reason":"accepted mismatch","divergenceId":"nf-accepted"}
+		{"source":"formatjs:accepted","category":"accepted-divergence","route":"extractor","reason":"accepted mismatch","divergenceId":"nf-accepted"}
 	]`), 0o666); err != nil {
 		t.Fatal(err)
 	}
@@ -88,21 +88,26 @@ func TestValidateSkipListRejectsMalformedEntries(t *testing.T) {
 			want: errMissingSkipListField,
 		},
 		{
+			name: "missing route",
+			data: `[{"source":"formatjs:one","category":"partial-extraction","reason":"pending"}]`,
+			want: errMissingSkipListField,
+		},
+		{
 			name: "duplicate source",
 			data: `[
-				{"source":"formatjs:one","category":"partial-extraction","reason":"pending"},
-				{"source":"formatjs:one","category":"partial-extraction","reason":"still pending"}
+				{"source":"formatjs:one","category":"partial-extraction","route":"extractor","reason":"pending"},
+				{"source":"formatjs:one","category":"partial-extraction","route":"extractor","reason":"still pending"}
 			]`,
 			want: errDuplicateSkipListSource,
 		},
 		{
 			name: "unexpected divergence id",
-			data: `[{"source":"formatjs:one","category":"partial-extraction","reason":"pending","divergenceId":"nf-one"}]`,
+			data: `[{"source":"formatjs:one","category":"partial-extraction","route":"extractor","reason":"pending","divergenceId":"nf-one"}]`,
 			want: errInvalidSkipListCategory,
 		},
 		{
 			name: "accepted divergence category",
-			data: `[{"source":"formatjs:one","category":"accepted-divergence","reason":"accepted mismatch"}]`,
+			data: `[{"source":"formatjs:one","category":"accepted-divergence","route":"extractor","reason":"accepted mismatch"}]`,
 			want: errInvalidSkipListCategory,
 		},
 	}
@@ -119,6 +124,35 @@ func TestValidateSkipListRejectsMalformedEntries(t *testing.T) {
 				t.Fatalf("ValidateSkipList() error = %v, want %v", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestValidateSkipListAuditsNativeWitnessRoutes(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	packageDir := filepath.Join(root, "datetimeformat")
+	writeCoverageFixtureFile(t, packageDir, "node-v26/range.json", `[
+		{"id":"dtf-node-range","source":"node:v26.0.0:datetimeformat:p4-deep-contract","locale":"en","options":{},"input":{"start":"2021-01-10T00:00:00Z","end":"2021-01-20T00:00:00Z"},"expectedRange":"Jan 10 - Jan 20"}
+	]`)
+	skipListPath := filepath.Join(root, ".skip-list.json")
+	if err := os.WriteFile(skipListPath, []byte(`[
+		{"source":"formatjs:covered","category":"unsupported-extractor-shape","route":"native-witness","witness":"dtf-node-missing","reason":"native lane owns this observable case"}
+	]`), 0o666); err != nil {
+		t.Fatal(err)
+	}
+	err := ValidateSkipList(skipListPath, []string{packageDir})
+	if !errors.Is(err, errUnknownSkipListWitness) {
+		t.Fatalf("ValidateSkipList() error = %v, want unknown skip-list witness", err)
+	}
+
+	if err := os.WriteFile(skipListPath, []byte(`[
+		{"source":"formatjs:covered","category":"unsupported-extractor-shape","route":"native-witness","witness":"dtf-node-range","reason":"native lane owns this observable case"}
+	]`), 0o666); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateSkipList(skipListPath, []string{packageDir}); err != nil {
+		t.Fatalf("ValidateSkipList() error = %v, want nil", err)
 	}
 }
 
@@ -144,8 +178,8 @@ func TestCoverageReportCountsFixtureAndSkipHealth(t *testing.T) {
 	}
 	skipListPath := filepath.Join(root, ".skip-list.json")
 	if err := os.WriteFile(skipListPath, []byte(`[
-		{"source":"formatjs:partial","category":"partial-extraction","reason":"remaining assertions"},
-		{"source":"formatjs:unsupported","category":"unsupported-extractor-shape","reason":"unsupported shape"}
+		{"source":"formatjs:partial","category":"partial-extraction","route":"extractor","reason":"remaining assertions"},
+		{"source":"formatjs:unsupported","category":"unsupported-extractor-shape","route":"not-applicable","reason":"unsupported shape"}
 	]`), 0o666); err != nil {
 		t.Fatal(err)
 	}
@@ -166,8 +200,11 @@ func TestCoverageReportCountsFixtureAndSkipHealth(t *testing.T) {
 	if report.SkipList.Entries != 2 || report.SkipList.Categories["partial-extraction"] != 1 || report.SkipList.Categories["unsupported-extractor-shape"] != 1 {
 		t.Fatalf("skip coverage = %+v, want partial-extraction=1 and unsupported-extractor-shape=1", report.SkipList)
 	}
+	if report.SkipList.Routes["extractor"] != 1 || report.SkipList.Routes["not-applicable"] != 1 {
+		t.Fatalf("skip routes = %+v, want extractor=1 and not-applicable=1", report.SkipList.Routes)
+	}
 	output := formatCoverageReport(report)
-	for _, want := range []string{"numberformat:", "fixtures=3", "partial-extraction=1", "unsupported-extractor-shape=1"} {
+	for _, want := range []string{"numberformat:", "fixtures=3", "partial-extraction=1", "unsupported-extractor-shape=1", "routes extractor=1 not-applicable=1"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("formatCoverageReport() = %q, want %q", output, want)
 		}
@@ -344,6 +381,29 @@ func TestValidateDivergencesAuditsActiveEntries(t *testing.T) {
 	err = ValidateDivergences(packageDir)
 	if !errors.Is(err, errDivergenceSourceMismatch) {
 		t.Fatalf("ValidateDivergences() error = %v, want source mismatch", err)
+	}
+}
+
+func TestValidateDivergencesRequiresDateTimeFormatNativeWitness(t *testing.T) {
+	t.Parallel()
+
+	packageDir := filepath.Join(t.TempDir(), "datetimeformat")
+	writeCoverageFixtureFile(t, packageDir, "formatjs/range.json", `[
+		{"id":"dtf-formatjs-range","source":"formatjs:packages/intl-datetimeformat/tests/format-range.test.ts","locale":"en","options":{},"input":{"start":"2021-01-10T00:00:00Z","end":"2021-01-20T00:00:00Z"},"expectedRange":"Jan 10 - Jan 20"}
+	]`)
+	writeCoverageFixtureFile(t, packageDir, "node-v26/range.json", `[
+		{"id":"dtf-node-range","source":"node:v26.0.0:datetimeformat:p4-deep-contract","locale":"en","options":{},"input":{"start":"2021-01-10T00:00:00Z","end":"2021-01-20T00:00:00Z"},"expectedRange":"Jan 10 - Jan 20","expectedRangeParts":[{"type":"month","value":"Jan","source":"shared"}]}
+	]`)
+
+	writeDivergenceFile(t, packageDir, "id: dtf-formatjs-range\nsource: formatjs:packages/intl-datetimeformat/tests/format-range.test.ts\nowner: datetimeformat\nreason: accepted DateTimeFormat range mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	err := ValidateDivergences(packageDir)
+	if !errors.Is(err, errMissingDivergenceWitness) {
+		t.Fatalf("ValidateDivergences() error = %v, want missing native_witness", err)
+	}
+
+	writeDivergenceFile(t, packageDir, "id: dtf-formatjs-range\nsource: formatjs:packages/intl-datetimeformat/tests/format-range.test.ts\nowner: datetimeformat\nreason: accepted DateTimeFormat range mismatch\nnative_witness: dtf-node-range\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	if err := ValidateDivergences(packageDir); err != nil {
+		t.Fatalf("ValidateDivergences() error = %v, want nil", err)
 	}
 }
 

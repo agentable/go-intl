@@ -1,0 +1,12 @@
+[
+  {
+    "id": "pluralrules-node-v26-invalid-type",
+    "source": "node:v26.0.0:pluralrules:errors",
+    "locale": "en-US",
+    "options": {
+      "type": "bad"
+    },
+    "input": 1,
+    "errorCode": "invalid_option"
+  }
+]

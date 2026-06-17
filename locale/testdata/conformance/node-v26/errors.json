@@ -1,0 +1,11 @@
+[
+  {
+    "id": "locale-node-v26-invalid-language-tag",
+    "source": "node:v26.0.0:locale:errors",
+    "locale": "en-US",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "bad_locale",
+    "errorCode": "invalid_value"
+  }
+]

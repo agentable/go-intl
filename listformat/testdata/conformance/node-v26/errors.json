@@ -1,0 +1,12 @@
+[
+  {
+    "id": "listformat-node-v26-invalid-style",
+    "source": "node:v26.0.0:listformat:errors",
+    "locale": "en-US",
+    "options": {
+      "style": "bad"
+    },
+    "input": [],
+    "errorCode": "invalid_option"
+  }
+]

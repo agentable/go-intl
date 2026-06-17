@@ -1,0 +1,12 @@
+[
+  {
+    "id": "datetimeformat-node-v26-invalid-date-style",
+    "source": "node:v26.0.0:datetimeformat:errors",
+    "locale": "en-US",
+    "options": {
+      "dateStyle": "bad"
+    },
+    "input": "2026-05-08T12:00:00Z",
+    "errorCode": "invalid_option"
+  }
+]

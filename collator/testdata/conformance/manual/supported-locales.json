@@ -1,0 +1,19 @@
+[
+  {
+    "id": "collator-manual-supported-locales-filters-unsupported-extensions",
+    "source": "manual:collator-capability",
+    "locale": "en",
+    "feature": "supportedLocalesOf",
+    "options": {},
+    "input": [
+      "de-u-co-phonebk",
+      "en-u-kf-upper",
+      "de",
+      "en-u-kf-false"
+    ],
+    "expectedLocales": [
+      "de",
+      "en-u-kf-false"
+    ]
+  }
+]
