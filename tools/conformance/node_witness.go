@@ -123,10 +123,6 @@ func requiredNodeTopic(packageName, topic string, match func(Fixture) bool) node
 	return nodeWitnessCoverageTopic{Package: packageName, Topic: topic, Status: nodeWitnessRequired, Match: match}
 }
 
-func intentionalNodeGap(packageName, topic, reason string) nodeWitnessCoverageTopic {
-	return nodeWitnessCoverageTopic{Package: packageName, Topic: topic, Status: nodeWitnessIntentionalGap, Reason: reason}
-}
-
 func nodeSourceHasExpected(source string) func(Fixture) bool {
 	return func(f Fixture) bool {
 		return f.Source == source && f.Expected != nil
