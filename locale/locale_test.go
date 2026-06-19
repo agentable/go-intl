@@ -52,7 +52,7 @@ func TestParseCanonicalLanguageAliases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
-			if got := MustParse(tc.in).String(); got != tc.want {
+			if got := parseLocaleForTest(tc.in).String(); got != tc.want {
 				t.Fatalf("Parse(%q).String() = %q, want %q", tc.in, got, tc.want)
 			}
 		})
@@ -62,7 +62,7 @@ func TestParseCanonicalLanguageAliases(t *testing.T) {
 func TestParseVariantGetters(t *testing.T) {
 	t.Parallel()
 
-	loc := MustParse("en-Latn-US-emodeng")
+	loc := parseLocaleForTest("en-Latn-US-emodeng")
 	if got := loc.Script(); got != "Latn" {
 		t.Fatalf("Script() = %q, want Latn", got)
 	}
@@ -104,13 +104,13 @@ func TestParsePrivateUseKeepsUnicodeAliasTextOpaque(t *testing.T) {
 func TestLocaleMaximizeAndMinimize(t *testing.T) {
 	t.Parallel()
 
-	if got := MustParse("zh").Maximize().String(); got != "zh-Hans-CN" {
+	if got := parseLocaleForTest("zh").Maximize().String(); got != "zh-Hans-CN" {
 		t.Fatalf("Maximize(zh) = %q, want zh-Hans-CN", got)
 	}
-	if got := MustParse("zh-Hans-CN").Minimize().String(); got != "zh" {
+	if got := parseLocaleForTest("zh-Hans-CN").Minimize().String(); got != "zh" {
 		t.Fatalf("Minimize(zh-Hans-CN) = %q, want zh", got)
 	}
-	if got := MustParse("en-Latn-US").Minimize().String(); got != "en" {
+	if got := parseLocaleForTest("en-Latn-US").Minimize().String(); got != "en" {
 		t.Fatalf("Minimize(en-Latn-US) = %q, want en", got)
 	}
 }
@@ -118,12 +118,12 @@ func TestLocaleMaximizeAndMinimize(t *testing.T) {
 func TestLocaleEqualUsesCanonicalForm(t *testing.T) {
 	t.Parallel()
 
-	loc := MustParse("en-us-U-Ca-Gregorian-Hc-H23")
-	same := MustParse("en-US-u-hc-h23-ca-gregory")
+	loc := parseLocaleForTest("en-us-U-Ca-Gregorian-Hc-H23")
+	same := parseLocaleForTest("en-US-u-hc-h23-ca-gregory")
 	if !loc.Equal(same) {
 		t.Fatalf("Equal() = false, want true for %q and %q", loc.String(), same.String())
 	}
-	different := MustParse("en-US-u-ca-buddhist-hc-h23")
+	different := parseLocaleForTest("en-US-u-ca-buddhist-hc-h23")
 	if loc.Equal(different) {
 		t.Fatalf("Equal() = true, want false for %q and %q", loc.String(), different.String())
 	}
@@ -178,7 +178,7 @@ func TestLocaleNewAppliesAndValidatesOptions(t *testing.T) {
 func TestLocaleInfoUsesExtensionsAndRegionFallbacks(t *testing.T) {
 	t.Parallel()
 
-	loc := MustParse("en-u-ca-buddhist-co-phonebk-hc-h23-nu-thai-fw-fri-rg-gbzzzz")
+	loc := parseLocaleForTest("en-u-ca-buddhist-co-phonebk-hc-h23-nu-thai-fw-fri-rg-gbzzzz")
 	if got := loc.GetCalendars(); len(got) != 1 || got[0] != "buddhist" {
 		t.Fatalf("GetCalendars() = %v, want [buddhist]", got)
 	}
@@ -195,7 +195,7 @@ func TestLocaleInfoUsesExtensionsAndRegionFallbacks(t *testing.T) {
 		t.Fatalf("GetWeekInfo().FirstDay = %v, want Friday", got)
 	}
 
-	subdivision := MustParse("en-u-sd-gbusct")
+	subdivision := parseLocaleForTest("en-u-sd-gbusct")
 	if zones := subdivision.GetTimeZones(); len(zones) != 0 {
 		t.Fatalf("GetTimeZones() for subdivision-only locale = %v, want nil without explicit region", zones)
 	}
@@ -207,7 +207,7 @@ func TestLocaleInfoUsesExtensionsAndRegionFallbacks(t *testing.T) {
 func TestLocaleTextInfoAndUnmarshalText(t *testing.T) {
 	t.Parallel()
 
-	if got := MustParse("ar").GetTextInfo().Direction; got != "rtl" {
+	if got := parseLocaleForTest("ar").GetTextInfo().Direction; got != "rtl" {
 		t.Fatalf("GetTextInfo(ar).Direction = %q, want rtl", got)
 	}
 	var loc Locale
@@ -256,16 +256,16 @@ func assertStructuredLocaleError(t *testing.T, err error, kind intlerr.ErrorKind
 	}
 }
 
-func TestMustParse(t *testing.T) {
+func TestParseLocaleForTestHelper(t *testing.T) {
 	t.Parallel()
 
-	if got := MustParse("en").String(); got != "en" {
-		t.Fatalf("MustParse(en).String() = %q, want en", got)
+	if got := parseLocaleForTest("en").String(); got != "en" {
+		t.Fatalf("parseLocaleForTest(en).String() = %q, want en", got)
 	}
 	defer func() {
 		if recover() == nil {
-			t.Fatal("MustParse(bad) did not panic")
+			t.Fatal("parseLocaleForTest(bad) did not panic")
 		}
 	}()
-	_ = MustParse("")
+	_ = parseLocaleForTest("")
 }

@@ -3,6 +3,7 @@ package relativetimeformat
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -11,13 +12,13 @@ import (
 // typed value instead of comparing raw strings.
 func TestFormatToPartsTypedConstants(t *testing.T) {
 	t.Parallel()
-	rtf, err := New(locale.List{locale.MustParse("en")}, Options{Numeric: NumericAlways})
+	rtf, err := New(locale.List{intltest.Locale(t, "en")}, Options{Numeric: NumericAlways})
 	if err != nil {
 		t.Fatalf("New err = %v", err)
 	}
-	parts, err := rtf.FormatInt64ToParts(-3, Day)
+	parts, err := rtf.FormatToParts(Int(-3), Day)
 	if err != nil {
-		t.Fatalf("FormatInt64ToParts err = %v", err)
+		t.Fatalf("FormatToParts err = %v", err)
 	}
 	wantTypes := map[PartType]bool{}
 	for _, part := range parts {

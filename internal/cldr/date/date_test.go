@@ -75,6 +75,20 @@ func TestSupportedLocalesReturnsCopy(t *testing.T) {
 	}
 }
 
+func TestSupportedCalendarsReturnsCopy(t *testing.T) {
+	t.Parallel()
+
+	a := SupportedCalendars()
+	if len(a) == 0 {
+		t.Fatal("SupportedCalendars returned no identifiers")
+	}
+	a[0] = "mutated"
+	b := SupportedCalendars()
+	if b[0] == "mutated" {
+		t.Error("SupportedCalendars returned a shared slice; callers can corrupt the cache")
+	}
+}
+
 // TestSmokeGregorianEnglish is a checkout-independent smoke test mirroring the
 // deleted root dates_test English assertions, scoped to the date domain's
 // borrowed kernel handle. These values are hard-coded so a silent

@@ -11,7 +11,7 @@ import (
 
 // Example demonstrates Intl.Collator.prototype.compare from ECMA-402.
 func Example() {
-	compare, err := collator.New(locale.MustParseList("en-US"), collator.Options{})
+	compare, err := collator.New(mustLocaleList("en-US"), collator.Options{})
 	if err != nil {
 		panic(err)
 	}
@@ -24,7 +24,7 @@ func Example() {
 
 // Example_options demonstrates Intl.Collator constructor options from ECMA-402.
 func Example_options() {
-	compare, err := collator.New(locale.MustParseList("en-US"), collator.Options{
+	compare, err := collator.New(mustLocaleList("en-US"), collator.Options{
 		Numeric: gointl.Bool(true),
 	})
 	if err != nil {
@@ -39,7 +39,7 @@ func Example_options() {
 
 // ExampleCollator_Compare demonstrates Intl.Collator.prototype.compare from ECMA-402.
 func ExampleCollator_Compare() {
-	compare, err := collator.New(locale.MustParseList("en-US"), collator.Options{
+	compare, err := collator.New(mustLocaleList("en-US"), collator.Options{
 		Numeric: gointl.Bool(true),
 	})
 	if err != nil {
@@ -54,4 +54,12 @@ func ExampleCollator_Compare() {
 
 	// Output:
 	// [1 2 10]
+}
+
+func mustLocaleList(tags ...string) locale.List {
+	locales, err := locale.ParseList(tags...)
+	if err != nil {
+		panic(err)
+	}
+	return locales
 }

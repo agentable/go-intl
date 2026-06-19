@@ -9,7 +9,7 @@ import (
 
 // Example demonstrates Intl.ListFormat.prototype.format from ECMA-402.
 func Example() {
-	format, err := listformat.New(locale.MustParseList("en-US"), listformat.Options{})
+	format, err := listformat.New(mustLocaleList("en-US"), listformat.Options{})
 	if err != nil {
 		panic(err)
 	}
@@ -22,7 +22,7 @@ func Example() {
 
 // Example_options demonstrates Intl.ListFormat constructor options from ECMA-402.
 func Example_options() {
-	format, err := listformat.New(locale.MustParseList("en-US"), listformat.Options{
+	format, err := listformat.New(mustLocaleList("en-US"), listformat.Options{
 		Type: listformat.Disjunction,
 	})
 	if err != nil {
@@ -37,7 +37,7 @@ func Example_options() {
 
 // ExampleListFormat_FormatToParts demonstrates Intl.ListFormat.prototype.formatToParts from ECMA-402.
 func ExampleListFormat_FormatToParts() {
-	format, err := listformat.New(locale.MustParseList("en-US"), listformat.Options{})
+	format, err := listformat.New(mustLocaleList("en-US"), listformat.Options{})
 	if err != nil {
 		panic(err)
 	}
@@ -50,4 +50,12 @@ func ExampleListFormat_FormatToParts() {
 	// element="apples"
 	// literal=" and "
 	// element="bananas"
+}
+
+func mustLocaleList(tags ...string) locale.List {
+	locales, err := locale.ParseList(tags...)
+	if err != nil {
+		panic(err)
+	}
+	return locales
 }

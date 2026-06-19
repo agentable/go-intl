@@ -16,18 +16,22 @@ import (
 )
 
 type fixture struct {
-	ID                 string         `json:"id"`
-	Source             string         `json:"source"`
-	Locale             string         `json:"locale"`
-	Feature            string         `json:"feature,omitempty"`
-	Options            map[string]any `json:"options"`
-	Input              any            `json:"input"`
-	Expected           *string        `json:"expected,omitempty"`
-	ExpectedLocales    []string       `json:"expectedLocales,omitempty"`
-	ExpectedParts      []fixturePart  `json:"expectedParts,omitempty"`
-	ExpectedRange      *string        `json:"expectedRange,omitempty"`
-	ExpectedRangeParts []rangePart    `json:"expectedRangeParts,omitempty"`
-	ExpectedResolved   any            `json:"expectedResolvedOptions,omitempty"`
+	ID                 string          `json:"id"`
+	Source             string          `json:"source"`
+	Locale             string          `json:"locale"`
+	Feature            string          `json:"feature,omitempty"`
+	Options            map[string]any  `json:"options"`
+	Input              any             `json:"input"`
+	Expected           *string         `json:"expected,omitempty"`
+	ExpectedOK         *bool           `json:"expectedOk,omitempty"`
+	ExpectedLocales    []string        `json:"expectedLocales,omitempty"`
+	ExpectedParts      []fixturePart   `json:"expectedParts,omitempty"`
+	ExpectedRange      *string         `json:"expectedRange,omitempty"`
+	ExpectedRangeParts []rangePart     `json:"expectedRangeParts,omitempty"`
+	ExpectedComparison *int            `json:"expectedComparison,omitempty"`
+	ExpectedResolved   any             `json:"expectedResolvedOptions,omitempty"`
+	ExpectedSegments   []segmentRecord `json:"expectedSegments,omitempty"`
+	ErrorCode          string          `json:"errorCode,omitempty"`
 }
 
 type fixturePart struct {
@@ -42,6 +46,12 @@ type rangePart struct {
 	Source string `json:"source"`
 }
 
+type segmentRecord struct {
+	Segment       string `json:"segment"`
+	CodeUnitIndex int    `json:"codeUnitIndex"`
+	IsWordLike    *bool  `json:"isWordLike,omitempty"`
+}
+
 type skipEntry struct {
 	Source       string `json:"source"`
 	Category     string `json:"category"`
@@ -50,11 +60,38 @@ type skipEntry struct {
 }
 
 type nodeWitness struct {
-	NodeVersion           string              `json:"nodeVersion"`
-	Versions              map[string]string   `json:"versions"`
-	NumberFormatResolved  []fixture           `json:"numberFormatResolved"`
-	DurationFormatDigital []fixture           `json:"durationFormatDigital"`
-	SupportedValues       nodeSupportedValues `json:"supportedValues"`
+	NodeVersion            string              `json:"nodeVersion"`
+	Versions               map[string]string   `json:"versions"`
+	LocaleSmoke            []fixture           `json:"localeSmoke"`
+	LocaleCanonicalization []fixture           `json:"localeCanonicalization"`
+	LocaleInfo             []fixture           `json:"localeInfo"`
+	NumberFormatSmoke      []fixture           `json:"numberFormatSmoke"`
+	NumberFormatErrors     []fixture           `json:"numberFormatErrors"`
+	NumberFormatEdge       []fixture           `json:"numberFormatEdge"`
+	NumberFormatResolved   []fixture           `json:"numberFormatResolved"`
+	DateTimeFormatSmoke    []fixture           `json:"dateTimeFormatSmoke"`
+	DateTimeFormatErrors   []fixture           `json:"dateTimeFormatErrors"`
+	DateTimeFormatEdge     []fixture           `json:"dateTimeFormatEdge"`
+	DurationFormatSmoke    []fixture           `json:"durationFormatSmoke"`
+	DurationFormatErrors   []fixture           `json:"durationFormatErrors"`
+	DurationFormatDigital  []fixture           `json:"durationFormatDigital"`
+	ListFormatSmoke        []fixture           `json:"listFormatSmoke"`
+	ListFormatErrors       []fixture           `json:"listFormatErrors"`
+	RelativeTimeSmoke      []fixture           `json:"relativeTimeSmoke"`
+	RelativeTimeErrors     []fixture           `json:"relativeTimeErrors"`
+	PluralRulesSmoke       []fixture           `json:"pluralRulesSmoke"`
+	PluralRulesErrors      []fixture           `json:"pluralRulesErrors"`
+	DisplayNamesSmoke      []fixture           `json:"displayNamesSmoke"`
+	DisplayNamesErrors     []fixture           `json:"displayNamesErrors"`
+	CollatorSmoke          []fixture           `json:"collatorSmoke"`
+	CollatorErrors         []fixture           `json:"collatorErrors"`
+	CollatorOptions        []fixture           `json:"collatorOptions"`
+	CollatorBackendProof   []fixture           `json:"collatorBackendProof"`
+	SegmenterSmoke         []fixture           `json:"segmenterSmoke"`
+	SegmenterErrors        []fixture           `json:"segmenterErrors"`
+	SegmenterLocale        []fixture           `json:"segmenterLocale"`
+	SegmenterTailored      []fixture           `json:"segmenterTailored"`
+	SupportedValues        nodeSupportedValues `json:"supportedValues"`
 }
 
 type nodeSupportedValues struct {
@@ -130,19 +167,16 @@ func importNode(path, outDir string) error {
 	if err != nil {
 		return err
 	}
-	if len(witness.NumberFormatResolved) > 0 {
-		path := filepath.Join(outDir, "numberformat", "testdata", "conformance", nodeDir, "resolved-options.json")
-		if err := writeJSON(path, witness.NumberFormatResolved); err != nil {
+	for _, file := range witnessFixtureFiles(witness, nodeDir) {
+		if len(file.Fixtures) == 0 {
+			continue
+		}
+		path := filepath.Join(append([]string{outDir}, file.Path...)...)
+		if err := writeJSON(path, file.Fixtures); err != nil {
 			return err
 		}
 	}
-	if len(witness.DurationFormatDigital) > 0 {
-		path := filepath.Join(outDir, "durationformat", "testdata", "conformance", nodeDir, "digital.json")
-		if err := writeJSON(path, witness.DurationFormatDigital); err != nil {
-			return err
-		}
-	}
-	if len(witness.SupportedValues.Values) > 0 {
+	if len(witness.SupportedValues.Values) != 0 {
 		path := filepath.Join(outDir, "testdata", "native", nodeDir, "supported-values.json")
 		if err := writeJSON(path, witness.SupportedValues); err != nil {
 			return err
@@ -151,8 +185,52 @@ func importNode(path, outDir string) error {
 	return nil
 }
 
+type nodeWitnessFixtureFile struct {
+	Path     []string
+	Fixtures []fixture
+}
+
+func witnessFixtureFiles(witness nodeWitness, nodeDir string) []nodeWitnessFixtureFile {
+	return []nodeWitnessFixtureFile{
+		{Path: []string{"locale", "testdata", "conformance", nodeDir, "smoke.json"}, Fixtures: witness.LocaleSmoke},
+		{Path: []string{"locale", "testdata", "conformance", nodeDir, "canonicalization.json"}, Fixtures: witness.LocaleCanonicalization},
+		{Path: []string{"locale", "testdata", "conformance", nodeDir, "info.json"}, Fixtures: witness.LocaleInfo},
+		{Path: []string{"numberformat", "testdata", "conformance", nodeDir, "smoke.json"}, Fixtures: witness.NumberFormatSmoke},
+		{Path: []string{"numberformat", "testdata", "conformance", nodeDir, "errors.json"}, Fixtures: witness.NumberFormatErrors},
+		{Path: []string{"numberformat", "testdata", "conformance", nodeDir, "edge.json"}, Fixtures: witness.NumberFormatEdge},
+		{Path: []string{"numberformat", "testdata", "conformance", nodeDir, "resolved-options.json"}, Fixtures: witness.NumberFormatResolved},
+		{Path: []string{"datetimeformat", "testdata", "conformance", nodeDir, "smoke.json"}, Fixtures: witness.DateTimeFormatSmoke},
+		{Path: []string{"datetimeformat", "testdata", "conformance", nodeDir, "errors.json"}, Fixtures: witness.DateTimeFormatErrors},
+		{Path: []string{"datetimeformat", "testdata", "conformance", nodeDir, "edge.json"}, Fixtures: witness.DateTimeFormatEdge},
+		{Path: []string{"durationformat", "testdata", "conformance", nodeDir, "smoke.json"}, Fixtures: witness.DurationFormatSmoke},
+		{Path: []string{"durationformat", "testdata", "conformance", nodeDir, "errors.json"}, Fixtures: witness.DurationFormatErrors},
+		{Path: []string{"durationformat", "testdata", "conformance", nodeDir, "digital.json"}, Fixtures: witness.DurationFormatDigital},
+		{Path: []string{"listformat", "testdata", "conformance", nodeDir, "smoke.json"}, Fixtures: witness.ListFormatSmoke},
+		{Path: []string{"listformat", "testdata", "conformance", nodeDir, "errors.json"}, Fixtures: witness.ListFormatErrors},
+		{Path: []string{"relativetimeformat", "testdata", "conformance", nodeDir, "smoke.json"}, Fixtures: witness.RelativeTimeSmoke},
+		{Path: []string{"relativetimeformat", "testdata", "conformance", nodeDir, "errors.json"}, Fixtures: witness.RelativeTimeErrors},
+		{Path: []string{"pluralrules", "testdata", "conformance", nodeDir, "smoke.json"}, Fixtures: witness.PluralRulesSmoke},
+		{Path: []string{"pluralrules", "testdata", "conformance", nodeDir, "errors.json"}, Fixtures: witness.PluralRulesErrors},
+		{Path: []string{"displaynames", "testdata", "conformance", nodeDir, "smoke.json"}, Fixtures: witness.DisplayNamesSmoke},
+		{Path: []string{"displaynames", "testdata", "conformance", nodeDir, "errors.json"}, Fixtures: witness.DisplayNamesErrors},
+		{Path: []string{"collator", "testdata", "conformance", nodeDir, "smoke.json"}, Fixtures: witness.CollatorSmoke},
+		{Path: []string{"collator", "testdata", "conformance", nodeDir, "errors.json"}, Fixtures: witness.CollatorErrors},
+		{Path: []string{"collator", "testdata", "conformance", nodeDir, "options.json"}, Fixtures: witness.CollatorOptions},
+		{Path: []string{"collator", "testdata", "conformance", nodeDir, "backend-proof.json"}, Fixtures: witness.CollatorBackendProof},
+		{Path: []string{"segmenter", "testdata", "conformance", nodeDir, "smoke.json"}, Fixtures: witness.SegmenterSmoke},
+		{Path: []string{"segmenter", "testdata", "conformance", nodeDir, "errors.json"}, Fixtures: witness.SegmenterErrors},
+		{Path: []string{"segmenter", "testdata", "conformance", nodeDir, "locale-contract.json"}, Fixtures: witness.SegmenterLocale},
+		{Path: []string{"segmenter", "testdata", "conformance", nodeDir, "tailored-locale-contract.json"}, Fixtures: witness.SegmenterTailored},
+	}
+}
+
 func runNodeWitness(nodePath string) (nodeWitness, error) {
-	cmd := exec.Command(nodePath, "-e", nodeWitnessScript)
+	repoRoot, err := repoRoot()
+	if err != nil {
+		return nodeWitness{}, err
+	}
+	cmd := exec.Command("go", "run", "./tools/node-witness", "-node", nodePath)
+	cmd.Dir = repoRoot
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -169,6 +247,24 @@ func runNodeWitness(nodePath string) (nodeWitness, error) {
 	return witness, nil
 }
 
+func repoRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		candidate := filepath.Join(dir, "tools", "node-witness")
+		if stat, err := os.Stat(filepath.Join(candidate, "main.go")); err == nil && !stat.IsDir() {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("tools/node-witness not found from %s", dir)
+		}
+		dir = parent
+	}
+}
+
 func nodeFixtureDir(version string) (string, error) {
 	trimmed := strings.TrimPrefix(version, "v")
 	major, _, ok := strings.Cut(trimmed, ".")
@@ -180,80 +276,6 @@ func nodeFixtureDir(version string) (string, error) {
 	}
 	return "node-v" + major, nil
 }
-
-const nodeWitnessScript = `
-const selectedVersions = {};
-for (const key of ['node', 'v8', 'icu', 'cldr', 'tz', 'unicode']) {
-  if (process.versions[key]) {
-    selectedVersions[key] = process.versions[key];
-  }
-}
-
-const nodeMajor = process.versions.node.split('.')[0];
-const nodeVersion = process.version;
-
-function source(surface, topic) {
-  return 'node:' + nodeVersion + ':' + surface + ':' + topic;
-}
-
-function id(surface, topic) {
-  return surface + '-node-v' + nodeMajor + '-' + topic;
-}
-
-function numberFormatFixture(topic, locale, options, input) {
-  const format = new Intl.NumberFormat(locale, options);
-  return {
-    id: id('numberformat', topic),
-    source: source('numberformat', 'resolved-options'),
-    locale,
-    options,
-    input,
-    expected: format.format(input),
-    expectedResolvedOptions: format.resolvedOptions(),
-  };
-}
-
-function durationFormatFixture(topic, locale, options, input) {
-  const format = new Intl.DurationFormat(locale, options);
-  return {
-    id: id('durationformat', topic),
-    source: source('durationformat', 'digital'),
-    locale,
-    options,
-    input,
-    expected: format.format(input),
-    expectedParts: format.formatToParts(input),
-    expectedResolvedOptions: format.resolvedOptions(),
-  };
-}
-
-const supportedValues = {};
-for (const key of ['calendar', 'collation', 'currency', 'numberingSystem', 'timeZone', 'unit']) {
-  supportedValues[key] = Intl.supportedValuesOf(key);
-}
-
-const witness = {
-  nodeVersion,
-  versions: selectedVersions,
-  numberFormatResolved: [
-    numberFormatFixture('resolved-decimal-default', 'en', {}, 12345.6),
-    numberFormatFixture('resolved-significant-digits', 'en', {minimumSignificantDigits: 3}, 1.2),
-    numberFormatFixture('resolved-compact-defaults', 'en', {notation: 'compact'}, 1200),
-  ],
-  durationFormatDigital: [
-    durationFormatFixture('digital-hours-minutes-seconds', 'en', {style: 'digital'}, {hours: 5, minutes: 30, seconds: 15}),
-    durationFormatFixture('digital-fractional-seconds', 'en', {style: 'digital', fractionalDigits: 3}, {hours: 5, minutes: 30, seconds: 15, milliseconds: 123}),
-    durationFormatFixture('digital-zero-hours', 'en', {style: 'digital'}, {minutes: 30, seconds: 15}),
-  ],
-  supportedValues: {
-    source: 'node:' + nodeVersion + ':intl:supportedValuesOf',
-    versions: selectedVersions,
-    values: supportedValues,
-  },
-};
-
-console.log(JSON.stringify(witness));
-`
 
 func importFormatJS(path, outDir string) ([]skipEntry, error) {
 	numberSkips, err := importFormatJSNumberFormat(path, outDir)

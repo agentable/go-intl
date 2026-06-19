@@ -7,12 +7,13 @@ import (
 	"github.com/agentable/go-intl/internal/intlerr"
 
 	"github.com/agentable/go-intl/displaynames"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func TestDisplayNames_OfRejectsInvalidShape(t *testing.T) {
 	t.Parallel()
-	en := locale.MustParse("en")
+	en := intltest.Locale(t, "en")
 	tests := []struct {
 		name string
 		opts displaynames.Options
@@ -52,7 +53,7 @@ func TestDisplayNames_OfRejectsInvalidShape(t *testing.T) {
 func TestDisplayNames_OfInvalidCodeDoesNotMatchInvalidOption(t *testing.T) {
 	t.Parallel()
 
-	dn, err := displaynames.New(locale.List{locale.MustParse("en")}, displaynames.Options{Type: displaynames.Language})
+	dn, err := displaynames.New(locale.List{intltest.Locale(t, "en")}, displaynames.Options{Type: displaynames.Language})
 	if err != nil {
 		t.Fatal(err)
 	}

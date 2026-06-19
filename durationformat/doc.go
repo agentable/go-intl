@@ -1,6 +1,7 @@
 // Package durationformat implements the ECMA-402 Intl.DurationFormat constructor.
 //
-//	format, _ := durationformat.New(locale.MustParseList("en-US"), durationformat.Options{})
+//	locales, _ := locale.ParseList("en-US")
+//	format, _ := durationformat.New(locales, durationformat.Options{})
 //	out, _ := format.Format(durationformat.Duration{Hours: 1, Minutes: 2})
 //	_ = out
 //

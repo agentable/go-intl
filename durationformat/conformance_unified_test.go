@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/agentable/go-intl/internal/intlerr"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -21,7 +22,7 @@ func TestDurationFormatConformance(t *testing.T) {
 	for _, fixture := range fixtures {
 		t.Run(fixture.ID, func(t *testing.T) {
 			t.Parallel()
-			loc := locale.MustParse(fixture.Locale)
+			loc := intltest.Locale(t, fixture.Locale)
 			format, err := New(locale.List{loc}, conformanceDurationOptions(t, fixture))
 			if fixture.ErrorCode != "" {
 				if !errors.Is(err, conformanceDurationError(t, fixture.ErrorCode)) {

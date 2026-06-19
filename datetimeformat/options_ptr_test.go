@@ -3,6 +3,7 @@ package datetimeformat
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -18,7 +19,7 @@ func TestOptionsPointerValuesCopiedDuringConstruction(t *testing.T) {
 	t.Parallel()
 
 	hour12 := false
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{
 		Hour:   NumericFieldStyle,
 		Hour12: &hour12,
 	})

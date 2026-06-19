@@ -7,13 +7,14 @@ import (
 
 	"github.com/agentable/go-intl/internal/intlerr"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func TestPluralRulesMinimumFractionDigitsAffectsSelection(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{MinimumFractionDigits: intPtr(2)})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{MinimumFractionDigits: intPtr(2)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +26,7 @@ func TestPluralRulesMinimumFractionDigitsAffectsSelection(t *testing.T) {
 func TestPluralRulesMinimumSignificantDigitsDefaultsMaximum(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{MinimumSignificantDigits: intPtr(2)})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{MinimumSignificantDigits: intPtr(2)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +60,7 @@ func TestPluralRulesDigitOptionsAffectOperands(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			rules, err := New(locale.List{locale.MustParse("en")}, tc.opts)
+			rules, err := New(locale.List{intltest.Locale(t, "en")}, tc.opts)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -95,7 +96,7 @@ func TestPluralRulesInvalidDigitOptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := New(locale.List{locale.MustParse("en")}, tc.opts)
+			_, err := New(locale.List{intltest.Locale(t, "en")}, tc.opts)
 			if !errors.Is(err, intlerr.ErrInvalidOption) {
 				t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 			}
@@ -106,7 +107,7 @@ func TestPluralRulesInvalidDigitOptions(t *testing.T) {
 func TestPluralRulesResolvedOptions(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +128,7 @@ func TestPluralRulesResolvedOptions(t *testing.T) {
 func TestPluralRulesResolvedOptionsSignificantDigits(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{
 		Notation:                 CompactNotation,
 		CompactDisplay:           LongCompactDisplay,
 		MinimumSignificantDigits: intPtr(2), MaximumSignificantDigits: intPtr(4),
@@ -156,7 +157,7 @@ func TestPluralRulesResolvedOptionsSignificantDigits(t *testing.T) {
 func TestPluralRulesResolvedOptionsArabicCategories(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("ar")}, Options{})
+	rules, err := New(locale.List{intltest.Locale(t, "ar")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,11 +170,7 @@ func TestPluralRulesResolvedOptionsArabicCategories(t *testing.T) {
 func TestSupportedLocalesOf(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.List{
-		locale.MustParse("de-DE"),
-		locale.MustParse("fr-FR"),
-		locale.MustParse("en-US"),
-	}
+	requested := locale.List{intltest.Locale(t, "de-DE"), intltest.Locale(t, "fr-FR"), intltest.Locale(t, "en-US")}
 	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: LookupLocaleMatcher})
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf() error = %v", err)

@@ -59,7 +59,7 @@ func TestParseUnicodeExtensions(t *testing.T) {
 func TestParseUnicodeExtensionBaseNameExcludesExtension(t *testing.T) {
 	t.Parallel()
 
-	loc := MustParse("en-US-u-foo-ca-buddhist-zz-abc")
+	loc := parseLocaleForTest("en-US-u-foo-ca-buddhist-zz-abc")
 	if got := loc.BaseName(); got != "en-US" {
 		t.Fatalf("BaseName() = %q, want en-US", got)
 	}

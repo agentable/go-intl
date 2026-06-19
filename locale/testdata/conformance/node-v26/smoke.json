@@ -2,7 +2,7 @@
   {
     "id": "locale-node-v26-canonicalize",
     "source": "node:v26.0.0:locale",
-    "locale": "en-US",
+    "locale": "EN-us-u-NU-LATN",
     "feature": "canonicalize",
     "options": {},
     "input": "EN-us-u-NU-LATN",

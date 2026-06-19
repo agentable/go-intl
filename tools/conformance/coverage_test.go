@@ -133,11 +133,11 @@ func TestValidateSkipListAuditsNativeWitnessRoutes(t *testing.T) {
 	root := t.TempDir()
 	packageDir := filepath.Join(root, "datetimeformat")
 	writeCoverageFixtureFile(t, packageDir, "node-v26/range.json", `[
-		{"id":"dtf-node-range","source":"node:v26.0.0:datetimeformat:p4-deep-contract","locale":"en","options":{},"input":{"start":"2021-01-10T00:00:00Z","end":"2021-01-20T00:00:00Z"},"expectedRange":"Jan 10 - Jan 20"}
+		{"id":"datetimeformat-node-v26-range","source":"node:v26.0.0:datetimeformat:p4-deep-contract","locale":"en","options":{},"input":{"start":"2021-01-10T00:00:00Z","end":"2021-01-20T00:00:00Z"},"expectedRange":"Jan 10 - Jan 20"}
 	]`)
 	skipListPath := filepath.Join(root, ".skip-list.json")
 	if err := os.WriteFile(skipListPath, []byte(`[
-		{"source":"formatjs:covered","category":"unsupported-extractor-shape","route":"native-witness","witness":"dtf-node-missing","reason":"native lane owns this observable case"}
+		{"source":"formatjs:covered","category":"unsupported-extractor-shape","route":"native-witness","witness":"datetimeformat-node-v26-missing","reason":"native lane owns this observable case"}
 	]`), 0o666); err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestValidateSkipListAuditsNativeWitnessRoutes(t *testing.T) {
 	}
 
 	if err := os.WriteFile(skipListPath, []byte(`[
-		{"source":"formatjs:covered","category":"unsupported-extractor-shape","route":"native-witness","witness":"dtf-node-range","reason":"native lane owns this observable case"}
+		{"source":"formatjs:covered","category":"unsupported-extractor-shape","route":"native-witness","witness":"datetimeformat-node-v26-range","reason":"native lane owns this observable case"}
 	]`), 0o666); err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +392,7 @@ func TestValidateDivergencesRequiresDateTimeFormatNativeWitness(t *testing.T) {
 		{"id":"dtf-formatjs-range","source":"formatjs:packages/intl-datetimeformat/tests/format-range.test.ts","locale":"en","options":{},"input":{"start":"2021-01-10T00:00:00Z","end":"2021-01-20T00:00:00Z"},"expectedRange":"Jan 10 - Jan 20"}
 	]`)
 	writeCoverageFixtureFile(t, packageDir, "node-v26/range.json", `[
-		{"id":"dtf-node-range","source":"node:v26.0.0:datetimeformat:p4-deep-contract","locale":"en","options":{},"input":{"start":"2021-01-10T00:00:00Z","end":"2021-01-20T00:00:00Z"},"expectedRange":"Jan 10 - Jan 20","expectedRangeParts":[{"type":"month","value":"Jan","source":"shared"}]}
+		{"id":"datetimeformat-node-v26-range","source":"node:v26.0.0:datetimeformat:p4-deep-contract","locale":"en","options":{},"input":{"start":"2021-01-10T00:00:00Z","end":"2021-01-20T00:00:00Z"},"expectedRange":"Jan 10 - Jan 20","expectedRangeParts":[{"type":"month","value":"Jan","source":"shared"}]}
 	]`)
 
 	writeDivergenceFile(t, packageDir, "id: dtf-formatjs-range\nsource: formatjs:packages/intl-datetimeformat/tests/format-range.test.ts\nowner: datetimeformat\nreason: accepted DateTimeFormat range mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
@@ -401,7 +401,7 @@ func TestValidateDivergencesRequiresDateTimeFormatNativeWitness(t *testing.T) {
 		t.Fatalf("ValidateDivergences() error = %v, want missing native_witness", err)
 	}
 
-	writeDivergenceFile(t, packageDir, "id: dtf-formatjs-range\nsource: formatjs:packages/intl-datetimeformat/tests/format-range.test.ts\nowner: datetimeformat\nreason: accepted DateTimeFormat range mismatch\nnative_witness: dtf-node-range\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeDivergenceFile(t, packageDir, "id: dtf-formatjs-range\nsource: formatjs:packages/intl-datetimeformat/tests/format-range.test.ts\nowner: datetimeformat\nreason: accepted DateTimeFormat range mismatch\nnative_witness: datetimeformat-node-v26-range\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 	if err := ValidateDivergences(packageDir); err != nil {
 		t.Fatalf("ValidateDivergences() error = %v, want nil", err)
 	}

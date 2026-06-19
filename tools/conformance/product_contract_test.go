@@ -107,6 +107,47 @@ func TestSegmenterTailoredLocaleContractsRemainWithheld(t *testing.T) {
 	}
 }
 
+func TestSegmenterManualCapabilityBoundaryCoversTailoredLocales(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(repositoryRoot(t), "segmenter")
+	fixtures, err := LoadFixtures(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var boundary Fixture
+	for _, fixture := range fixtures {
+		if fixture.ID == "segmenter-manual-supported-locales-excludes-tailored-locales" {
+			boundary = fixture
+			break
+		}
+	}
+	if boundary.ID == "" {
+		t.Fatal("missing segmenter manual supported-locales capability boundary fixture")
+	}
+	if got, want := boundary.Feature, "supportedLocalesOf"; got != want {
+		t.Fatalf("segmenter manual capability boundary feature = %q, want %q", got, want)
+	}
+	if len(boundary.ExpectedLocales) != 1 || boundary.ExpectedLocales[0] != "en" {
+		t.Fatalf("segmenter manual capability boundary expectedLocales = %v, want [en]", boundary.ExpectedLocales)
+	}
+
+	var requested []string
+	if err := json.Unmarshal(boundary.Input, &requested); err != nil {
+		t.Fatal(err)
+	}
+	requestedSet := make(map[string]bool, len(requested))
+	for _, tag := range requested {
+		requestedSet[tag] = true
+	}
+	for _, tag := range []string{"ja", "ja-JP", "km", "lo", "my", "th", "zh", "zh-Hans", "zh-Hans-CN", "zh-Hant", "zh-Hant-TW"} {
+		if !requestedSet[tag] {
+			t.Fatalf("segmenter manual capability boundary missing withheld locale %q", tag)
+		}
+	}
+}
+
 func TestDateTimeFormatNodeDeepContractsExist(t *testing.T) {
 	t.Parallel()
 

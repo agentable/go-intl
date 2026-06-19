@@ -3,6 +3,7 @@ package durationformat
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -14,7 +15,7 @@ func TestOptionsPointerValuesCopiedDuringConstruction(t *testing.T) {
 	t.Parallel()
 
 	digits := 0
-	format, err := New(locale.List{locale.MustParse("en")}, Options{FractionalDigits: &digits})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{FractionalDigits: &digits})
 	if err != nil {
 		t.Fatal(err)
 	}

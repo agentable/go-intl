@@ -7,6 +7,7 @@ import (
 
 	"github.com/agentable/go-intl/internal/intlerr"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -15,7 +16,7 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 	t.Parallel()
 
 	conformance.RunFixtures(t, ".", func(t *testing.T, fixture conformance.Fixture) {
-		format, err := New(locale.List{locale.MustParse(fixture.Locale)}, conformanceDisplayNamesOptions(t, fixture))
+		format, err := New(locale.List{intltest.Locale(t, fixture.Locale)}, conformanceDisplayNamesOptions(t, fixture))
 		if err != nil && fixture.ErrorCode != "" {
 			if !errors.Is(err, conformanceDisplayNamesError(t, fixture.ErrorCode)) {
 				t.Fatalf("New() error = %v, want %q", err, fixture.ErrorCode)

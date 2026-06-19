@@ -10,6 +10,7 @@ import (
 	"github.com/agentable/go-intl/datetimeformat"
 	"github.com/agentable/go-intl/displaynames"
 	"github.com/agentable/go-intl/durationformat"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/listformat"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/numberformat"
@@ -21,7 +22,7 @@ import (
 func TestECMA402RecordJSONShapes(t *testing.T) {
 	t.Parallel()
 
-	loc := locale.MustParse("en-US-u-nu-latn")
+	loc := intltest.Locale(t, "en-US-u-nu-latn")
 	minFrac, maxFrac := 0, 3
 	hour12 := false
 	fractionalDigits := 2
@@ -33,7 +34,7 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 	}).ResolvedOptions()
 	defaultCollator := mustCollator(t, collator.Options{}).ResolvedOptions()
 	wordSegment := mustFirstSegment(t, "hello!", segmenter.WordGranularity)
-	rtlTextInfo := locale.MustParse("ar").GetTextInfo()
+	rtlTextInfo := intltest.Locale(t, "ar").GetTextInfo()
 
 	tests := []struct {
 		name   string
@@ -319,7 +320,7 @@ func intPtr(v int) *int {
 func mustNumberFormat(t *testing.T, opts numberformat.Options) *numberformat.NumberFormat {
 	t.Helper()
 
-	format, err := numberformat.New(locale.List{locale.MustParse("en")}, opts)
+	format, err := numberformat.New(locale.List{intltest.Locale(t, "en")}, opts)
 	if err != nil {
 		t.Fatalf("numberformat.New() error = %v", err)
 	}
@@ -329,7 +330,7 @@ func mustNumberFormat(t *testing.T, opts numberformat.Options) *numberformat.Num
 func mustDateTimeFormat(t *testing.T, opts datetimeformat.Options) *datetimeformat.DateTimeFormat {
 	t.Helper()
 
-	format, err := datetimeformat.New(locale.List{locale.MustParse("en-US")}, opts)
+	format, err := datetimeformat.New(locale.List{intltest.Locale(t, "en-US")}, opts)
 	if err != nil {
 		t.Fatalf("datetimeformat.New() error = %v", err)
 	}
@@ -339,7 +340,7 @@ func mustDateTimeFormat(t *testing.T, opts datetimeformat.Options) *datetimeform
 func mustPluralRules(t *testing.T, opts pluralrules.Options) *pluralrules.PluralRules {
 	t.Helper()
 
-	rules, err := pluralrules.New(locale.List{locale.MustParse("en")}, opts)
+	rules, err := pluralrules.New(locale.List{intltest.Locale(t, "en")}, opts)
 	if err != nil {
 		t.Fatalf("pluralrules.New() error = %v", err)
 	}
@@ -349,7 +350,7 @@ func mustPluralRules(t *testing.T, opts pluralrules.Options) *pluralrules.Plural
 func mustCollator(t *testing.T, opts collator.Options) *collator.Collator {
 	t.Helper()
 
-	c, err := collator.New(locale.List{locale.MustParse("en")}, opts)
+	c, err := collator.New(locale.List{intltest.Locale(t, "en")}, opts)
 	if err != nil {
 		t.Fatalf("collator.New() error = %v", err)
 	}
@@ -359,7 +360,7 @@ func mustCollator(t *testing.T, opts collator.Options) *collator.Collator {
 func mustFirstSegment(t *testing.T, input string, granularity segmenter.Granularity) segmenter.Segment {
 	t.Helper()
 
-	s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{Granularity: granularity})
+	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{Granularity: granularity})
 	if err != nil {
 		t.Fatalf("segmenter.New() error = %v", err)
 	}

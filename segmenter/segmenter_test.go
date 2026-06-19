@@ -7,6 +7,7 @@ import (
 
 	"github.com/agentable/go-intl/internal/intlerr"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/segmenter"
 )
@@ -21,7 +22,7 @@ func collect(s *segmenter.Segments) []segmenter.Segment {
 
 func TestSegmenter_Grapheme(t *testing.T) {
 	t.Parallel()
-	s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{Granularity: segmenter.GraphemeGranularity})
+	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{Granularity: segmenter.GraphemeGranularity})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +49,7 @@ func TestSegmenter_Grapheme(t *testing.T) {
 
 func TestSegmenter_Word(t *testing.T) {
 	t.Parallel()
-	s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{Granularity: segmenter.WordGranularity})
+	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{Granularity: segmenter.WordGranularity})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +69,7 @@ func TestSegmenter_Word(t *testing.T) {
 
 func TestSegmenter_WordLikeUsesUnicodeProperties(t *testing.T) {
 	t.Parallel()
-	s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{Granularity: segmenter.WordGranularity})
+	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{Granularity: segmenter.WordGranularity})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +107,7 @@ func TestSegmenter_WordLikeUsesUnicodeProperties(t *testing.T) {
 
 func TestSegmenter_Sentence(t *testing.T) {
 	t.Parallel()
-	s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{Granularity: segmenter.SentenceGranularity})
+	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{Granularity: segmenter.SentenceGranularity})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +119,7 @@ func TestSegmenter_Sentence(t *testing.T) {
 
 func TestSegmenter_DefaultGrapheme(t *testing.T) {
 	t.Parallel()
-	s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{})
+	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +130,7 @@ func TestSegmenter_DefaultGrapheme(t *testing.T) {
 
 func TestSegmenter_Containing(t *testing.T) {
 	t.Parallel()
-	s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{Granularity: segmenter.GraphemeGranularity})
+	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{Granularity: segmenter.GraphemeGranularity})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func TestSegmenter_Containing(t *testing.T) {
 func TestSegmenter_ContainingDistinguishesCodeUnitAndByteBoundaries(t *testing.T) {
 	t.Parallel()
 
-	s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{Granularity: segmenter.GraphemeGranularity})
+	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{Granularity: segmenter.GraphemeGranularity})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +232,7 @@ func TestSegmenter_EmptyInputHasNoSegments(t *testing.T) {
 		t.Run(string(granularity), func(t *testing.T) {
 			t.Parallel()
 
-			s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{Granularity: granularity})
+			s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{Granularity: granularity})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -252,7 +253,7 @@ func TestSegmenter_EmptyInputHasNoSegments(t *testing.T) {
 func TestSegmenter_AllStopsWhenYieldReturnsFalse(t *testing.T) {
 	t.Parallel()
 
-	s, err := segmenter.New(locale.List{locale.MustParse("en")}, segmenter.Options{Granularity: segmenter.GraphemeGranularity})
+	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{Granularity: segmenter.GraphemeGranularity})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +269,7 @@ func TestSegmenter_AllStopsWhenYieldReturnsFalse(t *testing.T) {
 
 func TestSegmenter_New_Errors(t *testing.T) {
 	t.Parallel()
-	en := locale.MustParse("en")
+	en := intltest.Locale(t, "en")
 	_, err := segmenter.New(locale.List{en}, segmenter.Options{Granularity: "bogus"})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Errorf("err = %v, want intlerr.ErrInvalidOption", err)
@@ -278,15 +279,41 @@ func TestSegmenter_New_Errors(t *testing.T) {
 func TestSegmenter_NewRejectsInvalidLocaleMatcher(t *testing.T) {
 	t.Parallel()
 
-	en := locale.MustParse("en")
+	en := intltest.Locale(t, "en")
 	if _, err := segmenter.New(locale.List{en}, segmenter.Options{LocaleMatcher: "bogus"}); !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New(invalid matcher) error = %v, want intlerr.ErrInvalidOption", err)
 	}
 }
 
+func TestSegmenter_NewDoesNotResolveUnsupportedTailoredLocales(t *testing.T) {
+	t.Parallel()
+
+	for _, tag := range []string{"ja", "th", "zh-Hant"} {
+		t.Run(tag, func(t *testing.T) {
+			t.Parallel()
+
+			requested := intltest.Locale(t, tag)
+			format, err := segmenter.New(locale.List{requested}, segmenter.Options{Granularity: segmenter.WordGranularity})
+			if err != nil {
+				t.Fatalf("New(%q) error = %v", tag, err)
+			}
+			if got := format.ResolvedOptions().Locale.String(); got == tag {
+				t.Fatalf("ResolvedOptions().Locale = %q, want fallback locale until tailored segmentation is supported", got)
+			}
+			supported, err := segmenter.SupportedLocalesOf(locale.List{requested}, segmenter.Options{})
+			if err != nil {
+				t.Fatalf("SupportedLocalesOf(%q) error = %v", tag, err)
+			}
+			if len(supported) != 0 {
+				t.Fatalf("SupportedLocalesOf(%q) = %v, want unsupported", tag, supported.Strings())
+			}
+		})
+	}
+}
+
 func TestSupportedLocalesOf(t *testing.T) {
 	t.Parallel()
-	requested := locale.List{locale.MustParse("en-US"), locale.MustParse("xh")}
+	requested := locale.List{intltest.Locale(t, "en-US"), intltest.Locale(t, "xh")}
 	got, err := segmenter.SupportedLocalesOf(requested, segmenter.Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -299,7 +326,7 @@ func TestSupportedLocalesOf(t *testing.T) {
 func TestSupportedLocalesOfErrors(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.List{locale.MustParse("en-US")}
+	requested := locale.List{intltest.Locale(t, "en-US")}
 	if _, err := segmenter.SupportedLocalesOf(requested, segmenter.Options{LocaleMatcher: "bogus"}); !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("SupportedLocalesOf(invalid matcher) error = %v, want intlerr.ErrInvalidOption", err)
 	}

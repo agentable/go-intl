@@ -9,7 +9,7 @@ import (
 
 // Example demonstrates Intl.DurationFormat.prototype.format from ECMA-402.
 func Example() {
-	format, err := durationformat.New(locale.MustParseList("en"), durationformat.Options{
+	format, err := durationformat.New(mustLocaleList("en"), durationformat.Options{
 		Style: durationformat.DigitalStyle,
 	})
 	if err != nil {
@@ -33,7 +33,7 @@ func Example() {
 
 // Example_options demonstrates Intl.DurationFormat constructor options from ECMA-402.
 func Example_options() {
-	format, err := durationformat.New(locale.MustParseList("en"), durationformat.Options{
+	format, err := durationformat.New(mustLocaleList("en"), durationformat.Options{
 		Style: durationformat.LongStyle,
 	})
 	if err != nil {
@@ -56,7 +56,7 @@ func Example_options() {
 
 // ExampleDurationFormat_FormatToParts demonstrates Intl.DurationFormat.prototype.formatToParts from ECMA-402.
 func ExampleDurationFormat_FormatToParts() {
-	format, err := durationformat.New(locale.MustParseList("en"), durationformat.Options{
+	format, err := durationformat.New(mustLocaleList("en"), durationformat.Options{
 		Style: durationformat.DigitalStyle,
 	})
 	if err != nil {
@@ -81,4 +81,12 @@ func ExampleDurationFormat_FormatToParts() {
 	// integer="02" unit="minute"
 	// literal=":" unit=""
 	// integer="03" unit="second"
+}
+
+func mustLocaleList(tags ...string) locale.List {
+	locales, err := locale.ParseList(tags...)
+	if err != nil {
+		panic(err)
+	}
+	return locales
 }

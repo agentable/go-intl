@@ -9,7 +9,7 @@ import (
 
 // Example demonstrates Intl.DisplayNames.prototype.of from ECMA-402.
 func Example() {
-	names, err := displaynames.New(locale.MustParseList("en-US"), displaynames.Options{
+	names, err := displaynames.New(mustLocaleList("en-US"), displaynames.Options{
 		Type: displaynames.Language,
 	})
 	if err != nil {
@@ -28,7 +28,7 @@ func Example() {
 
 // Example_options demonstrates Intl.DisplayNames constructor options from ECMA-402.
 func Example_options() {
-	names, err := displaynames.New(locale.MustParseList("en-US"), displaynames.Options{
+	names, err := displaynames.New(mustLocaleList("en-US"), displaynames.Options{
 		Type:  displaynames.Region,
 		Style: displaynames.ShortStyle,
 	})
@@ -48,7 +48,7 @@ func Example_options() {
 
 // ExampleDisplayNames_Of demonstrates Intl.DisplayNames.prototype.of from ECMA-402.
 func ExampleDisplayNames_Of() {
-	names, err := displaynames.New(locale.MustParseList("en-US"), displaynames.Options{
+	names, err := displaynames.New(mustLocaleList("en-US"), displaynames.Options{
 		Type:     displaynames.Language,
 		Fallback: displaynames.NoneFallback,
 	})
@@ -64,4 +64,12 @@ func ExampleDisplayNames_Of() {
 
 	// Output:
 	//  false
+}
+
+func mustLocaleList(tags ...string) locale.List {
+	locales, err := locale.ParseList(tags...)
+	if err != nil {
+		panic(err)
+	}
+	return locales
 }

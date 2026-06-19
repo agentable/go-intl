@@ -102,11 +102,11 @@ func TestFromTagTagRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	locales := []Locale{
-		MustParse("en"),
-		MustParse("en-US"),
-		MustParse("zh-Hans-CN"),
-		MustParse("de-AT-1901"),
-		MustParse("ar-u-ca-islamic-hc-h12-nu-arab"),
+		parseLocaleForTest("en"),
+		parseLocaleForTest("en-US"),
+		parseLocaleForTest("zh-Hans-CN"),
+		parseLocaleForTest("de-AT-1901"),
+		parseLocaleForTest("ar-u-ca-islamic-hc-h12-nu-arab"),
 	}
 	for _, loc := range locales {
 		t.Run(loc.String(), func(t *testing.T) {
@@ -149,12 +149,12 @@ func TestNewNumericOptionPresence(t *testing.T) {
 func TestEqual(t *testing.T) {
 	t.Parallel()
 
-	a := MustParse("en-us-u-hc-h23-ca-gregorian")
-	b := MustParse("en-US-u-ca-gregory-hc-h23")
+	a := parseLocaleForTest("en-us-u-hc-h23-ca-gregorian")
+	b := parseLocaleForTest("en-US-u-ca-gregory-hc-h23")
 	if !a.Equal(b) {
 		t.Fatalf("%q Equal(%q) = false, want true", a.String(), b.String())
 	}
-	if a.Equal(MustParse("en-US-u-ca-buddhist-hc-h23")) {
+	if a.Equal(parseLocaleForTest("en-US-u-ca-buddhist-hc-h23")) {
 		t.Fatal("Equal returned true for different calendar")
 	}
 }
@@ -162,7 +162,7 @@ func TestEqual(t *testing.T) {
 func TestTextMarshaling(t *testing.T) {
 	t.Parallel()
 
-	loc := MustParse("en-US-u-hc-h23")
+	loc := parseLocaleForTest("en-US-u-hc-h23")
 	text, err := loc.MarshalText()
 	if err != nil {
 		t.Fatalf("MarshalText err = %v", err)

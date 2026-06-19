@@ -7,6 +7,7 @@ import (
 )
 
 func appendLiteralPart(parts []Part, value string) []Part {
+	value = normalizePatternLiteral(value)
 	if value == "" {
 		return parts
 	}
@@ -15,6 +16,10 @@ func appendLiteralPart(parts []Part, value string) []Part {
 		return parts
 	}
 	return append(parts, Part{Type: PartLiteral, Value: value})
+}
+
+func normalizePatternLiteral(value string) string {
+	return strings.ReplaceAll(value, "\u202f", " ")
 }
 
 func consumeQuotedPatternLiteral(pattern string) (string, string) {

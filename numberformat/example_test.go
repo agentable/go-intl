@@ -11,7 +11,7 @@ import (
 // Example demonstrates Intl.NumberFormat.prototype.format with the 0.5
 // rounding example from ECMA-402 §15.5.
 func Example() {
-	format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+	format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
 		MaximumFractionDigits: gointl.Int(0),
 	})
 	if err != nil {
@@ -26,7 +26,7 @@ func Example() {
 
 // Example_options demonstrates the "floor" rounding-mode row from ECMA-402 §15.5.
 func Example_options() {
-	format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+	format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
 		MaximumFractionDigits: gointl.Int(0),
 		RoundingMode:          numberformat.FloorRoundingMode,
 	})
@@ -42,7 +42,7 @@ func Example_options() {
 
 // ExampleNumberFormat_FormatToParts demonstrates Intl.NumberFormat.prototype.formatToParts from ECMA-402.
 func ExampleNumberFormat_FormatToParts() {
-	format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{})
+	format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{})
 	if err != nil {
 		panic(err)
 	}
@@ -56,4 +56,12 @@ func ExampleNumberFormat_FormatToParts() {
 	// integer="1"
 	// decimal="."
 	// fraction="5"
+}
+
+func mustLocaleList(tags ...string) locale.List {
+	locales, err := locale.ParseList(tags...)
+	if err != nil {
+		panic(err)
+	}
+	return locales
 }

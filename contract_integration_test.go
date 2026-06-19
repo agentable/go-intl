@@ -60,8 +60,8 @@ func TestMessageformatIntegrationContract_PublicConsumerPattern(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := rtf.FormatInt(-1, relativetimeformat.Second); err != nil || got == "" {
-		t.Fatalf("relativetimeformat.FormatInt(-1, second) = %q, %v; want non-empty output", got, err)
+	if got, err := rtf.Format(relativetimeformat.Int(-1), relativetimeformat.Second); err != nil || got == "" {
+		t.Fatalf("relativetimeformat.Format(Int(-1), second) = %q, %v; want non-empty output", got, err)
 	}
 	df, err := durationformat.New(locales, durationformat.Options{})
 	if err != nil {

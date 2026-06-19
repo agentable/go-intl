@@ -7,12 +7,13 @@ import (
 	"github.com/agentable/go-intl/internal/intlerr"
 
 	"github.com/agentable/go-intl/displaynames"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func TestDisplayNames_Of(t *testing.T) {
 	t.Parallel()
-	en := locale.MustParse("en")
+	en := intltest.Locale(t, "en")
 
 	tests := []struct {
 		name string
@@ -29,7 +30,7 @@ func TestDisplayNames_Of(t *testing.T) {
 		{"region-short", displaynames.Options{Type: displaynames.Region, Style: displaynames.ShortStyle}, "GB", "UK", true},
 		{"script", displaynames.Options{Type: displaynames.Script}, "latn", "Latin", true},
 		{"currency", displaynames.Options{Type: displaynames.Currency}, "usd", "US Dollar", true},
-		{"currency-narrow", displaynames.Options{Type: displaynames.Currency, Style: displaynames.NarrowStyle}, "EUR", "€", true},
+		{"currency-narrow", displaynames.Options{Type: displaynames.Currency, Style: displaynames.NarrowStyle}, "EUR", "Euro", true},
 		{"calendar", displaynames.Options{Type: displaynames.Calendar}, "gregory", "Gregorian Calendar", true},
 		{"datetimefield", displaynames.Options{Type: displaynames.DateTimeField}, "year", "year", true},
 	}
@@ -57,7 +58,7 @@ func TestDisplayNames_Of(t *testing.T) {
 
 func TestDisplayNames_Fallback(t *testing.T) {
 	t.Parallel()
-	en := locale.MustParse("en")
+	en := intltest.Locale(t, "en")
 
 	t.Run("code returns canonicalized code", func(t *testing.T) {
 		t.Parallel()
@@ -93,7 +94,7 @@ func TestDisplayNames_Fallback(t *testing.T) {
 func TestDisplayNames_RejectsInvalidLanguageCodes(t *testing.T) {
 	t.Parallel()
 
-	dn, err := displaynames.New(locale.List{locale.MustParse("en")}, displaynames.Options{Type: displaynames.Language})
+	dn, err := displaynames.New(locale.List{intltest.Locale(t, "en")}, displaynames.Options{Type: displaynames.Language})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +119,7 @@ func TestDisplayNames_RejectsInvalidLanguageCodes(t *testing.T) {
 
 func TestDisplayNames_New_Errors(t *testing.T) {
 	t.Parallel()
-	en := locale.MustParse("en")
+	en := intltest.Locale(t, "en")
 
 	t.Run("missing type", func(t *testing.T) {
 		t.Parallel()
@@ -163,7 +164,7 @@ func TestDisplayNames_New_Errors(t *testing.T) {
 
 func TestDisplayNames_ResolvedOptions(t *testing.T) {
 	t.Parallel()
-	en := locale.MustParse("en")
+	en := intltest.Locale(t, "en")
 	dn, err := displaynames.New(locale.List{en}, displaynames.Options{Type: displaynames.Region})
 	if err != nil {
 		t.Fatal(err)
@@ -186,7 +187,7 @@ func TestDisplayNames_ResolvedOptions(t *testing.T) {
 
 func TestDisplayNames_ResolvedOptionsLanguageDisplayPresentForLanguageType(t *testing.T) {
 	t.Parallel()
-	en := locale.MustParse("en")
+	en := intltest.Locale(t, "en")
 	dn, err := displaynames.New(locale.List{en}, displaynames.Options{Type: displaynames.Language, LanguageDisplay: displaynames.StandardLanguageDisplay})
 	if err != nil {
 		t.Fatal(err)
@@ -199,7 +200,7 @@ func TestDisplayNames_ResolvedOptionsLanguageDisplayPresentForLanguageType(t *te
 
 func TestSupportedLocalesOf(t *testing.T) {
 	t.Parallel()
-	requested := locale.List{locale.MustParse("en-US"), locale.MustParse("xh")}
+	requested := locale.List{intltest.Locale(t, "en-US"), intltest.Locale(t, "xh")}
 	got, err := displaynames.SupportedLocalesOf(requested, displaynames.Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -212,7 +213,7 @@ func TestSupportedLocalesOf(t *testing.T) {
 func TestSupportedLocalesOfErrors(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.List{locale.MustParse("en-US")}
+	requested := locale.List{intltest.Locale(t, "en-US")}
 	if _, err := displaynames.SupportedLocalesOf(requested, displaynames.Options{LocaleMatcher: "bogus"}); !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("SupportedLocalesOf(invalid matcher) error = %v, want intlerr.ErrInvalidOption", err)
 	}

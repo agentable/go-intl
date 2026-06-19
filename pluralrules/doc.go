@@ -1,6 +1,7 @@
 // Package pluralrules implements the ECMA-402 Intl.PluralRules constructor.
 //
-//	rules, _ := pluralrules.New(locale.MustParseList("en-US"), pluralrules.Options{})
+//	locales, _ := locale.ParseList("en-US")
+//	rules, _ := pluralrules.New(locales, pluralrules.Options{})
 //	category, _ := rules.Select(pluralrules.Int(1))
 //	_ = category
 //

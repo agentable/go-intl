@@ -80,7 +80,7 @@ func buildDurationFormatters(resolved ResolvedOptions, unitOptions [unitCount]re
 func newDurationUnitFormatters(locales locale.List, resolved ResolvedOptions, spec durationUnitSpec, opt resolvedUnitConfig, fractional bool) (durationNumberFormatters, error) {
 	options := numberformat.Options{
 		Style:           numberformat.UnitStyle,
-		Unit:            numberformat.UnitIdentifier(string(spec.formatUnit)),
+		Unit:            numberformat.Unit(string(spec.formatUnit)),
 		UnitDisplay:     numberformat.UnitDisplay(publicUnitStyle(opt.style)),
 		NumberingSystem: resolved.NumberingSystem,
 	}

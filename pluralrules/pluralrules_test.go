@@ -6,16 +6,46 @@ import (
 	"sync"
 	"testing"
 
+	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 	"github.com/agentable/go-intl/internal/intlerr"
 
 	"github.com/agentable/go-intl/internal/decimal"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
+
+func TestCategoryMatchesInternalOrder(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		public   Category
+		internal ecma402pr.Category
+	}{
+		{Zero, ecma402pr.Zero},
+		{One, ecma402pr.One},
+		{Two, ecma402pr.Two},
+		{Few, ecma402pr.Few},
+		{Many, ecma402pr.Many},
+		{Other, ecma402pr.Other},
+	}
+	for _, tc := range tests {
+		t.Run(tc.public.String(), func(t *testing.T) {
+			t.Parallel()
+
+			if Category(tc.internal) != tc.public {
+				t.Fatalf("Category(%s) = %s, want %s", tc.internal, Category(tc.internal), tc.public)
+			}
+			if ecma402pr.Category(tc.public) != tc.internal {
+				t.Fatalf("internal Category(%s) = %s, want %s", tc.public, ecma402pr.Category(tc.public), tc.internal)
+			}
+		})
+	}
+}
 
 func TestPluralRulesSelectCardinal(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +69,7 @@ func TestPluralRulesSelectCardinal(t *testing.T) {
 func TestPluralRulesSelectOrdinal(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{Type: Ordinal})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: Ordinal})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +94,7 @@ func TestPluralRulesSelectOrdinal(t *testing.T) {
 func TestPluralRulesSelectUsesExactLargeOperands(t *testing.T) {
 	t.Parallel()
 
-	ordinal, err := New(locale.List{locale.MustParse("en")}, Options{Type: Ordinal})
+	ordinal, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: Ordinal})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +117,7 @@ func TestPluralRulesSelectUsesExactLargeOperands(t *testing.T) {
 		}
 	}
 
-	cardinal, err := New(locale.List{locale.MustParse("fr")}, Options{})
+	cardinal, err := New(locale.List{intltest.Locale(t, "fr")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +140,7 @@ func TestPluralRulesSelectUsesExactLargeOperands(t *testing.T) {
 func TestPluralRulesNotationAffectsOperands(t *testing.T) {
 	t.Parallel()
 
-	standard, err := New(locale.List{locale.MustParse("ca")}, Options{})
+	standard, err := New(locale.List{intltest.Locale(t, "ca")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +165,7 @@ func TestPluralRulesNotationAffectsOperands(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			rules, err := New(locale.List{locale.MustParse("ca")}, tc.opts)
+			rules, err := New(locale.List{intltest.Locale(t, "ca")}, tc.opts)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -156,7 +186,7 @@ func TestPluralRulesNotationAffectsOperands(t *testing.T) {
 func TestPluralRulesUnsignedTypedBridges(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +197,7 @@ func TestPluralRulesUnsignedTypedBridges(t *testing.T) {
 	if got := mustCategory(rules.Select(Uint(2))); got != Other {
 		t.Fatalf("SelectUint64(2) = %s, want %s", got, Other)
 	}
-	ordinal, err := New(locale.List{locale.MustParse("en")}, Options{Type: Ordinal})
+	ordinal, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: Ordinal})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +215,7 @@ func TestPluralRulesUnsignedTypedBridges(t *testing.T) {
 func TestPluralRulesTypedSelectErrors(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +236,7 @@ func TestPluralRulesTypedSelectErrors(t *testing.T) {
 func TestPluralRulesInvalidType(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{locale.MustParse("en")}, Options{Type: Type(99)})
+	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: Type(99)})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -215,7 +245,7 @@ func TestPluralRulesInvalidType(t *testing.T) {
 func TestPluralRulesConcurrentSelect(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{Type: Ordinal})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: Ordinal})
 	if err != nil {
 		t.Fatal(err)
 	}

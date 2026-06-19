@@ -7,8 +7,8 @@
       "numeric": "auto"
     },
     "input": {
-      "value": -1,
-      "unit": "day"
+      "unit": "day",
+      "value": -1
     },
     "expected": "yesterday"
   }

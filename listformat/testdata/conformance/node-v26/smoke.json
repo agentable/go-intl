@@ -4,7 +4,11 @@
     "source": "node:v26.0.0:listformat",
     "locale": "en-US",
     "options": {},
-    "input": ["A", "B", "C"],
+    "input": [
+      "A",
+      "B",
+      "C"
+    ],
     "expected": "A, B, and C"
   }
 ]

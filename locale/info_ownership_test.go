@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/agentable/go-intl/locale"
+	"github.com/agentable/go-intl/internal/intltest"
 )
 
 // ECMA-402 §14.3 (`Intl.Locale.prototype.calendars` and siblings) returns a
@@ -14,7 +14,7 @@ import (
 // to mutate, and a second call must return identical-but-independent data.
 func TestLocaleInfoGettersReturnIndependentSlices(t *testing.T) {
 	t.Parallel()
-	loc := locale.MustParse("en-US")
+	loc := intltest.Locale(t, "en-US")
 
 	cases := []struct {
 		name string

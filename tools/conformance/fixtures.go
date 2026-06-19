@@ -156,24 +156,33 @@ func missingFixtureField(fixture Fixture) string {
 
 func validateFixtureSourceDirectory(path, rel string, fixture Fixture) error {
 	sourceDir, _, _ := strings.Cut(filepath.ToSlash(rel), "/")
-	if fixtureSourceMatchesDirectory(sourceDir, fixture.Source) {
+	if fixtureSourceMatchesDirectory(sourceDir, fixture) {
 		return nil
 	}
 	return fmt.Errorf("%s: fixture %q source %q does not match conformance source directory %q: %w", path, fixture.ID, fixture.Source, sourceDir, errFixtureSourceDir)
 }
 
-func fixtureSourceMatchesDirectory(sourceDir, source string) bool {
-	kind := fixtureSourceKind(source)
+func fixtureSourceMatchesDirectory(sourceDir string, fixture Fixture) bool {
+	kind := fixtureSourceKind(fixture.Source)
 	switch {
 	case sourceDir == "manual":
 		return kind == "manual"
 	case sourceDir == "formatjs":
 		return kind == "formatjs"
-	case strings.HasPrefix(sourceDir, "node"):
+	case strings.HasPrefix(sourceDir, "node-v"):
+		return kind == "node" && nodeFixtureMatchesDirectory(sourceDir, fixture)
+	case sourceDir == "node":
 		return kind == "node"
 	default:
 		return true
 	}
+}
+
+func nodeFixtureMatchesDirectory(sourceDir string, fixture Fixture) bool {
+	version := strings.TrimPrefix(sourceDir, "node-v")
+	sourcePrefix := "node:v" + version
+	return strings.Contains(fixture.ID, "-"+sourceDir+"-") &&
+		(strings.HasPrefix(fixture.Source, sourcePrefix+".") || strings.HasPrefix(fixture.Source, sourcePrefix+":"))
 }
 
 func fixtureSourceKind(source string) string {

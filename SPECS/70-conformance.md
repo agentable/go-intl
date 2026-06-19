@@ -95,14 +95,14 @@ Each fixture **MUST** conform to the following schema (JSON object):
 
 | Source | role | active scope requirement |
 |--------|------|-------------|
-| **Generated reference** | Main fixture source | Generated fixtures must pass; ungenerated test sources must enter `.skip-list.json` audit |
+| **Generated reference** | Main fixture source | Generated fixtures must pass; ungenerated test sources must enter `.skip-list.json` audit. The current on-disk source prefix and directory names are historical implementation details, not product authority. |
 | **Native Intl** | Native-engine contract source | Each active constructor retains at least one native snapshot and one native constructor error/refusal fixture. Native fixtures also own observable option, parts, locale, and backend-capability boundaries that are not safely covered by generated extraction. |
 | **Manual ECMA-402 edge cases** | Supplementary fixture source | Only for boundaries that cannot be mechanically extracted or are explicitly required by spec |
 
 **Rules**:
 
-1. The main generated fixture lane **MUST** be translated through `tools/gen-fixtures-from-formatjs/`; the normative interpretation rights still belong to the ECMA-402 spec.
-2. Native fixtures **MUST** record the runtime major version and mark it with `source: "node:<version>:<surface>"`; it is a native behavior tiebreaker, not a source of new semantics to bypass ECMA-402.
+1. The main generated fixture lane **MUST** be translated through the generated-fixture extractor; the normative interpretation rights still belong to the ECMA-402 spec.
+2. Native fixtures **MUST** record the runtime major version. The current fixture `source` prefix is historical; it identifies the witness lane and version, not an external product authority.
 3. Manual fixture **MUST** indicate that it corresponds to the ECMA-402 section or local SPEC rationale, and is marked with `source: "manual:<topic>"`.
 4. Fixture sources **MUST** be marked via the `source` field; mixing sources into the same JSON file is prohibited.
 5. The generated-reference version **MUST** be pinned to `tools/.gen-versions`. After upgrading the reference or refreshing its checkout, rerun the extractor and check the generated fixture and `.skip-list.json` diff.
@@ -111,7 +111,7 @@ Each fixture **MUST** conform to the following schema (JSON object):
 
 ### 2.2 Extraction tool
 
-`tools/gen-fixtures-from-formatjs/` **Required**:
+The generated-fixture extractor **Required**:
 
 1. It is an independent Go module (independent `go.mod`), decoupled from the main module.
 2. Enter: `.test.ts` source in the checked-in reference test tree. `__snapshots__/*.snap` is a reference output artifact; unless the extractor also has a paired source mapping that restores the input, neither the fixture nor `.skip-list.json` is entered.
@@ -166,7 +166,7 @@ The new category must be implemented in the same PR of extractor, `tools/check-c
 **Rules**:
 
 1. The extraction **MUST** be idempotent - running the same pinned reference twice must produce byte-identical output.
-2. Manual editing of the extracted product is **prohibited**; manual fixtures go to `<package>/testdata/conformance/manual/<file>.json` and are **not** confused with the formatjs/ directory.
+2. Manual editing of extracted generated-reference fixtures is **prohibited**; manual fixtures go to `<package>/testdata/conformance/manual/<file>.json` and are not confused with the generated-reference directory.
 3. `.skip-list.json` is an extraction audit, not a test skip mechanism. Generated but failed fixtures must go through divergences.md or xfail.json; ungenerated sources can appear in the skip-list.
 4. `tools/check-conformance` **MUST** verify fixture schema, XFAIL schema, skip-list schema, active skip-list categories, source uniqueness, and divergence-to-fixture consistency.
 5. `task conformance:verify` **MUST** output coverage health: the number of fixture sources for each package, the number of manual / generated-reference / native fixtures, the number of active divergence, the number of xfail, and the skip-list category and route counts.
@@ -317,7 +317,7 @@ XFAIL entry **MUST** be located in `<package>/testdata/xfail.json`, field:
 - **Ban** silently skip failed fixtures (must go to divergences.md or xfail.json, both require PR approval).
 - **BANNED** silently skip unextracted reference `.test.ts` source (must write `.skip-list.json` of `source` + `category` + `route` + `reason`); snapshot-only artifact is not source debt.
 - **Disabled** fixture has no `id` or `source` field.
-- **FORBIDDEN** Mixing `formatjs:` / `node:` / `icu4j:` sources within the same JSON file.
+- **FORBIDDEN** Mixing generated-reference, native-witness, and manual sources within the same JSON file, even when the historical source prefixes differ only by version.
 - **BANNED** Using Unix epoch ms numbers as DateTime input (requires ISO-8601 string).
 - **FORBIDDEN** Delete the divergences.md historical entries (outdated entries are changed to `status: resolved` and retained); empty placeholder files do not need to be retained.
 - **FORBIDDEN** XFAIL None `expires_at`.

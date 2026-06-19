@@ -1,36 +1,73 @@
 [
   {
     "id": "displaynames-node-v26-region-us",
-    "source": "node:v26.0.0:displayNames",
+    "source": "node:v26.0.0:displaynames",
     "locale": "en",
     "options": {
       "type": "region"
     },
     "input": "US",
     "expected": "United States",
-    "expectedOk": true
+    "expectedOk": true,
+    "expectedResolvedOptions": {
+      "fallback": "code",
+      "locale": "en",
+      "style": "long",
+      "type": "region"
+    }
   },
   {
     "id": "displaynames-node-v26-language-zh-hans",
-    "source": "node:v26.0.0:displayNames",
+    "source": "node:v26.0.0:displaynames",
     "locale": "en",
     "options": {
       "type": "language"
     },
     "input": "zh-Hans",
     "expected": "Simplified Chinese",
-    "expectedOk": true
+    "expectedOk": true,
+    "expectedResolvedOptions": {
+      "fallback": "code",
+      "languageDisplay": "dialect",
+      "locale": "en",
+      "style": "long",
+      "type": "language"
+    }
   },
   {
     "id": "displaynames-node-v26-currency-eur-narrow",
-    "source": "node:v26.0.0:displayNames",
+    "source": "node:v26.0.0:displaynames",
     "locale": "en",
     "options": {
-      "type": "currency",
-      "style": "narrow"
+      "style": "narrow",
+      "type": "currency"
     },
     "input": "EUR",
-    "expected": "€",
-    "expectedOk": true
+    "expected": "Euro",
+    "expectedOk": true,
+    "expectedResolvedOptions": {
+      "fallback": "code",
+      "locale": "en",
+      "style": "narrow",
+      "type": "currency"
+    }
+  },
+  {
+    "id": "displaynames-node-v26-fallback-none-missing-region",
+    "source": "node:v26.0.0:displaynames",
+    "locale": "en",
+    "options": {
+      "fallback": "none",
+      "type": "region"
+    },
+    "input": "ZZ",
+    "expected": "Unknown Region",
+    "expectedOk": true,
+    "expectedResolvedOptions": {
+      "fallback": "none",
+      "locale": "en",
+      "style": "long",
+      "type": "region"
+    }
   }
 ]

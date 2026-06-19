@@ -3,6 +3,7 @@ package datetimeformat
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	"github.com/agentable/go-intl/internal/ecma402"
@@ -27,8 +28,9 @@ func (f *DateTimeFormat) formatPattern(pattern string, t localTime) []Part {
 			continue
 		}
 		if !isDatePatternField(r) && !isTimePatternField(r) {
-			parts = appendLiteralPart(parts, pattern[:1])
-			pattern = pattern[1:]
+			r, size := utf8.DecodeRuneInString(pattern)
+			parts = appendLiteralPart(parts, string(r))
+			pattern = pattern[size:]
 			continue
 		}
 		width := 1

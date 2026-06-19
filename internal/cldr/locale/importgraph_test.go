@@ -191,6 +191,24 @@ func TestNoImportOfRetiredRootCLDR(t *testing.T) {
 	}
 }
 
+// TestRetiredRootCLDRHasNoGoFiles makes the data-boundary shape explicit: the
+// retired internal/cldr root may hold metadata such as VERSION, but it must not
+// become a Go package again.
+func TestRetiredRootCLDRHasNoGoFiles(t *testing.T) {
+	t.Parallel()
+
+	entries, err := os.ReadDir("..")
+	if err != nil {
+		t.Fatalf("read internal/cldr: %v", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+			continue
+		}
+		t.Errorf("internal/cldr/%s reintroduces the retired root Go package; put CLDR code in a leaf domain", entry.Name())
+	}
+}
+
 // isAllowedLeafImport reports whether a leaf domain may import the given go-intl
 // package: codec, locale, a shared utility leaf, or a sanctioned leaf->leaf
 // edge naming this domain as importer.

@@ -68,7 +68,6 @@ func Int(v int64) Value
 func Uint(v uint64) Value
 func Float(v float64) Value
 func BigInt(v *big.Int) Value
-func BigFloat(v *big.Float) Value
 func Decimal(s string) (Value, error)
 
 func (r *PluralRules) Select(v Value) (Category, error)
@@ -85,6 +84,8 @@ func (r *PluralRules) ResolvedOptions() ResolvedOptions
 5. `PluralRules` is an immutable value; all methods on `*PluralRules` must be concurrency-safe.
 6. `Options` is the only public configuration value; restoring functional options or multiple options merge is prohibited.
 7. The `Category.String()` return value **MUST** be consistent with the ECMA-402 string representation (to facilitate direct case branching of the `:plural` function of messageformat-go).
+
+> **Rejected**: public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal operands should use `Decimal`.
 
 ### 1.2 Options
 
@@ -146,13 +147,13 @@ type ResolvedOptions struct {
 ### 1.3 Calling example
 
 ```go
-pr, err := pluralrules.New(locale.MustParseList("en"))
+pr, err := pluralrules.New(mustLocaleList("en"))
 // pr.Select(pluralrules.Int(1)) == pluralrules.One, nil
 // pr.Select(pluralrules.Int(2)) == pluralrules.Other, nil
 // value, _ := pluralrules.Decimal("0.5")
 // pr.Select(value) == pluralrules.Other, nil
 
-pr, _ := pluralrules.New(locale.MustParseList("en"), pluralrules.Options{Type: pluralrules.Ordinal})
+pr, _ := pluralrules.New(mustLocaleList("en"), pluralrules.Options{Type: pluralrules.Ordinal})
 // pr.Select(pluralrules.Int(1)) == pluralrules.One   ("1st")
 // pr.Select(pluralrules.Int(2)) == pluralrules.Two   ("2nd")
 // pr.Select(pluralrules.Int(3)) == pluralrules.Few   ("3rd")
@@ -210,7 +211,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 
 **MUST** Rules:
 
-1. `GetOperands` implementation **MUST** be consistent with FormatJS `GetOperands.ts` output semantics (for trailing zero behavior).
+1. `GetOperands` implementation **MUST** be consistent with generated-reference `GetOperands.ts` output semantics (for trailing zero behavior).
 2. `i / v / w / f / t` **MUST** be extracted from the `formatted` string (already output by `FormatNumericToString`, including `mnfd` mandatory trailing 0):
 - `v` = decimal string length (including trailing 0)
 - `w` = the length of the decimal string after trailing 0
@@ -221,9 +222,9 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 4. `c / e` **MUST** be equal to parameter `exponent`.
 5. Non-finite numbers do not enter `GetOperands`; public `Select` must return `ErrInvalidValue` at the boundary.
 
-> **Why**: `v/w/f/t` is extracted from the `formatted` string instead of `decimal.Decimal` because trailing zero is an "observable attribute determined by the formatter" (`mnfd=2` when `1` → `"1.00"` is `v=2, w=0`), not a mathematical attribute. FormatJS extracts,semantically aligned strings.
+> **Why**: `v/w/f/t` is extracted from the `formatted` string instead of `decimal.Decimal` because trailing zero is an "observable attribute determined by the formatter" (`mnfd=2` when `1` → `"1.00"` is `v=2, w=0`), not a mathematical attribute. Generated reference extracts,semantically aligned strings.
 >
-> **Note**: This SPEC clearly states that the current record is based on the `formatted` string (FormatJS behavior); trailing depends entirely on the string. This avoids the dual path bifurcation of the decimal backend and display digit view.
+> **Note**: This SPEC clearly states that the current record is based on the `formatted` string (reference behavior); trailing depends entirely on the string. This avoids the dual path bifurcation of the decimal backend and display digit view.
 
 ---
 
@@ -234,7 +235,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 **Decision**: active scope PluralRules implementation **MUST** generate Go functions and classification tables from CLDR JSON `cldr-core/supplemental/plurals.json` + `ordinals.json` + `pluralRanges.json` via codegen to `internal/cldr/plural/` and `internal/cldr/plurals.go`.
 
 > **Why**:
-> 1. FormatJS `intl-pluralrules/scripts/plural-rules-compiler.ts` has compiled the plural DSL into a directly executed function on the TS side; the Go side maintains the same product form and does not interpret the DSL at runtime.
+> 1. generated-reference `intl-pluralrules/scripts/plural-rules-compiler.ts` has compiled the plural DSL into a directly executed function on the TS side; the Go side maintains the same product form and does not interpret the DSL at runtime.
 > 2. Consistent with SPEC 50 §"embed-only / no runtime I/O" - data is the Go source.
 > 3. Compiled function zero-allocation query vs runtime interpreter has 2–3 times more overhead.
 > 4. `golang.org/x/text/feature/plural` is not available (see §3.2 for details).
@@ -249,7 +250,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 
 1. **FORBIDDEN** `pluralrules` / `internal/ecma402/pluralrules/` / `tools/gen-plural-rules/` import `golang.org/x/text/feature/plural` anywhere.
 2. Reason for rejection (write this SPEC and CLAUDE.md "Forbidden"):
-- **CLDR data baseline is uncontrollable**: The data version of `golang.org/x/text/feature/plural` is out of sync with the CLDR 48.1.0/formatjs baseline pinned by go-intl. CLDR 33+ rewrote the plural rules of Welsh/Cymraeg, Hebrew, and Polish; CLDR 41+ changed the Russian ordinal. The data baseline is inconsistent, that is, not equal to FormatJS bytes.
+- **CLDR data baseline is uncontrollable**: The data version of `golang.org/x/text/feature/plural` is out of sync with the CLDR 48.1.0/formatjs baseline pinned by go-intl. CLDR 33+ rewrote the plural rules of Welsh/Cymraeg, Hebrew, and Polish; CLDR 41+ changed the Russian ordinal. The data baseline is inconsistent, that is, not equal to fixture bytes.
 - **Missing c/e operand**: `plural.Select(t, scale, digits)` has only two parameters and cannot carry the `e` operand of `Intl.NumberFormat` notation=compact. `1 thousand` vs `1K` for minority languages (Polish, Czech) must have `e` to distinguish plural categories.
 - **Package annotation UNDER CONSTRUCTION**:pkg.go.dev explicitly indicates "This package is UNDER CONSTRUCTION..."; it cannot be used as a production dependency.
 
@@ -269,7 +270,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
    - `internal/cldr/plural/categories.go`
    - `internal/cldr/plurals.go`
 5. Each locale outputs an independent Go function; `CardinalRule` / `OrdinalRule` switch index to a specific function.
-6. **Disable** output of unused operand expressions (corresponding to FormatJS `should-emit-*.ts`, only the operand judgment actually referenced by rule is generated).
+6. **Disable** output of unused operand expressions (corresponding to generated-reference `should-emit-*.ts`, only the operand judgment actually referenced by rule is generated).
 
 ```go
 // Internal form of generator (schematic, no implementation)
@@ -398,7 +399,7 @@ func CardinalRule(loc string) (func(ecma402pr.OperandsRecord) ecma402pr.Category
 
 ## 5. SelectRange algorithm
 
-**MUST** rules (corresponding to ECMA-402 §16.5.4 three-step algorithm + FormatJS `ResolvePluralRange.ts`):
+**MUST** rules (corresponding to ECMA-402 §16.5.4 three-step algorithm + generated-reference `ResolvePluralRange.ts`):
 
 ```text
 function SelectRange(start, end Value) Category:
@@ -430,9 +431,9 @@ function SelectRange(start, end Value) Category:
 3. When there is no `pluralRanges` data in the locale, it **MUST** fall back to `eCat`(end-class), and **is prohibited** from falling back to `sCat` or return an error.
 4. `rangeMap` misses `(sCat, eCat)` **MUST** fallback to `eCat`, and is **disabled** from automatically trying heuristic fallbacks such as `(sCat, Other)` or `(Other, eCat)`.
 
-> **Why**: Step 1 short-circuiting "1–1" is the solidified behavior of FormatJS; step 2 falling back to end-class is explicitly specified by ECMA-402 §16.5.4; heuristic fallback will introduce inconsistencies with FormatJS.
+> **Why**: Step 1 short-circuiting "1–1" is the solidified behavior of Generated reference; step 2 falling back to end-class is explicitly specified by ECMA-402 §16.5.4; heuristic fallback will introduce inconsistencies with Generated reference.
 >
-> **Rejected**: Math comparison short-circuiting step 1 - inconsistent with FormatJS behavior.
+> **Rejected**: Math comparison short-circuiting step 1 - inconsistent with reference behavior.
 > **Rejected**: Error (no ranges data) - Consistency conflict with `Select` which does not return error.
 
 ---
@@ -519,20 +520,20 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - [ ] codegen output under SPEC 40 locked CLDR version (48.1.0), is byte-equivalent to a mechanically extracted `.select()` fixture in `formatjs/packages/intl-pluralrules/tests/index.test.ts`; unextracted `selectRange`, `supportedLocalesOf` or complex Vitest shapes must be overwritten by a `.skip-list.json` audit or a separate handwritten fixture.
 - [ ] codegen tool implementation **does not** import `dave/jennifer`(`grep -r "dave/jennifer" tools/gen-plural-rules/` empty).
 - [ ] `pluralrules`, `internal/ecma402/pluralrules`, and `tools/gen-plural-rules` do not import `golang.org/x/text/feature/plural` (`grep -r "x/text/feature/plural" .` is empty in the main module of the warehouse).
-- [ ] `pluralrules.New(locale.MustParseList("en")).Select(pluralrules.Int(1)) == One`.
-- [ ] `pluralrules.New(locale.MustParseList("en")).Select(pluralrules.Int(2)) == Other`.
-- [ ] `pluralrules.New(locale.MustParseList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(1)) == One`(1st).
-- [ ] `pluralrules.New(locale.MustParseList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(2)) == Two`(2nd).
-- [ ] `pluralrules.New(locale.MustParseList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(3)) == Few`(3rd).
-- [ ] `pluralrules.New(locale.MustParseList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(4)) == Other`(4th).
-- [ ] `pluralrules.New(locale.MustParseList("pl")).Select(pluralrules.Int(1)) == One`.
-- [ ] `pluralrules.New(locale.MustParseList("pl")).Select(pluralrules.Int(2)) == Few`.
-- [ ] `pluralrules.New(locale.MustParseList("pl")).Select(pluralrules.Int(5)) == Many`.
-- [ ] `pluralrules.New(locale.MustParseList("ar")).Select(pluralrules.Int(0)) == Zero` (Arabic zero category).
-- [ ] `pluralrules.New(locale.MustParseList("en")).SelectRange(pluralrules.Int(1), pluralrules.Int(5)) == Other`.
-- [ ] `pluralrules.New(locale.MustParseList("en")).SelectRange(pluralrules.Int(1), pluralrules.Int(1)) == One`(step 1 string equality short circuit).
-- [ ] `pluralrules.New(locale.MustParseList("zh")).SelectRange(pluralrules.Int(1), pluralrules.Int(5)) == Other`(zh cardinal only Other, all range falls back to Other).
-- [ ] NumberFormat compact path selects plural category through `internal/ecma402/pluralrules.GetOperands` + `internal/cldr/plural.CardinalRule`, which is equal to FormatJS `format_to_parts.ts:262/304/316/331` behavior bytes (use `numberformat.New(locale.MustParseList("pl-PL"), numberformat.Options{Notation: numberformat.CompactNotation}).Format(numberformat.Int(1500))` for end-to-end testing).
+- [ ] `pluralrules.New(mustLocaleList("en")).Select(pluralrules.Int(1)) == One`.
+- [ ] `pluralrules.New(mustLocaleList("en")).Select(pluralrules.Int(2)) == Other`.
+- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(1)) == One`(1st).
+- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(2)) == Two`(2nd).
+- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(3)) == Few`(3rd).
+- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(4)) == Other`(4th).
+- [ ] `pluralrules.New(mustLocaleList("pl")).Select(pluralrules.Int(1)) == One`.
+- [ ] `pluralrules.New(mustLocaleList("pl")).Select(pluralrules.Int(2)) == Few`.
+- [ ] `pluralrules.New(mustLocaleList("pl")).Select(pluralrules.Int(5)) == Many`.
+- [ ] `pluralrules.New(mustLocaleList("ar")).Select(pluralrules.Int(0)) == Zero` (Arabic zero category).
+- [ ] `pluralrules.New(mustLocaleList("en")).SelectRange(pluralrules.Int(1), pluralrules.Int(5)) == Other`.
+- [ ] `pluralrules.New(mustLocaleList("en")).SelectRange(pluralrules.Int(1), pluralrules.Int(1)) == One`(step 1 string equality short circuit).
+- [ ] `pluralrules.New(mustLocaleList("zh")).SelectRange(pluralrules.Int(1), pluralrules.Int(5)) == Other`(zh cardinal only Other, all range falls back to Other).
+- [ ] NumberFormat compact path selects plural category through `internal/ecma402/pluralrules.GetOperands` + `internal/cldr/plural.CardinalRule`, which is equal to generated-reference `format_to_parts.ts:262/304/316/331` behavior bytes (use `numberformat.New(mustLocaleList("pl-PL"), numberformat.Options{Notation: numberformat.CompactNotation}).Format(numberformat.Int(1500))` for end-to-end testing).
 - [ ] Neither `pluralrules.New(locales, pluralrules.Options{}).SelectFormatted(...)` nor `internal/ecma402/pluralrules.ResolvePlural` exists; the compact plural option is not a public API.
 - [ ] The `OperandsRecord` type is located in `internal/ecma402/pluralrules/operands.go` (single file record); the `pluralrules` package is not redefined.
 - [ ] The `OperandsRecord` field set is exactly `{N,I,F,T OperandValue; V,W,C,E int}` (8 fields, asserted by reflection test).

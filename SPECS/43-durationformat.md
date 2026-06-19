@@ -244,7 +244,7 @@ MUST rules:
 1. Use stdlib `testing`, table-driven tests, and `t.Parallel()` unless shared generated-output state prevents it.
 2. Add focused tests for constructor defaults, invalid options, supported locales, default formatting, digital formatting, parts, exact fractional rollup, and invalid duration values.
 3. Add generator tests for CLDR unit extraction, `timeSeparator`, and generated supported locales.
-4. Add FormatJS-derived conformance fixtures under `durationformat/testdata/conformance/formatjs/`.
+4. Add generated-reference conformance fixtures under `durationformat/testdata/conformance/formatjs/`.
 5. Accepted output mismatches must go to `durationformat/testdata/divergences.md` or `xfail.json`, never by removing generated fixture cases.
 
 Acceptance checks:

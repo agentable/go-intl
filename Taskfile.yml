@@ -288,7 +288,11 @@ tasks:
   data:contract:
     desc: Verify generated CLDR data contracts without regeneration
     cmds:
-      - go test -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile|GeneratedDataShape|CLDRImportGraphDirection|NoImportOfRetiredRootCLDR)$' ./internal/cldr/locale
+      - go test -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile|GeneratedDataShape|CLDRImportGraphDirection|NoImportOfRetiredRootCLDR|RetiredRootCLDRHasNoGoFiles)$' ./internal/cldr/locale
+      - go test -run 'Test(SupportedCodesDoesNotDecodeOtherBlobs|NarrowIndexDoesNotDecodeMainBlobs|SupportedCalendarsReturnsCopy|SupportedLocalesDoesNotDecode(NameBlobs|PatternBlob|NumberBlob|FieldBlob|PatternBlobs)|SupportedTimeZonesDoesNotDecodeMainBlobs|GeneratedNumberingSystemExtrasHaveRuntimePayload|RuntimeNumberingSystemPayloadsAreAdvertised)$' ./internal/cldr/currency ./internal/cldr/date ./internal/cldr/displaynames ./internal/cldr/list ./internal/cldr/number ./internal/cldr/relativetime ./internal/cldr/timezone ./internal/cldr/unit
+      - go test ./internal/numbering
+      - go test -run 'Test(SupportedLocalesReturnsCopy|SupportedCollationsReturnsCopy)$' ./internal/collation
+      - go test -run 'TestSupportedLocales(ExcludesTailoredLocales|ReturnsSnapshot)$' ./internal/segmentation
 
   build:size:
     desc: Report direct formatter, root facade, and CLDR binary size deltas
@@ -359,6 +363,25 @@ tasks:
         -coverage
         -node-witness
         ./locale ./numberformat ./datetimeformat ./pluralrules ./listformat ./relativetimeformat ./durationformat ./displaynames ./collator ./segmenter
+
+  conformance:witness:
+    desc: Refresh generated Node Intl witness fixtures with the active node binary
+    cmds:
+      - |
+        node_path="$(command -v node)"
+        if [ -z "$node_path" ]; then
+          echo "ERROR: conformance:witness requires node on PATH" >&2
+          exit 1
+        fi
+        go run ./tools/node-witness -node "$node_path" >/dev/null
+        (cd tools/gen-fixtures-from-formatjs && go run . -node "$node_path" -out ../..)
+      - |
+        echo ""
+        echo "Node witness diff:"
+        git diff -- '*/testdata/conformance/node-v*/' testdata/native/
+        echo ""
+        echo "Next:"
+        echo "  task conformance:verify"
 
   verify:
     desc: Run all verification steps (deps, format, vet, lint, test, vuln)

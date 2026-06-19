@@ -3,6 +3,7 @@ package localematcher
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -19,34 +20,28 @@ func TestFilterLocales(t *testing.T) {
 		{
 			name:      "lookup preserves canonical requested locales",
 			supported: []string{"en", "fr", "zh-Hant"},
-			requested: []locale.Locale{
-				locale.MustParse("en-US-u-ca-gregory"),
-				locale.MustParse("en-US-u-ca-gregory"),
-				locale.MustParse("fr-FR"),
-				locale.MustParse("zh-Hant-TW"),
-				locale.MustParse("de"),
-			},
-			matcher: AlgorithmLookup,
-			want:    []string{"en-US-u-ca-gregory", "fr-FR", "zh-Hant-TW"},
+			requested: []locale.Locale{intltest.Locale(t, "en-US-u-ca-gregory"), intltest.Locale(t, "en-US-u-ca-gregory"), intltest.Locale(t, "fr-FR"), intltest.Locale(t, "zh-Hant-TW"), intltest.Locale(t, "de")},
+			matcher:   AlgorithmLookup,
+			want:      []string{"en-US-u-ca-gregory", "fr-FR", "zh-Hant-TW"},
 		},
 		{
 			name:      "best fit preserves requested locale",
 			supported: []string{"zh", "zh-Hant"},
-			requested: []locale.Locale{locale.MustParse("zh-TW")},
+			requested: []locale.Locale{intltest.Locale(t, "zh-TW")},
 			matcher:   AlgorithmBestFit,
 			want:      []string{"zh-TW"},
 		},
 		{
 			name:      "lookup preserves requested locale matched by derived available locale",
 			supported: []string{"zh-Hant-HK"},
-			requested: []locale.Locale{locale.MustParse("zh-HK-u-nu-hanidec")},
+			requested: []locale.Locale{intltest.Locale(t, "zh-HK-u-nu-hanidec")},
 			matcher:   AlgorithmLookup,
 			want:      []string{"zh-HK-u-nu-hanidec"},
 		},
 		{
 			name:      "filters unsupported locale",
 			supported: []string{"en", "fr"},
-			requested: []locale.Locale{locale.MustParse("de")},
+			requested: []locale.Locale{intltest.Locale(t, "de")},
 			matcher:   AlgorithmLookup,
 			want:      nil,
 		},

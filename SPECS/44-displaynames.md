@@ -5,7 +5,7 @@ Owns: `displaynames` package public API, type/style/fallback resolution, CLDR lo
 
 References:
 - ECMA-402: `.references/ecma402/spec/displaynames.html`
-- FormatJS polyfill: `.references/formatjs/packages/intl-displaynames/`
+- readable polyfill: `.references/formatjs/packages/intl-displaynames/`
 
 ---
 

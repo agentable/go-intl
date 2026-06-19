@@ -89,6 +89,59 @@ func TestSupportedNumberingSystemsComesFromGeneratedIndex(t *testing.T) {
 	}
 }
 
+func TestGeneratedNumberingSystemExtrasHaveRuntimePayload(t *testing.T) {
+	t.Parallel()
+
+	numberingSystemOnce.Do(loadNumberingSystemExtras)
+	if len(numberingSystemExtras) == 0 {
+		t.Fatal("generated numbering-system extras are empty; supported numbering systems must reflect CLDR number symbols")
+	}
+	data := numberDataByLocale()
+	for _, numberingSystem := range numberingSystemExtras {
+		if numberingSystem == "" {
+			t.Fatal("generated numbering-system extras contain empty identifier")
+		}
+		if !numberingSystemHasRuntimePayload(data, numberingSystem) {
+			t.Fatalf("generated numbering-system extra %q has no runtime symbols and decimal pattern", numberingSystem)
+		}
+	}
+}
+
+func TestRuntimeNumberingSystemPayloadsAreAdvertised(t *testing.T) {
+	t.Parallel()
+
+	supported := map[string]bool{}
+	for _, numberingSystem := range SupportedNumberingSystems() {
+		supported[numberingSystem] = true
+	}
+	for _, data := range numberDataByLocale() {
+		for numberingSystem := range data.symbols {
+			if !supported[numberingSystem] {
+				t.Fatalf("runtime number symbols for %q are not advertised by SupportedNumberingSystems", numberingSystem)
+			}
+		}
+		for numberingSystem := range data.decimal {
+			if !supported[numberingSystem] {
+				t.Fatalf("runtime decimal pattern for %q is not advertised by SupportedNumberingSystems", numberingSystem)
+			}
+		}
+	}
+}
+
+func numberingSystemHasRuntimePayload(data map[Locale]numberData, numberingSystem string) bool {
+	for _, localeData := range data {
+		symbols := localeData.symbols[numberingSystem]
+		if symbols.Decimal == "" || symbols.Group == "" || symbols.Plus == "" || symbols.Minus == "" {
+			continue
+		}
+		if localeData.decimal[numberingSystem] == "" {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 // TestSupportedNumberingSystemsReturnsCopy asserts the merged result is a fresh
 // slice each call so callers cannot corrupt cached state.
 func TestSupportedNumberingSystemsReturnsCopy(t *testing.T) {

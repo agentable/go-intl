@@ -10,13 +10,13 @@
     },
     "expectedComparison": -1,
     "expectedResolvedOptions": {
-      "locale": "sv",
-      "usage": "sort",
-      "sensitivity": "variant",
-      "ignorePunctuation": false,
+      "caseFirst": "false",
       "collation": "default",
+      "ignorePunctuation": false,
+      "locale": "sv",
       "numeric": false,
-      "caseFirst": "false"
+      "sensitivity": "variant",
+      "usage": "sort"
     }
   },
   {
@@ -30,13 +30,13 @@
     },
     "expectedComparison": -1,
     "expectedResolvedOptions": {
-      "locale": "sv",
-      "usage": "sort",
-      "sensitivity": "variant",
-      "ignorePunctuation": false,
+      "caseFirst": "false",
       "collation": "default",
+      "ignorePunctuation": false,
+      "locale": "sv",
       "numeric": false,
-      "caseFirst": "false"
+      "sensitivity": "variant",
+      "usage": "sort"
     }
   },
   {
@@ -50,13 +50,13 @@
     },
     "expectedComparison": -1,
     "expectedResolvedOptions": {
-      "locale": "sv",
-      "usage": "sort",
-      "sensitivity": "variant",
-      "ignorePunctuation": false,
+      "caseFirst": "false",
       "collation": "default",
+      "ignorePunctuation": false,
+      "locale": "sv",
       "numeric": false,
-      "caseFirst": "false"
+      "sensitivity": "variant",
+      "usage": "sort"
     }
   }
 ]

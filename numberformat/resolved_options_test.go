@@ -7,6 +7,7 @@ import (
 	"github.com/agentable/go-intl/internal/intlerr"
 
 	"github.com/agentable/go-intl/internal/ecma402"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -34,7 +35,7 @@ func TestNumberFormatUsesDefaultLocaleProvider(t *testing.T) {
 func TestNumberFormatResolvedOptionsDefaults(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +84,7 @@ func TestNumberFormatResolvedOptionsDefaults(t *testing.T) {
 func TestNumberFormatResolvedOptionsNumberingSystem(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-u-nu-latn")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en-u-nu-latn")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +92,7 @@ func TestNumberFormatResolvedOptionsNumberingSystem(t *testing.T) {
 		t.Fatalf("NumberingSystem = %q, want latn", got)
 	}
 
-	format, err = New(locale.List{locale.MustParse("en-u-nu-arab")}, Options{NumberingSystem: "latn"})
+	format, err = New(locale.List{intltest.Locale(t, "en-u-nu-arab")}, Options{NumberingSystem: "latn"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +104,7 @@ func TestNumberFormatResolvedOptionsNumberingSystem(t *testing.T) {
 func TestNumberFormatUsesMatchedNumberDataLocale(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("de-DE")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "de-DE")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +119,7 @@ func TestNumberFormatUsesMatchedNumberDataLocale(t *testing.T) {
 func TestNumberFormatCurrencyRequiresCurrency(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{locale.MustParse("en-US")}, Options{Style: CurrencyStyle})
+	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -134,7 +135,7 @@ func TestNumberFormatCurrencyRequiresCurrency(t *testing.T) {
 func TestNumberFormatRejectsInvalidCurrencyCode(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{locale.MustParse("en-US")}, Options{Style: CurrencyStyle, Currency: CurrencyCode("US")})
+	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("US")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -143,7 +144,7 @@ func TestNumberFormatRejectsInvalidCurrencyCode(t *testing.T) {
 func TestNumberFormatRejectsInvalidCurrencyCodeWhenStyleIsNotCurrency(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{locale.MustParse("en-US")}, Options{Currency: Currency("US")})
+	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Currency: Currency("US")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -152,16 +153,28 @@ func TestNumberFormatRejectsInvalidCurrencyCodeWhenStyleIsNotCurrency(t *testing
 func TestNumberFormatRejectsNonASCIICurrencyCode(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{locale.MustParse("en-US")}, Options{Style: CurrencyStyle, Currency: Currency("円円円")})
+	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("円円円")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
+	}
+}
+
+func TestNumberFormatNormalizesCurrencyInConstructor(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("usd")})
+	if err != nil {
+		t.Fatalf("New(currency=usd) error = %v", err)
+	}
+	if got := format.ResolvedOptions().Currency; got != "USD" {
+		t.Fatalf("ResolvedOptions().Currency = %q, want USD", got)
 	}
 }
 
 func TestNumberFormatRejectsInvalidUnit(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{locale.MustParse("en")}, Options{Style: UnitStyle, Unit: UnitIdentifier("bad-unit")})
+	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: UnitStyle, Unit: Unit("bad-unit")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -170,7 +183,7 @@ func TestNumberFormatRejectsInvalidUnit(t *testing.T) {
 func TestNumberFormatRejectsInvalidUnitWhenStyleIsNotUnit(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{locale.MustParse("en")}, Options{Unit: UnitIdentifier("bad-unit")})
+	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Unit: Unit("bad-unit")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -180,9 +193,9 @@ func TestNumberFormatAcceptsSanctionedUnits(t *testing.T) {
 	t.Parallel()
 
 	for _, unit := range []string{"meter", "kilometer", "meter-per-second", "microsecond", "nanosecond-per-second"} {
-		format, err := New(locale.List{locale.MustParse("en")}, Options{Style: UnitStyle, Unit: UnitIdentifier(unit)})
+		format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: UnitStyle, Unit: Unit(unit)})
 		if err != nil {
-			t.Fatalf("New(Options{Unit: UnitIdentifier(%q)}) error = %v, want nil", unit, err)
+			t.Fatalf("New(Options{Unit: Unit(%q)}) error = %v, want nil", unit, err)
 		}
 		if got := format.ResolvedOptions().Unit; got != unit {
 			t.Fatalf("ResolvedOptions().Unit = %q, want %q", got, unit)
@@ -193,9 +206,9 @@ func TestNumberFormatAcceptsSanctionedUnits(t *testing.T) {
 func TestNumberFormatResolvedOptionsExposeOnlyStyleSlots(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{
-		Currency: CurrencyCode("USD"),
-		Unit:     UnitIdentifier("meter"),
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
+		Currency: Currency("USD"),
+		Unit:     Unit("meter"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -208,7 +221,7 @@ func TestNumberFormatResolvedOptionsExposeOnlyStyleSlots(t *testing.T) {
 		t.Fatalf("decimal unit slots = %q/%q, want empty", got.Unit, got.UnitDisplay)
 	}
 
-	format, err = New(locale.List{locale.MustParse("en")}, Options{Style: CurrencyStyle, Currency: CurrencyCode("USD"), Unit: UnitIdentifier("meter")})
+	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{Style: CurrencyStyle, Currency: Currency("USD"), Unit: Unit("meter")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +233,7 @@ func TestNumberFormatResolvedOptionsExposeOnlyStyleSlots(t *testing.T) {
 		t.Fatalf("currency unit slots = %q/%q, want empty", got.Unit, got.UnitDisplay)
 	}
 
-	format, err = New(locale.List{locale.MustParse("en")}, Options{Style: UnitStyle, Unit: UnitIdentifier("meter"), Currency: CurrencyCode("USD")})
+	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{Style: UnitStyle, Unit: Unit("meter"), Currency: Currency("USD")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +249,7 @@ func TestNumberFormatResolvedOptionsExposeOnlyStyleSlots(t *testing.T) {
 func TestNumberFormatRejectsCaseChangedUnit(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{locale.MustParse("en")}, Options{Style: UnitStyle, Unit: UnitIdentifier("METER")})
+	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: UnitStyle, Unit: Unit("METER")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -267,7 +280,7 @@ func TestNumberFormatRejectsInvalidStringOptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := New(locale.List{locale.MustParse("en")}, tc.opt)
+			_, err := New(locale.List{intltest.Locale(t, "en")}, tc.opt)
 			if !errors.Is(err, intlerr.ErrInvalidOption) {
 				t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 			}
@@ -295,7 +308,7 @@ func TestNumberFormatRejectsInvalidNumericOptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := New(locale.List{locale.MustParse("en")}, tc.opt)
+			_, err := New(locale.List{intltest.Locale(t, "en")}, tc.opt)
 			if !errors.Is(err, intlerr.ErrInvalidOption) {
 				t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 			}
@@ -310,14 +323,14 @@ func TestNumberFormatAcceptsDataBackedOptions(t *testing.T) {
 		name string
 		opts Options
 	}{
-		{name: "currency sign", opts: Options{Style: CurrencyStyle, Currency: CurrencyCode("USD"), CurrencySign: AccountingCurrencySign}},
+		{name: "currency sign", opts: Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencySign: AccountingCurrencySign}},
 		{name: "compact display", opts: Options{Notation: CompactNotation, CompactDisplay: LongCompactDisplay}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := New(locale.List{locale.MustParse("en")}, tc.opts); err != nil {
+			if _, err := New(locale.List{intltest.Locale(t, "en")}, tc.opts); err != nil {
 				t.Fatalf("New() error = %v, want nil", err)
 			}
 		})
@@ -327,7 +340,7 @@ func TestNumberFormatAcceptsDataBackedOptions(t *testing.T) {
 func TestNumberFormatResolvedOptionsSignificantDigits(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{MinimumSignificantDigits: intPtr(3)})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{MinimumSignificantDigits: intPtr(3)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +356,7 @@ func TestNumberFormatResolvedOptionsSignificantDigits(t *testing.T) {
 			got.MinimumFractionDigits, got.MaximumFractionDigits)
 	}
 
-	format, err = New(locale.List{locale.MustParse("en")}, Options{MaximumSignificantDigits: intPtr(3)})
+	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{MaximumSignificantDigits: intPtr(3)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +370,7 @@ func TestNumberFormatResolvedOptionsSignificantDigits(t *testing.T) {
 func TestNumberFormatResolvedOptionsRoundingPriority(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{MaximumFractionDigits: intPtr(2), RoundingPriority: MorePrecisionRoundingPriority})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{MaximumFractionDigits: intPtr(2), RoundingPriority: MorePrecisionRoundingPriority})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +390,7 @@ func TestNumberFormatResolvedOptionsRoundingPriority(t *testing.T) {
 func TestNumberFormatResolvedOptionsCompactDefaults(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{Notation: CompactNotation})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: CompactNotation})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +410,7 @@ func TestNumberFormatResolvedOptionsCompactDefaults(t *testing.T) {
 		t.Fatalf("significant digits = %v/%v, want 1/2", got.MinimumSignificantDigits, got.MaximumSignificantDigits)
 	}
 
-	format, err = New(locale.List{locale.MustParse("en")}, Options{Notation: CompactNotation, UseGrouping: UseGroupingAlways})
+	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{Notation: CompactNotation, UseGrouping: UseGroupingAlways})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,9 +422,9 @@ func TestNumberFormatResolvedOptionsCompactDefaults(t *testing.T) {
 func TestNumberFormatResolvedOptionsCurrencyDefaultsOnlyForStandardNotation(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
 		Style:    CurrencyStyle,
-		Currency: CurrencyCode("USD"),
+		Currency: Currency("USD"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -422,9 +435,9 @@ func TestNumberFormatResolvedOptionsCurrencyDefaultsOnlyForStandardNotation(t *t
 		t.Fatalf("standard currency fraction digits = %v/%v, want 2/2", got.MinimumFractionDigits, got.MaximumFractionDigits)
 	}
 
-	format, err = New(locale.List{locale.MustParse("en")}, Options{
+	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{
 		Style:    CurrencyStyle,
-		Currency: CurrencyCode("USD"),
+		Currency: Currency("USD"),
 		Notation: ScientificNotation,
 	})
 	if err != nil {
@@ -440,7 +453,7 @@ func TestNumberFormatResolvedOptionsCurrencyDefaultsOnlyForStandardNotation(t *t
 func TestNumberFormatResolvedOptionsIsSnapshot(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{Notation: ScientificNotation})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: ScientificNotation})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -458,11 +471,7 @@ func TestNumberFormatResolvedOptionsIsSnapshot(t *testing.T) {
 func TestSupportedLocalesOf(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.List{
-		locale.MustParse("fr-FR"),
-		locale.MustParse("en-US-u-nu-latn"),
-		locale.MustParse("ban"),
-	}
+	requested := locale.List{intltest.Locale(t, "fr-FR"), intltest.Locale(t, "en-US-u-nu-latn"), intltest.Locale(t, "ban")}
 	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: LookupLocaleMatcher})
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf() error = %v", err)
@@ -481,7 +490,7 @@ func TestSupportedLocalesOf(t *testing.T) {
 func TestSupportedLocalesOfRecognizesDerivedAvailableLocale(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.MustParseList("zh-HK-u-nu-latn")
+	requested := intltest.LocaleList(t, "zh-HK-u-nu-latn")
 	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: LookupLocaleMatcher})
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf() error = %v", err)
@@ -502,7 +511,7 @@ func TestSupportedLocalesOfRecognizesDerivedAvailableLocale(t *testing.T) {
 func TestSupportedLocalesOfErrors(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.List{locale.MustParse("en-US")}
+	requested := locale.List{intltest.Locale(t, "en-US")}
 	if _, err := SupportedLocalesOf(requested, Options{LocaleMatcher: LocaleMatcher("bad")}); !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("SupportedLocalesOf(invalid matcher) error = %v, want intlerr.ErrInvalidOption", err)
 	}

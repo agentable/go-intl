@@ -4,10 +4,10 @@
     "source": "node:v26.0.0:datetimeformat",
     "locale": "en-US",
     "options": {
-      "year": "numeric",
-      "month": "long",
       "day": "numeric",
-      "timeZone": "UTC"
+      "month": "long",
+      "timeZone": "UTC",
+      "year": "numeric"
     },
     "input": "2020-01-02T03:04:05Z",
     "expected": "January 2, 2020"

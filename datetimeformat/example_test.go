@@ -10,7 +10,7 @@ import (
 
 // Example demonstrates Intl.DateTimeFormat.prototype.format from ECMA-402.
 func Example() {
-	format, err := datetimeformat.New(locale.MustParseList("en-US"), datetimeformat.Options{
+	format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
 		TimeZone: "UTC",
 	})
 	if err != nil {
@@ -26,7 +26,7 @@ func Example() {
 
 // Example_options demonstrates Intl.DateTimeFormat constructor options from ECMA-402.
 func Example_options() {
-	format, err := datetimeformat.New(locale.MustParseList("en-US"), datetimeformat.Options{
+	format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
 		DateStyle: datetimeformat.LongDateTimeStyle,
 		TimeZone:  "UTC",
 	})
@@ -43,7 +43,7 @@ func Example_options() {
 
 // ExampleDateTimeFormat_FormatToParts demonstrates Intl.DateTimeFormat.prototype.formatToParts from ECMA-402.
 func ExampleDateTimeFormat_FormatToParts() {
-	format, err := datetimeformat.New(locale.MustParseList("en-US"), datetimeformat.Options{
+	format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
 		Year:     datetimeformat.NumericFieldStyle,
 		Month:    datetimeformat.ShortMonthStyle,
 		Day:      datetimeformat.NumericFieldStyle,
@@ -64,4 +64,12 @@ func ExampleDateTimeFormat_FormatToParts() {
 	// day="14"
 	// literal=", "
 	// year="2020"
+}
+
+func mustLocaleList(tags ...string) locale.List {
+	locales, err := locale.ParseList(tags...)
+	if err != nil {
+		panic(err)
+	}
+	return locales
 }

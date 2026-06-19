@@ -1,0 +1,63 @@
+[
+  {
+    "id": "collator-manual-unsupported-search-usage",
+    "source": "manual:collator:errors",
+    "locale": "en",
+    "options": {
+      "usage": "search"
+    },
+    "input": {
+      "left": "a",
+      "right": "a"
+    },
+    "errorCode": "unsupportedOption"
+  },
+  {
+    "id": "collator-manual-unsupported-case-first-option",
+    "source": "manual:collator:errors",
+    "locale": "en",
+    "options": {
+      "caseFirst": "upper"
+    },
+    "input": {
+      "left": "A",
+      "right": "a"
+    },
+    "errorCode": "unsupportedOption"
+  },
+  {
+    "id": "collator-manual-unsupported-case-first-extension",
+    "source": "manual:collator:errors",
+    "locale": "en-u-kf-upper",
+    "options": {},
+    "input": {
+      "left": "A",
+      "right": "a"
+    },
+    "errorCode": "unsupportedOption"
+  },
+  {
+    "id": "collator-manual-unsupported-collation-option",
+    "source": "manual:collator:errors",
+    "locale": "de",
+    "options": {
+      "collation": "phonebk"
+    },
+    "input": {
+      "left": "ae",
+      "right": "ä"
+    },
+    "errorCode": "unsupportedOption"
+  },
+  {
+    "id": "collator-manual-unsupported-collation-extension",
+    "source": "manual:collator:errors",
+    "locale": "de-u-co-phonebk",
+    "options": {},
+    "input": {
+      "left": "ae",
+      "right": "ä"
+    },
+    "errorCode": "unsupportedOption"
+  }
+]

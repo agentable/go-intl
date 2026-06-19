@@ -7,6 +7,7 @@ import (
 
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	ecma402dtf "github.com/agentable/go-intl/internal/ecma402/datetimeformat"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -47,7 +48,7 @@ func TestDateTimeFormatPatternLiteralEdges(t *testing.T) {
 func TestDateTimeFormatUsesStandardDateTimePatternWhenAtPatternMissing(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{DateStyle: MediumDateTimeStyle, TimeStyle: ShortDateTimeStyle, Hour12: boolPtr(false)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: MediumDateTimeStyle, TimeStyle: ShortDateTimeStyle, Hour12: boolPtr(false)})
 	if err != nil {
 		t.Fatalf("New(dateStyle+timeStyle) error = %v", err)
 	}
@@ -62,7 +63,7 @@ func TestDateTimeFormatUsesStandardDateTimePatternWhenAtPatternMissing(t *testin
 func TestDateTimeFormatShortComponentDateTimePattern(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{
 		Year:   TwoDigitFieldStyle,
 		Month:  NumericMonthStyle,
 		Day:    NumericFieldStyle,
@@ -74,7 +75,7 @@ func TestDateTimeFormatShortComponentDateTimePattern(t *testing.T) {
 		t.Fatalf("New(short date+time fields) error = %v", err)
 	}
 	got := format.Format(time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC))
-	if got != "5/8/26, 9:07\u202fAM" {
+	if got != "5/8/26, 9:07 AM" {
 		t.Fatalf("Format(short date+time fields) = %q, want short connector pattern", got)
 	}
 }

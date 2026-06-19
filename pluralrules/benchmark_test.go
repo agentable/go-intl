@@ -3,6 +3,7 @@ package pluralrules
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -36,7 +37,7 @@ func BenchmarkPluralRules_SelectRange_Cached(b *testing.B) {
 func benchmarkPluralRules(b *testing.B, opts Options) *PluralRules {
 	b.Helper()
 
-	rules, err := New(locale.List{locale.MustParse("en-US")}, opts)
+	rules, err := New(locale.List{intltest.Locale(b, "en-US")}, opts)
 	if err != nil {
 		b.Fatal(err)
 	}

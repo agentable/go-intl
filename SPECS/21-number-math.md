@@ -10,7 +10,7 @@
 
 ECMA-402 §6.4's `ToIntlMathematicalValue` normalizes any JS value (`Number` / `BigInt` / `String`) to an internal "mathematical value" concept, which can express `NaN`, `±Infinity`, and arbitrary precision decimal finite number `Finite(coeff, exp)`. This value is then consumed by abstract ops such as `ToRawPrecision` / `ToRawFixed` / `ComputeExponent` / `ApplyUnsignedRoundingMode`.
 
-FormatJS uses `@formatjs/bigdecimal` to self-implement this data structure; Go does not need to rewrite, because the `Form` enumeration (`Finite` / `Infinite` / `NaN` / `NaNSignaling`) of `cockroachdb/apd/v3` (IEEE 754-2008 GDA Decimal) corresponds one-to-one with FormatJS `BigDecimal.specialValue`, and natively provides `Log10` / `Floor` / `Ceil` / `Quantize` / `Round` / 8 GDA rounding modes (covering all 9 ECMA-402 modes).
+Generated reference uses `@formatjs/bigdecimal` to self-implement this data structure; Go does not need to rewrite, because the `Form` enumeration (`Finite` / `Infinite` / `NaN` / `NaNSignaling`) of `cockroachdb/apd/v3` (IEEE 754-2008 GDA Decimal) corresponds one-to-one with generated-reference `BigDecimal.specialValue`, and natively provides `Log10` / `Floor` / `Ceil` / `Quantize` / `Round` / 8 GDA rounding modes (covering all 9 ECMA-402 modes).
 
 This SPEC decides:
 
@@ -34,25 +34,25 @@ require github.com/cockroachdb/apd/v3 v3.x.x
 
 | Candidate | Decision | Key Reasons |
 |------|------|---------|
-| **`github.com/cockroachdb/apd/v3`** | ✅ Selected | IEEE 754-2008 GDA; `Form` enumeration corresponds to FormatJS `specialValue`; native `Log10` / `Quantize` / `Round`; `Context` concurrency safety; Apache-2.0; maintained upstream. |
+| **`github.com/cockroachdb/apd/v3`** | ✅ Selected | IEEE 754-2008 GDA; `Form` enumeration corresponds to generated-reference `specialValue`; native `Log10` / `Quantize` / `Round`; `Context` concurrency safety; Apache-2.0; maintained upstream. |
 | `shopspring/decimal` | ❌ Reject | No NaN/Inf representation; `NewFromString("NaN")` panic, conflicts with CLAUDE.md "no panic in production" red line; missing `Log10` native |
 | `ericlagergren/decimal` | ❌ Rejected | v3 remains long-term alpha; ABI stability is weaker for a formatter math core. |
-| `math/big.Float` | ❌ Rejected | Binary floating point; `0.1 + 0.2` converted to decimal string and FormatJS output **bytes are not equal** (violates SPEC 70 conformance) |
+| `math/big.Float` | ❌ Rejected | Binary floating point; `0.1 + 0.2` converted to decimal string and reference output **bytes are not equal** (violates SPEC 70 conformance) |
 | `math/big.Rat` | ❌ Reject | Purely rational; no `Log10` with directional rounding; ToRawPrecision is too expensive to implement |
 
 > **Why `cockroachdb/apd/v3`**:
-> 1. **GDA is isomorphic to FormatJS** - `apd.Form` enumeration (`Finite=0` / `Infinite=1` / `NaN=2` / `NaNSignaling=3`) directly corresponds to FormatJS `BigDecimal.specialValue`(`undefined` / `'POSITIVE_INFINITY'` / `'NEGATIVE_INFINITY'` / `'NaN'`); ported `ToIntlMathematicalValue` is 1:1 Translate.
+> 1. **GDA is isomorphic to Generated reference** - `apd.Form` enumeration (`Finite=0` / `Infinite=1` / `NaN=2` / `NaNSignaling=3`) directly corresponds to generated-reference `BigDecimal.specialValue`(`undefined` / `'POSITIVE_INFINITY'` / `'NEGATIVE_INFINITY'` / `'NaN'`); ported `ToIntlMathematicalValue` is 1:1 Translate.
 > 2. **Native override ECMA-402 operations** - `Log10` / `Floor` / `Ceil` / `Quantize` / `Round` all built-in; no need to self-implement for ToRawPrecision / ComputeExponent.
 > 3. **Concurrency safety** - `apd.Context` is a value type and can be copied by goroutine; unlike `big.Float`, it is a shared mutable state.
 > 4. **Active maintenance** - cockroachdb main repository, continuous submission, Apache-2.0 compatible with go-intl license.
 >
 > **Rejected `shopspring/decimal` Details**:
 > - ❌ No NaN / +Inf / -Inf representation; direct `panic("decimal: NaN not supported")` during construction, violating the "no panic" red line.
-> - ❌ ECMA-402 `ToIntlMathematicalValue("NaN")` must be able to return NaN-shaped values (FormatJS `BigDecimal.NaN` singleton); when using `shopspring`, you must wrap a layer of "sentinel value" yourself. The amount of code is equivalent to apd but it loses the isomorphic advantage of GDA.
+> - ❌ ECMA-402 `ToIntlMathematicalValue("NaN")` must be able to return NaN-shaped values (generated-reference `BigDecimal.NaN` singleton); when using `shopspring`, you must wrap a layer of "sentinel value" yourself. The amount of code is equivalent to apd but it loses the isomorphic advantage of GDA.
 > - ❌ Missing `Log10` native; ComputeExponent needs to implement `floor(log10(|x|))` by itself, and the accuracy boundary is difficult to control.
 >
 > **Rejected `math/big.Float`**:
-> - ❌ Binary IEEE-754 mantissa;`big.Float.Text('e', -1)` outputs `0.30000000000000004` while FormatJS outputs `"0.3"`, **bytes are not equal**.
+> - ❌ Binary IEEE-754 mantissa;`big.Float.Text('e', -1)` outputs `0.30000000000000004` while reference outputs `"0.3"`, **bytes are not equal**.
 > - ❌ ECMA-402 conformance test requires `0.1 + 0.2 → "0.3"` under NumberFormat decimal style; `big.Float` will never pass.
 >
 > **Rejected `ericlagergren/decimal`**:
@@ -77,7 +77,7 @@ internal/decimal/
 >
 > **Why not expose `apd.Decimal`**:`numberformat.Options{RoundingMode: ...}` should not leak the backend to the public API; once the future switches to `ericlagergren/decimal/v4`, the public API is broken. Unified package layer `numberformat.RoundingMode` type, value range verbatim ECMA-402.
 >
-> **Why files are split according to abstract op**: Each file corresponds to an ECMA-402 section to facilitate fixture transplantation (FormatJS `bigdecimal/tests/` and `ecma402-abstract/NumberFormat/tests/`).
+> **Why files are split according to abstract op**: Each file corresponds to an ECMA-402 section to facilitate fixture transplantation (generated-reference `bigdecimal/tests/` and `ecma402-abstract/NumberFormat/tests/`).
 
 ---
 
@@ -389,7 +389,7 @@ func ApplyUnsignedRoundingMode(x, r1, r2 Decimal, m RoundingMode) Decimal
 func GetUnsignedRoundingMode(m RoundingMode, isNegative bool) RoundingMode
 ```
 
-> **Why According to spec name `ApplyUnsignedRoundingMode` verbatim**:FormatJS `ecma402-abstract/NumberFormat/ApplyUnsignedRoundingMode.ts` 1:1 implementation; the transplantation cost is the lowest.
+> **Why According to spec name `ApplyUnsignedRoundingMode` verbatim**:generated-reference `ecma402-abstract/NumberFormat/ApplyUnsignedRoundingMode.ts` 1:1 implementation; the transplantation cost is the lowest.
 >
 > **Why not directly adjust `apd.Decimal.Quantize` + `apd.Rounder`**: The Rounder interface of apd does not expose the intermediate value of "between the two neighbors r1 / r2 I am now", and cannot implement the "select the edge based on the symbol" logic of `halfCeil` / `halfFloor`; must implement `ApplyUnsignedRoundingMode` by itself, and use apd internally to calculate `r1` / `r2` Then choose yourself.
 
@@ -476,7 +476,7 @@ TrailingZeroStripIfInteger // "stripIfInteger" (remove trailing zeros when integ
 func ApplyTrailingZeroDisplay(formatted string, isInteger bool, display TrailingZeroDisplay) string
 ```
 
-> **Why string post-processing rather than numerical level**: trailing zero is a display concept, not a mathematical concept; `Decimal{coeff=3, exp=-2}` and `Decimal{coeff=300, exp=-4}` are mathematically equivalent but trailing-zero behaves differently. It is most natural to process the value after solidifying it into a string in ToRawFixed (FormatJS has the same solution).
+> **Why string post-processing rather than numerical level**: trailing zero is a display concept, not a mathematical concept; `Decimal{coeff=3, exp=-2}` and `Decimal{coeff=300, exp=-4}` are mathematically equivalent but trailing-zero behaves differently. It is most natural to process the value after solidifying it into a string in ToRawFixed (Generated reference has the same solution).
 
 ---
 
@@ -646,7 +646,7 @@ sum := a.Add(b)
 fmt.Println(sum.String())  // "0.3"
 ```
 
-> **Why**: FormatJS uses decimal BigDecimal; `big.Float` is IEEE-754 binary, and the conformance test must fail.
+> **Why**: Generated reference uses decimal BigDecimal; `big.Float` is IEEE-754 binary, and the conformance test must fail.
 
 ### 8.5 ❌ Do not silently return 0 when `Cmp` uses NaN
 
@@ -751,19 +751,19 @@ var _ MathematicalValue = decimal.Decimal{}
 - [ ] `ToIntlMathematicalValue(nil)` returns `ErrInvalidDecimal`.
 - [ ] `BenchmarkToIntlMathematicalValue_Int64` appears in non-blocking benchmark telemetry.
 - [ ] `BenchmarkToIntlMathematicalValue_String_3p14` appears in non-blocking benchmark telemetry.
-- [ ] FormatJS `bigdecimal/tests/` All fixtures pass in `internal/decimal/from_test.go`.
+- [ ] generated-reference `bigdecimal/tests/` All fixtures pass in `internal/decimal/from_test.go`.
 
 ### Rounding Modes
 
 - [ ] `RoundingMode` 9 constants; `String()` output spec verbatim name (`"halfCeil"` not `"half-ceil"`).
 - [ ] `ParseRoundingMode("halfExpand") == RoundHalfExpand`,`ParseRoundingMode("HALFEXPAND")` failed (case sensitive).
-- [ ] `ApplyUnsignedRoundingMode` results under `halfCeil` / `halfFloor` with FormatJS `ApplyUnsignedRoundingMode.test.ts` byte-equal.
+- [ ] `ApplyUnsignedRoundingMode` results under `halfCeil` / `halfFloor` with generated-reference `ApplyUnsignedRoundingMode.test.ts` byte-equal.
 - [ ] `GetUnsignedRoundingMode` aligns with spec §15.5.6 verbatim table.
-- [ ] FormatJS `ecma402-abstract/NumberFormat/tests/ApplyUnsignedRoundingMode.test.ts` All fixtures pass.
+- [ ] generated-reference `ecma402-abstract/NumberFormat/tests/ApplyUnsignedRoundingMode.test.ts` All fixtures pass.
 
 ### RoundingPriority
 
-- [ ] `ApplyRoundingPriority` 5 branches (MorePrecision / LessPrecision / hasSD / hasFD / Compact / default fractionDigits) aligned with FormatJS `SetNumberFormatDigitOptions.ts`.
+- [ ] `ApplyRoundingPriority` 5 branches (MorePrecision / LessPrecision / hasSD / hasFD / Compact / default fractionDigits) aligned with generated-reference `SetNumberFormatDigitOptions.ts`.
 - [ ] `RoundingType` 5 values (FractionDigits / SignificantDigits / MorePrecision / LessPrecision / Compact).
 
 ### RoundingIncrement
@@ -771,7 +771,7 @@ var _ MathematicalValue = decimal.Decimal{}
 - [ ] `ValidRoundingIncrements` verbatim 17 value.
 - [ ] `IsValidRoundingIncrement(3) == false`,`IsValidRoundingIncrement(50) == true`.
 - [ ] `QuantizeToIncrement(123.456, 25, -2, RoundHalfExpand).String() == "123.5"`(125/25=5; round half expand; 25×0.05=1.25? See fixture).
-- [ ] FormatJS `ecma402-abstract/NumberFormat/tests/Quantize.test.ts` fixture passed (if exists).
+- [ ] generated-reference `ecma402-abstract/NumberFormat/tests/Quantize.test.ts` fixture passed (if exists).
 
 ### TrailingZeroDisplay
 
@@ -798,8 +798,8 @@ var _ MathematicalValue = decimal.Decimal{}
 
 ### Test
 
-- [ ] FormatJS `bigdecimal/tests/` All fixtures were ported to `internal/decimal/testdata/` and passed.
-- [ ] FormatJS `ecma402-abstract/NumberFormat/tests/{ApplyUnsignedRoundingMode,SetNumberFormatDigitOptions}.test.ts` fixture passed.
+- [ ] generated-reference `bigdecimal/tests/` All fixtures were ported to `internal/decimal/testdata/` and passed.
+- [ ] generated-reference `ecma402-abstract/NumberFormat/tests/{ApplyUnsignedRoundingMode,SetNumberFormatDigitOptions}.test.ts` fixture passed.
 - [ ] Use `t.Parallel()` for all tests.
 - [ ] `BenchmarkFromInt64` / `BenchmarkToIntlMathematicalValue_Int64` run on `task test:bench`, recorded to SPEC 71 §benchmark.
 - [ ] At least 1 `Example*` function demonstrating `ToIntlMathematicalValue` + `String`.

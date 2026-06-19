@@ -3,6 +3,7 @@ package pluralrules
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -25,7 +26,7 @@ func TestPluralRulesSelectRange(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			rules, err := New(locale.List{locale.MustParse(tc.locale)}, Options{})
+			rules, err := New(locale.List{intltest.Locale(t, tc.locale)}, Options{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -39,7 +40,7 @@ func TestPluralRulesSelectRange(t *testing.T) {
 func TestPluralRulesSelectRangeDecimal(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +64,7 @@ func TestPluralRulesSelectRangeDecimal(t *testing.T) {
 func TestPluralRulesSelectRangeReversedPreservesInputOrder(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("az")}, Options{})
+	rules, err := New(locale.List{intltest.Locale(t, "az")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestPluralRulesSelectRangeReversedPreservesInputOrder(t *testing.T) {
 func TestPluralRulesSelectRangeUsesRoundedEquality(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{MaximumFractionDigits: intPtr(0)})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{MaximumFractionDigits: intPtr(0)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +109,7 @@ func TestPluralRulesSelectRangeUsesRoundedEquality(t *testing.T) {
 func TestPluralRulesUnsignedSelectionWrappers(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{locale.MustParse("en")}, Options{})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

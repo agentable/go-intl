@@ -40,7 +40,7 @@ internal/cldr/date/
 1. The `internal/ecma402/datetimeformat/` algorithm layer **MUST** be stateless (no package-level mutable var, no `init()` side effects).
 2. `internal/ecma402/datetimeformat/` **Must not** directly import `internal/cldr`; CLDR data slices are injected by the caller (`datetimeformat/` package) through parameters when `New`.
 3. `internal/cldr/date/data.go` is a per-locale generated const-blob payload, produced by codegen and decoded through `internal/cldr/date`; handwritten mapping tables are prohibited.
-4. The `Formats` structure (per-skeleton pattern table) in `tokens.go` must be aligned one-to-one with the `Formats` fields output by FormatJS `parseDateTimeSkeleton`.
+4. The `Formats` structure (per-skeleton pattern table) in `tokens.go` must be aligned one-to-one with the `Formats` fields output by generated-reference `parseDateTimeSkeleton`.
 
 > **Why**: Upgrading LDML does not trigger data regeneration (the algorithm is stable); upgrading CLDR does not trigger algorithm modification (the data is stable); the conformance test can independently replace the algorithm or data for difference.
 >
@@ -54,7 +54,7 @@ internal/cldr/date/
 
 ### 2.1 Character table source
 
-The character table source **MUST** be an LDML TR35 Date Field Symbol Table. `DATE_TIME_REGEX` of FormatJS is the authoritative porting entry:
+The character table source **MUST** be an LDML TR35 Date Field Symbol Table. `DATE_TIME_REGEX` of Generated references are the authoritative porting entry:
 
 ```text
 /(?:[Eec]{1,6}|G{1,5}|[Qq]{1,5}|(?:[yYur]+|U{1,5})|[ML]{1,5}|d{1,2}|D{1,3}|F{1}|[abB]{1,5}|[hkHK]{1,2}|w{1,2}|W{1}|m{1,2}|s{1,2}|[zZOvVxX]{1,4})(?=([^']*'[^']*')*[^']*$)/g
@@ -63,7 +63,7 @@ The character table source **MUST** be an LDML TR35 Date Field Symbol Table. `DA
 **MUST** Rules:
 
 1. `internal/ecma402/datetimeformat/skeleton.go` **MUST** transplant the above regular rules and all branch semantics.
-2. Character → option field mapping (`matchSkeletonPattern`) **MUST** be aligned with FormatJS 1:1:
+2. Character → option field mapping (`matchSkeletonPattern`) **MUST** be aligned with Generated reference 1:1:
 
 | LDML characters | Corresponding to Options field | Field value based on character length |
 |-----------|------------------|------------------|
@@ -110,9 +110,9 @@ Skeleton string // original skeleton
    }
    ```
 
-> **Why**: The LDML character table is the consistent point across ICU/CLDR implementations; FormatJS has completed authoritative transplantation on the TS side, and mechanical translation on the Go side can ensure byte equality.
+> **Why**: The LDML character table is the consistent point across ICU/CLDR implementations; Generated reference has completed authoritative transplantation on the TS side, and mechanical translation on the Go side can ensure byte equality.
 >
-> **Rejected**: Redesign character → field table - inconsistent with FormatJS, which means breaking byte equality.
+> **Rejected**: Redesign character → field table - inconsistent with Generated reference, which means breaking byte equality.
 
 ### 2.2 Literal and escaping
 
@@ -163,17 +163,17 @@ score -= delta == 2 ? longMore: shortMore // or longLess / shortLess
 - `shortLess = 6` (length difference 1, direction "shorter")
 - `differentNumericTypePenalty = 15` (numeric values/letters are the same field but different types)
 - `offsetPenalty = 1`(difference between timezone generic/specific and offset fallback)
-2. `DATE_TIME_PROPS` **MUST** be a fixed field sequence: `Weekday | Era | Year | Month | Day | DayPeriod | Hour | Minute | Second | FractionalSecondDigits | TimeZoneName` (aligned FormatJS `DateTimeFormat/utils.ts`).
-3. Select the `Formats` with the highest score (maximum score, least deduction); when tied, take the **first** (aligned FormatJS `formats[0]` semantics).
+2. `DATE_TIME_PROPS` **MUST** be a fixed field sequence: `Weekday | Era | Year | Month | Day | DayPeriod | Hour | Minute | Second | FractionalSecondDigits | TimeZoneName` (aligned generated-reference `DateTimeFormat/utils.ts`).
+3. Select the `Formats` with the highest score (maximum score, least deduction); when tied, take the **first** (aligned generated-reference `formats[0]` semantics).
 
-> **Why**: The scoring constant is the solidified value of ICU `DateTimePatternGenerator`, which FormatJS uses; any deviation changes the hit result of skeleton → pattern, destroying byte equality.
+> **Why**: The scoring constant is the solidified value of ICU `DateTimePatternGenerator`, which Generated reference uses; any deviation changes the hit result of skeleton → pattern, destroying byte equality.
 
 ### 3.2 adjustFieldTypes post-processing
 
 **MUST** Rules:
 
 1. After selecting the best `Formats`, `adjustFieldTypes(format, options)` must be called to modify the character length of the corresponding field in `format.Pattern` according to the field value of `options`. Example: `format.Year = numeric` but `options.Year = 2-digit`, replace `y` in pattern with `yy`.
-2. Replacement rules **MUST** be consistent with FormatJS `BestFitFormatMatcher.ts`: alphabetic pattern can be adjusted to the requested width, but numeric pattern must not be forcibly changed to alphabetic month/day-period form. Example: Chinese `yMEd` patterns keep the numeric month token even when the localized pattern contains year/month/day markers even if `month: "long"` is requested, aligned with FormatJS.
+2. Replacement rules **MUST** be consistent with generated-reference `BestFitFormatMatcher.ts`: alphabetic pattern can be adjusted to the requested width, but numeric pattern must not be forcibly changed to alphabetic month/day-period form. Example: Chinese `yMEd` patterns keep the numeric month token even when the localized pattern contains year/month/day markers even if `month: "long"` is requested, aligned with Generated reference.
 3. Pattern scanning of `adjustFieldTypes` must maintain ASCII byte level: LDML pattern field characters are all ASCII, and field membership can use `strings.IndexByte` and other stdlib byte helpers; it is forbidden to change to rune/regex scanning.
 4. Pattern scanning loop **MUST** retain explicit index advancement, because quoted literal and repeated field width will skip multi-byte segments at one time; it is prohibited to hide index jumps in the loop body after mechanically changing to `for range len(pattern)`.
 5. After `adjustFieldTypes`, `format.Pattern` is the final pattern string and can be directly sent to `FormatDateTimePattern`.
@@ -263,10 +263,10 @@ func Parse(skeleton string, hour12 *bool, hc HourCycle) Formats // Separate skel
 - **FORBIDDEN** Handwritten skeleton → pattern mapping table (per-locale) - codegen is required.
 - **BANNED** translate-agent style "exhaustive 16 seq* functions" - does not support arbitrary skeleton strings.
 - **Disabled** Calling ICU `DateTimePatternGenerator` (no cgo / no ICU).
-- **FORBIDDEN** Modify the current scoring constant (`removalPenalty=120 / additionPenalty=20 / longMore=6 / shortMore=3 / longLess=8 / shortLess=6 / differentNumericTypePenalty=15 / offsetPenalty=1`) of FormatJS, unless you first use the reference implementation diff to prove that FormatJS has changed.
+- **FORBIDDEN** Modify the current scoring constant (`removalPenalty=120 / additionPenalty=20 / longMore=6 / shortMore=3 / longLess=8 / shortLess=6 / differentNumericTypePenalty=15 / offsetPenalty=1`) of Generated reference, unless you first use the reference implementation diff to prove that Generated reference has changed.
 - **Disabled** Skip `adjustFieldTypes` post-processing - even if best-fit hit is accurate, length adjustment still needs to be done.
 - **BANNED** The algorithm layer uses `init()` or package-level mutable var (must be stateless).
-- **BANNED** `parseDateTimeSkeleton` changes LDML character semantics (field values per character length must match FormatJS 1:1).
+- **BANNED** `parseDateTimeSkeleton` changes LDML character semantics (field values per character length must match Generated reference 1:1).
 - **DOWN** Calling `Match` or `parseDateTimeSkeleton` on a `Format` path - the pattern must be cached on `New`.
 
 ---

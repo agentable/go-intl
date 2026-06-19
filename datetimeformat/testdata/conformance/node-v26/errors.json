@@ -8,5 +8,15 @@
     },
     "input": "2026-05-08T12:00:00Z",
     "errorCode": "invalid_option"
+  },
+  {
+    "id": "datetimeformat-node-v26-invalid-calendar",
+    "source": "node:v26.0.0:datetimeformat:errors",
+    "locale": "en-US",
+    "options": {
+      "calendar": "bad!"
+    },
+    "input": "2026-05-08T12:00:00Z",
+    "errorCode": "invalid_option"
   }
 ]

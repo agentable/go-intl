@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/internal/localematcher"
 	"github.com/agentable/go-intl/locale"
 )
@@ -32,11 +33,7 @@ func TestRequestedLocaleStringsTreatsNilAndEmptyAsOmitted(t *testing.T) {
 func TestRequestedLocaleStringsDedupesCanonicalLocalesAndClones(t *testing.T) {
 	t.Parallel()
 
-	locales := locale.List{
-		locale.MustParse("en-us"),
-		locale.MustParse("fr"),
-		locale.MustParse("en-US"),
-	}
+	locales := locale.List{intltest.Locale(t, "en-us"), intltest.Locale(t, "fr"), intltest.Locale(t, "en-US")}
 	got := RequestedLocaleStrings(locales)
 	want := []string{"en-US", "fr"}
 	if !slices.Equal(got, want) {
@@ -53,7 +50,7 @@ func TestRequestedLocaleStringsDedupesCanonicalLocalesAndClones(t *testing.T) {
 func TestValidationLocaleUsesFirstCanonicalRequestOrDefault(t *testing.T) {
 	t.Parallel()
 
-	got := ValidationLocale(locale.List{locale.MustParse("fr-ca"), locale.MustParse("en-US")})
+	got := ValidationLocale(locale.List{intltest.Locale(t, "fr-ca"), intltest.Locale(t, "en-US")})
 	if got.String() != "fr-CA" {
 		t.Fatalf("ValidationLocale(requested) = %q, want fr-CA", got.String())
 	}
@@ -67,14 +64,9 @@ func TestValidationLocaleUsesFirstCanonicalRequestOrDefault(t *testing.T) {
 func TestSupportedLocalesCanonicalizesBeforeFiltering(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.List{
-		locale.MustParse("fr-ca"),
-		locale.MustParse("en-US"),
-		locale.MustParse("fr-CA"),
-		locale.MustParse("xh"),
-	}
+	requested := locale.List{intltest.Locale(t, "fr-ca"), intltest.Locale(t, "en-US"), intltest.Locale(t, "fr-CA"), intltest.Locale(t, "xh")}
 	got := SupportedLocales([]string{"en-US", "fr"}, requested, localematcher.AlgorithmLookup, nil)
-	want := locale.List{locale.MustParse("fr-CA"), locale.MustParse("en-US")}
+	want := locale.List{intltest.Locale(t, "fr-CA"), intltest.Locale(t, "en-US")}
 	if len(got) != len(want) {
 		t.Fatalf("SupportedLocales() length = %d, want %d: %v", len(got), len(want), got)
 	}
@@ -88,15 +80,12 @@ func TestSupportedLocalesCanonicalizesBeforeFiltering(t *testing.T) {
 func TestSupportedLocalesOfAppliesLocaleMatcherOption(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.List{
-		locale.MustParse("en-US"),
-		locale.MustParse("fr-CA"),
-	}
+	requested := locale.List{intltest.Locale(t, "en-US"), intltest.Locale(t, "fr-CA")}
 	got, err := SupportedLocalesOf("testformat", []string{"en", "fr"}, requested, "lookup", nil, ErrInvalidOption)
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf(lookup) error = %v", err)
 	}
-	want := locale.List{locale.MustParse("en-US"), locale.MustParse("fr-CA")}
+	want := locale.List{intltest.Locale(t, "en-US"), intltest.Locale(t, "fr-CA")}
 	if len(got) != len(want) {
 		t.Fatalf("SupportedLocalesOf() length = %d, want %d: %v", len(got), len(want), got)
 	}

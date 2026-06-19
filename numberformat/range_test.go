@@ -5,13 +5,14 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func TestNumberFormatFormatRangeEqual(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +24,7 @@ func TestNumberFormatFormatRangeEqual(t *testing.T) {
 func TestNumberFormatRangeRejectsNaN(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +53,7 @@ func TestNumberFormatRangeRejectsNaN(t *testing.T) {
 func TestNumberFormatFormatRangeDistinct(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestNumberFormatFormatRangeDistinct(t *testing.T) {
 func TestNumberFormatFormatRangeToParts(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestNumberFormatFormatRangeToParts(t *testing.T) {
 func TestNumberFormatPublicRangeIntegerBridges(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{UseGrouping: UseGroupingFalse})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: UseGroupingFalse})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +111,7 @@ func TestNumberFormatPublicRangeIntegerBridges(t *testing.T) {
 func TestNumberFormatPublicRangeDecimalAndFloatBridges(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{UseGrouping: UseGroupingFalse})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: UseGroupingFalse})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +138,7 @@ func TestNumberFormatPublicRangeDecimalAndFloatBridges(t *testing.T) {
 func TestNumberFormatPublicRangeToPartsIntegerBridges(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{UseGrouping: UseGroupingFalse})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: UseGroupingFalse})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func TestNumberFormatPublicRangeToPartsIntegerBridges(t *testing.T) {
 func TestNumberFormatFormatRangeReversed(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +182,7 @@ func TestNumberFormatFormatRangeReversed(t *testing.T) {
 func TestNumberFormatFormatRangeReversedUsesExactDecimalComparison(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{UseGrouping: UseGroupingFalse})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: UseGroupingFalse})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +194,7 @@ func TestNumberFormatFormatRangeReversedUsesExactDecimalComparison(t *testing.T)
 func TestNumberFormatRangeEqualAfterRoundingUsesApproximateSign(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{MaximumFractionDigits: intPtr(0)})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{MaximumFractionDigits: intPtr(0)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +213,7 @@ func TestNumberFormatRangeEqualAfterRoundingUsesApproximateSign(t *testing.T) {
 func TestNumberFormatFormatRangeToPartsCollapsesCurrency(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{Style: CurrencyStyle, Currency: CurrencyCode("USD"), CurrencyDisplay: CurrencyDisplayCode})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencyDisplay: CurrencyDisplayCode})
 	if err != nil {
 		t.Fatal(err)
 	}

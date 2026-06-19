@@ -35,9 +35,35 @@ func TestLocalizeDigits(t *testing.T) {
 func TestSimpleNumberingSystemsIncludesECMA402SimpleSets(t *testing.T) {
 	t.Parallel()
 
+	if !slices.IsSorted(SimpleNumberingSystems) {
+		t.Fatalf("SimpleNumberingSystems = %v, want sorted ECMA-402 table", SimpleNumberingSystems)
+	}
+	for i := 1; i < len(SimpleNumberingSystems); i++ {
+		if SimpleNumberingSystems[i] == SimpleNumberingSystems[i-1] {
+			t.Fatalf("SimpleNumberingSystems contains duplicate %q", SimpleNumberingSystems[i])
+		}
+	}
 	for _, want := range []string{"arab", "hanidec", "latn", "thai"} {
 		if !slices.Contains(SimpleNumberingSystems, want) {
 			t.Fatalf("SimpleNumberingSystems missing %q", want)
+		}
+	}
+}
+
+func TestSimpleNumberingSystemsHaveDigitLocalizationData(t *testing.T) {
+	t.Parallel()
+
+	for _, numberingSystem := range SimpleNumberingSystems {
+		if numberingSystem == "hanidec" {
+			continue
+		}
+		if _, ok := digitZeroByNumberingSystem[numberingSystem]; !ok {
+			t.Fatalf("SimpleNumberingSystems contains %q without digit localization data", numberingSystem)
+		}
+	}
+	for numberingSystem := range digitZeroByNumberingSystem {
+		if !slices.Contains(SimpleNumberingSystems, numberingSystem) {
+			t.Fatalf("digit localization data contains non-simple numbering system %q", numberingSystem)
 		}
 	}
 }

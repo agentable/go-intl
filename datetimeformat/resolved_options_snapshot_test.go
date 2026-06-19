@@ -3,13 +3,14 @@ package datetimeformat
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func TestDateTimeFormatResolvedOptionsPointerSnapshot(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{Hour: NumericFieldStyle, Hour12: boolPtr(true)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Hour: NumericFieldStyle, Hour12: boolPtr(true)})
 	if err != nil {
 		t.Fatal(err)
 	}

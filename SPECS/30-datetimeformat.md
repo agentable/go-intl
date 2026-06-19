@@ -101,7 +101,7 @@ loc := f.timeZone // Already cached on New; never from a single input Location()
 ### 1.3 Calling example
 
 ```go
-df, err := datetimeformat.New(locale.List{locale.MustParse("zh-CN")},
+df, err := datetimeformat.New(locale.List{mustLocale("zh-CN")},
     datetimeformat.Options{
         DateStyle: datetimeformat.FullDateTimeStyle,
         TimeZone:  "Asia/Shanghai",
@@ -111,7 +111,7 @@ out := df.Format(time.Now())
 ```
 
 ```go
-df, _ := datetimeformat.New(locale.List{locale.MustParse("en-US")},
+df, _ := datetimeformat.New(locale.List{mustLocale("en-US")},
     datetimeformat.Options{
         Month: datetimeformat.ShortMonthStyle,
         Day:   datetimeformat.NumericFieldStyle,
@@ -255,7 +255,7 @@ Current tier: **narrowed implementation gap**.
 |-------|-------|
 | Current behavior | Generated Gregorian calendar data is active; `iso8601` is the ECMA-402 bridge over the same Gregorian local-time projection. |
 | Rationale | Rejecting unsupported calendars is more truthful than formatting with Gregorian data while reporting another calendar. |
-| Native contract | Native deep fixtures must cover time-zone-name forms, metazone standard/daylight names, UTC-offset time zones, interval ranges, range parts, resolved options, and every active DateTimeFormat divergence's `native_witness` before any DateTimeFormat expansion is accepted. |
+| Native contract | Native deep fixtures must cover time-zone-name forms, metazone standard/daylight names, UTC-offset time zones including the `<24:00` boundary, interval ranges, range parts, resolved options, and every active DateTimeFormat divergence's `native_witness` before any DateTimeFormat expansion is accepted. |
 | review_after | 2026-09-30 or the next CLDR / ICU calendar-data upgrade, whichever comes first. |
 | Removal path | Generate non-Gregorian calendar payloads, implement calendar arithmetic equivalent to ECMA-402 `ToLocalTime`, add generated-reference and native fixtures, then expand `SupportedCalendars()`. |
 
@@ -280,6 +280,7 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 1. The `Calendar` field type **MUST** be `string` (exposing BCP 47 `-u-ca-...` form), and **not** be changed to a controlled enumeration (`type Calendar int`) - the string semantics directly corresponds to BCP 47, and is reserved for consumer-driven expansion.
 2. When `Locale.Calendar()` / `Options.Calendar` is not empty, Unicode type syntax verification must be done first, and then calendars outside `SupportedCalendars()` are rejected.
 3. `SupportedCalendars()` **MUST** be derived from generated date calendar payload keys, mapping CLDR `"gregorian"` to ECMA-402 `"gregory"` and appending `"iso8601"` only when Gregorian data is present. It must be sorted, unique, and must not copy a broader host runtime calendar list.
+3a. Manual conformance fixtures must cover unsupported explicit calendar options and unsupported `-u-ca-*` locale extensions. These fixtures are the product boundary for the active Gregorian-only payload.
 4. `SupportedLocalesOf` **MUST NOT** return requested locales with unsupported `-u-ca-*`; for example, `en-US-u-ca-buddhist` must be filtered in the current active scope, and `en-US-u-ca-iso8601` must be retained.
 5. `ResolvedOptions().Calendar` **MUST** return the `ca` value of the resolved locale record; the current active data can only be `"gregory"` or `"iso8601"`.
 
@@ -307,6 +308,8 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 3. Parsing failure **MUST** return `ErrInvalidOption` wrapped error, the message contains the timezone string.
 4. `Options{TimeZone: ""}` has the same semantics as the unpassed option: the host default is used (aligned to ECMA-402 `DefaultTimeZone()`).
 5. UTC offset form `*time.Location` **MUST** never be DST (direct fixed-offset zone), aligned with ECMA-402 offset time-zone semantics.
+6. UTC offset strings must accept hours `00` through `23` with minutes `00` through `59`; `+23:59` and `-23:59` are valid, while `+24:00` and `-24:00` are unsupported. Negative zero offsets canonicalize to `+00:00`.
+7. Manual conformance fixtures must keep invalid IANA zones and unsupported offset forms in the `ErrUnsupportedOption` path instead of falling back to the default time zone.
 
 > **Why**: The `Format` path is redone every time `time.LoadLocation` is a significant performance loss (~10 μs file search each time, even `time/tzdata` has to take the parsing path). Time zones are materialized in `New`, allowing hot-path benchmark telemetry to reflect formatting rather than location loading.
 >

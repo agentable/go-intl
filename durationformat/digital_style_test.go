@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/agentable/go-intl/durationformat"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -17,7 +18,7 @@ import (
 //     with fractional rollup engaging when the prior time unit is numeric.
 func TestDurationFormatResolvedDigitalDefaults(t *testing.T) {
 	t.Parallel()
-	df, err := durationformat.New(locale.List{locale.MustParse("en")}, durationformat.Options{Style: durationformat.DigitalStyle})
+	df, err := durationformat.New(locale.List{intltest.Locale(t, "en")}, durationformat.Options{Style: durationformat.DigitalStyle})
 	if err != nil {
 		t.Fatalf("New err = %v", err)
 	}
@@ -69,7 +70,7 @@ func TestDurationFormatResolvedDigitalDefaults(t *testing.T) {
 // defaults intact (display chain unchanged for fields the user did not set).
 func TestDurationFormatDigitalRespectsExplicitDisplay(t *testing.T) {
 	t.Parallel()
-	df, err := durationformat.New(locale.List{locale.MustParse("en")}, durationformat.Options{
+	df, err := durationformat.New(locale.List{intltest.Locale(t, "en")}, durationformat.Options{
 		Style:        durationformat.DigitalStyle,
 		Years:        durationformat.LongUnitStyle,
 		YearsDisplay: durationformat.AlwaysDisplay,

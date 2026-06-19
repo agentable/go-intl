@@ -33,14 +33,6 @@ type Options struct {
 	NumberingSystem          string
 }
 
-func CurrencyCode(code string) Currency {
-	return Currency(strings.ToUpper(code))
-}
-
-func UnitIdentifier(unit string) Unit {
-	return Unit(unit)
-}
-
 type config struct {
 	style               string
 	currency            string

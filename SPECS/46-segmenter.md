@@ -4,8 +4,8 @@ Status: active
 Owns: `segmenter` package public API, mapping of granularity to UAX #29 segmentation via `github.com/rivo/uniseg`, and explicit UTF-16 code-unit / UTF-8 byte-offset bridge.
 
 References:
-- ECMA-402: `.references/ecma402/spec/segmenter.html`
-- FormatJS polyfill: not provided (V8 segmenter is the reference)
+- ECMA-402 Segmenter constructor, segment records, iterator, and `containing` behavior.
+- Native-engine witness fixtures define locale-tailoring expectations the active backend cannot yet satisfy.
 - Underlying engine: `github.com/rivo/uniseg` v0.4+ (grapheme, word, sentence)
 
 ---
@@ -78,13 +78,15 @@ Current tier: **narrowed implementation gap**.
 | Rationale | Returning a locale as supported means word and sentence boundaries are trustworthy for that locale, not merely parseable as BCP 47. |
 | Guardrail | `internal/segmentation.SupportedLocales()` is an explicit allowlist and returns a snapshot. It must not be generated from CLDR locale-profile data or exposed as mutable package storage. |
 | review_after | 2026-09-30 or the next segmentation backend evaluation, whichever comes first. |
-| Removal path | Add or select a segmentation backend with dictionary/CJK tailoring, generate native Node/V8 fixtures for affected locales, then expand `internal/segmentation.SupportedLocales()`. |
+| Removal path | Add or select a segmentation backend with dictionary/CJK tailoring, generate native engine fixtures for affected locales, then expand `internal/segmentation.SupportedLocales()`. |
 
 This gap is not an accepted divergence from ECMA-402. It is an honest supported-locale boundary until go-intl can implement locale-tailored segmentation.
-The dependency evidence lives in `reports/github.com-rivo-uniseg.md`. Node v26
+The dependency evidence lives in `reports/github.com-rivo-uniseg.md`. native-engine
 tailored-locale fixtures under `segmenter/testdata/conformance/node-v26/` must
 remain XFAIL until the backend can match those boundaries and the supported
 locale allowlist expands in the same change.
+
+The withheld-locale set is part of the product contract. Manual supported-locale fixtures must keep dictionary and CJK locales out of `SupportedLocalesOf`, while native-engine tailored-locale fixtures keep the target behavior visible for the eventual backend upgrade.
 
 ---
 
@@ -118,7 +120,8 @@ func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error)
 MUST rules:
 
 1. Use `internal/segmentation.SupportedLocales()` as the supported set. The list contains locales whose active boundaries do not require dictionary or locale-specific tailoring beyond the UAX #29 defaults. The package lives outside `internal/cldr/` because the boundary algorithm comes from `github.com/rivo/uniseg`, not CLDR, and it must not inherit the CLDR locale profile automatically.
-2. `internal/segmentation.SupportedLocales()` MUST return a fresh slice and be covered by an exact allowlist test. Adding any locale requires word and sentence Node/V8 fixtures before the public supported-locale API may advertise it.
+2. `internal/segmentation.SupportedLocales()` MUST return a fresh slice and be covered by an exact allowlist test. Adding any locale requires word and sentence native-engine fixtures before the public supported-locale API may advertise it.
+2a. The manual `SupportedLocalesOf` fixture must continue to request known tailored locales and expect only the actively supported set; deleting that fixture weakens the capability boundary.
 3. Call `localematcher.FilterLocalesWithMaximizer`.
 4. Accept one `Options` value; `Options{}` represents omitted static-method options.
 5. Read only `LocaleMatcher`.

@@ -43,22 +43,14 @@ const (
     NumericAlways Numeric = "always"
     NumericAuto   Numeric = "auto"
 
-    Second   Unit = "second"
-    Seconds  Unit = "seconds"
-    Minute   Unit = "minute"
-    Minutes  Unit = "minutes"
-    Hour     Unit = "hour"
-    Hours    Unit = "hours"
-    Day      Unit = "day"
-    Days     Unit = "days"
-    Week     Unit = "week"
-    Weeks    Unit = "weeks"
-    Month    Unit = "month"
-    Months   Unit = "months"
-    Quarter  Unit = "quarter"
-    Quarters Unit = "quarters"
-    Year     Unit = "year"
-    Years    Unit = "years"
+    Second  Unit = "second"
+    Minute  Unit = "minute"
+    Hour    Unit = "hour"
+    Day     Unit = "day"
+    Week    Unit = "week"
+    Month   Unit = "month"
+    Quarter Unit = "quarter"
+    Year    Unit = "year"
 
     // ECMA-402 §17.5.6 PartitionRelativeTimePattern emits a `literal` part for
     // the pattern shell and re-uses NumberFormat's partition records for the
@@ -103,19 +95,15 @@ func New(locales locale.List, opts Options) (*RelativeTimeFormat, error)
 func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error)
 func (f *RelativeTimeFormat) ResolvedOptions() ResolvedOptions
 
-func (f *RelativeTimeFormat) FormatInt(value int, unit Unit) (string, error)
-func (f *RelativeTimeFormat) FormatInt64(value int64, unit Unit) (string, error)
-func (f *RelativeTimeFormat) FormatUint(value uint, unit Unit) (string, error)
-func (f *RelativeTimeFormat) FormatUint64(value uint64, unit Unit) (string, error)
-func (f *RelativeTimeFormat) FormatFloat64(value float64, unit Unit) (string, error)
-func (f *RelativeTimeFormat) FormatDecimal(value string, unit Unit) (string, error)
+type Value struct{ /* opaque */ }
 
-func (f *RelativeTimeFormat) FormatIntToParts(value int, unit Unit) ([]Part, error)
-func (f *RelativeTimeFormat) FormatInt64ToParts(value int64, unit Unit) ([]Part, error)
-func (f *RelativeTimeFormat) FormatUintToParts(value uint, unit Unit) ([]Part, error)
-func (f *RelativeTimeFormat) FormatUint64ToParts(value uint64, unit Unit) ([]Part, error)
-func (f *RelativeTimeFormat) FormatFloat64ToParts(value float64, unit Unit) ([]Part, error)
-func (f *RelativeTimeFormat) FormatDecimalToParts(value string, unit Unit) ([]Part, error)
+func Int(value int64) Value
+func Uint(value uint64) Value
+func Float(value float64) Value
+func Decimal(value string) (Value, error)
+
+func (f *RelativeTimeFormat) Format(value Value, unit Unit) (string, error)
+func (f *RelativeTimeFormat) FormatToParts(value Value, unit Unit) ([]Part, error)
 ```
 
 MUST rules:
@@ -123,13 +111,15 @@ MUST rules:
 1. `New` accepts a single `Options` value. `New(locales, Options{})` is the ECMA-402 "empty options object" call.
 2. `Options{}` defaults to `style="long"` and `numeric="always"`.
 3. `RelativeTimeFormat` is immutable after construction. All methods on `*RelativeTimeFormat` must be safe for concurrent callers.
-4. Integer and unsigned typed methods return errors only for invalid units.
-5. `FormatFloat64` rejects NaN and infinities with `ErrInvalidValue`, matching ECMA-402 `RangeError`.
-6. `FormatDecimal` rejects malformed or non-finite decimal strings with `ErrInvalidValue`.
+4. Integer and unsigned typed values return errors only for invalid units.
+5. `Float` values reject NaN and infinities at `Format` / `FormatToParts` with `ErrInvalidValue`, matching ECMA-402 `RangeError`.
+6. `Decimal` rejects malformed or non-finite decimal strings with `ErrInvalidValue`.
 7. `ResolvedOptions` returns a value snapshot.
 8. JSON field names and `omitempty` behavior follow [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors).
 
 > **Why**: JavaScript accepts one dynamic `Number` plus a unit string. Go needs typed numeric bridges, but all bridges still share the same ECMA-402 partitioning algorithm and unit validation.
+>
+> **Rejected**: public `FormatInt*`, `FormatUint*`, `FormatFloat64*`, and `FormatDecimal*` method families - they encode Go overload mechanics into the method namespace and split one native `format(value, unit)` operation into many public verbs.
 
 ---
 
@@ -302,7 +292,7 @@ MUST rules:
 1. Use stdlib `testing`, table-driven tests, and `t.Parallel()` unless shared generated-output state prevents it.
 2. Add focused unit tests for constructor defaults, invalid options, invalid units, non-finite values, style fallback, `numeric=auto`, parts joining, and supported locales.
 3. Add generator tests for CLDR relative field extraction and generated supported locales.
-4. Add FormatJS-derived conformance fixtures under `relativetimeformat/testdata/conformance/formatjs/`.
+4. Add generated-reference conformance fixtures under `relativetimeformat/testdata/conformance/formatjs/`.
 5. Accepted output mismatches must go to `relativetimeformat/testdata/divergences.md` or `xfail.json`.
 
 Acceptance checks:

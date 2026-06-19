@@ -76,51 +76,43 @@ func (f *Collator) Compare(x, y string) int {
 }
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, string, config, error) {
-	matcher, _ := ecma402.LocaleMatcherAlgorithm(cfg.localeMatcher)
-	requested := ecma402.RequestedLocaleStrings(locales)
-	defaultLocale := ecma402.DefaultLocale()
-	matched := collatorLocaleMatcher().Match(requested, defaultLocale, matcher)
-	if err := validateMatchedExtension(matched, cfg, fallback); err != nil {
-		return locale.Locale{}, "", cfg, err
-	}
-	resolved := localematcher.ResolveLocale(localematcher.ResolveOptions{
-		Algorithm:             matcher,
+	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
+		Locales:               locales,
+		Fallback:              fallback,
+		LocaleMatcher:         cfg.localeMatcher,
 		Matcher:               collatorLocaleMatcher(),
-		Requested:             requested,
-		DefaultLocale:         defaultLocale,
 		RelevantExtensionKeys: []string{"kn", "kf"},
 		OptionValues:          collatorOptionValues(cfg),
 		LocaleData:            collatorLocaleData{},
 	})
+	if err := validateMatchedExtension(resolution, cfg, fallback); err != nil {
+		return locale.Locale{}, "", cfg, err
+	}
 
-	dataLocale := resolved.DataLocale
+	dataLocale := resolution.DataLocale
 	if dataLocale == "" {
-		dataLocale = defaultLocale
+		dataLocale = ecma402.DefaultLocale()
 	}
-	resolvedLocale, err := locale.Parse(resolved.Locale)
-	if err != nil {
-		resolvedLocale = fallback
-	}
-	cfg.numeric = resolved.Extensions["kn"] == "true"
-	cfg.caseFirst = resolved.Extensions["kf"]
+	cfg.numeric = resolution.Extensions["kn"] == "true"
+	cfg.caseFirst = resolution.Extensions["kf"]
 	if cfg.caseFirst == "" {
 		cfg.caseFirst = string(FalseCaseFirst)
 	}
-	return resolvedLocale, dataLocale, cfg, nil
+	return resolution.Locale, dataLocale, cfg, nil
 }
 
-func validateMatchedExtension(matched localematcher.Result, cfg config, fallback locale.Locale) error {
-	if matched.Extension == "" {
+func validateMatchedExtension(resolution ecma402.ConstructorLocaleResolution, cfg config, fallback locale.Locale) error {
+	if resolution.Extension == "" {
 		return nil
 	}
 	loc := fallback
-	if parsed, err := locale.Parse(matched.Locale + matched.Extension); err == nil {
+	if parsed, err := locale.Parse(resolution.Locale.String() + resolution.Extension); err == nil {
 		loc = parsed
 	}
-	if value := localematcher.UnicodeExtensionValue(matched.Extension, "co"); value != "" && cfg.collation == "" && !isDefaultCollation(value) {
+	if value := localematcher.UnicodeExtensionValue(resolution.Extension, "co"); value != "" && cfg.collation == "" && !isDefaultCollation(value) {
 		return unsupportedOption("collation", value, loc)
 	}
-	if value := localematcher.UnicodeExtensionValue(matched.Extension, "kf"); value != "" && cfg.caseFirst == "" && value != string(FalseCaseFirst) {
+	if value := localematcher.UnicodeExtensionValue(resolution.Extension, "kf"); value != "" && cfg.caseFirst == "" && value != string(FalseCaseFirst) {
 		return unsupportedOption("caseFirst", value, loc)
 	}
 	return nil

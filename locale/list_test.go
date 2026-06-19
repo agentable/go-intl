@@ -31,12 +31,12 @@ func TestParseListRejectsInvalidLocale(t *testing.T) {
 func TestListCanonicalizationDedupesAndPreservesOrder(t *testing.T) {
 	t.Parallel()
 
-	enUS := MustParse("en-us")
-	zh := MustParse("zh-Hans-CN-u-nu-latn")
+	enUS := parseLocaleForTest("en-us")
+	zh := parseLocaleForTest("zh-Hans-CN-u-nu-latn")
 
 	got := canonicalizeList(List{
 		enUS,
-		MustParse("en-US"),
+		parseLocaleForTest("en-US"),
 		zh,
 		enUS,
 	})
@@ -54,9 +54,9 @@ func TestListCanonicalizationDedupesAndPreservesOrder(t *testing.T) {
 func TestListCanonicalizationClonesInput(t *testing.T) {
 	t.Parallel()
 
-	input := List{MustParse("en-US")}
+	input := List{parseLocaleForTest("en-US")}
 	got := canonicalizeList(input)
-	input[0] = MustParse("fr")
+	input[0] = parseLocaleForTest("fr")
 	if got[0].String() != "en-US" {
 		t.Fatalf("canonicalizeList() shares input backing array, got %q", got[0].String())
 	}
@@ -66,9 +66,9 @@ func TestListStringsUsesCanonicalOrder(t *testing.T) {
 	t.Parallel()
 
 	list := List{
-		MustParse("en-US"),
-		MustParse("en-us"),
-		MustParse("fr"),
+		parseLocaleForTest("en-US"),
+		parseLocaleForTest("en-us"),
+		parseLocaleForTest("fr"),
 	}
 	got := list.Strings()
 	want := []string{"en-US", "fr"}

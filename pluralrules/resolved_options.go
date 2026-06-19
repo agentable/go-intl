@@ -1,10 +1,9 @@
 package pluralrules
 
 import (
-	"slices"
-
 	"github.com/agentable/go-intl/internal/cldr/plural"
 	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
+	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -26,12 +25,12 @@ type ResolvedOptions struct {
 }
 
 func (f *PluralRules) ResolvedOptions() ResolvedOptions {
-	categories := plural.Categories(f.loc.Tag().String(), f.cfg.typ.String())
+	categories := publicCategories(plural.Categories(f.loc.Tag().String(), f.cfg.typ.String()))
 	resolved := ResolvedOptions{
 		Locale:               f.loc,
 		Type:                 f.cfg.typ,
 		MinimumIntegerDigits: f.cfg.minIntDigits,
-		PluralCategories:     slices.Clone(categories),
+		PluralCategories:     categories,
 		Notation:             Notation(f.cfg.notation),
 		CompactDisplay:       CompactDisplay(f.cfg.compactDisplay),
 		RoundingIncrement:    f.cfg.roundingIncrement,
@@ -53,6 +52,14 @@ func (f *PluralRules) ResolvedOptions() ResolvedOptions {
 		resolved.MaximumSignificantDigits = resolvedInt(f.cfg.maxSigDigits)
 	}
 	return resolved
+}
+
+func publicCategories(categories []ecma402pr.Category) []Category {
+	out := make([]Category, len(categories))
+	for i, category := range categories {
+		out[i] = Category(category)
+	}
+	return out
 }
 
 func resolvedInt(v int) *int {

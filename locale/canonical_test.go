@@ -16,7 +16,7 @@ func TestMaximize(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
-			if got := MustParse(tc.in).Maximize().String(); got != tc.want {
+			if got := parseLocaleForTest(tc.in).Maximize().String(); got != tc.want {
 				t.Fatalf("Maximize() = %q, want %q", got, tc.want)
 			}
 		})
@@ -37,7 +37,7 @@ func TestMinimize(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
-			if got := MustParse(tc.in).Minimize().String(); got != tc.want {
+			if got := parseLocaleForTest(tc.in).Minimize().String(); got != tc.want {
 				t.Fatalf("Minimize() = %q, want %q", got, tc.want)
 			}
 		})
@@ -47,7 +47,7 @@ func TestMinimize(t *testing.T) {
 func TestMaximizePreservesExtensions(t *testing.T) {
 	t.Parallel()
 
-	loc := MustParse("zh-u-hc-h23-ca-chinese")
+	loc := parseLocaleForTest("zh-u-hc-h23-ca-chinese")
 	got := loc.Maximize()
 	if got.String() != "zh-Hans-CN-u-ca-chinese-hc-h23" {
 		t.Fatalf("Maximize() = %q", got.String())

@@ -235,6 +235,18 @@ func TestLoadFixturesRejectsShapeSourceAndErrorFileBoundaries(t *testing.T) {
 			want: errFixtureSourceDir,
 		},
 		{
+			name: "node witness source version mismatch",
+			rel:  "node-v26/basic.json",
+			data: `[{"id":"numberformat-node-v26-smoke","source":"node:v25.0.0:numberformat","locale":"en-US","options":{},"input":1,"expected":"1"}]`,
+			want: errFixtureSourceDir,
+		},
+		{
+			name: "node witness id version mismatch",
+			rel:  "node-v26/basic.json",
+			data: `[{"id":"numberformat-node-v25-smoke","source":"node:v26.0.0:numberformat","locale":"en-US","options":{},"input":1,"expected":"1"}]`,
+			want: errFixtureSourceDir,
+		},
+		{
 			name: "error code outside errors file",
 			rel:  "manual/basic.json",
 			data: `[{"id":"error-outside","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1","errorCode":"RangeError"}]`,

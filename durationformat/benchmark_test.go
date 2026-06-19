@@ -3,11 +3,12 @@ package durationformat
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func BenchmarkDurationFormat_Short_PerCall(b *testing.B) {
-	locales := locale.List{locale.MustParse("en-US")}
+	locales := locale.List{intltest.Locale(b, "en-US")}
 	duration := benchmarkDuration()
 
 	b.ReportAllocs()
@@ -49,7 +50,7 @@ func BenchmarkDurationFormat_Digital_Cached(b *testing.B) {
 func benchmarkDurationFormat(b *testing.B, opts Options) *DurationFormat {
 	b.Helper()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, opts)
+	format, err := New(locale.List{intltest.Locale(b, "en-US")}, opts)
 	if err != nil {
 		b.Fatal(err)
 	}

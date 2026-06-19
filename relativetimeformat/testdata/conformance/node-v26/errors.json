@@ -7,8 +7,8 @@
       "numeric": "bad"
     },
     "input": {
-      "value": 1,
-      "unit": "day"
+      "unit": "day",
+      "value": 1
     },
     "errorCode": "invalid_option"
   }

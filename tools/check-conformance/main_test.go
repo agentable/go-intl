@@ -268,7 +268,15 @@ func TestRunValidatesNodeWitnessCoverage(t *testing.T) {
 		{"id":"numberformat-node-v26-resolved","source":"node:v26.0.0:numberformat:resolved-options","locale":"en-US","options":{},"input":1,"expected":"1","expectedResolvedOptions":{"locale":"en-US"}}
 	]`)
 	writeFixtureFile(t, root, "numberformat", "numberformat/testdata/conformance/node-v26/errors.json", `[
-		{"id":"numberformat-node-v26-invalid-style","source":"node:v26.0.0:numberformat:errors","locale":"en-US","options":{"style":"invalid"},"input":1,"errorCode":"invalid_option"}
+		{"id":"numberformat-node-v26-invalid-style","source":"node:v26.0.0:numberformat:errors","locale":"en-US","options":{"style":"invalid"},"input":1,"errorCode":"invalid_option"},
+		{"id":"numberformat-node-v26-unit-casing-rejected","source":"node:v26.0.0:numberformat:errors","locale":"en","options":{"style":"unit","unit":"METER"},"input":1,"errorCode":"invalid_option"}
+	]`)
+	writeFixtureFile(t, root, "numberformat", "numberformat/testdata/conformance/node-v26/edge.json", `[
+		{"id":"numberformat-node-v26-negative-zero-sign","source":"node:v26.0.0:numberformat:edge","locale":"en","options":{"signDisplay":"auto"},"input":"-0","expected":"-0","expectedParts":[{"type":"minusSign","value":"-"},{"type":"integer","value":"0"}],"expectedResolvedOptions":{"locale":"en"}},
+		{"id":"numberformat-node-v26-rounding-increment","source":"node:v26.0.0:numberformat:edge","locale":"en","options":{"minimumFractionDigits":2,"maximumFractionDigits":2,"roundingIncrement":5},"input":1.234,"expected":"1.25","expectedParts":[{"type":"integer","value":"1"}],"expectedResolvedOptions":{"locale":"en"}},
+		{"id":"numberformat-node-v26-rounding-priority-more-precision","source":"node:v26.0.0:numberformat:edge","locale":"en","options":{"minimumSignificantDigits":2,"maximumFractionDigits":0,"roundingPriority":"morePrecision"},"input":1.234,"expected":"1.234","expectedParts":[{"type":"integer","value":"1"}],"expectedResolvedOptions":{"locale":"en"}},
+		{"id":"numberformat-node-v26-compact-plural-few","source":"node:v26.0.0:numberformat:edge","locale":"ru","options":{"notation":"compact","compactDisplay":"long"},"input":2000,"expected":"2 тысячи","expectedParts":[{"type":"integer","value":"2"},{"type":"compact","value":"тысячи"}],"expectedResolvedOptions":{"locale":"ru"}},
+		{"id":"numberformat-node-v26-range-collapse","source":"node:v26.0.0:numberformat:edge","locale":"en","options":{"maximumFractionDigits":0},"input":{"start":1.2,"end":1.4},"expectedRange":"~1","expectedRangeParts":[{"type":"approximatelySign","value":"~","source":"shared"},{"type":"integer","value":"1","source":"shared"}],"expectedResolvedOptions":{"locale":"en"}}
 	]`)
 	if err := run([]string{"-node-witness", packageDir}, io.Discard); err != nil {
 		t.Fatalf("run(-node-witness) error = %v, want nil", err)

@@ -22,6 +22,7 @@ type ConstructorLocaleOptions struct {
 type ConstructorLocaleResolution struct {
 	Locale     locale.Locale
 	DataLocale string
+	Extension  string
 	Extensions map[string]string
 }
 
@@ -45,6 +46,7 @@ func ResolveConstructorLocale(opts ConstructorLocaleOptions) ConstructorLocaleRe
 	return ConstructorLocaleResolution{
 		Locale:     resolvedLocale,
 		DataLocale: result.DataLocale,
+		Extension:  result.Extension,
 		Extensions: result.Extensions,
 	}
 }

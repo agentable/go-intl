@@ -27,7 +27,7 @@ func TestGetWeekInfo(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
-			got := MustParse(tc.in).GetWeekInfo()
+			got := parseLocaleForTest(tc.in).GetWeekInfo()
 			if got.FirstDay != tc.firstDay || !slices.Equal(got.Weekend, tc.weekend) {
 				t.Fatalf("GetWeekInfo() = %#v", got)
 			}
@@ -74,7 +74,7 @@ func TestLocaleInfoRegionPreference(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			loc := MustParse(tc.in)
+			loc := parseLocaleForTest(tc.in)
 			if tc.calendars != nil {
 				if got := loc.GetCalendars(); !slices.Equal(got, tc.calendars) {
 					t.Fatalf("GetCalendars() = %#v, want %#v", got, tc.calendars)
@@ -95,7 +95,7 @@ func TestLocaleInfoRegionPreference(t *testing.T) {
 func TestLocaleInfoGetters(t *testing.T) {
 	t.Parallel()
 
-	loc := MustParse("en-US")
+	loc := parseLocaleForTest("en-US")
 	if got := loc.GetCalendars(); !slices.Equal(got, []string{"gregory"}) {
 		t.Fatalf("GetCalendars() = %#v", got)
 	}
@@ -106,7 +106,7 @@ func TestLocaleInfoGetters(t *testing.T) {
 	if got := withCalendar.GetCalendars(); !slices.Equal(got, []string{"buddhist"}) {
 		t.Fatalf("GetCalendars() with calendar = %#v", got)
 	}
-	if got := MustParse("und").GetCollations(); len(got) != 0 {
+	if got := parseLocaleForTest("und").GetCollations(); len(got) != 0 {
 		t.Fatalf("GetCollations(und) = %#v, want no advertised collation tailoring", got)
 	}
 	if got := loc.GetCollations(); len(got) != 0 {
@@ -136,28 +136,28 @@ func TestLocaleInfoGetters(t *testing.T) {
 	if got := withNumberingSystem.GetNumberingSystems(); !slices.Equal(got, []string{"arab"}) {
 		t.Fatalf("GetNumberingSystems() = %#v", got)
 	}
-	if got := MustParse("fr-FR").GetNumberingSystems(); !slices.Equal(got, []string{"latn"}) {
+	if got := parseLocaleForTest("fr-FR").GetNumberingSystems(); !slices.Equal(got, []string{"latn"}) {
 		t.Fatalf("GetNumberingSystems() fallback = %#v, want latn", got)
 	}
-	if got := MustParse("und").GetNumberingSystems(); !slices.Equal(got, []string{"latn"}) {
+	if got := parseLocaleForTest("und").GetNumberingSystems(); !slices.Equal(got, []string{"latn"}) {
 		t.Fatalf("GetNumberingSystems(und) fallback = %#v, want latn", got)
 	}
-	if got := MustParse("en-US").GetTimeZones(); !slices.Contains(got, "America/New_York") || !slices.Contains(got, "America/Los_Angeles") {
+	if got := parseLocaleForTest("en-US").GetTimeZones(); !slices.Contains(got, "America/New_York") || !slices.Contains(got, "America/Los_Angeles") {
 		t.Fatalf("GetTimeZones(en-US) = %#v, want canonical US zones", got)
 	}
-	if got := MustParse("en-US").GetTimeZones(); !slices.IsSorted(got) {
+	if got := parseLocaleForTest("en-US").GetTimeZones(); !slices.IsSorted(got) {
 		t.Fatalf("GetTimeZones(en-US) = %#v, want lexicographic order", got)
 	}
-	if got := MustParse("en-GB").GetTimeZones(); !slices.Equal(got, []string{"Europe/London"}) {
+	if got := parseLocaleForTest("en-GB").GetTimeZones(); !slices.Equal(got, []string{"Europe/London"}) {
 		t.Fatalf("GetTimeZones(en-GB) = %#v, want Europe/London", got)
 	}
-	if got := MustParse("zh-CN").GetTimeZones(); !slices.Equal(got, []string{"Asia/Shanghai", "Asia/Urumqi"}) {
+	if got := parseLocaleForTest("zh-CN").GetTimeZones(); !slices.Equal(got, []string{"Asia/Shanghai", "Asia/Urumqi"}) {
 		t.Fatalf("GetTimeZones(zh-CN) = %#v, want CLDR China zones", got)
 	}
-	if got := MustParse("en-IN").GetTimeZones(); !slices.Equal(got, []string{"Asia/Calcutta"}) {
+	if got := parseLocaleForTest("en-IN").GetTimeZones(); !slices.Equal(got, []string{"Asia/Calcutta"}) {
 		t.Fatalf("GetTimeZones(en-IN) = %#v, want CLDR India zone", got)
 	}
-	if got := MustParse("ar").GetTimeZones(); got != nil {
+	if got := parseLocaleForTest("ar").GetTimeZones(); got != nil {
 		t.Fatalf("GetTimeZones(ar) = %#v, want nil without region", got)
 	}
 }
@@ -165,19 +165,19 @@ func TestLocaleInfoGetters(t *testing.T) {
 func TestTextInfo(t *testing.T) {
 	t.Parallel()
 
-	if got := MustParse("ar-SA").GetTextInfo().Direction; got != "rtl" {
+	if got := parseLocaleForTest("ar-SA").GetTextInfo().Direction; got != "rtl" {
 		t.Fatalf("ar-SA direction = %q, want rtl", got)
 	}
-	if got := MustParse("und-Arab").GetTextInfo().Direction; got != "rtl" {
+	if got := parseLocaleForTest("und-Arab").GetTextInfo().Direction; got != "rtl" {
 		t.Fatalf("und-Arab direction = %q, want rtl", got)
 	}
-	if got := MustParse("yi").GetTextInfo().Direction; got != "rtl" {
+	if got := parseLocaleForTest("yi").GetTextInfo().Direction; got != "rtl" {
 		t.Fatalf("yi direction = %q, want rtl from likely subtags", got)
 	}
-	if got := MustParse("dv").GetTextInfo().Direction; got != "rtl" {
+	if got := parseLocaleForTest("dv").GetTextInfo().Direction; got != "rtl" {
 		t.Fatalf("dv direction = %q, want rtl from likely subtags", got)
 	}
-	if got := MustParse("en-US").GetTextInfo().Direction; got != "ltr" {
+	if got := parseLocaleForTest("en-US").GetTextInfo().Direction; got != "ltr" {
 		t.Fatalf("en-US direction = %q, want ltr", got)
 	}
 }

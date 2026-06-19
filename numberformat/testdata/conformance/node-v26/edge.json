@@ -1,0 +1,204 @@
+[
+  {
+    "id": "numberformat-node-v26-negative-zero-sign",
+    "source": "node:v26.0.0:numberformat:edge",
+    "locale": "en",
+    "options": {
+      "signDisplay": "auto"
+    },
+    "input": "-0",
+    "expected": "-0",
+    "expectedParts": [
+      {
+        "type": "minusSign",
+        "value": "-"
+      },
+      {
+        "type": "integer",
+        "value": "0"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "maximumFractionDigits": 3,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "auto",
+      "signDisplay": "auto",
+      "style": "decimal",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": "auto"
+    }
+  },
+  {
+    "id": "numberformat-node-v26-rounding-increment",
+    "source": "node:v26.0.0:numberformat:edge",
+    "locale": "en",
+    "options": {
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2,
+      "roundingIncrement": 5
+    },
+    "input": 1.234,
+    "expected": "1.25",
+    "expectedParts": [
+      {
+        "type": "integer",
+        "value": "1"
+      },
+      {
+        "type": "decimal",
+        "value": "."
+      },
+      {
+        "type": "fraction",
+        "value": "25"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2,
+      "minimumIntegerDigits": 1,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 5,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "auto",
+      "signDisplay": "auto",
+      "style": "decimal",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": "auto"
+    }
+  },
+  {
+    "id": "numberformat-node-v26-rounding-priority-more-precision",
+    "source": "node:v26.0.0:numberformat:edge",
+    "locale": "en",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumSignificantDigits": 2,
+      "roundingPriority": "morePrecision"
+    },
+    "input": 1.234,
+    "expected": "1.234",
+    "expectedParts": [
+      {
+        "type": "integer",
+        "value": "1"
+      },
+      {
+        "type": "decimal",
+        "value": "."
+      },
+      {
+        "type": "fraction",
+        "value": "234"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "maximumFractionDigits": 0,
+      "maximumSignificantDigits": 21,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "minimumSignificantDigits": 2,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "morePrecision",
+      "signDisplay": "auto",
+      "style": "decimal",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": "auto"
+    }
+  },
+  {
+    "id": "numberformat-node-v26-compact-plural-few",
+    "source": "node:v26.0.0:numberformat:edge",
+    "locale": "ru",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 2000,
+    "expected": "2 тысячи",
+    "expectedParts": [
+      {
+        "type": "integer",
+        "value": "2"
+      },
+      {
+        "type": "literal",
+        "value": " "
+      },
+      {
+        "type": "compact",
+        "value": "тысячи"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "compactDisplay": "long",
+      "locale": "ru",
+      "maximumFractionDigits": 0,
+      "maximumSignificantDigits": 2,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "minimumSignificantDigits": 1,
+      "notation": "compact",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "morePrecision",
+      "signDisplay": "auto",
+      "style": "decimal",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": "min2"
+    }
+  },
+  {
+    "id": "numberformat-node-v26-range-collapse",
+    "source": "node:v26.0.0:numberformat:edge",
+    "locale": "en",
+    "options": {
+      "maximumFractionDigits": 0
+    },
+    "input": {
+      "end": 1.4,
+      "start": 1.2
+    },
+    "expectedRange": "~1",
+    "expectedRangeParts": [
+      {
+        "type": "approximatelySign",
+        "value": "~",
+        "source": "shared"
+      },
+      {
+        "type": "integer",
+        "value": "1",
+        "source": "shared"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "auto",
+      "signDisplay": "auto",
+      "style": "decimal",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": "auto"
+    }
+  }
+]

@@ -50,7 +50,7 @@ func main() {
 
 	priceFormat, err := numberformat.New(locales, numberformat.Options{
 		Style:    numberformat.CurrencyStyle,
-		Currency: numberformat.CurrencyCode("USD"),
+		Currency: numberformat.Currency("USD"),
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -135,7 +135,7 @@ The Go packages follow the ownership of the native JavaScript `Intl` API:
 
 ### Parse Locales Once
 
-Parse BCP 47 tags at your application boundary. Formatter constructors receive a `locale.List`: use `nil` or `locale.List{}` for omitted locales, `locale.ParseList` for fallible request lists, and `locale.MustParseList` for const-like examples or tests.
+Parse BCP 47 tags at your application boundary. Formatter constructors receive a `locale.List`: use `nil` or `locale.List{}` for omitted locales, and `locale.ParseList` for request lists that can fail.
 
 Use the root `gointl.GetCanonicalLocales` helper when you need the ECMA-402 `Intl.getCanonicalLocales` operation. The lower-level locale-list canonicalization step is internal to constructors and `SupportedLocalesOf`.
 
@@ -151,14 +151,14 @@ fmt.Println(loc.Maximize().String())
 fmt.Println(loc.GetWeekInfo().FirstDay)
 ```
 
-Use `locale.MustParse` / `locale.MustParseList` in tests and package-level examples where a hard-coded locale must be valid.
+Short examples below use a local `mustLocaleList` helper for brevity; production code should call `locale.ParseList` and handle the returned error.
 
 ### Use Constructor Packages Directly
 
 Use constructor packages directly in production services that need one `Intl` constructor, or when calls share locale, options, parts, ranges, or resolved options. This keeps the dependency graph tied to the formatter you use; the root package is measured as aggregate facade cost.
 
 ```go
-locales := locale.MustParseList("en-US")
+locales := mustLocaleList("en-US")
 
 compactFormat, err := numberformat.New(locales, numberformat.Options{
 	Notation: numberformat.CompactNotation,
@@ -188,7 +188,7 @@ Formatter-specific options stay in their formatter packages. The root package do
 Constructor static methods stay with their packages, just like native `Intl.<Constructor>.supportedLocalesOf`:
 
 ```go
-requested := locale.MustParseList("de-DE", "en-US-u-nu-latn", "zh-Hans-CN")
+requested := mustLocaleList("de-DE", "en-US-u-nu-latn", "zh-Hans-CN")
 
 supported, err := numberformat.SupportedLocalesOf(requested, numberformat.Options{
 	LocaleMatcher: numberformat.LookupLocaleMatcher,
@@ -207,9 +207,9 @@ The result preserves the requested locale order and returns requested locale val
 Use formatter packages directly when you need resolved options, parts, ranges, or repeated calls in a hot path. Constructors do the locale, option, and data setup; keep the formatter and call its methods instead of rebuilding it per value.
 
 ```go
-format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
 	Style:       numberformat.UnitStyle,
-	Unit:        numberformat.UnitIdentifier("kilometer-per-hour"),
+	Unit:        numberformat.Unit("kilometer-per-hour"),
 	UnitDisplay: numberformat.ShortUnitDisplay,
 })
 if err != nil {
@@ -234,7 +234,7 @@ import (
 	"github.com/agentable/go-intl/locale"
 )
 
-locales := gointl.GetCanonicalLocales(locale.MustParseList("en-US", "en-US"))
+locales := gointl.GetCanonicalLocales(mustLocaleList("en-US", "en-US"))
 units := gointl.SupportedUnits()
 
 fmt.Println(locales[0])
@@ -250,7 +250,7 @@ Use `gointl.Int`, `gointl.Bool`, and `gointl.String` for optional option fields 
 Use decimal-string methods when binary `float64` cannot represent the value you need to format:
 
 ```go
-format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
 	Style:                 numberformat.PercentStyle,
 	MinimumFractionDigits: gointl.Int(2),
 	MaximumFractionDigits: gointl.Int(2),
@@ -274,9 +274,9 @@ fmt.Println(out)
 Use parts APIs when you need to style or transform individual formatted tokens:
 
 ```go
-format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
 	Style:    numberformat.CurrencyStyle,
-	Currency: numberformat.CurrencyCode("USD"),
+	Currency: numberformat.Currency("USD"),
 })
 if err != nil {
 	return err
@@ -293,9 +293,9 @@ Public ECMA-402 records use camelCase JSON keys, so API adapters and JavaScript
 hosts can pass them through without rebuilding field maps:
 
 ```go
-format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
 	Style: numberformat.CurrencyStyle,
-	Currency: numberformat.CurrencyCode("USD"),
+	Currency: numberformat.Currency("USD"),
 })
 if err != nil {
 	return err
@@ -318,7 +318,7 @@ fmt.Println(string(data))
 `datetimeformat` accepts `time.Time` and supports style-based or field-based formatting:
 
 ```go
-format, err := datetimeformat.New(locale.MustParseList("en-US"), datetimeformat.Options{
+format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
 	DateStyle: datetimeformat.MediumDateTimeStyle,
 	TimeStyle: datetimeformat.ShortDateTimeStyle,
 	TimeZone:  "America/New_York",
@@ -339,7 +339,7 @@ fmt.Println(format.FormatRange(start, end))
 Use `pluralrules` to select CLDR plural categories for message selection:
 
 ```go
-rules, err := pluralrules.New(locale.MustParseList("en"), pluralrules.Options{
+rules, err := pluralrules.New(mustLocaleList("en"), pluralrules.Options{
 	Type: pluralrules.Ordinal,
 })
 if err != nil {
@@ -369,7 +369,7 @@ other
 Use `listformat` and `relativetimeformat` for native list and relative-time phrasing:
 
 ```go
-locales := locale.MustParseList("en")
+locales := mustLocaleList("en")
 
 list, err := listformat.New(locales, listformat.Options{
 	Type:  listformat.Conjunction,
@@ -386,7 +386,7 @@ if err != nil {
 	return err
 }
 
-out, err := relative.FormatInt(-1, relativetimeformat.Day)
+out, err := relative.Format(relativetimeformat.Int(-1), relativetimeformat.Day)
 if err != nil {
 	return err
 }
@@ -400,7 +400,7 @@ fmt.Println(out)
 Use `durationformat` for `Intl.DurationFormat` semantics, including digital time formatting and fractional sub-second rollup. Reuse the formatter for repeated duration output; it resolves its embedded number and list formatters at construction time.
 
 ```go
-format, err := durationformat.New(locale.MustParseList("en"), durationformat.Options{
+format, err := durationformat.New(mustLocaleList("en"), durationformat.Options{
 	Style: durationformat.DigitalStyle,
 })
 if err != nil {
@@ -430,7 +430,7 @@ Output:
 Use the remaining constructor packages when you need display names, collation, or text boundaries:
 
 ```go
-locales := locale.MustParseList("en")
+locales := mustLocaleList("en")
 
 names, err := displaynames.New(locales, displaynames.Options{
 	Type: displaynames.Region,
@@ -551,7 +551,7 @@ names.
 The three `ErrUnsupported*` categories also match `errors.ErrUnsupported`.
 
 ```go
-_, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+_, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
 	Style: numberformat.CurrencyStyle,
 })
 if err != nil {
@@ -581,6 +581,7 @@ task vet                  # Run go vet
 task test                 # Run go test -race -p 1 ./...
 task lint                 # Run go mod tidy check and golangci-lint
 task conformance:verify   # Validate fixtures, skip-list, coverage, Node witness matrix, and divergence audit
+task conformance:witness  # Refresh generated Node Intl witness fixtures with the active node binary
 task data                 # Regenerate CLDR data into internal/cldr/ (writes back)
 task data:check           # Regenerate CLDR data into a temp tree and compare byte-for-byte
 task data:contract        # Verify generated CLDR data contracts

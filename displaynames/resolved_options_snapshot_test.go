@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/agentable/go-intl/displaynames"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func TestDisplayNamesResolvedOptionsPointerSnapshot(t *testing.T) {
 	t.Parallel()
 
-	dn, err := displaynames.New(locale.List{locale.MustParse("en")}, displaynames.Options{Type: displaynames.Language, LanguageDisplay: displaynames.StandardLanguageDisplay})
+	dn, err := displaynames.New(locale.List{intltest.Locale(t, "en")}, displaynames.Options{Type: displaynames.Language, LanguageDisplay: displaynames.StandardLanguageDisplay})
 	if err != nil {
 		t.Fatal(err)
 	}

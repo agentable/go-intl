@@ -1,6 +1,7 @@
 // Package numberformat implements the ECMA-402 Intl.NumberFormat constructor.
 //
-//	format, _ := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{})
+//	locales, _ := locale.ParseList("en-US")
+//	format, _ := numberformat.New(locales, numberformat.Options{})
 //	out := format.Format(numberformat.Int(1234))
 //	_ = out
 //

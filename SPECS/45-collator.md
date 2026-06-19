@@ -4,9 +4,9 @@ Status: active
 Owns: `collator` package public API, mapping of ECMA-402 options to `golang.org/x/text/collate`, locale resolution against CLDR collation data.
 
 References:
-- ECMA-402: `.references/ecma402/spec/collator.html`
-- FormatJS polyfill: `.references/formatjs/packages/intl-localematcher/` (only locale matching; FormatJS does not polyfill Collator)
-- Underlying engine: `golang.org/x/text/collate`
+- ECMA-402 Collator constructor, options, resolved options, and `compare` method.
+- Locale matching and Unicode extension handling are shared with SPEC 11.
+- Underlying comparison backend: `golang.org/x/text/collate`.
 
 ---
 
@@ -76,14 +76,20 @@ is considered.
 
 The dependency evidence for keeping these gaps narrow lives in
 `reports/golang.org-x-text.md`.
-Node v26 backend-proof fixtures under `collator/testdata/conformance/node-v26/`
+native-engine backend-proof fixtures under `collator/testdata/conformance/node-v26/`
 cover the default sort behavior the active backend can already apply; option
 contract fixtures plus XFAIL entries cover behavior that must not be accepted
 until the backend proves it.
 
+Supported option precedence:
+
+- `kn` is active. Locale `kn=true` sets numeric comparison unless an explicit `Options.Numeric` value overrides it.
+- `Options.Numeric: gointl.Bool(false)` is an explicit caller preference and must override locale `-u-kn-true`.
+- `kf` and non-default `co` remain capability gaps. They may be parsed and classified, but they must not be reported as supported unless the backend applies the requested behavior.
+
 | Gap | Current behavior | Rationale | review_after | Removal path |
 |-----|------------------|-----------|--------------|--------------|
-| `usage = "search"` | Constructor returns `ErrUnsupportedOption`. | Search collation must not pretend to be sort collation; ECMA-402 says search data may have different behavior. | 2026-09-30 | Identify a CLDR/x/text-backed search tailoring path, add Node comparison fixtures, then accept `SearchUsage`. |
+| `usage = "search"` | Constructor returns `ErrUnsupportedOption`. | Search collation must not pretend to be sort collation; ECMA-402 says search data may have different behavior. | 2026-09-30 | Identify a CLDR/x/text-backed search tailoring path, add native comparison fixtures, then accept `SearchUsage`. |
 | `caseFirst = "upper" \| "lower"` | Constructor returns `ErrUnsupportedOption`. | The active backend cannot yet control case-level direction truthfully. | 2026-09-30 | Add backend support or a documented dependency report, then verify resolved options and ordering fixtures. |
 | non-default `collation` | Constructor returns `ErrUnsupportedOption`. | Advertising CLDR collation identifiers without applying tailoring would overpromise. | 2026-09-30 | Map supported CLDR collation identifiers to backend behavior, add supportedValues/resolvedOptions fixtures, and keep unsupported identifiers rejected. |
 
@@ -98,6 +104,7 @@ until the backend proves it.
 | `sensitivity = "case"` | `collate.IgnoreDiacritics` | |
 | `sensitivity = "variant"` | (no options) | Default for `usage="sort"`. |
 | `numeric = true` | `collate.Numeric` | |
+| `numeric = false` with locale `kn=true` | (no options) | Explicit option overrides locale extension; resolved locale drops the `kn` extension when false is selected. |
 | `caseFirst = "false"` | (no options) | Default case order. |
 | `caseFirst = "upper" \| "lower"` | constructor error | Returns `ErrUnsupportedOption`; active collation backend cannot apply case-level direction. |
 | `ignorePunctuation = true` | BCP 47 `ka=shifted` on the private `collate` tag | Uses `golang.org/x/text/collate` UCA alternate-shifted handling; does not rewrite input strings. |

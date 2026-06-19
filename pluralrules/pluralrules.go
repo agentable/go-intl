@@ -16,16 +16,25 @@ import (
 	"github.com/agentable/go-intl/locale"
 )
 
-type Category = ecma402pr.Category
+// Category is one ECMA-402 plural category returned by Select and SelectRange.
+type Category uint8
 
 const (
-	Zero  = ecma402pr.Zero
-	One   = ecma402pr.One
-	Two   = ecma402pr.Two
-	Few   = ecma402pr.Few
-	Many  = ecma402pr.Many
-	Other = ecma402pr.Other
+	Zero Category = iota
+	One
+	Two
+	Few
+	Many
+	Other
 )
+
+func (c Category) String() string {
+	return ecma402pr.Category(c).String()
+}
+
+func (c Category) MarshalText() ([]byte, error) {
+	return ecma402pr.Category(c).MarshalText()
+}
 
 type PluralRules struct {
 	loc             locale.Locale
@@ -145,18 +154,23 @@ func (f *PluralRules) selectRangeResolved(startRounded decimal.Decimal, startCat
 }
 
 func (f *PluralRules) selectRangeCategories(startCategory Category, endCategory Category) Category {
-	if category, ok := plural.Range(f.rangeLocale, f.cfg.typ.String(), startCategory, endCategory); ok {
-		return category
+	if category, ok := plural.Range(
+		f.rangeLocale,
+		f.cfg.typ.String(),
+		ecma402pr.Category(startCategory),
+		ecma402pr.Category(endCategory),
+	); ok {
+		return Category(category)
 	}
 	return endCategory
 }
 
 func (f *PluralRules) selectInteger(n int64) Category {
-	return f.rule(ecma402pr.GetIntegerOperands(n))
+	return Category(f.rule(ecma402pr.GetIntegerOperands(n)))
 }
 
 func (f *PluralRules) selectUnsignedInteger(n uint64) Category {
-	return f.rule(ecma402pr.GetUnsignedIntegerOperands(n))
+	return Category(f.rule(ecma402pr.GetUnsignedIntegerOperands(n)))
 }
 
 func (f *PluralRules) resolveDecimal(d decimal.Decimal) (string, decimal.Decimal, Category) {
@@ -167,7 +181,7 @@ func (f *PluralRules) resolveDecimal(d decimal.Decimal) (string, decimal.Decimal
 	result := ecma402nf.FormatNumericToString(d, f.digitOptions)
 	formatted := strings.TrimPrefix(result.Formatted, "-")
 	ops := ecma402pr.GetOperands(formatted, exponent)
-	return formatted, result.Rounded, f.rule(ops)
+	return formatted, result.Rounded, Category(f.rule(ops))
 }
 
 func (f *PluralRules) computeExponent(d decimal.Decimal) int {

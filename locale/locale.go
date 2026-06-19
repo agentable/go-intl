@@ -53,14 +53,6 @@ func Parse(s string) (Locale, error) {
 	return loc, nil
 }
 
-func MustParse(s string) Locale {
-	loc, err := Parse(s)
-	if err != nil {
-		panic(err)
-	}
-	return loc
-}
-
 func New(tag string, opts Options) (Locale, error) {
 	loc, err := Parse(tag)
 	if err != nil {

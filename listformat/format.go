@@ -1,6 +1,8 @@
 package listformat
 
 import (
+	"strings"
+
 	"github.com/agentable/go-intl/internal/pattern"
 )
 
@@ -10,24 +12,20 @@ type Part struct {
 }
 
 func (f *ListFormat) Format(list []string) string {
-	switch len(list) {
-	case 0:
-		return ""
-	case 1:
-		return list[0]
-	case 2:
-		return applyListPattern(f.pattern.Pair, list[0], list[1])
-	}
-
-	result := applyListPattern(f.pattern.End, list[len(list)-2], list[len(list)-1])
-	for i := len(list) - 3; i > 0; i-- {
-		result = applyListPattern(f.pattern.Middle, list[i], result)
-	}
-	return applyListPattern(f.pattern.Start, list[0], result)
+	return joinParts(f.FormatToParts(list))
 }
 
-func applyListPattern(text, first, second string) string {
-	return pattern.FormatIndexed(text, first, second)
+func joinParts(parts []Part) string {
+	size := 0
+	for _, part := range parts {
+		size += len(part.Value)
+	}
+	var b strings.Builder
+	b.Grow(size)
+	for _, part := range parts {
+		b.WriteString(part.Value)
+	}
+	return b.String()
 }
 
 func (f *ListFormat) FormatToParts(list []string) []Part {

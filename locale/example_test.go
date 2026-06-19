@@ -8,7 +8,7 @@ import (
 
 // ExampleParse demonstrates Intl.Locale canonicalization from ECMA-402.
 func ExampleParse() {
-	loc := locale.MustParse("en-us-u-ca-gregorian-hc-h23")
+	loc := mustLocale("en-us-u-ca-gregorian-hc-h23")
 	fmt.Println(loc.String())
 
 	// Output:
@@ -32,7 +32,7 @@ func ExampleNew_options() {
 
 // ExampleLocale_GetWeekInfo demonstrates Intl.Locale.prototype.getWeekInfo from ECMA-402.
 func ExampleLocale_GetWeekInfo() {
-	loc := locale.MustParse("en-GB")
+	loc := mustLocale("en-GB")
 	info := loc.GetWeekInfo()
 	fmt.Println(info.FirstDay)
 	fmt.Println(info.Weekend)
@@ -40,4 +40,12 @@ func ExampleLocale_GetWeekInfo() {
 	// Output:
 	// Monday
 	// [Saturday Sunday]
+}
+
+func mustLocale(tag string) locale.Locale {
+	loc, err := locale.Parse(tag)
+	if err != nil {
+		panic(err)
+	}
+	return loc
 }

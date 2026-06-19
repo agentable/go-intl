@@ -151,7 +151,7 @@ Required signals for import-cost or binary-size work:
 
 > **Why**: x/text is Go native, zero tool chain, and officially maintained; benchmark can be written by importing in the same module, which is consistent with go-intl deployment assumption (same process).
 > **Rejected**: a cross-process JS baseline; IPC overhead pollutes the signal and the maintenance cost is not justified.
-> **Rejected**: FormatJS polyfill ops/sec (README §"Benchmark Results") - it already exists, but in screenshot status, it is not running in CI; as a reference wall, it **not** enters CI gate.
+> **Rejected**: readable polyfill ops/sec (README §"Benchmark Results") - it already exists, but in screenshot status, it is not running in CI; as a reference wall, it **not** enters CI gate.
 
 ### 2.2 Disable embedded JS baseline
 

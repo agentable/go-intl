@@ -7,12 +7,13 @@ import (
 	"github.com/agentable/go-intl/internal/intlerr"
 
 	"github.com/agentable/go-intl/collator"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func TestSearchUsageRequiresRealTailoring(t *testing.T) {
 	t.Parallel()
-	_, err := collator.New(locale.List{locale.MustParse("en")}, collator.Options{Usage: collator.SearchUsage})
+	_, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{Usage: collator.SearchUsage})
 	if !errors.Is(err, intlerr.ErrUnsupportedOption) {
 		t.Fatalf("New(search) error = %v, want intlerr.ErrUnsupportedOption", err)
 	}
@@ -20,7 +21,7 @@ func TestSearchUsageRequiresRealTailoring(t *testing.T) {
 
 func TestSortUsageKeepsVariantDefault(t *testing.T) {
 	t.Parallel()
-	c, err := collator.New(locale.List{locale.MustParse("en")}, collator.Options{})
+	c, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{})
 	if err != nil {
 		t.Fatalf("New err = %v", err)
 	}

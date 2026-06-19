@@ -1,0 +1,47 @@
+[
+  {
+    "id": "locale-node-v26-week-info-rg-override",
+    "source": "node:v26.0.0:locale:info",
+    "locale": "en-US-u-rg-gbzzzz",
+    "feature": "weekInfo",
+    "options": {},
+    "input": "en-US-u-rg-gbzzzz",
+    "expectedResolvedOptions": {
+      "firstDay": 1,
+      "weekend": [
+        6,
+        7
+      ]
+    }
+  },
+  {
+    "id": "locale-node-v26-week-info-sd-region",
+    "source": "node:v26.0.0:locale:info",
+    "locale": "und-u-sd-gbeng",
+    "feature": "weekInfo",
+    "options": {},
+    "input": "und-u-sd-gbeng",
+    "expectedResolvedOptions": {
+      "firstDay": 1,
+      "weekend": [
+        6,
+        7
+      ]
+    }
+  },
+  {
+    "id": "locale-node-v26-week-info-fw-override",
+    "source": "node:v26.0.0:locale:info",
+    "locale": "en-US-u-fw-mon",
+    "feature": "weekInfo",
+    "options": {},
+    "input": "en-US-u-fw-mon",
+    "expectedResolvedOptions": {
+      "firstDay": 1,
+      "weekend": [
+        6,
+        7
+      ]
+    }
+  }
+]

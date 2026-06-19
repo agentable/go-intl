@@ -12,13 +12,13 @@
     },
     "expectedComparison": 0,
     "expectedResolvedOptions": {
-      "locale": "en",
-      "usage": "search",
-      "sensitivity": "variant",
-      "ignorePunctuation": false,
+      "caseFirst": "false",
       "collation": "default",
+      "ignorePunctuation": false,
+      "locale": "en",
       "numeric": false,
-      "caseFirst": "false"
+      "sensitivity": "variant",
+      "usage": "search"
     }
   },
   {
@@ -32,13 +32,35 @@
     },
     "expectedComparison": -1,
     "expectedResolvedOptions": {
-      "locale": "en-u-kn",
-      "usage": "sort",
-      "sensitivity": "variant",
-      "ignorePunctuation": false,
+      "caseFirst": "false",
       "collation": "default",
+      "ignorePunctuation": false,
+      "locale": "en-u-kn",
       "numeric": true,
-      "caseFirst": "false"
+      "sensitivity": "variant",
+      "usage": "sort"
+    }
+  },
+  {
+    "id": "collator-node-v26-numeric-option-overrides-locale-extension-contract",
+    "source": "node:v26.0.0:collator:option-contract",
+    "locale": "en-u-kn-true",
+    "options": {
+      "numeric": false
+    },
+    "input": {
+      "left": "item2",
+      "right": "item10"
+    },
+    "expectedComparison": 1,
+    "expectedResolvedOptions": {
+      "caseFirst": "false",
+      "collation": "default",
+      "ignorePunctuation": false,
+      "locale": "en",
+      "numeric": false,
+      "sensitivity": "variant",
+      "usage": "sort"
     }
   },
   {
@@ -54,13 +76,13 @@
     },
     "expectedComparison": -1,
     "expectedResolvedOptions": {
-      "locale": "en",
-      "usage": "sort",
-      "sensitivity": "variant",
-      "ignorePunctuation": false,
+      "caseFirst": "upper",
       "collation": "default",
+      "ignorePunctuation": false,
+      "locale": "en",
       "numeric": false,
-      "caseFirst": "upper"
+      "sensitivity": "variant",
+      "usage": "sort"
     }
   },
   {
@@ -76,13 +98,13 @@
     },
     "expectedComparison": 1,
     "expectedResolvedOptions": {
-      "locale": "en",
-      "usage": "sort",
-      "sensitivity": "variant",
-      "ignorePunctuation": false,
+      "caseFirst": "lower",
       "collation": "default",
+      "ignorePunctuation": false,
+      "locale": "en",
       "numeric": false,
-      "caseFirst": "lower"
+      "sensitivity": "variant",
+      "usage": "sort"
     }
   },
   {
@@ -96,13 +118,13 @@
     },
     "expectedComparison": -1,
     "expectedResolvedOptions": {
-      "locale": "en-u-kf-upper",
-      "usage": "sort",
-      "sensitivity": "variant",
-      "ignorePunctuation": false,
+      "caseFirst": "upper",
       "collation": "default",
+      "ignorePunctuation": false,
+      "locale": "en-u-kf-upper",
       "numeric": false,
-      "caseFirst": "upper"
+      "sensitivity": "variant",
+      "usage": "sort"
     }
   },
   {
@@ -118,13 +140,13 @@
     },
     "expectedComparison": -1,
     "expectedResolvedOptions": {
-      "locale": "de-u-co-phonebk",
-      "usage": "sort",
-      "sensitivity": "variant",
-      "ignorePunctuation": false,
+      "caseFirst": "false",
       "collation": "phonebk",
+      "ignorePunctuation": false,
+      "locale": "de-u-co-phonebk",
       "numeric": false,
-      "caseFirst": "false"
+      "sensitivity": "variant",
+      "usage": "sort"
     }
   },
   {
@@ -138,13 +160,13 @@
     },
     "expectedComparison": -1,
     "expectedResolvedOptions": {
-      "locale": "de-u-co-phonebk",
-      "usage": "sort",
-      "sensitivity": "variant",
-      "ignorePunctuation": false,
+      "caseFirst": "false",
       "collation": "phonebk",
+      "ignorePunctuation": false,
+      "locale": "de-u-co-phonebk",
       "numeric": false,
-      "caseFirst": "false"
+      "sensitivity": "variant",
+      "usage": "sort"
     }
   }
 ]

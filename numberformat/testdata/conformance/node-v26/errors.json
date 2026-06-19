@@ -8,5 +8,16 @@
     },
     "input": 1,
     "errorCode": "invalid_option"
+  },
+  {
+    "id": "numberformat-node-v26-unit-casing-rejected",
+    "source": "node:v26.0.0:numberformat:errors",
+    "locale": "en",
+    "options": {
+      "style": "unit",
+      "unit": "METER"
+    },
+    "input": 1,
+    "errorCode": "invalid_option"
   }
 ]

@@ -2,13 +2,13 @@
 
 > **Status:** Revised (2026-05-20)
 > **Priority:** High
-> **Authority:** This SPEC defines the current `internal/ecma402/` contract. Normative source: `.references/ecma402/spec/`. FormatJS is an implementation reference, not the authority.
+> **Authority:** This SPEC defines the current `internal/ecma402/` contract. Normative source: `.references/ecma402/spec/`. Generated references are an implementation reference, not the authority.
 
 ## Overview
 
 `internal/ecma402/` contains ECMA-402 algorithms, validators, constants, and shared types that production formatter paths actually use. Go public APIs use typed `Options`, but the observable constructor pipeline must remain equivalent to ECMA-402 `ResolveOptions`, `GetOption`, `GetNumberOption`, relevant extension key processing, and resolved internal-slot initialization.
 
-Do not copy FormatJS's JavaScript object model mechanically. Do preserve the ECMA-402 semantics:
+Do not copy Generated reference's JavaScript object model mechanically. Do preserve the ECMA-402 semantics:
 
 - option names and allowed values,
 - defaults,

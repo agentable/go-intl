@@ -16,7 +16,7 @@ Go record types that mirror ECMA-402 objects use `encoding/json` tags as the hos
 4. Internal bridge fields use `json:"-"`; they must never appear in JSON output.
 5. `locale.Locale` marshals as the canonical BCP 47 string through `encoding.TextMarshaler`.
 
-`record_json_test.go` is the project-wide guard for this policy. Formatter-specific conformance tests remain responsible for comparing values against FormatJS / Node fixtures.
+`record_json_test.go` is the project-wide guard for this policy. Formatter-specific conformance tests remain responsible for comparing values against Generated reference / native fixtures.
 
 The guard must exercise host-boundary records through real constructors or public accessors wherever possible, not only by marshaling hand-built structs. It must cover every record family branch whose JSON presence can change without a Go type change:
 

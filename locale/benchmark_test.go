@@ -25,8 +25,8 @@ func BenchmarkLocale_New(b *testing.B) {
 }
 
 func BenchmarkLocale_Equal_Cached(b *testing.B) {
-	loc := MustParse("en-US-u-ca-gregory-hc-h23-nu-latn")
-	other := MustParse("en-US-u-nu-latn-hc-h23-ca-gregory")
+	loc := parseLocaleForTest("en-US-u-ca-gregory-hc-h23-nu-latn")
+	other := parseLocaleForTest("en-US-u-nu-latn-hc-h23-ca-gregory")
 	b.ReportAllocs()
 	for b.Loop() {
 		_ = loc.Equal(other)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/agentable/go-intl/internal/intlerr"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -16,11 +17,11 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 	t.Parallel()
 
 	conformance.RunFixtures(t, ".", func(t *testing.T, fixture conformance.Fixture) {
-		loc := locale.MustParse(fixture.Locale)
+		loc := intltest.Locale(t, fixture.Locale)
 		format, err := New(locale.List{loc}, conformanceDateTimeOptions(t, fixture))
 		if fixture.ErrorCode != "" {
-			if !errors.Is(err, intlerr.ErrInvalidOption) {
-				t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
+			if !errors.Is(err, conformanceDateTimeError(t, fixture.ErrorCode)) {
+				t.Fatalf("New() error = %v, want %q", err, fixture.ErrorCode)
 			}
 			return
 		}
@@ -66,6 +67,20 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 			}
 		}
 	})
+}
+
+func conformanceDateTimeError(t *testing.T, code string) error {
+	t.Helper()
+
+	switch code {
+	case "invalid_option":
+		return intlerr.ErrInvalidOption
+	case "unsupported_option":
+		return intlerr.ErrUnsupportedOption
+	default:
+		t.Fatalf("unsupported datetimeformat errorCode %q", code)
+		return nil
+	}
 }
 
 func conformanceDateTimeOptions(t *testing.T, fixture conformance.Fixture) Options {

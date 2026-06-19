@@ -3,6 +3,7 @@ package datetimeformat
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	ecma402dtf "github.com/agentable/go-intl/internal/ecma402/datetimeformat"
 	"github.com/agentable/go-intl/internal/pattern"
@@ -207,13 +208,14 @@ func tokenizeIntervalPattern(pattern string) []intervalToken {
 		r := rune(pattern[0])
 		if r == '\'' {
 			literal, rest := consumeQuotedPatternLiteral(pattern)
-			tokens = append(tokens, intervalToken{literal: literal})
+			tokens = append(tokens, intervalToken{literal: normalizePatternLiteral(literal)})
 			pattern = rest
 			continue
 		}
 		if !isDatePatternField(r) && !isTimePatternField(r) {
-			tokens = append(tokens, intervalToken{literal: pattern[:1]})
-			pattern = pattern[1:]
+			r, size := utf8.DecodeRuneInString(pattern)
+			tokens = append(tokens, intervalToken{literal: normalizePatternLiteral(string(r))})
+			pattern = pattern[size:]
 			continue
 		}
 		width := 1

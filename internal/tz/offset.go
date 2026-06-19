@@ -14,11 +14,15 @@ func ParseOffsetString(s string) (int64, error) {
 }
 
 func CanonicalOffsetString(s string) (string, error) {
-	_, hour, minute, err := parseOffsetString(s)
+	sign, hour, minute, err := parseOffsetString(s)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%c%02d:%02d", s[0], hour, minute), nil
+	signRune := '+'
+	if sign < 0 && (hour != 0 || minute != 0) {
+		signRune = '-'
+	}
+	return fmt.Sprintf("%c%02d:%02d", signRune, hour, minute), nil
 }
 
 func parseOffsetString(s string) (int64, int, int, error) {
@@ -57,7 +61,7 @@ func parseOffsetString(s string) (int64, int, int, error) {
 	if err != nil {
 		return 0, 0, 0, invalidOffset(s)
 	}
-	if hour > 14 || minute > 59 || hour == 14 && minute != 0 {
+	if hour > 23 || minute > 59 {
 		return 0, 0, 0, invalidOffset(s)
 	}
 	return sign, hour, minute, nil

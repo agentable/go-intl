@@ -1,6 +1,7 @@
 package locale
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -27,6 +28,10 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if fixture.Feature == "weekInfo" {
+			assertConformanceLocaleJSON(t, loc.GetWeekInfo(), fixture.ExpectedResolved)
+			return
+		}
 		if fixture.Expected == nil {
 			t.Fatal("fixture expected is required")
 		}
@@ -45,6 +50,40 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 			t.Fatalf("%s(%q) = %q, want %q", fixture.Feature, input, got, *fixture.Expected)
 		}
 	})
+}
+
+func assertConformanceLocaleJSON(t *testing.T, got any, want json.RawMessage) {
+	t.Helper()
+
+	if len(want) == 0 {
+		t.Fatal("fixture expectedResolvedOptions is required")
+	}
+	gotJSON, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !jsonEqual(gotJSON, want) {
+		t.Fatalf("JSON = %s, want %s", gotJSON, want)
+	}
+}
+
+func jsonEqual(a, b []byte) bool {
+	var got, want any
+	if err := json.Unmarshal(a, &got); err != nil {
+		return false
+	}
+	if err := json.Unmarshal(b, &want); err != nil {
+		return false
+	}
+	gotJSON, err := json.Marshal(got)
+	if err != nil {
+		return false
+	}
+	wantJSON, err := json.Marshal(want)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(gotJSON, wantJSON)
 }
 
 func conformanceLocaleError(t *testing.T, code string) error {

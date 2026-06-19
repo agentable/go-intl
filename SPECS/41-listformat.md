@@ -104,7 +104,7 @@ MUST rules:
 
 1. Invalid `localeMatcher`, `type`, or `style` returns an error wrapping `ErrInvalidOption`.
 2. Constructor errors must include the option name, user value, and locale when useful.
-3. `ShortStyle` and `NarrowStyle` are valid for every type. Do not preserve old MDN/FormatJS prose that says short/narrow only pair with unit; ECMA-402 current spec permits all `type` and `style` combinations when data exists.
+3. `ShortStyle` and `NarrowStyle` are valid for every type. Do not preserve old MDN/Generated reference prose that says short/narrow only pair with unit; ECMA-402 current spec permits all `type` and `style` combinations when data exists.
 4. Locale resolution must use `localematcher.ResolveLocale` / `FilterLocalesWithMaximizer` patterns already used by existing constructor packages.
 
 ---
@@ -221,7 +221,7 @@ MUST rules:
 1. Use stdlib `testing`, table-driven tests, and `t.Parallel()` unless shared generated-output state prevents it.
 2. Add focused unit tests for constructor defaults, invalid options, empty/one/two/many-element formatting, parts joining, and supported locales.
 3. Add generator tests for CLDR list pattern extraction and generated supported locales.
-4. Add FormatJS-derived conformance fixtures under `listformat/testdata/conformance/formatjs/`.
+4. Add generated-reference conformance fixtures under `listformat/testdata/conformance/formatjs/`.
 5. Accepted output mismatches must go to `listformat/testdata/divergences.md` or `xfail.json`, never by removing generated fixture cases.
 
 Acceptance checks:

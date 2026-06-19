@@ -1,5 +1,7 @@
 package datetimeformat
 
+import "unicode/utf8"
+
 func (f *DateTimeFormat) appendDateTime(dst []byte, t localTime) []byte {
 	switch f.pattern.kind {
 	case patternDate:
@@ -31,12 +33,13 @@ func (f *DateTimeFormat) appendPattern(dst []byte, pattern string, t localTime) 
 		if r == '\'' {
 			var literal string
 			literal, pattern = consumeQuotedPatternLiteral(pattern)
-			dst = append(dst, literal...)
+			dst = append(dst, normalizePatternLiteral(literal)...)
 			continue
 		}
 		if !isDatePatternField(r) && !isTimePatternField(r) {
-			dst = append(dst, pattern[0])
-			pattern = pattern[1:]
+			r, size := utf8.DecodeRuneInString(pattern)
+			dst = append(dst, normalizePatternLiteral(string(r))...)
+			pattern = pattern[size:]
 			continue
 		}
 		width := 1
@@ -65,7 +68,7 @@ func appendDateTimePattern(dst []byte, pattern string, date, time []byte) []byte
 		if pattern[0] == '\'' {
 			var literal string
 			literal, pattern = consumeQuotedPatternLiteral(pattern)
-			dst = append(dst, literal...)
+			dst = append(dst, normalizePatternLiteral(literal)...)
 			continue
 		}
 		if len(pattern) >= 3 && pattern[0] == '{' && pattern[2] == '}' {
@@ -80,8 +83,9 @@ func appendDateTimePattern(dst []byte, pattern string, date, time []byte) []byte
 			pattern = pattern[3:]
 			continue
 		}
-		dst = append(dst, pattern[0])
-		pattern = pattern[1:]
+		r, size := utf8.DecodeRuneInString(pattern)
+		dst = append(dst, normalizePatternLiteral(string(r))...)
+		pattern = pattern[size:]
 	}
 	return dst
 }

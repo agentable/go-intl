@@ -34,7 +34,7 @@ func SupportedLocales() []string {
 // the narrow calendar blob and never triggers the gregorian blob decode.
 func SupportedCalendars() []string {
 	calendarsOnce.Do(loadCalendars)
-	return calendarIDs
+	return slices.Clone(calendarIDs)
 }
 
 // DayPeriodFor returns the day-period type that contains the given wall-clock

@@ -4,11 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func BenchmarkDateTimeFormat_DateStyleShort_PerCall(b *testing.B) {
-	loc := locale.MustParse("en-US")
+	loc := intltest.Locale(b, "en-US")
 	date := benchmarkDate()
 
 	b.ReportAllocs()
@@ -53,7 +54,7 @@ func BenchmarkDateTimeFormat_FormatToParts_Cached(b *testing.B) {
 }
 
 func BenchmarkDateTimeFormat_New(b *testing.B) {
-	loc := locale.MustParse("en-US")
+	loc := intltest.Locale(b, "en-US")
 
 	b.ReportAllocs()
 	for b.Loop() {
@@ -68,7 +69,7 @@ func BenchmarkDateTimeFormat_New(b *testing.B) {
 func benchmarkDateTimeFormat(b *testing.B) *DateTimeFormat {
 	b.Helper()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, benchmarkDateOptions())
+	format, err := New(locale.List{intltest.Locale(b, "en-US")}, benchmarkDateOptions())
 	if err != nil {
 		b.Fatal(err)
 	}

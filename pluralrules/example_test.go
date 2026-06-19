@@ -9,7 +9,7 @@ import (
 
 // Example demonstrates Intl.PluralRules.prototype.select from ECMA-402.
 func Example() {
-	rules, err := pluralrules.New(locale.MustParseList("en"), pluralrules.Options{})
+	rules, err := pluralrules.New(mustLocaleList("en"), pluralrules.Options{})
 	if err != nil {
 		panic(err)
 	}
@@ -32,7 +32,7 @@ func Example() {
 
 // Example_options demonstrates Intl.PluralRules constructor options from ECMA-402.
 func Example_options() {
-	rules, err := pluralrules.New(locale.MustParseList("en"), pluralrules.Options{
+	rules, err := pluralrules.New(mustLocaleList("en"), pluralrules.Options{
 		Type: pluralrules.Ordinal,
 	})
 	if err != nil {
@@ -56,7 +56,7 @@ func Example_options() {
 
 // ExamplePluralRules_SelectRange demonstrates Intl.PluralRules.prototype.selectRange from ECMA-402.
 func ExamplePluralRules_SelectRange() {
-	rules, err := pluralrules.New(locale.MustParseList("en"), pluralrules.Options{})
+	rules, err := pluralrules.New(mustLocaleList("en"), pluralrules.Options{})
 	if err != nil {
 		panic(err)
 	}
@@ -69,4 +69,12 @@ func ExamplePluralRules_SelectRange() {
 
 	// Output:
 	// other
+}
+
+func mustLocaleList(tags ...string) locale.List {
+	locales, err := locale.ParseList(tags...)
+	if err != nil {
+		panic(err)
+	}
+	return locales
 }

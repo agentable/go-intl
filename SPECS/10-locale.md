@@ -10,7 +10,7 @@
 
 `locale.Locale` is the input parameter type of all locale-aware operations in the go-intl public API. It is the Go representation of `Intl.Locale`, wrapping the BCP 47 parsing capabilities of [`golang.org/x/text/language.Tag`](https://pkg.go.dev/golang.org/x/text/language#Tag), overlaying ECMA-402/UTS #35 Unicode extension state through `internal/localeid`, and exposing properties required by the spec via read-only getters.
 
-This SPEC defines the `Locale` structure, constructor (`New` / `FromTag` / `Parse` / `MustParse`), locale-list helper (`ParseList` / `MustParseList`), normalization (`Maximize` / `Minimize`), getter materialization strategy, string round trip, comparability. **Do not** define best-fit matching algorithm (SPEC 11), CLDR data format (SPEC 50), formatter internal slot (SPEC 12 / 20 / 30 / 40).
+This SPEC defines the `Locale` structure, constructor (`New` / `FromTag` / `Parse`), locale-list helper (`ParseList`), normalization (`Maximize` / `Minimize`), getter materialization strategy, string round trip, comparability. **Do not** define best-fit matching algorithm (SPEC 11), CLDR data format (SPEC 50), formatter internal slot (SPEC 12 / 20 / 30 / 40).
 
 ---
 
@@ -86,9 +86,6 @@ package locale
 // Parsing failure returns an error matching gointl.ErrInvalidValue; boundary unification occurs here in one go.
 func Parse(s string) (Locale, error)
 
-// MustParse is equivalent to Parse but fails with panic. Only for const-like scenarios (tests/examples).
-func MustParse(s string) Locale
-
 // New constructs Locale from BCP 47 locale identifier, aligned with Options Intl.Locale(tag, options).
 // The set extension field will enter the String() canonical output that returns Locale.
 func New(tag string, opts Options) (Locale, error)
@@ -97,7 +94,6 @@ func New(tag string, opts Options) (Locale, error)
 func FromTag(tag language.Tag, opts Options) (Locale, error)
 
 func ParseList(tags ...string) (List, error)
-func MustParseList(tags ...string) List
 
 type Options struct {
     Calendar        string
@@ -144,8 +140,8 @@ fmt.Println(loc2.String())   // "ja-u-ca-japanese"
 
 > **Why**:
 > 1. **Unique boundary** - Parse is BCP 47 boundary, the public API no longer accepts raw `string` locale (SPEC 11 / 20 / 30 / 40 input parameters all `Locale`).
-> 2. **spec alias** - `gregorian` → `gregory`, `islamic-civil` → `islamicc` is the normalization that spec sec-applyunicodeextensiontotag must comply with (FormatJS `index.ts:62-90` implementation); `Parse` completes the normalization internally to avoid downstream logical branches.
-> 3. **`MustParse` only const-like scenarios** - Test / Example; production code must use `Parse` to check for errors.
+> 2. **spec alias** - `gregorian` → `gregory`, `islamic-civil` → `islamicc` is the normalization that spec sec-applyunicodeextensiontotag must comply with (generated-reference `index.ts:62-90` implementation); `Parse` completes the normalization internally to avoid downstream logical branches.
+> 3. **No public panic parser** - Test and example code can define local helpers, but production API exposes `Parse` / `ParseList` error returns only.
 >
 > **Rejected**:
 > - **Receive `string` at formatter layer** (`numberformat.New("en-US", ...)`): Violation CLAUDE.md "Locale arguments are typed (`locale.Locale` or `language.Tag`) — never raw `string`. Parsing happens at the boundary, once."
@@ -179,7 +175,7 @@ Verification failure returns an error matching the root error category. Parsing 
 
 ```go
 // (Locale).String() returns canonical BCP 47 representation, including -u- extension.
-// Reciprocal with Parse: locale.MustParse(loc.String()).Equal(loc) == true.
+// Reciprocal with Parse: mustLocale(loc.String()).Equal(loc) == true.
 func (l Locale) String() string
 ```
 
@@ -194,7 +190,7 @@ func (l Locale) String() string
 5. **Numeric=true outputs `-u-kn`** (no value table true, consistent with spec); Numeric=false does not output (default value is omitted).
 6. **CaseFirst=`"false"` outputs `-u-kf-false`** (literal legal value).
 7. **Calendar / NumberingSystem / Collation alias normalization** (`gregorian` → `gregory`, `islamic-civil` → `islamicc`).
-8. **Duplicate Unicode extension keys are first-wins**, matching ECMA-402 `UnicodeExtensionComponents` and Node/V8 behavior (`en-u-ca-buddhist-ca-gregory` canonicalizes to `en-u-ca-buddhist`).
+8. **Duplicate Unicode extension keys are first-wins**, matching ECMA-402 `UnicodeExtensionComponents` and native engine behavior (`en-u-ca-buddhist-ca-gregory` canonicalizes to `en-u-ca-buddhist`).
 9. **Unicode extension insertion precedes private-use extension** (`en-u-ca-gregory-x-private`, not `en-x-private-u-ca-gregory`).
 
 Example:
@@ -261,7 +257,7 @@ func (l Locale) Minimize() Locale
 Call example:
 
 ```go
-loc := locale.MustParse("zh-Hant")
+loc := mustLocale("zh-Hant")
 fmt.Println(loc.Maximize().String())  // "zh-Hant-TW"
 fmt.Println(loc.Maximize().Minimize().String())  // "zh-Hant"
 ```
@@ -273,13 +269,13 @@ fmt.Println(loc.Maximize().Minimize().String())  // "zh-Hant"
 Strategy:
 
 1. First use `language.Tag.LikelyScript()` + `LikelyRegion()` to calculate.
-2. Run FormatJS `tests/likely-subtags.test.ts` for all fixtures.
+2. Run generated-reference `tests/likely-subtags.test.ts` for all fixtures.
 3. The failed case is covered with the CLDR data patch of `internal/cldr/likely_subtags.go`.
 
 > **Why**:
 > 1. **`language.Tag` 95% hits** - `x/text` The built-in likelySubtags table covers most common cases; use it to avoid 100% data embedding.
 > 2. **CLDR table is hidden** - `x/text` data may lag behind CLDR 48; according to the fixture failure case patch, the accuracy is controllable.
-> 3. **Conformance takes priority** - SPEC 00 §2 requires consistency with FormatJS byte level, and fixture is a truth table.
+> 3. **Conformance takes priority** - SPEC 00 §2 requires consistency with fixture byte level, and fixture is a truth table.
 >
 > **Rejected**:
 > - **Completely comes with CLDR `likelySubtags.json`** instead of `language.Tag`: rewrites 50,000 rows of table data, and the benefits during the development period are not worth the cost.
@@ -291,14 +287,14 @@ Strategy:
 `Maximize` / `Minimize` **MUST** preserve all 7 extension fields (`Calendar` / `HourCycle` / ...); only modify the `Tag` part.
 
 ```go
-loc := locale.MustParse("zh-u-hc-h23-ca-chinese")
+loc := mustLocale("zh-u-hc-h23-ca-chinese")
 m := loc.Maximize()
 // m.HourCycle() == "h23" // Reserved
 // m.Calendar() == "chinese" // Reserved
 // m.Tag() == zh-Hans-CN // Inference
 ```
 
-> **Why**: Consistent with FormatJS `intl-locale/index.ts` `maximize()` implementation; extended fields are explicitly selected by the user and Maximize should not silently discard them.
+> **Why**: Consistent with generated-reference `intl-locale/index.ts` `maximize()` implementation; extended fields are explicitly selected by the user and Maximize should not silently discard them.
 
 ---
 
@@ -351,7 +347,7 @@ func (l Locale) GetTextInfo() TextInfo
 Call example:
 
 ```go
-loc := locale.MustParse("ar-SA")
+loc := mustLocale("ar-SA")
 fmt.Println(loc.GetWeekInfo().FirstDay)    // time.Sunday
 fmt.Println(loc.GetTextInfo().Direction)   // "rtl"
 fmt.Println(loc.GetCalendars())            // ["islamic-umalqura", "gregory", "islamic", ...]
@@ -362,7 +358,7 @@ fmt.Println(loc.GetCalendars())            // ["islamic-umalqura", "gregory", "i
 > 2. **Low frequency of candidate list** - `getCalendars()`, etc. are only used in meta-information query scenarios (such as "display calendars supported by this locale"); most formatters call `loc.Calendar()` (singular getter) without adjusting `getCalendars()`.
 > 3. **Value-preserving semantics** - `Locale` struct does not contain lazy cache fields; no `*Locale` pointer, `sync.Once`, internal mutex is required.
 > 4. **YAGNI** - If the benchmark shows that a method is a hot spot, add `sync.Once` cache.
-> 5. **Exactly consistent with FormatJS** - `getCalendars()` of `intl-locale/index.ts` is also not cached, and `maximize() + region table lookup` is used every time `calendarsOfLocale(this)` is called.
+> 5. **Exactly consistent with Generated reference** - `getCalendars()` of `intl-locale/index.ts` is also not cached, and `maximize() + region table lookup` is used every time `calendarsOfLocale(this)` is called.
 >
 > **Rejected**:
 > - **All pre-parsed (the candidate list is also stored in the struct)**: Increase the struct size by about 100+ bytes (7 `[]string`/`map`/`*WeekInfo` pointers); most callers do not read these fields, which is a waste of space.
@@ -387,7 +383,7 @@ region := l.Maximize().Tag.Region().String() // Example: "SA"
 If `Locale.Calendar()` is non-empty, `GetCalendars()` **MUST** return a single-element list (spec behavior).
 
 ```go
-loc := locale.MustParse("en-US-u-ca-buddhist")
+loc := mustLocale("en-US-u-ca-buddhist")
 fmt.Println(loc.GetCalendars())  // ["buddhist"]
 ```
 
@@ -469,12 +465,12 @@ loc, err := locale.New("en", locale.Options{
 
 `New` accepts a `Options` value. `Options{}` represents an empty options object for ECMA-402; multiple options objects are not Go API shapes and are rejected by the compile time.
 
-`Options` verification must reuse the verification logic of §2.3 in `New`, and an error matching `gointl.ErrInvalidOption` or `gointl.ErrInvalidValue` will be returned when it fails. Except for the explicit Must wrapper `MustParse`, no panic API is added to the production path.
+`Options` verification must reuse the verification logic of §2.3 in `New`, and an error matching `gointl.ErrInvalidOption` or `gointl.ErrInvalidValue` will be returned when it fails. No panic API is added to the production path.
 
 > **Why**:
 > 1. **Uniform Boundary** - `Parse` / `New` is the boundary where locale user input enters the system, and errors should be returned centrally here.
 > 2. **ECMA-402 alignment** - JavaScript `Intl.Locale(tag, options)` has only one options object; Go typed `Options` retains the same shape.
-> 3. **No implicit panic** - `MustParse` already covers test and constant scenarios; ordinary mutator/option should not introduce a second set of panic semantics.
+> 3. **No implicit panic** - locale construction returns errors; tests and examples use local helpers when a hard-coded tag must be valid.
 >
 > **Rejected**:
 > - `With*` constructor options: Split a JS options object into a string of Go closures and introduce execution order semantics.
@@ -506,7 +502,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 ## Forbidden
 
 - **formatter public API receives raw `string` locale**: destroys type boundaries and allows parsing to fail until the `Format` calling layer is exposed.
-  - ✅ Do: `numberformat.New(locale.MustParseList("en-US"), numberformat.Options{})` for const-like examples, or `locale.ParseList` at application boundaries.
+  - ✅ Do: `numberformat.New(mustLocaleList("en-US"), numberformat.Options{})` for const-like examples, or `locale.ParseList` at application boundaries.
   - ❌ Don't: `numberformat.New("en-US", numberformat.Options{})`.
 
 - **Rewrite BCP 47 parsing**: Violation of CLAUDE.md "no reinventing locale parsing".
@@ -519,7 +515,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 
 - **Construction period panic**: Violation of CLAUDE.md "no panic in production code".
 - ✅ Do: `Parse` / `New` returns `(Locale, error)`.
-- ❌ Don't: `Parse` panics on invalid input (`MustParse` exception: const-like scenarios only).
+- ❌ Don't: `Parse` panics on invalid input or exposes a public `Must*` parser.
 
 - **`Locale` is designed as a `*Locale` pointer type**: breaks value semantics.
 - ✅ Do: `Locale` is a struct value type; re-call `locale.New(tag, Options{...})` or `locale.Parse(tag)` when the locale extension needs to be changed.
@@ -557,12 +553,11 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 ### Analysis
 
 - [ ] `Parse(s string) (Locale, error)` accepts BCP 47 strings (with `-u-` extension).
-- [ ] `MustParse(s string) Locale` panic on error.
 - [ ] `New(tag string, opts Options) (Locale, error)` accepts a `Options` value, `Options{}` represents an empty options object.
 - [ ] `FromTag(tag language.Tag, opts Options) (Locale, error)` is the only public `language.Tag` bridge.
 - [ ] `FromTag(l.Tag()).Tag() == l.Tag()` holds for all legal `Locale`.
 - [ ] The only `golang.org/x/text` type allowed in an export signature is `language.Tag`; the secondary `x/text` type is not leaked.
-- [ ] `ParseList(tags ...string)` / `MustParseList(tags ...string)` constructs the formatter request list.
+- [ ] `ParseList(tags ...string)` constructs the formatter request list.
 - [ ] If parsing fails, an error with `errors.Is(err, gointl.ErrInvalidValue)` being true is returned.
 - [ ] Accepts spec aliases: `gregorian` → `gregory`, `islamic-civil` → `islamicc` (test coverage).
 - [ ] The 7 extended fields are spec checked during construction (§2.3 table).
@@ -580,7 +575,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 
 - [ ] `(Locale).Maximize() Locale` walks the `language.Tag.LikelyScript/Region` + `internal/cldr` patch.
 - [ ] `(Locale).Minimize() Locale` is the inverse of Maximize.
-- [ ] FormatJS `tests/likely-subtags.test.ts` and `tests/minimize.test.ts` All fixtures pass in `locale/canonical_test.go`.
+- [ ] generated-reference `tests/likely-subtags.test.ts` and `tests/minimize.test.ts` All fixtures pass in `locale/canonical_test.go`.
 - [ ] `Maximize` / `Minimize` 7 extension fields reserved.
 
 ### Getter
@@ -609,7 +604,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 
 ### Test
 
-- [ ] All cases of FormatJS `intl-locale/tests/index.test.ts` were ported to `locale/locale_test.go` and passed.
+- [ ] All cases of generated-reference `intl-locale/tests/index.test.ts` were ported to `locale/locale_test.go` and passed.
 - [ ] Use `t.Parallel()` for all tests.
 - [ ] At least 1 `Example*` function demonstrating `Parse` + `String()` round-trip.
 

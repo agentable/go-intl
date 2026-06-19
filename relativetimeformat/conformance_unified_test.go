@@ -7,6 +7,7 @@ import (
 
 	"github.com/agentable/go-intl/internal/intlerr"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -20,7 +21,7 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 			return
 		}
 
-		format, err := New(locale.List{locale.MustParse(fixture.Locale)}, conformanceRelativeOptions(t, fixture))
+		format, err := New(locale.List{intltest.Locale(t, fixture.Locale)}, conformanceRelativeOptions(t, fixture))
 		if fixture.ErrorCode == "invalid_option" {
 			if !errors.Is(err, intlerr.ErrInvalidOption) {
 				t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
@@ -64,7 +65,7 @@ func runSupportedLocalesFixture(t *testing.T, fixture conformance.Fixture) {
 	}
 	locales := make(locale.List, 0, len(tags))
 	for _, tag := range tags {
-		locales = append(locales, locale.MustParse(tag))
+		locales = append(locales, intltest.Locale(t, tag))
 	}
 	got, err := SupportedLocalesOf(locales, conformanceRelativeOptions(t, fixture))
 	if fixture.ErrorCode != "" {
@@ -109,11 +110,15 @@ func conformanceRelativeOutput(t *testing.T, format *RelativeTimeFormat, input r
 
 	var decimal string
 	if err := json.Unmarshal(input.Value, &decimal); err == nil {
-		got, err := format.FormatDecimal(decimal, input.Unit)
+		value, err := Decimal(decimal)
 		if err != nil {
 			return "", nil, err
 		}
-		parts, err := format.FormatDecimalToParts(decimal, input.Unit)
+		got, err := format.Format(value, input.Unit)
+		if err != nil {
+			return "", nil, err
+		}
+		parts, err := format.FormatToParts(value, input.Unit)
 		return got, parts, err
 	}
 
@@ -121,11 +126,11 @@ func conformanceRelativeOutput(t *testing.T, format *RelativeTimeFormat, input r
 	if err := json.Unmarshal(input.Value, &value); err != nil {
 		t.Fatal(err)
 	}
-	got, err := format.FormatFloat64(value, input.Unit)
+	got, err := format.Format(Float(value), input.Unit)
 	if err != nil {
 		return "", nil, err
 	}
-	parts, err := format.FormatFloat64ToParts(value, input.Unit)
+	parts, err := format.FormatToParts(Float(value), input.Unit)
 	return got, parts, err
 }
 

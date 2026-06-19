@@ -4,8 +4,8 @@
     "source": "node:v26.0.0:numberformat",
     "locale": "en-US",
     "options": {
-      "style": "currency",
-      "currency": "USD"
+      "currency": "USD",
+      "style": "currency"
     },
     "input": 1234.5,
     "expected": "$1,234.50"

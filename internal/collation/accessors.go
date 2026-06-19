@@ -31,7 +31,7 @@ var supportedLocales = sync.OnceValue(func() []string {
 
 // SupportedLocales returns the canonical locale tags with collator data.
 func SupportedLocales() []string {
-	return supportedLocales()
+	return slices.Clone(supportedLocales())
 }
 
 // SupportedCollations returns collation identifiers the active collator can

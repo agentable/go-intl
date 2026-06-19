@@ -19,7 +19,7 @@ ECMA-402 says the `Intl` object:
 5. exposes constructor properties such as `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, and `Intl.PluralRules`,
 6. exposes static common functions such as `Intl.getCanonicalLocales` and `Intl.supportedValuesOf`.
 
-Therefore the root Go package is **not** a per-locale `Intl` session, not a `createIntl` clone, and not a holder for root one-shot formatting helpers.
+Therefore the root Go package is **not** a per-locale `Intl` session, not a third-party helper facade clone, and not a holder for root one-shot formatting helpers.
 
 Formatter construction and behavior live in the active constructor packages:
 
@@ -68,7 +68,7 @@ Mapping:
 | `SupportedTimeZones` | `Intl.supportedValuesOf("timeZone")` |
 | `SupportedUnits` | `Intl.supportedValuesOf("unit")` |
 
-`GetCanonicalLocales` accepts `locale.Locale` values because Go should parse raw strings once at the boundary. If callers need to canonicalize raw tags, they call `locale.Parse` or `locale.MustParse` first. This is the Go typed bridge for ECMA-402 `CanonicalizeLocaleList`.
+`GetCanonicalLocales` accepts `locale.Locale` values because Go should parse raw strings once at the boundary. If callers need to canonicalize raw tags, they call `locale.Parse` or `locale.ParseList` first. This is the Go typed bridge for ECMA-402 `CanonicalizeLocaleList`.
 
 This is the only public locale-list canonicalization entrypoint. The lower-level canonical locale-list operation stays in `internal/ecma402` for constructor initialization and `SupportedLocalesOf`; package-level abstract-operation helpers must not be reintroduced.
 
@@ -97,7 +97,7 @@ type Segmenter = segmenter.Segmenter
 Construction still belongs to the constructor packages:
 
 ```go
-locales := locale.MustParseList("en-US")
+locales := mustLocaleList("en-US")
 nf, err := numberformat.New(locales, numberformat.Options{})
 dtf, err := datetimeformat.New(locales, datetimeformat.Options{})
 pr, err := pluralrules.New(locales, pluralrules.Options{})
@@ -168,7 +168,7 @@ The following symbols are outside the long-term public surface:
   - `Cache`
 - root diagnostic APIs such as `Version()`; CLDR / ICU / tzdata pins are implementation metadata, not ECMA-402 `Intl` namespace members.
 
-> **Why**: JavaScript `Intl` is not a constructor and has no per-locale session object. Root one-shot helpers are convenience wrappers, not namespace members. They make the root package drift toward FormatJS `createIntl`, which is not the ECMA-402 contract.
+> **Why**: JavaScript `Intl` is not a constructor and has no per-locale session object. Root one-shot helpers are convenience wrappers, not namespace members. They make the root package drift toward an application helper facade, which is not the ECMA-402 contract.
 
 Convenience helpers may live in examples or consumer code. They must not define the core API.
 

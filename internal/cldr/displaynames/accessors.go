@@ -1,7 +1,6 @@
 // Hand-written accessor layer for the displaynames domain. The query semantics
-// mirror the legacy root cldr displaynames accessors exactly, so DisplayNames
-// output is byte-for-byte unchanged. Currency display names reuse the
-// internal/cldr currency accessors.
+// mirror the ECMA-402 DisplayNames lookup surface. Currency display names reuse
+// the internal/cldr currency name accessors, not NumberFormat symbols.
 
 package displaynames
 
@@ -180,20 +179,10 @@ func resolveStyled(s styledNames, style, code string) (string, bool) {
 	return "", false
 }
 
-func currencyDisplay(dataLocale, style, code string) (string, bool) {
+func currencyDisplay(dataLocale, _, code string) (string, bool) {
 	loc, ok := currency.ResolveLocale(dataLocale)
 	if !ok {
 		loc, _ = currency.ResolveLocale("en")
-	}
-	switch style {
-	case "narrow":
-		if symbol := currency.Symbol(loc, code, "narrow"); symbol != "" {
-			return symbol, true
-		}
-	case "short":
-		if symbol := currency.Symbol(loc, code, ""); symbol != "" {
-			return symbol, true
-		}
 	}
 	if name := currency.CanonicalName(loc, code); name != "" {
 		return name, true

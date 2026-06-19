@@ -43,25 +43,6 @@ func BigInt(v *big.Int) Value {
 	return Value{decimal: decimal.New(v != nil && v.Sign() < 0, v, 0)}
 }
 
-// BigFloat returns an arbitrary-precision floating-point numeric value. A nil
-// value is treated as zero.
-func BigFloat(v *big.Float) Value {
-	if v == nil {
-		return Value{}
-	}
-	if v.IsInf() {
-		if v.Signbit() {
-			return Value{decimal: decimal.NegInfinity}
-		}
-		return Value{decimal: decimal.PosInfinity}
-	}
-	d, err := decimal.ParseString(v.Text('g', -1))
-	if err != nil {
-		return Value{decimal: decimal.NaNValue}
-	}
-	return Value{decimal: d}
-}
-
 // Decimal parses an ECMA-402 decimal-string bridge value.
 func Decimal(s string) (Value, error) {
 	d, err := parseDecimalValue(s)

@@ -107,12 +107,17 @@ func TestSmokeKnownDisplayNames(t *testing.T) {
 }
 
 // TestCurrencyKindDelegates confirms the currency kind still routes through the
-// shared currency accessors rather than the local name blobs.
+// shared currency name accessors rather than local name blobs or NumberFormat
+// symbols.
 func TestCurrencyKindDelegates(t *testing.T) {
 	t.Parallel()
 
 	got, ok := Of("en", "currency", "long", "", "USD", "code")
 	if !ok || got != "US Dollar" {
 		t.Errorf("Of(en, currency, USD) = %q (ok=%v), want %q", got, ok, "US Dollar")
+	}
+	got, ok = Of("en", "currency", "narrow", "", "EUR", "code")
+	if !ok || got != "Euro" {
+		t.Errorf("Of(en, currency narrow, EUR) = %q (ok=%v), want %q", got, ok, "Euro")
 	}
 }

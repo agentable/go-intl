@@ -2,14 +2,84 @@ package collator_test
 
 import (
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/intlerr"
 
 	"github.com/agentable/go-intl/collator"
 	"github.com/agentable/go-intl/internal/ecma402"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
+
+func TestCollatorUnsupportedOptionsUseSingleErrorHelper(t *testing.T) {
+	t.Parallel()
+
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		t.Run(file, func(t *testing.T) {
+			t.Parallel()
+
+			parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			imports := map[string]string{}
+			for _, spec := range parsed.Imports {
+				path := strings.Trim(spec.Path.Value, `"`)
+				name := filepath.Base(path)
+				if spec.Name != nil {
+					name = spec.Name.Name
+				}
+				imports[name] = path
+			}
+
+			var currentFunc string
+			ast.Inspect(parsed, func(node ast.Node) bool {
+				switch node := node.(type) {
+				case *ast.FuncDecl:
+					currentFunc = node.Name.Name
+					return true
+				case *ast.CallExpr:
+					if currentFunc == "unsupportedOption" {
+						return true
+					}
+					if selectorUsesImport(node.Fun, imports, "github.com/agentable/go-intl/internal/ecma402", "UnsupportedOptionError") {
+						t.Fatalf("%s calls ecma402.UnsupportedOptionError outside unsupportedOption", file)
+					}
+				case *ast.SelectorExpr:
+					if currentFunc == "unsupportedOption" {
+						return true
+					}
+					if selectorUsesImport(node, imports, "github.com/agentable/go-intl/internal/intlerr", "ErrUnsupportedOption") {
+						t.Fatalf("%s references intlerr.ErrUnsupportedOption outside unsupportedOption", file)
+					}
+				}
+				return true
+			})
+		})
+	}
+}
+
+func selectorUsesImport(expr ast.Expr, imports map[string]string, importPath, selectorName string) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != selectorName {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && imports[ident.Name] == importPath
+}
 
 func assertOptionError(t *testing.T, err error, kind, name, value, loc string) {
 	t.Helper()
@@ -32,7 +102,7 @@ func assertOptionError(t *testing.T, err error, kind, name, value, loc string) {
 
 func TestCollator_Compare_Basic(t *testing.T) {
 	t.Parallel()
-	c, err := collator.New(locale.List{locale.MustParse("en")}, collator.Options{})
+	c, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +119,7 @@ func TestCollator_Compare_Basic(t *testing.T) {
 
 func TestCollator_Sensitivity_Base(t *testing.T) {
 	t.Parallel()
-	c, err := collator.New(locale.List{locale.MustParse("en")}, collator.Options{Sensitivity: collator.BaseSensitivity})
+	c, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{Sensitivity: collator.BaseSensitivity})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +133,7 @@ func TestCollator_Sensitivity_Base(t *testing.T) {
 
 func TestCollator_Sensitivity_Variant(t *testing.T) {
 	t.Parallel()
-	c, err := collator.New(locale.List{locale.MustParse("en")}, collator.Options{Sensitivity: collator.VariantSensitivity})
+	c, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{Sensitivity: collator.VariantSensitivity})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +144,7 @@ func TestCollator_Sensitivity_Variant(t *testing.T) {
 
 func TestCollator_Numeric(t *testing.T) {
 	t.Parallel()
-	c, err := collator.New(locale.List{locale.MustParse("en")}, collator.Options{Numeric: boolPtr(true)})
+	c, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{Numeric: boolPtr(true)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +156,7 @@ func TestCollator_Numeric(t *testing.T) {
 func TestCollator_NumericLocaleExtensionPrecedence(t *testing.T) {
 	t.Parallel()
 
-	fromLocale, err := collator.New(locale.List{locale.MustParse("en-u-kn")}, collator.Options{})
+	fromLocale, err := collator.New(locale.List{intltest.Locale(t, "en-u-kn")}, collator.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +167,7 @@ func TestCollator_NumericLocaleExtensionPrecedence(t *testing.T) {
 		t.Errorf("locale kn Compare(2,10) = %d, want < 0", got)
 	}
 
-	overridden, err := collator.New(locale.List{locale.MustParse("en-u-kn")}, collator.Options{Numeric: boolPtr(false)})
+	overridden, err := collator.New(locale.List{intltest.Locale(t, "en-u-kn")}, collator.Options{Numeric: boolPtr(false)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,10 +182,7 @@ func TestCollator_NumericLocaleExtensionPrecedence(t *testing.T) {
 func TestCollator_LocaleExtensionsComeFromMatchedLocale(t *testing.T) {
 	t.Parallel()
 
-	unsupportedFirst, err := collator.New(locale.List{
-		locale.MustParse("xh-u-kn"),
-		locale.MustParse("en"),
-	}, collator.Options{})
+	unsupportedFirst, err := collator.New(locale.List{intltest.Locale(t, "xh-u-kn"), intltest.Locale(t, "en")}, collator.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,10 +193,7 @@ func TestCollator_LocaleExtensionsComeFromMatchedLocale(t *testing.T) {
 		t.Fatalf("unsupported first locale Compare(2,10) = %d, want lexical ordering > 0", got)
 	}
 
-	unsupportedCaseFirst, err := collator.New(locale.List{
-		locale.MustParse("xh-u-kf-upper"),
-		locale.MustParse("en"),
-	}, collator.Options{})
+	unsupportedCaseFirst, err := collator.New(locale.List{intltest.Locale(t, "xh-u-kf-upper"), intltest.Locale(t, "en")}, collator.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +205,7 @@ func TestCollator_LocaleExtensionsComeFromMatchedLocale(t *testing.T) {
 func TestCollator_ExplicitFalseCaseFirstOverridesUnsupportedLocaleExtension(t *testing.T) {
 	t.Parallel()
 
-	c, err := collator.New(locale.List{locale.MustParse("en-u-kf-upper")}, collator.Options{CaseFirst: collator.FalseCaseFirst})
+	c, err := collator.New(locale.List{intltest.Locale(t, "en-u-kf-upper")}, collator.Options{CaseFirst: collator.FalseCaseFirst})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,22 +227,22 @@ func TestCollator_DefaultCollationRequestsResolveToDefault(t *testing.T) {
 	}{
 		{
 			name:    "explicit default",
-			locales: locale.List{locale.MustParse("en")},
+			locales: locale.List{intltest.Locale(t, "en")},
 			options: collator.Options{Collation: "default"},
 		},
 		{
 			name:    "locale co default",
-			locales: locale.List{locale.MustParse("en-u-co-default")},
+			locales: locale.List{intltest.Locale(t, "en-u-co-default")},
 			options: collator.Options{},
 		},
 		{
 			name:    "locale co standard",
-			locales: locale.List{locale.MustParse("en-u-co-standard")},
+			locales: locale.List{intltest.Locale(t, "en-u-co-standard")},
 			options: collator.Options{},
 		},
 		{
 			name:    "explicit default overrides unsupported locale co",
-			locales: locale.List{locale.MustParse("en-u-co-phonebk")},
+			locales: locale.List{intltest.Locale(t, "en-u-co-phonebk")},
 			options: collator.Options{Collation: "default"},
 		},
 	} {
@@ -199,7 +263,7 @@ func TestCollator_DefaultCollationRequestsResolveToDefault(t *testing.T) {
 func TestCollator_IgnorePunctuation(t *testing.T) {
 	t.Parallel()
 
-	withPunctuation, err := collator.New(locale.List{locale.MustParse("en")}, collator.Options{
+	withPunctuation, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{
 		IgnorePunctuation: boolPtr(true),
 	})
 	if err != nil {
@@ -212,7 +276,7 @@ func TestCollator_IgnorePunctuation(t *testing.T) {
 		t.Error("ResolvedOptions().IgnorePunctuation = false, want true")
 	}
 
-	withoutPunctuation, err := collator.New(locale.List{locale.MustParse("en")}, collator.Options{})
+	withoutPunctuation, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +284,7 @@ func TestCollator_IgnorePunctuation(t *testing.T) {
 		t.Errorf("default Compare(a-b,ab) = 0, want non-zero")
 	}
 
-	explicitFalse, err := collator.New(locale.List{locale.MustParse("en")}, collator.Options{
+	explicitFalse, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{
 		IgnorePunctuation: boolPtr(false),
 	})
 	if err != nil {
@@ -236,7 +300,7 @@ func TestCollator_IgnorePunctuation(t *testing.T) {
 
 func TestCollator_ResolvedOptions(t *testing.T) {
 	t.Parallel()
-	c, err := collator.New(locale.List{locale.MustParse("en")}, collator.Options{Sensitivity: collator.AccentSensitivity})
+	c, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{Sensitivity: collator.AccentSensitivity})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,12 +329,12 @@ func TestCollator_CaseFirstFalseIsAccepted(t *testing.T) {
 	}{
 		{
 			name:    "explicit option",
-			locales: locale.List{locale.MustParse("en")},
+			locales: locale.List{intltest.Locale(t, "en")},
 			options: collator.Options{CaseFirst: collator.FalseCaseFirst},
 		},
 		{
 			name:    "locale extension",
-			locales: locale.List{locale.MustParse("en-u-kf-false")},
+			locales: locale.List{intltest.Locale(t, "en-u-kf-false")},
 			options: collator.Options{},
 		},
 	}
@@ -291,7 +355,7 @@ func TestCollator_CaseFirstFalseIsAccepted(t *testing.T) {
 
 func TestCollator_New_Errors(t *testing.T) {
 	t.Parallel()
-	en := locale.MustParse("en")
+	en := intltest.Locale(t, "en")
 
 	t.Run("invalid usage", func(t *testing.T) {
 		t.Parallel()
@@ -358,7 +422,7 @@ func TestCollator_New_Errors(t *testing.T) {
 
 	t.Run("unsupported locale case first", func(t *testing.T) {
 		t.Parallel()
-		loc := locale.MustParse("en-u-kf-upper")
+		loc := intltest.Locale(t, "en-u-kf-upper")
 		_, err := collator.New(locale.List{loc}, collator.Options{})
 		if !errors.Is(err, intlerr.ErrUnsupportedOption) {
 			t.Errorf("err = %v, want intlerr.ErrUnsupportedOption", err)
@@ -368,7 +432,7 @@ func TestCollator_New_Errors(t *testing.T) {
 
 	t.Run("unsupported lower locale case first", func(t *testing.T) {
 		t.Parallel()
-		loc := locale.MustParse("en-u-kf-lower")
+		loc := intltest.Locale(t, "en-u-kf-lower")
 		_, err := collator.New(locale.List{loc}, collator.Options{})
 		if !errors.Is(err, intlerr.ErrUnsupportedOption) {
 			t.Errorf("err = %v, want intlerr.ErrUnsupportedOption", err)
@@ -387,12 +451,22 @@ func TestCollator_New_Errors(t *testing.T) {
 
 	t.Run("unsupported locale collation", func(t *testing.T) {
 		t.Parallel()
-		loc := locale.MustParse("en-u-co-phonebk")
+		loc := intltest.Locale(t, "en-u-co-phonebk")
 		_, err := collator.New(locale.List{loc}, collator.Options{})
 		if !errors.Is(err, intlerr.ErrUnsupportedOption) {
 			t.Errorf("err = %v, want intlerr.ErrUnsupportedOption", err)
 		}
 		assertOptionError(t, err, "unsupported", "collation", "phonebk", loc.String())
+	})
+
+	t.Run("unsupported derived locale collation reports matched locale", func(t *testing.T) {
+		t.Parallel()
+		loc := intltest.Locale(t, "zh-HK-u-co-phonebk")
+		_, err := collator.New(locale.List{loc}, collator.Options{})
+		if !errors.Is(err, intlerr.ErrUnsupportedOption) {
+			t.Errorf("err = %v, want intlerr.ErrUnsupportedOption", err)
+		}
+		assertOptionError(t, err, "unsupported", "collation", "phonebk", "zh-u-co-phonebk")
 	})
 
 	t.Run("invalid collation syntax", func(t *testing.T) {
@@ -416,7 +490,7 @@ func TestCollator_New_Errors(t *testing.T) {
 
 func TestSupportedLocalesOf(t *testing.T) {
 	t.Parallel()
-	requested := locale.List{locale.MustParse("en-US"), locale.MustParse("xh")}
+	requested := locale.List{intltest.Locale(t, "en-US"), intltest.Locale(t, "xh")}
 	got, err := collator.SupportedLocalesOf(requested, collator.Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -432,7 +506,7 @@ func TestSupportedLocalesOf(t *testing.T) {
 func TestSupportedLocalesOfErrors(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.List{locale.MustParse("en-US")}
+	requested := locale.List{intltest.Locale(t, "en-US")}
 	if _, err := collator.SupportedLocalesOf(requested, collator.Options{LocaleMatcher: "bogus"}); !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("SupportedLocalesOf(invalid matcher) error = %v, want intlerr.ErrInvalidOption", err)
 	}

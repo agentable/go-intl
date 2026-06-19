@@ -9,7 +9,7 @@ import (
 
 // Example demonstrates Intl.Segmenter.prototype.segment from ECMA-402.
 func Example() {
-	words, err := segmenter.New(locale.MustParseList("en"), segmenter.Options{
+	words, err := segmenter.New(mustLocaleList("en"), segmenter.Options{
 		Granularity: segmenter.WordGranularity,
 	})
 	if err != nil {
@@ -29,7 +29,7 @@ func Example() {
 
 // Example_options demonstrates Intl.Segmenter constructor options from ECMA-402.
 func Example_options() {
-	sentences, err := segmenter.New(locale.MustParseList("en"), segmenter.Options{
+	sentences, err := segmenter.New(mustLocaleList("en"), segmenter.Options{
 		Granularity: segmenter.SentenceGranularity,
 	})
 	if err != nil {
@@ -47,7 +47,7 @@ func Example_options() {
 
 // ExampleSegments_Containing demonstrates Intl.Segments.prototype.containing from ECMA-402.
 func ExampleSegments_Containing() {
-	words, err := segmenter.New(locale.MustParseList("en"), segmenter.Options{
+	words, err := segmenter.New(mustLocaleList("en"), segmenter.Options{
 		Granularity: segmenter.WordGranularity,
 	})
 	if err != nil {
@@ -59,4 +59,12 @@ func ExampleSegments_Containing() {
 
 	// Output:
 	// world true
+}
+
+func mustLocaleList(tags ...string) locale.List {
+	locales, err := locale.ParseList(tags...)
+	if err != nil {
+		panic(err)
+	}
+	return locales
 }

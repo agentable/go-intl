@@ -22,6 +22,19 @@ func TestTaskfileConformanceTargets(t *testing.T) {
 	if strings.Contains(strings.ToLower(content), "icu4j") || strings.Contains(strings.ToLower(content), "java") {
 		t.Fatal("Taskfile.yml must not invoke ICU4J or Java")
 	}
+	if !strings.Contains(content, "conformance:witness:") {
+		t.Fatal("Taskfile.yml missing conformance:witness")
+	}
+	if !strings.Contains(content, "cd tools/gen-fixtures-from-formatjs") ||
+		!strings.Contains(content, "go run . -node \"$node_path\" -out ../..") ||
+		!strings.Contains(content, "./tools/node-witness") ||
+		!strings.Contains(content, `node_path="$(command -v node)"`) ||
+		!strings.Contains(content, "requires node on PATH") ||
+		!strings.Contains(content, "Node witness diff:") ||
+		!strings.Contains(content, "git diff -- '*/testdata/conformance/node-v*/' testdata/native/") ||
+		!strings.Contains(content, "task conformance:verify") {
+		t.Fatal("conformance:witness must refresh Node fixtures, print their diff, and point back to conformance verification")
+	}
 }
 
 func TestTaskfileBenchmarkTargets(t *testing.T) {
@@ -108,6 +121,19 @@ func TestTaskfileDataContractTarget(t *testing.T) {
 	}
 	if !strings.Contains(content, "task: data:contract") {
 		t.Fatal("task verify must include the lightweight data contract")
+	}
+	if !strings.Contains(content, "SupportedCodesDoesNotDecodeOtherBlobs") ||
+		!strings.Contains(content, "SupportedCalendarsReturnsCopy") ||
+		!strings.Contains(content, "GeneratedNumberingSystemExtrasHaveRuntimePayload") ||
+		!strings.Contains(content, "RuntimeNumberingSystemPayloadsAreAdvertised") ||
+		!strings.Contains(content, "go test ./internal/numbering") ||
+		!strings.Contains(content, "SupportedCollationsReturnsCopy") ||
+		!strings.Contains(content, "TestSupportedLocales(ExcludesTailoredLocales|ReturnsSnapshot)$") ||
+		!strings.Contains(content, "./internal/collation") ||
+		!strings.Contains(content, "./internal/segmentation") ||
+		!strings.Contains(content, "RetiredRootCLDRHasNoGoFiles") ||
+		!strings.Contains(content, "./internal/cldr/currency ./internal/cldr/date ./internal/cldr/displaynames ./internal/cldr/list ./internal/cldr/number ./internal/cldr/relativetime ./internal/cldr/timezone ./internal/cldr/unit") {
+		t.Fatal("data:contract must include leaf CLDR narrow-index guards")
 	}
 }
 

@@ -3,13 +3,14 @@ package durationformat
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func TestDurationFormatResolvedOptionsPointerSnapshot(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{FractionalDigits: intPtr(3)})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{FractionalDigits: intPtr(3)})
 	if err != nil {
 		t.Fatal(err)
 	}

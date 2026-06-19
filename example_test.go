@@ -11,7 +11,7 @@ import (
 )
 
 func Example_getCanonicalLocales() {
-	locales := locale.MustParseList("en-us", "en-US", "zh-Hans-CN-u-nu-latn")
+	locales := mustLocaleList("en-us", "en-US", "zh-Hans-CN-u-nu-latn")
 
 	for _, loc := range gointl.GetCanonicalLocales(locales) {
 		fmt.Println(loc.String())
@@ -23,9 +23,9 @@ func Example_getCanonicalLocales() {
 }
 
 func Example_numberFormat() {
-	format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+	format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
 		Style:    numberformat.CurrencyStyle,
-		Currency: numberformat.CurrencyCode("USD"),
+		Currency: numberformat.Currency("USD"),
 	})
 	if err != nil {
 		panic(err)
@@ -37,7 +37,7 @@ func Example_numberFormat() {
 }
 
 func Example_dateTimeFormat() {
-	format, err := datetimeformat.New(locale.MustParseList("en-US"), datetimeformat.Options{
+	format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
 		Year:  datetimeformat.NumericFieldStyle,
 		Month: datetimeformat.ShortMonthStyle,
 		Day:   datetimeformat.NumericFieldStyle,
@@ -52,12 +52,20 @@ func Example_dateTimeFormat() {
 }
 
 func Example_directFormatter() {
-	format, err := numberformat.New(locale.MustParseList("en-US"), numberformat.Options{
+	format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
 		Style:    numberformat.CurrencyStyle,
-		Currency: numberformat.CurrencyCode("EUR"),
+		Currency: numberformat.Currency("EUR"),
 	})
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println(format.Format(numberformat.Float(1234.5)))
+}
+
+func mustLocaleList(tags ...string) locale.List {
+	locales, err := locale.ParseList(tags...)
+	if err != nil {
+		panic(err)
+	}
+	return locales
 }

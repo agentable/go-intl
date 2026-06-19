@@ -28,13 +28,14 @@ type ResolveOptions struct {
 type ResolvedLocale struct {
 	Locale     string
 	DataLocale string
+	Extension  string
 	Extensions map[string]string
 }
 
 func ResolveLocale(opts ResolveOptions) ResolvedLocale {
 	matched := matchForResolve(opts)
 	foundLocale := matched.Locale
-	result := ResolvedLocale{Locale: foundLocale, DataLocale: matched.DataLocale}
+	result := ResolvedLocale{Locale: foundLocale, DataLocale: matched.DataLocale, Extension: matched.Extension}
 	if len(opts.RelevantExtensionKeys) > 0 {
 		result.Extensions = map[string]string{}
 	}

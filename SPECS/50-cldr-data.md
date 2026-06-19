@@ -35,13 +35,13 @@ Version upgrades must not be mixed with ordinary code changes as an opportunisti
 
 ### 1.1 Selection
 
-CLDR data **MUST** directly consume the npm package set (`cldr-bcp47` / `cldr-core` / `cldr-dates-full` / `cldr-localenames-full` / `cldr-misc-full` / `cldr-numbers-full` / `cldr-segments-full` / `cldr-units-full`) of [`unicode-org/cldr-json`](https://github.com/unicode-org/cldr-json), the same source FormatJS uses.
+CLDR data **MUST** directly consume the npm package set (`cldr-bcp47` / `cldr-core` / `cldr-dates-full` / `cldr-localenames-full` / `cldr-misc-full` / `cldr-numbers-full` / `cldr-segments-full` / `cldr-units-full`) of [`unicode-org/cldr-json`](https://github.com/unicode-org/cldr-json), the same source Generated reference uses.
 
-> **Why**: Locking to the same CLDR version as FormatJS keeps conformance failures attributable to code differences, not data differences; the npm release rhythm tracks the CLDR version; and JSON connects directly to `encoding/json` (generation-time only), needing no LDML XML parser.
+> **Why**: Locking to the same CLDR version as Generated reference keeps conformance failures attributable to code differences, not data differences; the npm release rhythm tracks the CLDR version; and JSON connects directly to `encoding/json` (generation-time only), needing no LDML XML parser.
 >
 > **Rejected**:
-> - `golang.org/x/text/cldr` — lost on baseline control: its data version is not the same conformance baseline as the go-intl/FormatJS pin, and its shape is Go structs, not JSON.
-> - FormatJS intermediate products (`@formatjs_generated/*`) — lost on operability: TS + Bazel build artifacts, not shipped to npm; consuming them needs the FormatJS Bazel pipeline in CI.
+> - `golang.org/x/text/cldr` — lost on baseline control: its data version is not the same conformance baseline as the go-intl/Generated reference pin, and its shape is Go structs, not JSON.
+> - generated-reference intermediate products (`@formatjs_generated/*`) — lost on operability: TS + Bazel build artifacts, not shipped to npm; consuming them needs the Generated reference Bazel pipeline in CI.
 > - ICU CGO bindings — lost on dependency policy: CGO conflicts with SPEC 00 §1.1 "no ICU C/C++ dependency".
 
 ### 1.2 Extraction scope (active scope) <a id="schema"></a>
@@ -114,7 +114,7 @@ MUST rules:
 > **Why**: Currency precision belongs to the pinned CLDR baseline; a second CLDR-derived table would need independent verification. Sanctioned units are normative, so the spec list, not CLDR detection, is authoritative.
 >
 > **Rejected**:
-> - Static ISO 4217 table — lost on consistency: diverges from CLDR / ICU / FormatJS.
+> - Static ISO 4217 table — lost on consistency: diverges from CLDR / ICU / Generated reference.
 > - `bojanz/currency` as a data source — lost on data-version control: splits the CLDR version path.
 > - CLDR-detected unit list — lost on authority: CLDR's table is wider than the spec's sanctioned set.
 
@@ -173,9 +173,9 @@ CLDR data **MUST** be generated as one package per semantic domain (§1.2). This
 
 ### 3.1 Curated default: 104 modern tier 1 / 2 locales
 
-The active scope **MUST** fully embed all 104 CLDR modern tier 1 / 2 locales listed in `tools/locale-profile.json` `locales`. This is the current product portrait, not a temporary seed and not a Node full-ICU commitment. `cldrlocale.Manifest()` and `task data:contract` lock the version pins and locale count. Default-profile change = conformance-surface change, evidence required. **BANNED**:
+The active scope **MUST** fully embed all 104 CLDR modern tier 1 / 2 locales listed in `tools/locale-profile.json` `locales`. This is the current product portrait, not a temporary seed and not a full native-engine data commitment. `cldrlocale.Manifest()` and `task data:contract` lock the version pins and locale count. Default-profile change = conformance-surface change, evidence required. **BANNED**:
 
-- per-locale tree-shaking (FormatJS `__addLocaleData` style).
+- per-locale tree-shaking (generated-reference `__addLocaleData` style).
 - sub-locale lazy file I/O.
 - build-tag splits (`intl_full` / `intl_minimal`); only **consumer-driven expansion** may revisit this.
 
@@ -211,10 +211,10 @@ icu=78
 tzdata=2025b
 ```
 
-> **Why**: FormatJS's main branch locks `cldr-*: 48.1.0` (ICU 78); byte-level FormatJS alignment is a SPEC 00 §1 goal, so pinning an earlier version would institutionalize reverse divergence. CLDR 48 / ICU 78 (2025-10) is stable by public release; tzdata 2025b matches the Go 1.26.3 built-in.
+> **Why**: Generated reference's main branch locks `cldr-*: 48.1.0` (ICU 78); byte-level Generated reference alignment is a SPEC 00 §1 goal, so pinning an earlier version would institutionalize reverse divergence. CLDR 48 / ICU 78 (2025-10) is stable by public release; tzdata 2025b matches the Go 1.26.3 built-in.
 >
 > **Rejected**:
-> - CLDR 47 / ICU 76 — lost on FormatJS alignment: one version behind, reverse divergence.
+> - CLDR 47 / ICU 76 — lost on Generated reference alignment: one version behind, reverse divergence.
 > - Follow `golang.org/x/text/cldr` — lost on baseline control: hands the conformance target to an external release rhythm.
 
 ### 4.2 Upgrade process
@@ -393,8 +393,9 @@ MUST rules:
 2. `internal/localematcher` **MUST NOT** import any `internal/cldr` package; formatter constructors inject generated supported-locale slices and maximizers into the matcher.
 3. Root `Intl.supportedValuesOf` accessors consume the owning domain's narrow index (§1.2). Root `supportedValuesOf("collation")` uses `internal/collation`, not the CLDR candidate list, so it advertises only values the active Collator can apply.
 4. `SupportedCalendars()` derives from date calendar payload keys, maps CLDR `"gregorian"` → ECMA-402 `"gregory"`, and appends `"iso8601"` only when Gregorian data exists. `SupportedNumberingSystems()` includes the full ECMA-402 simple digit set even when the profile generates no matching CLDR symbol payload.
+5. The root `internal/cldr/` directory is not a Go package. It must contain version metadata and domain subdirectories only; no production code may import a retired root CLDR package.
 
-> **Why**: `availableLocales.json` may list locales without complete formatter payload; supported lists must come from real payload, or `ResolveLocale` could hit a payload-less locale and drift the fallback from FormatJS.
+> **Why**: `availableLocales.json` may list locales without complete formatter payload; supported lists must come from real payload, or `ResolveLocale` could hit a payload-less locale and drift the fallback from Generated reference.
 
 ### 6.2 Visibility
 
@@ -490,6 +491,7 @@ CLDR supplemental day-period rules cover languages beyond the kernel locale regi
 
 - [ ] `TestGeneratedDataShape` passes: Rule A (payload files const-only) and Rule B (no call/index expressions in composite literals); the exemption table is empty.
 - [ ] `TestCLDRImportGraphDirection` + `TestNoImportOfRetiredRootCLDR` pass: dependencies point down only, the single sanctioned leaf→leaf edge is `displaynames → currency`, and the dead root package is never imported.
+- [ ] `TestRetiredRootCLDRHasNoGoFiles` passes: `internal/cldr/` remains a non-package directory.
 - [ ] `mustLocaleIndex` panics at generation time for any domain locale absent from the kernel registry; intentionally skipped locales are filtered with a stated reason.
 - [ ] Per-domain round-trip tests read back through the production accessor via `require` + `replace`; no mirror decoder exists.
 

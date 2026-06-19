@@ -1,6 +1,7 @@
 // Package collator implements the ECMA-402 Intl.Collator constructor.
 //
-//	compare, _ := collator.New(locale.MustParseList("en-US"), collator.Options{})
+//	locales, _ := locale.ParseList("en-US")
+//	compare, _ := collator.New(locales, collator.Options{})
 //	ok := compare.Compare("a", "b") < 0
 //	_ = ok
 //

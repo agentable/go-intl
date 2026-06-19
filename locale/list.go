@@ -18,15 +18,6 @@ func ParseList(tags ...string) (List, error) {
 	return out, nil
 }
 
-// MustParseList is like ParseList but panics on invalid input.
-func MustParseList(tags ...string) List {
-	locales, err := ParseList(tags...)
-	if err != nil {
-		panic(err)
-	}
-	return locales
-}
-
 func canonicalizeList(locales List) List {
 	seen := map[string]bool{}
 	out := make(List, 0, len(locales))

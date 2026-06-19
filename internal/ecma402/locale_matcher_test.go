@@ -3,6 +3,7 @@ package ecma402
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/internal/localematcher"
 	"github.com/agentable/go-intl/locale"
 )
@@ -62,8 +63,8 @@ func (d constructorLocaleData) For(loc, key string) []string {
 func TestResolveConstructorLocaleAppliesMatcherAndRelevantExtensions(t *testing.T) {
 	t.Parallel()
 
-	fallback := locale.MustParse("en")
-	requested := locale.List{locale.MustParse("th-u-nu-thai"), locale.MustParse("en")}
+	fallback := intltest.Locale(t, "en")
+	requested := locale.List{intltest.Locale(t, "th-u-nu-thai"), intltest.Locale(t, "en")}
 	matcher := localematcher.NewMatcher([]string{"th", "en"}, nil)
 
 	got := ResolveConstructorLocale(ConstructorLocaleOptions{
@@ -84,6 +85,9 @@ func TestResolveConstructorLocaleAppliesMatcherAndRelevantExtensions(t *testing.
 	if got.DataLocale != "th" {
 		t.Fatalf("ResolveConstructorLocale().DataLocale = %q, want th", got.DataLocale)
 	}
+	if got.Extension != "-u-nu-thai" {
+		t.Fatalf("ResolveConstructorLocale().Extension = %q, want -u-nu-thai", got.Extension)
+	}
 	if got.Extensions["nu"] != "latn" {
 		t.Fatalf("ResolveConstructorLocale().Extensions[nu] = %q, want latn", got.Extensions["nu"])
 	}
@@ -92,8 +96,8 @@ func TestResolveConstructorLocaleAppliesMatcherAndRelevantExtensions(t *testing.
 func TestResolveConstructorLocaleDispatchesLocaleMatcher(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.List{locale.MustParse("zh-TW")}
-	fallback := locale.MustParse("en")
+	requested := locale.List{intltest.Locale(t, "zh-TW")}
+	fallback := intltest.Locale(t, "en")
 	matcher := localematcher.NewMatcher([]string{"zh", "zh-Hant", "en"}, nil)
 
 	lookup := ResolveConstructorLocale(ConstructorLocaleOptions{

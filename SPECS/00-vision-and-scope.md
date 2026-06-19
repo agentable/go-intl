@@ -8,7 +8,7 @@
 
 ## 1. Vision
 
-`go-intl` is a Go implementation of the **ECMA-402 Internationalization API**. It exposes the same active surface that JavaScript developers know as the `Intl` namespace plus `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.PluralRules`, `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DurationFormat`, `Intl.DisplayNames`, `Intl.Collator`, and `Intl.Segmenter`. Public API shape, option names, option values, resolved options, parts, range sources, and error boundaries are governed by ECMA-402 first; FormatJS is the readable polyfill reference and `.references/node/` is the native-engine behavior reference.
+`go-intl` is a Go implementation of the **ECMA-402 Internationalization API**. It exposes the same active surface that JavaScript developers know as the `Intl` namespace plus `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.PluralRules`, `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DurationFormat`, `Intl.DisplayNames`, `Intl.Collator`, and `Intl.Segmenter`. Public API shape, option names, option values, resolved options, parts, range sources, and error boundaries are governed by ECMA-402 first. Readable implementation references and native-engine witnesses are evidence, not product authorities.
 
 The library exists because the Go ecosystem has no equivalent today:
 
@@ -31,7 +31,7 @@ The design posture is restraint first: the public API should feel inevitable, no
 
 ## 2. Reference Implementation Policy
 
-The authoritative reference is **ECMA-402**, vendored at `.references/ecma402/spec/`. FormatJS and other vendored references are subordinate implementation guides.
+The authoritative reference is **ECMA-402**, vendored at `.references/ecma402/spec/`. Vendored implementation references are subordinate guides and must be described by role, not by product name, inside durable SPECS.
 
 ### 2.1 Authority model
 
@@ -43,56 +43,32 @@ Support tiers:
 |------|---------|-------------|
 | Complete | The surface matches ECMA-402 observable behavior for the advertised data/locale set. | Covered by conformance fixtures and normal tests. |
 | Narrowed implementation gap | The surface intentionally refuses or withholds unsupported behavior to avoid false support. | Owning SPEC must name current behavior, rationale, `review_after`, and removal path. |
-| Accepted divergence | A generated or native fixture exists and go-intl intentionally differs from the reference for an implementation-defined or data-version reason. | Must be in `testdata/divergences.md` with owner, reason, review date, and removal path. |
+| Accepted divergence | A generated or native fixture exists and go-intl intentionally differs from the reference for an implementation-defined or data-version reason. | Must be in `testdata/divergences.md` with owner, reason, review date, witness where required, and removal path. |
 
 > **Why**: The cleanest API is the one that tells the truth. A narrowed surface is acceptable only when it prevents false correctness and has an exit path; it is not a permanent product philosophy.
 >
 > **Rejected**: Treating local SPECS as immutable once implemented. That turns documentation into back-compat pressure and lets accidental limitations masquerade as design.
 
-| Subject | Reference path | Use |
-|---------|----------------|-----|
-| Intl namespace | `.references/ecma402/spec/intl.html` | Root package contract: `Intl` is not a constructor, constructor properties, `getCanonicalLocales`, `supportedValuesOf` |
-| Locale and locale negotiation | `.references/ecma402/spec/locale.html`, `.references/ecma402/spec/negotiation.html` | `Intl.Locale`, `CanonicalizeLocaleList`, `ResolveOptions`, `ResolveLocale`, `FilterLocales`, `localeMatcher` |
-| `Intl.NumberFormat` | `.references/ecma402/spec/numberformat.html` | Constructor, options, resolved options, parts, ranges, digit rounding, `FormatNumericToString` |
-| `Intl.DateTimeFormat` | `.references/ecma402/spec/datetimeformat.html` | Constructor, date/time options, system time zone default, parts, ranges |
-| `Intl.PluralRules` | `.references/ecma402/spec/pluralrules.html` | Constructor, digit options, `select`, `selectRange`, plural category resolution |
-| `Intl.ListFormat` | `.references/ecma402/spec/listformat.html` | Constructor, `type` / `style`, list pattern partitioning, `format`, `formatToParts` |
-| `Intl.RelativeTimeFormat` | `.references/ecma402/spec/relativetimeformat.html` | Constructor, `style` / `numeric`, unit validation, numeric auto literals, parts |
-| `Intl.DurationFormat` | `.references/ecma402/spec/durationformat.html` | Constructor, unit options, digital formatting, duration validation, parts |
+Reference roles:
 
-**FormatJS implementation references:**
-
-| Subject | Reference path | Use |
-|---------|----------------|-----|
-| Abstract operations | `.references/formatjs/packages/ecma402-abstract/` | Behavior reference for production-used algorithms (`PartitionPattern`, digit rounding, skeleton matching, plural operands, …) |
-| Top-level helpers | `.references/formatjs/packages/intl/` | Non-normative helper reference only; it must not override ECMA-402 `Intl` namespace shape |
-| `Intl.Locale` | `.references/formatjs/packages/intl-locale/` | Locale parsing, canonicalization, `maximize`/`minimize`, preference data |
-| `Intl.NumberFormat` | `.references/formatjs/packages/intl-numberformat/` | Decimal, percent, currency, unit, scientific, compact notation |
-| `Intl.DateTimeFormat` | `.references/formatjs/packages/intl-datetimeformat/` | Date/time formatting, `formatRange`, time-zone handling |
-| `Intl.PluralRules` | `.references/formatjs/packages/intl-pluralrules/` | Cardinal, ordinal, `select`, `selectRange` |
-| `Intl.ListFormat` | `.references/formatjs/packages/intl-listformat/` | List pattern selection, aliases, supported locales |
-| `Intl.RelativeTimeFormat` | `.references/formatjs/packages/intl-relativetimeformat/` | Relative field lookup, numeric auto behavior, supported locales |
-| `Intl.DurationFormat` | `.references/formatjs/packages/intl-durationformat/` | Duration unit option resolution, partitioning, digital separators, supported locales |
-
-**Secondary references:**
-
-| Subject | Path | Use |
-|---------|------|-----|
-| Native Node/V8 behavior | `.references/node/` | ICU-backed tiebreaker for implementation-defined output, edge cases, time zones, and Node Intl snapshots |
-| ECMA-402 scope check | `.references/ext/` (PHP `ext/intl`) | Validates the size and shape of a full ECMA-402 surface |
-| CLDR-driven Go pattern | `.references/intl/` (`translate-agent/intl`) | A working Go example of embedding CLDR data and using `language.Tag` |
+| Role | Use |
+|------|-----|
+| ECMA-402 spec | Defines constructors, methods, options, resolved options, records, abstract operations, and error boundaries. |
+| Generated reference | Provides readable algorithm shape and extractable input/output fixtures. It cannot override ECMA-402 or justify public API convenience. |
+| Native-engine witness | Settles implementation-defined observable output, runtime edge cases, and backend-capability boundaries. |
+| CLDR data | Owns locale, calendar, numbering, currency, unit, list, relative-time, display-name, time-zone, and plural data content. |
 
 ### 2.2 Reference hygiene
 
-Only reference trees with compatible root licensing and direct project value belong under `.references/`. Clean out references whose root project license is GPL, AGPL, or LGPL; do not remove MIT/BSD/ECMA-compatible references merely because their trees contain third-party license notices. `.references/node/` remains the Node/V8 reference source; do not copy GPL-licensed vendored files from it into go-intl source or fixtures.
+Only reference trees with compatible root licensing and direct project value belong under `.references/`. Clean out references whose root project license is GPL, AGPL, or LGPL; do not remove MIT/BSD/ECMA-compatible references merely because their trees contain third-party license notices. Native-engine reference trees are witness sources only; do not copy incompatible vendored files from them into go-intl source or fixtures.
 
 **Authority rules:**
 
-1. **ECMA-402 is the primary reference.** If `.references/ecma402/spec/` conflicts with a local SPEC, README example, existing test, or FormatJS helper API, update the local artifact first.
+1. **ECMA-402 is the primary reference.** If `.references/ecma402/spec/` conflicts with a local SPEC, README example, existing test, or generated-reference helper API, update the local artifact first.
 2. **Local SPECS are subordinate memory.** They may constrain implementation order and support tiers, but they must not redefine ECMA-402 semantics.
 3. **Implementation gaps need an exit.** Any retained gap must state current behavior, rationale, `review_after`, and the concrete removal path in the owning SPEC.
-4. **FormatJS is the primary readable implementation reference** because it is TypeScript and a faithful spec polyfill.
-5. **`.references/node/` breaks native-engine ties** when ECMA-402 leaves behavior implementation-defined or when Node/V8/ICU output is the observable compatibility target.
+4. **Generated references are readable evidence**, useful for algorithm shape and fixture extraction, but not a product dependency.
+5. **Native-engine witnesses break observable-behavior ties** when ECMA-402 leaves behavior implementation-defined or when runtime output is the compatibility target.
 6. **CLDR is the data oracle.** When tables disagree, trust the CLDR version pinned in `internal/cldr/VERSION` and document the divergence.
 7. **No local convenience beats native ownership.** Go typed bridges are allowed, but helper shape, cache knobs, or historical ergonomics must not override the native `Intl` owner model.
 8. **No import-cost shortcut beats the `Intl` namespace.** The root package represents ECMA-402 `Intl`; active constructor aliases are the current Go bridge for constructor properties such as `Intl.NumberFormat`. Measure and document aggregate facade cost separately instead of deleting constructor properties to make dependency reports smaller.
@@ -103,8 +79,8 @@ We pull **language-agnostic input/output pairs** from three sources and run them
 
 | Source | Path | Format | Used for |
 |--------|------|--------|----------|
-| `FormatJS` polyfill tests | `.references/formatjs/packages/<polyfill>/tests/*.test.ts` + locale-data JSON | TypeScript (Vitest) `describe`/`it` blocks with inline expectations | Primary conformance — every public formatter must pass these |
-| Node localization snapshots | `.references/node/` | JSON snapshots extracted from Node Intl behavior | Cross-validation for native V8/ICU output near the pinned CLDR/ICU version |
+| generated-reference tests | checked-in reference tests + locale-data JSON | Static assertions with inline expectations | Primary conformance — every public formatter must pass extracted cases or record explicit debt |
+| native-engine snapshots | generated JSON witness files | Runtime snapshots extracted from native Intl behavior | Cross-validation for implementation-defined output and backend-capability boundaries |
 
 **Porting flow:**
 
@@ -157,7 +133,7 @@ The maintained surface is the minimum viable API needed by the primary consumers
 
 | Package | Type / function | Mirrors |
 |---------|-----------------|---------|
-| `github.com/agentable/go-intl/locale` | `Locale`, `Parse`, `MustParse`, `New`, `(Locale).Maximize`, `(Locale).Minimize`, locale info getters | `Intl.Locale` |
+| `github.com/agentable/go-intl/locale` | `Locale`, `Parse`, `ParseList`, `New`, `(Locale).Maximize`, `(Locale).Minimize`, locale info getters | `Intl.Locale` |
 | `github.com/agentable/go-intl/numberformat` | `NumberFormat`, `New`, `SupportedLocalesOf`, `Value` constructors, `Format`, parts/range methods, `.ResolvedOptions` | `Intl.NumberFormat` |
 | `github.com/agentable/go-intl/datetimeformat` | `DateTimeFormat`, `New`, `SupportedLocalesOf`, `(*DateTimeFormat).Format`, `.FormatToParts`, `.FormatRange`, `.FormatRangeToParts`, `.ResolvedOptions` | `Intl.DateTimeFormat` |
 | `github.com/agentable/go-intl/pluralrules` | `PluralRules`, `New`, `SupportedLocalesOf`, `Value` constructors, `Select`, `SelectRange`, `.ResolvedOptions` | `Intl.PluralRules` |
@@ -233,7 +209,6 @@ go-intl/
     ├── ecma402/datetimeformat/  # skeleton parser and DateTimeFormat pattern matcher
     ├── ecma402/pluralrules/     # operands and plural categories
     ├── localematcher/      # ResolveLocale, lookup, best-fit, supported-locale filtering
-    ├── cldrmatch/          # formatter-family data-locale resolution over generated CLDR subsets
     ├── decimal/            # apd-backed Decimal for ToIntlMathematicalValue
     ├── intlerr/            # Cycle-free implementation backing root error aliases
     ├── collation/          # Collator backend capability metadata

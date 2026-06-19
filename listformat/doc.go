@@ -1,6 +1,7 @@
 // Package listformat implements the ECMA-402 Intl.ListFormat constructor.
 //
-//	format, _ := listformat.New(locale.MustParseList("en-US"), listformat.Options{})
+//	locales, _ := locale.ParseList("en-US")
+//	format, _ := listformat.New(locales, listformat.Options{})
 //	out := format.Format([]string{"apples", "bananas"})
 //	_ = out
 //

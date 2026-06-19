@@ -1,6 +1,7 @@
 // Package displaynames implements the ECMA-402 Intl.DisplayNames constructor.
 //
-//	names, _ := displaynames.New(locale.MustParseList("en-US"), displaynames.Options{Type: displaynames.Language})
+//	locales, _ := locale.ParseList("en-US")
+//	names, _ := displaynames.New(locales, displaynames.Options{Type: displaynames.Language})
 //	name, ok, _ := names.Of("fr")
 //	_, _ = name, ok
 //

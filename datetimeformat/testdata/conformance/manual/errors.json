@@ -8,5 +8,43 @@
     },
     "input": "2026-05-08T12:00:00Z",
     "errorCode": "invalid_option"
+  },
+  {
+    "id": "datetimeformat-manual-unsupported-calendar-option",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "calendar": "buddhist"
+    },
+    "input": "2026-05-08T12:00:00Z",
+    "errorCode": "unsupported_option"
+  },
+  {
+    "id": "datetimeformat-manual-unsupported-calendar-extension",
+    "source": "manual",
+    "locale": "en-US-u-ca-buddhist",
+    "options": {},
+    "input": "2026-05-08T12:00:00Z",
+    "errorCode": "unsupported_option"
+  },
+  {
+    "id": "datetimeformat-manual-unsupported-iana-time-zone",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "timeZone": "Mars/Olympus"
+    },
+    "input": "2026-05-08T12:00:00Z",
+    "errorCode": "unsupported_option"
+  },
+  {
+    "id": "datetimeformat-manual-unsupported-offset-time-zone",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "timeZone": "+24:00"
+    },
+    "input": "2026-05-08T12:00:00Z",
+    "errorCode": "unsupported_option"
   }
 ]

@@ -15,7 +15,7 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 	t.Parallel()
 
 	conformance.RunFixtures(t, ".", func(t *testing.T, fixture conformance.Fixture) {
-		loc := locale.MustParse(fixture.Locale)
+		loc := intltest.Locale(t, fixture.Locale)
 		format, err := New(locale.List{loc}, conformanceNumberOptions(t, fixture))
 		if fixture.ErrorCode != "" {
 			if !errors.Is(err, intlerr.ErrInvalidOption) {
@@ -100,7 +100,7 @@ func TestNumberFormatConformanceFixtures(t *testing.T) {
 				opts.Style = Style(fixture.Style)
 			}
 			if fixture.Currency != "" {
-				opts.Currency = CurrencyCode(fixture.Currency)
+				opts.Currency = Currency(fixture.Currency)
 			}
 			if fixture.Notation != "" {
 				opts.Notation = Notation(fixture.Notation)
@@ -255,7 +255,7 @@ func conformanceNumberOptions(t *testing.T, fixture conformance.Fixture) Options
 		opts.Style = Style(options.Style)
 	}
 	if options.Currency != "" {
-		opts.Currency = CurrencyCode(options.Currency)
+		opts.Currency = Currency(options.Currency)
 	}
 	if options.CurrencyDisplay != "" {
 		opts.CurrencyDisplay = CurrencyDisplay(options.CurrencyDisplay)
@@ -264,7 +264,7 @@ func conformanceNumberOptions(t *testing.T, fixture conformance.Fixture) Options
 		opts.CurrencySign = CurrencySign(options.CurrencySign)
 	}
 	if options.Unit != "" {
-		opts.Unit = UnitIdentifier(options.Unit)
+		opts.Unit = Unit(options.Unit)
 	}
 	if options.UnitDisplay != "" {
 		opts.UnitDisplay = UnitDisplay(options.UnitDisplay)

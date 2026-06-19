@@ -71,7 +71,7 @@ go-intl is the **lower** ECMA-402 primitive library; `messageformat-go` is the *
 
 ## 2. defaultRichTextElements ownership
 
-`defaultRichTextElements` is the concept of FormatJS `IntlShape.defaultRichTextElements?: Record<string, FormatXMLElementFn>`, serving the rich-text MessageFormat rendering of React/Vue.
+`defaultRichTextElements` is the concept of generated-reference `IntlShape.defaultRichTextElements?: Record<string, FormatXMLElementFn>`, serving the rich-text MessageFormat rendering of React/Vue.
 
 **Rules**:
 
@@ -92,9 +92,9 @@ go-intl is the **lower** ECMA-402 primitive library; `messageformat-go` is the *
 |---------------------------|----------|----------|-------------------|
 | `:integer` (`number.go`,~70 LoC) | Self-implemented number parsing + formatting | **Rewritten as adapter** | `numberformat.New(locale.List{loc}, numberformat.Options{MaximumFractionDigits: gointl.Int(0)})` |
 | `:number` (`number.go`,~280 LoC) | Self-implemented ICU bridge | **Rewritten as adapter** | `numberformat.New(locale.List{loc}, ...)` |
-| `:currency` (`currency.go`,191 LoC) | Self-implemented currency table | **Rewritten as adapter** | `numberformat.New(locale.List{loc}, numberformat.Options{Style: numberformat.CurrencyStyle, Currency: numberformat.CurrencyCode(code)})` |
+| `:currency` (`currency.go`,191 LoC) | Self-implemented currency table | **Rewritten as adapter** | `numberformat.New(locale.List{loc}, numberformat.Options{Style: numberformat.CurrencyStyle, Currency: numberformat.Currency(code)})` |
 | `:percent` (`percent.go`,118 LoC) | Self-implementation percentage | **Rewritten as adapter** | `numberformat.New(locale.List{loc}, numberformat.Options{Style: numberformat.PercentStyle})` |
-| `:unit` (`unit.go`,120 LoC) | Self-implemented unit identifier table | **Rewritten as adapter** | `numberformat.New(locale.List{loc}, numberformat.Options{Style: numberformat.UnitStyle, Unit: numberformat.UnitIdentifier(id)})` |
+| `:unit` (`unit.go`,120 LoC) | Self-implemented unit identifier table | **Rewritten as adapter** | `numberformat.New(locale.List{loc}, numberformat.Options{Style: numberformat.UnitStyle, Unit: numberformat.Unit(id)})` |
 | `:offset` (`offset.go`,134 LoC) | Numeric offset + delegate `:number` | **partial adapter** | Offset is done by itself in messageformat-go, number format delegate `numberformat.New(...)` |
 | `:date` (`datetime.go` subset) | Self-implemented LDML 48 dateFields | **Rewritten as adapter** | `datetimeformat.New(locale.List{loc}, datetimeformat.Options{DateStyle: ...})` |
 | `:datetime` (`datetime.go`,324 LoC body) | Self-implemented dateFields/timePrecision | **Rewritten as adapter** | `datetimeformat.New(locale.List{loc}, datetimeformat.Options{DateStyle: ..., TimeStyle: ...})` |
@@ -178,7 +178,7 @@ The bugs, limitations, and unexpected behaviors encountered by messageformat-go 
 | go-intl version | The go-intl version when the problem was triggered |
 | problem | 1 paragraph problem description |
 | trigger | minimum recurrence input + options |
-| expected | expected output (quoting ECMA-402 spec clause + FormatJS behavior) |
+| expected | expected output (quoting ECMA-402 spec clause + reference behavior) |
 | actual | actual output + error message or stack trace |
 | workaround | Temporary bypass solution for the caller (if any, it is **prohibited** to be implemented into the messageformat-go code) |
 | upstream issue | go-intl issue URL (if already opened) |

@@ -3,6 +3,7 @@ package durationformat
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -10,7 +11,7 @@ import (
 // embedded NumberFormat passthrough and list-pattern literals.
 func TestFormatToPartsTypedConstants(t *testing.T) {
 	t.Parallel()
-	df, err := New(locale.List{locale.MustParse("en")}, Options{
+	df, err := New(locale.List{intltest.Locale(t, "en")}, Options{
 		Hours:   LongUnitStyle,
 		Minutes: LongUnitStyle,
 	})

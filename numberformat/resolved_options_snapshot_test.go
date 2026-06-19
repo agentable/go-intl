@@ -3,13 +3,14 @@ package numberformat
 import (
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func TestNumberFormatResolvedOptionsPointerSnapshot(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en")}, Options{
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
 		MinimumFractionDigits: intPtr(2),
 		MaximumFractionDigits: intPtr(2),
 	})

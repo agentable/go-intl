@@ -2,18 +2,23 @@ package listformat
 
 import (
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/intlerr"
 
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
 
 func TestListFormatResolvedOptionsDefaults(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{})
 	if err != nil {
 		t.Fatalf("New(en-US) error = %v", err)
 	}
@@ -33,7 +38,7 @@ func TestListFormatResolvedOptionsDefaults(t *testing.T) {
 func TestListFormatRejectsInvalidOptions(t *testing.T) {
 	t.Parallel()
 
-	loc := locale.MustParse("en-US")
+	loc := intltest.Locale(t, "en-US")
 	tests := []struct {
 		name string
 		opts Options
@@ -66,7 +71,7 @@ func TestListFormatRejectsInvalidOptions(t *testing.T) {
 func TestListFormatFormatConjunctionLong(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{})
 	if err != nil {
 		t.Fatalf("New(en-US) error = %v", err)
 	}
@@ -79,7 +84,7 @@ func TestListFormatFormatConjunctionLong(t *testing.T) {
 func TestListFormatFormatBoundaryLengths(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{})
 	if err != nil {
 		t.Fatalf("New(en-US) error = %v", err)
 	}
@@ -108,7 +113,7 @@ func TestListFormatFormatBoundaryLengths(t *testing.T) {
 func TestListFormatFormatTreatsElementPlaceholdersAsText(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{})
 	if err != nil {
 		t.Fatalf("New(en-US) error = %v", err)
 	}
@@ -118,10 +123,56 @@ func TestListFormatFormatTreatsElementPlaceholdersAsText(t *testing.T) {
 	}
 }
 
+func TestListFormatFormatEqualsFormatToPartsJoin(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{})
+	if err != nil {
+		t.Fatalf("New(en-US) error = %v", err)
+	}
+
+	tests := []struct {
+		name string
+		list []string
+	}{
+		{name: "empty", list: nil},
+		{name: "single", list: []string{"A"}},
+		{name: "pair", list: []string{"A", "B"}},
+		{name: "many", list: []string{"A", "B", "C", "D"}},
+		{name: "placeholder text", list: []string{"{1}", "B"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := format.Format(tc.list)
+			if want := listPartsText(format.FormatToParts(tc.list)); got != want {
+				t.Fatalf("Format(%v) = %q, want joined FormatToParts %q", tc.list, got, want)
+			}
+		})
+	}
+}
+
+func TestListFormatFormatUsesPartsOwner(t *testing.T) {
+	t.Parallel()
+
+	parsed, err := parser.ParseFile(token.NewFileSet(), "format.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	format := findMethodDecl(parsed, "Format")
+	if format == nil {
+		t.Fatal("Format method not found")
+	}
+	if !methodCalls(format, "FormatToParts") {
+		t.Fatal("Format must derive output from FormatToParts to avoid string/parts drift")
+	}
+}
+
 func TestListFormatFormatToPartsPair(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{})
 	if err != nil {
 		t.Fatalf("New(en-US) error = %v", err)
 	}
@@ -140,7 +191,7 @@ func TestListFormatFormatToPartsPair(t *testing.T) {
 func TestListFormatFormatToPartsBoundaryLengths(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{locale.MustParse("en-US")}, Options{})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{})
 	if err != nil {
 		t.Fatalf("New(en-US) error = %v", err)
 	}
@@ -179,14 +230,45 @@ func TestListFormatFormatToPartsBoundaryLengths(t *testing.T) {
 	}
 }
 
+func listPartsText(parts []Part) string {
+	var b strings.Builder
+	for _, part := range parts {
+		b.WriteString(part.Value)
+	}
+	return b.String()
+}
+
+func findMethodDecl(file *ast.File, name string) *ast.FuncDecl {
+	for _, decl := range file.Decls {
+		decl, ok := decl.(*ast.FuncDecl)
+		if ok && decl.Recv != nil && decl.Name.Name == name {
+			return decl
+		}
+	}
+	return nil
+}
+
+func methodCalls(fn *ast.FuncDecl, name string) bool {
+	found := false
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if ok && selector.Sel.Name == name {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
 func TestSupportedLocalesOf(t *testing.T) {
 	t.Parallel()
 
-	requested := locale.List{
-		locale.MustParse("fr-FR"),
-		locale.MustParse("en-US"),
-		locale.MustParse("zh-Hans-CN"),
-	}
+	requested := locale.List{intltest.Locale(t, "fr-FR"), intltest.Locale(t, "en-US"), intltest.Locale(t, "zh-Hans-CN")}
 	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: LookupLocaleMatcher})
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf() error = %v", err)

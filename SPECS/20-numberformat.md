@@ -64,7 +64,6 @@ func Int(v int64) Value
 func Uint(v uint64) Value
 func Float(v float64) Value
 func BigInt(v *big.Int) Value
-func BigFloat(v *big.Float) Value
 func Decimal(s string) (Value, error)
 
 func (f *NumberFormat) Format(v Value) string
@@ -86,11 +85,13 @@ func (f *NumberFormat) ResolvedOptions() ResolvedOptions
 
 > **Why**: Construction-time verification centrally handles configuration errors; runtime numeric type boundaries are expressed by `Value` constructors. The JS side `format(NaN)` does not throw, so `Format(numberformat.Float(math.NaN()))` still returns `"NaN"`; but the failure of Go's decimal string parsing is a caller error and must be exposed through `Decimal`'s `ErrInvalidValue`.
 >
-> **Rejected**: public `Format(v any)` / `FormatToParts(v any)` - Mix unsupported input, malformed string, NaN display and user errors in the same hot path.
+> **Rejected**:
+> - public `Format(v any)` / `FormatToParts(v any)` - Mix unsupported input, malformed string, NaN display and user errors in the same hot path.
+> - public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal magnitude should use `Decimal`.
 
 ### 1.2 Typed Options(Close §8 Q2)
 
-**DECISION**: Active scope public APIs **MUST** take a single typed `Options` value. `numberformat.New(locale.MustParseList("en-US"), numberformat.Options{Currency: numberformat.CurrencyCode("USD"), MaximumFractionDigits: gointl.Int(2)})`.
+**DECISION**: Active scope public APIs **MUST** take a single typed `Options` value. `numberformat.New(mustLocaleList("en-US"), numberformat.Options{Currency: numberformat.Currency("USD"), MaximumFractionDigits: gointl.Int(2)})`.
 
 > **Why**:
 > 1. The correct value should be discoverable at the IDE and compiler level. `CurrencyStyle`, `CompactNotation`, `HalfEvenRoundingMode` are better suited as ten-year public APIs than bare strings.
@@ -106,7 +107,7 @@ func (f *NumberFormat) ResolvedOptions() ResolvedOptions
 
 1. The `Options` field name **MUST** correspond to the Go form of the ECMA-402 §15.4.1 option name.
 2. Enumerated fields **MUST** use named types and constants in the package; callers are prohibited from passing bare strings to select core enumerations.
-3. `CurrencyCode(code string)` **MUST** normalize ISO 4217 currency code; `UnitIdentifier(unit string)` **MUST NOT** normalize case. ECMA-402 unit identifiers are exact canonical lowercase strings; `"METER"` must be rejected like native `Intl.NumberFormat`.
+3. The constructor owns string normalization and validation for typed option fields. `Options.Currency` accepts the typed `Currency` value and is normalized to uppercase during construction, matching native `Intl.NumberFormat`; `Options.Unit` accepts the typed `Unit` value and **MUST NOT** normalize case. ECMA-402 unit identifiers are exact canonical lowercase strings; `"METER"` must be rejected like native `Intl.NumberFormat`.
 4. `MinimumIntegerDigits`, fraction digits, significant digits, `RoundingIncrement` **MUST** use the `*int` field to express the explicitly set state; the constructor must copy pointee into the internal config and must not save the caller pointer.
 5. `Options{}` The zero value **MUST** be equivalent to the ECMA-402 default option.
 6. `New` accepts a `Options` value; multiple options merge is not an ECMA-402 behavior, nor is it an exposed Go API shape.
@@ -115,7 +116,7 @@ func (f *NumberFormat) ResolvedOptions() ResolvedOptions
 ### 1.3 Calling example
 
 ```go
-nf, err := numberformat.New(locale.MustParseList("zh-Hant-TW"),
+nf, err := numberformat.New(mustLocaleList("zh-Hant-TW"),
     numberformat.Options{
         Notation:       numberformat.CompactNotation,
         CompactDisplay: numberformat.ShortCompactDisplay,
@@ -124,10 +125,10 @@ nf, err := numberformat.New(locale.MustParseList("zh-Hant-TW"),
 ```
 
 ```go
-nf, _ := numberformat.New(locale.MustParseList("en-US"),
+nf, _ := numberformat.New(mustLocaleList("en-US"),
     numberformat.Options{
         Style:    numberformat.CurrencyStyle,
-        Currency: numberformat.CurrencyCode("USD"),
+        Currency: numberformat.Currency("USD"),
     })
 // nf.Format(numberformat.Float(1234.5)) == "$1,234.50"
 ```
@@ -138,7 +139,7 @@ nf, _ := numberformat.New(locale.MustParseList("en-US"),
 
 1. All options taken from the union of ECMA-402 string literals (`style` / `notation` / `compactDisplay` / `currencyDisplay` / `currencySign` / `unitDisplay` / `signDisplay` / `useGrouping` / `roundingPriority` / `roundingMode` / `trailingZeroDisplay` / `localeMatcher`) **MUST** be carried in a named type, the underlying kind remains `string`, and the serialization form is consistent with the JS resolvedOptions string.
 2. `numberingSystem` is still `string`, because it is a Unicode extension type, not a small enumeration.
-3. `Currency` **MUST** be constructed through `CurrencyCode` to avoid scattered case rules at the call point; `Unit` **MUST** pass the canonical ECMA-402 unit identifier, and lowercase fallback must not be done in the constructor.
+3. `Currency` and `Unit` are direct typed ECMA-402 option values. Currency case normalization and unit validation belong to `New`; unit lowercase fallback must not be done in the constructor.
 4. The `false` value of `useGrouping` is expressed by `UseGroupingFalse` on the Go side, and the underlying layer is still serialized as `"false"`.
 5. Verification **MUST** be completed centrally in `New`. Failure to wrap `ErrInvalidOption` and display the value passed in by the user.
 
@@ -181,7 +182,7 @@ Compact and scientific/engineering are adjusted in SetNumberFormatDigitOptions
 5. `currencySign` ∈ `standard | accounting`, default `standard`.
 6. `unitDisplay` ∈ `short | narrow | long`, default `short`.
 
-> **Rejected**: `bojanz/currency` data is not CLDR straight out and is incompatible with FormatJS byte equality target.
+> **Rejected**: `bojanz/currency` data is not CLDR straight out and is incompatible with fixture byte equality target.
 
 ### 2.2 SetNumberFormatDigitOptions
 
@@ -206,7 +207,7 @@ roundingIncrement!=1 ⇒ roundingType forces fractionDigits and mnfd=mxfd
 3. `trailingZeroDisplay` ∈ `auto | stripIfInteger`, default `auto`.
 4. `roundingPriority` ∈ `auto | morePrecision | lessPrecision`, default `auto`.
 
-> **Why**: The 5-way branch represents the "precision first" semantics of V3 added to ECMA-402. FormatJS resolves `roundingType` according to this branch, and any offset on the Go side will break byte equality.
+> **Why**: The 5-way branch represents the "precision first" semantics of V3 added to ECMA-402. Generated reference resolves `roundingType` according to this branch, and any offset on the Go side will break byte equality.
 
 ### 2.3 Digit Formatting Record
 
@@ -307,9 +308,9 @@ MaximumSignificantDigits *int // Same as above
 1. `ToIntlMathematicalValue` **MUST** be implemented using [SPEC 21 §ToIntlMathematicalValue](./21-number-math.md#tointlmathematicalvalue); **FORBIDDEN** to convert values via `fmt.Sprintf("%v", value)`.
 2. The `String` output by `FormatNumericToString` **MUST** retain trailing zero (forced by `mnfd`) for subsequent OperandsRecord calculation of `v / w / f / t` (see [SPEC 40 §Operands](./40-pluralrules.md#operands)).
 3. `NaN / +Inf / -Inf` **MUST** be expressed through `apd.Decimal.Form`, and **FORBIDDEN** to be transferred through `math.IsNaN(float64(...))`.
-4. The `[]Part` element `Type` output by `PartitionDigitParts` **MUST** qualify ECMA-402 §15.5.1 + FormatJS extension for a total of 16 enumeration strings: `integer | group | decimal | fraction | currency | percentSign | minusSign | plusSign | nan | infinity | unit | literal | exponentSeparator | exponentMinusSign | exponentInteger | compact | approximatelySign` (strictly aligned with `.references/formatjs/packages/ecma402-abstract/types/number.ts` `NumberFormatPartTypes`; **FORBIDDEN** to use `exponentSymbol`, the canonical name is `exponentSeparator`;`approximatelySign` only appears as part type when the formatting results of both ends of `FormatRange` are the same).
+4. The `[]Part` element `Type` output by `PartitionDigitParts` **MUST** qualify ECMA-402 §15.5.1 + Generated reference extension for a total of 16 enumeration strings: `integer | group | decimal | fraction | currency | percentSign | minusSign | plusSign | nan | infinity | unit | literal | exponentSeparator | exponentMinusSign | exponentInteger | compact | approximatelySign` (strictly aligned with `.references/formatjs/packages/ecma402-abstract/types/number.ts` `NumberFormatPartTypes`; **FORBIDDEN** to use `exponentSymbol`, the canonical name is `exponentSeparator`;`approximatelySign` only appears as part type when the formatting results of both ends of `FormatRange` are the same).
 
-> **Why**: This is the key operator for conformance byte equality; any step skipped will be detected by the `FormatJS` `format_to_parts.test.ts` fixture.
+> **Why**: This is the key operator for conformance byte equality; any step skipped will be detected by the `generated-reference` `format_to_parts.test.ts` fixture.
 
 ### 4.1 Compact Notation and PluralRules Contract
 
@@ -339,7 +340,7 @@ MaximumSignificantDigits *int // Same as above
 2. `currencyDisplay = "narrowSymbol"` **MUST** fall back to `"symbol"` when CLDR data lacks narrow form.
 3. `currencySign = "accounting"` **MUST** use the CLDR accounting pattern; when the negative sub-pattern exists, the minus sign is consumed by the pattern, and when it does not exist, the explicit sign part is retained.
 4. Compact suffix selection **MUST** first determine the plural category according to §4.1, and then check CLDR `numbers.json` `decimalFormats.{short|long}.decimalFormat[length].decimal-format-pattern.<category>`; when category is missing, fall back to `other`.
-5. `useGrouping = "min2"` **MUST** only insert groups when the integer part is ≥ 5 bits (aligned FormatJS `useGrouping` implementation).
+5. `useGrouping = "min2"` **MUST** only insert groups when the integer part is ≥ 5 bits (aligned generated-reference `useGrouping` implementation).
 
 ---
 
@@ -355,7 +356,7 @@ MaximumSignificantDigits *int // Same as above
 6. `a > b` **must not** be locally normalized, transposed or added `~`; formatted in the order of input parameters and collapse range parts.
 7. When `FormatNumeric(a) == FormatNumeric(b)`, output shared `approximatelySign` part + shared digital parts (for example, when the maximum fraction digits is 0, `1.1–1.2` outputs `~1`).
 
-> **Why**: NumberFormatPart and DateTimeFormatPart have different fields (`unit | currency | percentSign | exponentInteger` vs `era | year | month | ...`). Although the collapse algorithm has the same structure (removing suffixes), it works on different part fields; FormatJS is also implemented separately.
+> **Why**: NumberFormatPart and DateTimeFormatPart have different fields (`unit | currency | percentSign | exponentInteger` vs `era | year | month | ...`). Although the collapse algorithm has the same structure (removing suffixes), it works on different part fields; Generated references are also implemented separately.
 >
 > **Rejected**: Abstract general `CollapseRange[T Part]` generic function - one more layer of indirection, and the "equivalence" semantics of `T` are different between the two packages.
 
@@ -383,7 +384,7 @@ MaximumSignificantDigits *int // Same as above
 3. The PluralRules handle **MUST** be lazy constructed in `New` (only constructed in `notation = compact | scientific | engineering`); the `Format` path **forbids** to reconstruct PluralRules.
 4. `apd.Context` **MUST** be held as an immutable baseline; the `Rounding` field is modified after copying when `Format` is called (to avoid races).
 
-> **Why**: The `internalSlot` mode of `FormatJS` (checking slot every time `format()`) corresponds to "materialization during construction and read-only during runtime" on Go. This is consistent with the CLAUDE.md "constructor-eager / Format-no-error" rule.
+> **Why**: The `internalSlot` mode of `generated-reference` (checking slot every time `format()`) corresponds to "materialization during construction and read-only during runtime" on Go. This is consistent with the CLAUDE.md "constructor-eager / Format-no-error" rule.
 
 ---
 
@@ -419,14 +420,14 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 
 ## 10. Forbidden
 
-- **BANNED** Introduce `golang.org/x/text/message` as NumberFormat implementation - missing currency/unit/compact notation, incompatible with FormatJS byte equality.
+- **BANNED** Introduce `golang.org/x/text/message` as NumberFormat implementation - missing currency/unit/compact notation, incompatible with fixture byte equality.
 - **BANNED** Introduce `bojanz/currency` as currency data source - non-CLDR direct output, and comes with ISO 4217 historical data that conflicts with our CLDR nail version.
 - **BANNED** Return `error` (ECMA-402 fallback for invalid input) in `Format` / `FormatToParts` paths.
 - **BANNED** Use `Format` with `fmt.Sprintf("%v", value)` on hot path - trailing-zero behavior is unaligned + ~150 ns per allocation.
 - **FORBIDDEN** NumberFormat parses plural DSL, copies plural rule tables, or selects compact suffix by exposing a `pluralrules.PluralRules` instance; can only call `internal/ecma402/pluralrules.GetOperands` and use `internal/cldr/plural` generated rules.
 - **FORBIDDEN** Extract `CollapseNumberRange` into a cross-package generic - Part fields are different.
 - **FORBIDDEN** Calling CLDR domain accessors on the `Format` path; CLDR data must be materialized on `New`.
-- **BANNED** Builder chaining API(`numberformat.NewBuilder().Currency("USD").Build()`); active scope exposes only `New(locale.MustParseList("en-US"), Options{...})` or equivalent `locale.List` variables.
+- **BANNED** Builder chaining API(`numberformat.NewBuilder().Currency("USD").Build()`); active scope exposes only `New(mustLocaleList("en-US"), Options{...})` or equivalent `locale.List` variables.
 - **BANNED** Pointer configuration API (`numberformat.New(locales, &Options{...})`) and functional options; the only public configuration form after turning off §8 Q2 is the typed `Options` value.
 - **FORBIDDEN** Self-developed `BigDecimal`; all math layers go through [SPEC 21 §Decimal API](./21-number-math.md#decimal-api)(`apd/v3` backend).
 
@@ -446,8 +447,8 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - [ ] `roundingPriority = "morePrecision" | "lessPrecision"` is observable when the fraction and significant digit options are passed in at the same time, and is not treated as an unsupported option.
 - [ ] `Options{CurrencySign: AccountingCurrencySign}` negative USD output `($12.00)` for `en-US`.
 - [ ] `Options{CompactDisplay: LongCompactDisplay}` outputs `1.5 thousand` for `en` `1500` + `MaximumFractionDigits: gointl.Int(1)`.
-- [ ] compact plural contract use case: `numberformat.New(locale.MustParseList("pl-PL"), numberformat.Options{Notation: numberformat.CompactNotation}).Format(numberformat.Int(1500))` is consistent with `FormatJS` output under `pl-PL` (plural category `few` suffix).
-- [ ] The sequence of options pipeline steps passes the `internal/ecma402/numberformat.TestInitializeNumberFormat_StepOrder` test (a trace is generated at each step, aligned with the FormatJS call sequence).
+- [ ] compact plural contract use case: `numberformat.New(mustLocaleList("pl-PL"), numberformat.Options{Notation: numberformat.CompactNotation}).Format(numberformat.Int(1500))` is consistent with `generated-reference` output under `pl-PL` (plural category `few` suffix).
+- [ ] The sequence of options pipeline steps passes the `internal/ecma402/numberformat.TestInitializeNumberFormat_StepOrder` test (a trace is generated at each step, aligned with the Generated reference call sequence).
 - [ ] `BenchmarkNumberFormat_Decimal_Cached` and `BenchmarkNumberFormat_New` appear in non-blocking `task bench` telemetry.
 - [ ] Benchmark reports label NumberFormat as a per-surface package, not root facade cost.
 
