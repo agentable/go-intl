@@ -19,7 +19,7 @@ The runtime algorithm boundaries for `collator`, `segmenter`, and active best-fi
 > - `//go:build` tags (`intl_full` / `intl_minimal`) — lost on default-correctness: the default shape must already be correct; making users opt out of a broken default is configuration cope.
 > - Multi-module split — lost on cost/benefit: Go's compile and link unit is the package, not the module; splitting modules buys version-matrix, cross-module `internal/` invisibility, and release-orchestration cost for zero compile benefit.
 >
-> **Basis**: issue #3 reproducer measurements (Go 1.26.3, darwin/arm64): root package 5,945 → 226 MB; `unit` leaf 4,276 → 276 MB after blob-ization; all leaf domains land in the 276–317 MB band. `golang.org/x/text/internal/data` ships CLDR-scale data as const strings.
+> **Basis**: issue #3 reproducer measurements (Go 1.26.4, darwin/arm64): root package 5,945 → 226 MB; `unit` leaf 4,276 → 276 MB after blob-ization; all leaf domains land in the 276–317 MB band. `golang.org/x/text/internal/data` ships CLDR-scale data as const strings.
 
 ---
 

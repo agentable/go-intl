@@ -1,6 +1,6 @@
 module github.com/agentable/go-intl/tools/gen-cldr
 
-go 1.26.3
+go 1.26.4
 
 require github.com/agentable/go-intl v0.0.0
 

@@ -53,3 +53,4 @@ REFACTOR.md
 
 # .ralphy
 .ralphy/*.json
+.codegraph/

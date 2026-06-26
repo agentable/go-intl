@@ -100,7 +100,7 @@ func BenchmarkNumberFormat_Decimal_Cached(b *testing.B) {
 
 **Rules**:
 
-1. **MUST** use Go 1.24+ `b.Loop()` (project baseline Go 1.26.3). **FORBIDDEN** to use the old-style `for i := 0; i < b.N; i++` loop.
+1. **MUST** use Go 1.24+ `b.Loop()` (project baseline Go 1.26.4). **FORBIDDEN** to use the old-style `for i := 0; i < b.N; i++` loop.
 2. Cached benchmark **MUST** complete the construction before `b.Loop()`; **FORBIDDEN** to `New(...)` in the loop body (that is the scope of PerCall).
 3. All benchmarks **MUST** call `b.ReportAllocs()`, reporting B/op + allocs/op outside of ns/op.
 4. **FORBIDDEN** Calling `time.Now()` / `runtime.GC()` and other perturbation measurements within the benchmark.
