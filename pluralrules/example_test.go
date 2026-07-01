@@ -3,6 +3,7 @@ package pluralrules_test
 import (
 	"fmt"
 
+	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/pluralrules"
 )
@@ -33,7 +34,7 @@ func Example() {
 // Example_options demonstrates Intl.PluralRules constructor options from ECMA-402.
 func Example_options() {
 	rules, err := pluralrules.New(mustLocaleList("en"), pluralrules.Options{
-		Type: pluralrules.Ordinal,
+		Type: gointl.String(pluralrules.Ordinal),
 	})
 	if err != nil {
 		panic(err)

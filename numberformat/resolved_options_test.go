@@ -8,6 +8,7 @@ import (
 
 	"github.com/agentable/go-intl/internal/ecma402"
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -79,6 +80,15 @@ func TestNumberFormatResolvedOptionsDefaults(t *testing.T) {
 	if got.TrailingZeroDisplay != "auto" {
 		t.Fatalf("TrailingZeroDisplay = %q, want auto", got.TrailingZeroDisplay)
 	}
+	if got.Currency != nil || got.CurrencyDisplay != nil || got.CurrencySign != nil {
+		t.Fatalf("currency slots = %v/%v/%v, want omitted", got.Currency, got.CurrencyDisplay, got.CurrencySign)
+	}
+	if got.Unit != nil || got.UnitDisplay != nil {
+		t.Fatalf("unit slots = %v/%v, want omitted", got.Unit, got.UnitDisplay)
+	}
+	if got.CompactDisplay != nil {
+		t.Fatalf("CompactDisplay = %v, want omitted", got.CompactDisplay)
+	}
 }
 
 func TestNumberFormatResolvedOptionsNumberingSystem(t *testing.T) {
@@ -92,7 +102,7 @@ func TestNumberFormatResolvedOptionsNumberingSystem(t *testing.T) {
 		t.Fatalf("NumberingSystem = %q, want latn", got)
 	}
 
-	format, err = New(locale.List{intltest.Locale(t, "en-u-nu-arab")}, Options{NumberingSystem: "latn"})
+	format, err = New(locale.List{intltest.Locale(t, "en-u-nu-arab")}, Options{NumberingSystem: stringPtr("latn")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,44 +126,82 @@ func TestNumberFormatUsesMatchedNumberDataLocale(t *testing.T) {
 	}
 }
 
-func TestNumberFormatCurrencyRequiresCurrency(t *testing.T) {
+func TestNumberFormatStyleRequiresCompanionOption(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle})
-	if !errors.Is(err, intlerr.ErrInvalidOption) {
-		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
+	tests := []struct {
+		name         string
+		options      Options
+		wantName     string
+		wantExpected string
+	}{
+		{
+			name:         "currency",
+			options:      Options{Style: stringPtr(CurrencyStyle)},
+			wantName:     "currency",
+			wantExpected: `a currency code when style is "currency"`,
+		},
+		{
+			name:         "unit",
+			options:      Options{Style: stringPtr(UnitStyle)},
+			wantName:     "unit",
+			wantExpected: `a sanctioned unit identifier when style is "unit"`,
+		},
 	}
-	optErr, ok := errors.AsType[*ecma402.OptionError](err)
-	if !ok {
-		t.Fatalf("New() error = %T, want OptionError", err)
-	}
-	if optErr.Owner != "numberformat" || optErr.Kind != "invalidOption" || optErr.Name != "currency" || optErr.Value != "" || optErr.Locale != "en-US" {
-		t.Fatalf("OptionError = %+v, want numberformat invalid currency for en-US", optErr)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := New(locale.List{intltest.Locale(t, "en-US")}, tc.options)
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
+			}
+			testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, tc.wantName, "", "en-US")
+			testcontract.AssertOptionExpected(t, err, tc.wantExpected)
+		})
 	}
 }
 
 func TestNumberFormatRejectsInvalidCurrencyCode(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("US")})
+	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("US")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
+	testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "currency", "US", "en-US")
+	testcontract.AssertOptionExpected(t, err, "a three-letter ASCII currency code")
 }
 
 func TestNumberFormatRejectsInvalidCurrencyCodeWhenStyleIsNotCurrency(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Currency: Currency("US")})
+	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Currency: stringPtr("US")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
+	}
+}
+
+func TestNumberFormatRejectsEmptyCurrencyCode(t *testing.T) {
+	t.Parallel()
+
+	for _, opts := range []Options{
+		{Currency: stringPtr("")},
+		{Style: stringPtr(CurrencyStyle), Currency: stringPtr("")},
+	} {
+		_, err := New(locale.List{intltest.Locale(t, "en-US")}, opts)
+		if !errors.Is(err, intlerr.ErrInvalidOption) {
+			t.Fatalf("New(%+v) error = %v, want intlerr.ErrInvalidOption", opts, err)
+		}
+		testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "currency", "", "en-US")
+		testcontract.AssertOptionExpected(t, err, "a three-letter ASCII currency code")
 	}
 }
 
 func TestNumberFormatRejectsNonASCIICurrencyCode(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("円円円")})
+	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("円円円")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -162,30 +210,48 @@ func TestNumberFormatRejectsNonASCIICurrencyCode(t *testing.T) {
 func TestNumberFormatNormalizesCurrencyInConstructor(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("usd")})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("usd")})
 	if err != nil {
 		t.Fatalf("New(currency=usd) error = %v", err)
 	}
-	if got := format.ResolvedOptions().Currency; got != "USD" {
-		t.Fatalf("ResolvedOptions().Currency = %q, want USD", got)
+	if got := format.ResolvedOptions().Currency; got == nil || *got != "USD" {
+		t.Fatalf("ResolvedOptions().Currency = %v, want USD", got)
 	}
 }
 
 func TestNumberFormatRejectsInvalidUnit(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: UnitStyle, Unit: Unit("bad-unit")})
+	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(UnitStyle), Unit: stringPtr("bad-unit")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
+	testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "unit", "bad-unit", "en")
+	testcontract.AssertOptionExpected(t, err, "a sanctioned unit identifier or <unit>-per-<unit> compound")
 }
 
 func TestNumberFormatRejectsInvalidUnitWhenStyleIsNotUnit(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Unit: Unit("bad-unit")})
+	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Unit: stringPtr("bad-unit")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
+	}
+}
+
+func TestNumberFormatRejectsEmptyUnit(t *testing.T) {
+	t.Parallel()
+
+	for _, opts := range []Options{
+		{Unit: stringPtr("")},
+		{Style: stringPtr(UnitStyle), Unit: stringPtr("")},
+	} {
+		_, err := New(locale.List{intltest.Locale(t, "en")}, opts)
+		if !errors.Is(err, intlerr.ErrInvalidOption) {
+			t.Fatalf("New(%+v) error = %v, want intlerr.ErrInvalidOption", opts, err)
+		}
+		testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "unit", "", "en")
+		testcontract.AssertOptionExpected(t, err, "a sanctioned unit identifier or <unit>-per-<unit> compound")
 	}
 }
 
@@ -193,12 +259,12 @@ func TestNumberFormatAcceptsSanctionedUnits(t *testing.T) {
 	t.Parallel()
 
 	for _, unit := range []string{"meter", "kilometer", "meter-per-second", "microsecond", "nanosecond-per-second"} {
-		format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: UnitStyle, Unit: Unit(unit)})
+		format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(UnitStyle), Unit: stringPtr(unit)})
 		if err != nil {
-			t.Fatalf("New(Options{Unit: Unit(%q)}) error = %v, want nil", unit, err)
+			t.Fatalf("New(Options{Unit: stringPtr(%q)}) error = %v, want nil", unit, err)
 		}
-		if got := format.ResolvedOptions().Unit; got != unit {
-			t.Fatalf("ResolvedOptions().Unit = %q, want %q", got, unit)
+		if got := format.ResolvedOptions().Unit; got == nil || *got != unit {
+			t.Fatalf("ResolvedOptions().Unit = %v, want %q", got, unit)
 		}
 	}
 }
@@ -207,49 +273,52 @@ func TestNumberFormatResolvedOptionsExposeOnlyStyleSlots(t *testing.T) {
 	t.Parallel()
 
 	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
-		Currency: Currency("USD"),
-		Unit:     Unit("meter"),
+		Currency: stringPtr("USD"),
+		Unit:     stringPtr("meter"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := format.ResolvedOptions()
-	if got.Currency != "" || got.CurrencyDisplay != "" || got.CurrencySign != "" {
-		t.Fatalf("decimal currency slots = %q/%q/%q, want empty", got.Currency, got.CurrencyDisplay, got.CurrencySign)
+	if got.Currency != nil || got.CurrencyDisplay != nil || got.CurrencySign != nil {
+		t.Fatalf("decimal currency slots = %v/%v/%v, want omitted", got.Currency, got.CurrencyDisplay, got.CurrencySign)
 	}
-	if got.Unit != "" || got.UnitDisplay != "" {
-		t.Fatalf("decimal unit slots = %q/%q, want empty", got.Unit, got.UnitDisplay)
+	if got.Unit != nil || got.UnitDisplay != nil {
+		t.Fatalf("decimal unit slots = %v/%v, want omitted", got.Unit, got.UnitDisplay)
 	}
 
-	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{Style: CurrencyStyle, Currency: Currency("USD"), Unit: Unit("meter")})
+	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), Unit: stringPtr("meter")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	got = format.ResolvedOptions()
-	if got.Currency != "USD" || got.CurrencyDisplay != CurrencyDisplaySymbol || got.CurrencySign != StandardCurrencySign {
-		t.Fatalf("currency slots = %q/%q/%q, want USD/symbol/standard", got.Currency, got.CurrencyDisplay, got.CurrencySign)
+	if got.Currency == nil || *got.Currency != "USD" ||
+		got.CurrencyDisplay == nil || *got.CurrencyDisplay != CurrencyDisplaySymbol ||
+		got.CurrencySign == nil || *got.CurrencySign != StandardCurrencySign {
+		t.Fatalf("currency slots = %v/%v/%v, want USD/symbol/standard", got.Currency, got.CurrencyDisplay, got.CurrencySign)
 	}
-	if got.Unit != "" || got.UnitDisplay != "" {
-		t.Fatalf("currency unit slots = %q/%q, want empty", got.Unit, got.UnitDisplay)
+	if got.Unit != nil || got.UnitDisplay != nil {
+		t.Fatalf("currency unit slots = %v/%v, want omitted", got.Unit, got.UnitDisplay)
 	}
 
-	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{Style: UnitStyle, Unit: Unit("meter"), Currency: Currency("USD")})
+	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(UnitStyle), Unit: stringPtr("meter"), Currency: stringPtr("USD")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	got = format.ResolvedOptions()
-	if got.Currency != "" || got.CurrencyDisplay != "" || got.CurrencySign != "" {
-		t.Fatalf("unit currency slots = %q/%q/%q, want empty", got.Currency, got.CurrencyDisplay, got.CurrencySign)
+	if got.Currency != nil || got.CurrencyDisplay != nil || got.CurrencySign != nil {
+		t.Fatalf("unit currency slots = %v/%v/%v, want omitted", got.Currency, got.CurrencyDisplay, got.CurrencySign)
 	}
-	if got.Unit != "meter" || got.UnitDisplay != ShortUnitDisplay {
-		t.Fatalf("unit slots = %q/%q, want meter/short", got.Unit, got.UnitDisplay)
+	if got.Unit == nil || *got.Unit != "meter" ||
+		got.UnitDisplay == nil || *got.UnitDisplay != ShortUnitDisplay {
+		t.Fatalf("unit slots = %v/%v, want meter/short", got.Unit, got.UnitDisplay)
 	}
 }
 
 func TestNumberFormatRejectsCaseChangedUnit(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: UnitStyle, Unit: Unit("METER")})
+	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(UnitStyle), Unit: stringPtr("METER")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -262,19 +331,32 @@ func TestNumberFormatRejectsInvalidStringOptions(t *testing.T) {
 		name string
 		opt  Options
 	}{
-		{name: "style", opt: Options{Style: Style("bad")}},
-		{name: "notation", opt: Options{Notation: Notation("bad")}},
-		{name: "compact display", opt: Options{CompactDisplay: CompactDisplay("bad")}},
-		{name: "currency display", opt: Options{CurrencyDisplay: CurrencyDisplay("bad")}},
-		{name: "currency sign", opt: Options{CurrencySign: CurrencySign("bad")}},
-		{name: "unit display", opt: Options{UnitDisplay: UnitDisplay("bad")}},
-		{name: "sign display", opt: Options{SignDisplay: SignDisplay("bad")}},
-		{name: "rounding mode", opt: Options{RoundingMode: RoundingMode("bad")}},
-		{name: "rounding priority", opt: Options{RoundingPriority: RoundingPriority("bad")}},
-		{name: "trailing zero display", opt: Options{TrailingZeroDisplay: TrailingZeroDisplay("bad")}},
-		{name: "locale matcher", opt: Options{LocaleMatcher: LocaleMatcher("bad")}},
-		{name: "use grouping", opt: Options{UseGrouping: UseGrouping("bad")}},
-		{name: "numbering system", opt: Options{NumberingSystem: "ab"}},
+		{name: "style", opt: Options{Style: stringPtr(Style("bad"))}},
+		{name: "style empty", opt: Options{Style: stringPtr("")}},
+		{name: "notation", opt: Options{Notation: stringPtr(Notation("bad"))}},
+		{name: "notation empty", opt: Options{Notation: stringPtr("")}},
+		{name: "compact display", opt: Options{CompactDisplay: stringPtr(CompactDisplay("bad"))}},
+		{name: "compact display empty", opt: Options{CompactDisplay: stringPtr("")}},
+		{name: "currency display", opt: Options{CurrencyDisplay: stringPtr(CurrencyDisplay("bad"))}},
+		{name: "currency display empty", opt: Options{CurrencyDisplay: stringPtr("")}},
+		{name: "currency sign", opt: Options{CurrencySign: stringPtr(CurrencySign("bad"))}},
+		{name: "currency sign empty", opt: Options{CurrencySign: stringPtr("")}},
+		{name: "unit display", opt: Options{UnitDisplay: stringPtr(UnitDisplay("bad"))}},
+		{name: "unit display empty", opt: Options{UnitDisplay: stringPtr("")}},
+		{name: "sign display", opt: Options{SignDisplay: stringPtr(SignDisplay("bad"))}},
+		{name: "sign display empty", opt: Options{SignDisplay: stringPtr("")}},
+		{name: "rounding mode", opt: Options{RoundingMode: stringPtr(RoundingMode("bad"))}},
+		{name: "rounding mode empty", opt: Options{RoundingMode: stringPtr("")}},
+		{name: "rounding priority", opt: Options{RoundingPriority: stringPtr(RoundingPriority("bad"))}},
+		{name: "rounding priority empty", opt: Options{RoundingPriority: stringPtr("")}},
+		{name: "trailing zero display", opt: Options{TrailingZeroDisplay: stringPtr(TrailingZeroDisplay("bad"))}},
+		{name: "trailing zero display empty", opt: Options{TrailingZeroDisplay: stringPtr("")}},
+		{name: "locale matcher", opt: Options{LocaleMatcher: stringPtr("bad")}},
+		{name: "locale matcher empty", opt: Options{LocaleMatcher: stringPtr("")}},
+		{name: "use grouping", opt: Options{UseGrouping: stringPtr(UseGrouping("bad"))}},
+		{name: "use grouping empty", opt: Options{UseGrouping: stringPtr("")}},
+		{name: "numbering system", opt: Options{NumberingSystem: stringPtr("ab")}},
+		{name: "numbering system empty", opt: Options{NumberingSystem: stringPtr("")}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -284,6 +366,10 @@ func TestNumberFormatRejectsInvalidStringOptions(t *testing.T) {
 			if !errors.Is(err, intlerr.ErrInvalidOption) {
 				t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 			}
+			if tc.name == "numbering system" {
+				testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "numberingSystem", "ab", "en")
+				testcontract.AssertOptionExpected(t, err, "a Unicode locale extension type")
+			}
 		})
 	}
 }
@@ -292,8 +378,9 @@ func TestNumberFormatRejectsInvalidNumericOptions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		opt  Options
+		name         string
+		opt          Options
+		wantExpected string
 	}{
 		{name: "minimum integer digits zero", opt: Options{MinimumIntegerDigits: intPtr(0)}},
 		{name: "minimum integer digits low", opt: Options{MinimumIntegerDigits: intPtr(-1)}},
@@ -302,7 +389,11 @@ func TestNumberFormatRejectsInvalidNumericOptions(t *testing.T) {
 		{name: "minimum significant digits low", opt: Options{MinimumSignificantDigits: intPtr(0)}},
 		{name: "maximum significant digits high", opt: Options{MaximumSignificantDigits: intPtr(22)}},
 		{name: "rounding increment zero", opt: Options{RoundingIncrement: intPtr(0)}},
-		{name: "rounding increment invalid", opt: Options{RoundingIncrement: intPtr(3)}},
+		{
+			name:         "rounding increment invalid",
+			opt:          Options{RoundingIncrement: intPtr(3)},
+			wantExpected: "one of 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -311,6 +402,10 @@ func TestNumberFormatRejectsInvalidNumericOptions(t *testing.T) {
 			_, err := New(locale.List{intltest.Locale(t, "en")}, tc.opt)
 			if !errors.Is(err, intlerr.ErrInvalidOption) {
 				t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
+			}
+			if tc.wantExpected != "" {
+				testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "roundingIncrement", "3", "en")
+				testcontract.AssertOptionExpected(t, err, tc.wantExpected)
 			}
 		})
 	}
@@ -323,8 +418,8 @@ func TestNumberFormatAcceptsDataBackedOptions(t *testing.T) {
 		name string
 		opts Options
 	}{
-		{name: "currency sign", opts: Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencySign: AccountingCurrencySign}},
-		{name: "compact display", opts: Options{Notation: CompactNotation, CompactDisplay: LongCompactDisplay}},
+		{name: "currency sign", opts: Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencySign: stringPtr(AccountingCurrencySign)}},
+		{name: "compact display", opts: Options{Notation: stringPtr(CompactNotation), CompactDisplay: stringPtr(LongCompactDisplay)}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -370,7 +465,7 @@ func TestNumberFormatResolvedOptionsSignificantDigits(t *testing.T) {
 func TestNumberFormatResolvedOptionsRoundingPriority(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{MaximumFractionDigits: intPtr(2), RoundingPriority: MorePrecisionRoundingPriority})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{MaximumFractionDigits: intPtr(2), RoundingPriority: stringPtr(MorePrecisionRoundingPriority)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +485,7 @@ func TestNumberFormatResolvedOptionsRoundingPriority(t *testing.T) {
 func TestNumberFormatResolvedOptionsCompactDefaults(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: CompactNotation})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(CompactNotation)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,8 +504,11 @@ func TestNumberFormatResolvedOptionsCompactDefaults(t *testing.T) {
 		*got.MinimumSignificantDigits != 1 || *got.MaximumSignificantDigits != 2 {
 		t.Fatalf("significant digits = %v/%v, want 1/2", got.MinimumSignificantDigits, got.MaximumSignificantDigits)
 	}
+	if got.CompactDisplay == nil || *got.CompactDisplay != ShortCompactDisplay {
+		t.Fatalf("CompactDisplay = %v, want short", got.CompactDisplay)
+	}
 
-	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{Notation: CompactNotation, UseGrouping: UseGroupingAlways})
+	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(CompactNotation), UseGrouping: stringPtr(UseGroupingAlways)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,8 +521,8 @@ func TestNumberFormatResolvedOptionsCurrencyDefaultsOnlyForStandardNotation(t *t
 	t.Parallel()
 
 	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
-		Style:    CurrencyStyle,
-		Currency: Currency("USD"),
+		Style:    stringPtr(CurrencyStyle),
+		Currency: stringPtr("USD"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -436,9 +534,9 @@ func TestNumberFormatResolvedOptionsCurrencyDefaultsOnlyForStandardNotation(t *t
 	}
 
 	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{
-		Style:    CurrencyStyle,
-		Currency: Currency("USD"),
-		Notation: ScientificNotation,
+		Style:    stringPtr(CurrencyStyle),
+		Currency: stringPtr("USD"),
+		Notation: stringPtr(ScientificNotation),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -453,18 +551,42 @@ func TestNumberFormatResolvedOptionsCurrencyDefaultsOnlyForStandardNotation(t *t
 func TestNumberFormatResolvedOptionsIsSnapshot(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: ScientificNotation})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(ScientificNotation)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	first := format.ResolvedOptions()
 	first.Notation = "compact"
+	if first.MinimumFractionDigits == nil {
+		t.Fatal("MinimumFractionDigits = nil, want snapshot scalar")
+	}
+	*first.MinimumFractionDigits = 9
 	if first.Notation != "compact" {
 		t.Fatalf("mutated snapshot Notation = %q, want compact", first.Notation)
 	}
 
-	if got := format.ResolvedOptions().Notation; got != "scientific" {
-		t.Fatalf("Notation after mutating snapshot = %q, want scientific", got)
+	got := format.ResolvedOptions()
+	if got.Notation != "scientific" {
+		t.Fatalf("Notation after mutating snapshot = %q, want scientific", got.Notation)
+	}
+	if got.MinimumFractionDigits == nil || *got.MinimumFractionDigits != 0 {
+		t.Fatalf("MinimumFractionDigits after mutating snapshot = %v, want 0", got.MinimumFractionDigits)
+	}
+
+	format, err = New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first = format.ResolvedOptions()
+	if first.Currency == nil || first.CurrencyDisplay == nil {
+		t.Fatal("currency resolved options omitted, want snapshot scalars")
+	}
+	*first.Currency = "EUR"
+	*first.CurrencyDisplay = CurrencyDisplayCode
+	got = format.ResolvedOptions()
+	if got.Currency == nil || *got.Currency != "USD" ||
+		got.CurrencyDisplay == nil || *got.CurrencyDisplay != CurrencyDisplaySymbol {
+		t.Fatalf("currency resolved options after mutating snapshot = %v/%v, want USD/symbol", got.Currency, got.CurrencyDisplay)
 	}
 }
 
@@ -472,34 +594,24 @@ func TestSupportedLocalesOf(t *testing.T) {
 	t.Parallel()
 
 	requested := locale.List{intltest.Locale(t, "fr-FR"), intltest.Locale(t, "en-US-u-nu-latn"), intltest.Locale(t, "ban")}
-	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: LookupLocaleMatcher})
+	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: stringPtr(LookupLocaleMatcher)})
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf() error = %v", err)
 	}
-	want := []string{"fr-FR", "en-US-u-nu-latn"}
-	if len(got) != len(want) {
-		t.Fatalf("SupportedLocalesOf() = %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i].String() != want[i] {
-			t.Fatalf("SupportedLocalesOf()[%d] = %q, want %q", i, got[i].String(), want[i])
-		}
-	}
+	testcontract.AssertLocaleListStrings(t, "SupportedLocalesOf()", got, []string{"fr-FR", "en-US-u-nu-latn"})
 }
 
 func TestSupportedLocalesOfRecognizesDerivedAvailableLocale(t *testing.T) {
 	t.Parallel()
 
 	requested := intltest.LocaleList(t, "zh-HK-u-nu-latn")
-	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: LookupLocaleMatcher})
+	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: stringPtr(LookupLocaleMatcher)})
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf() error = %v", err)
 	}
-	if len(got) != 1 || got[0].String() != "zh-HK-u-nu-latn" {
-		t.Fatalf("SupportedLocalesOf() = %v, want [zh-HK-u-nu-latn]", got)
-	}
+	testcontract.AssertLocaleListStrings(t, "SupportedLocalesOf()", got, []string{"zh-HK-u-nu-latn"})
 
-	format, err := New(requested, Options{LocaleMatcher: LookupLocaleMatcher})
+	format, err := New(requested, Options{LocaleMatcher: stringPtr(LookupLocaleMatcher)})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -512,7 +624,15 @@ func TestSupportedLocalesOfErrors(t *testing.T) {
 	t.Parallel()
 
 	requested := locale.List{intltest.Locale(t, "en-US")}
-	if _, err := SupportedLocalesOf(requested, Options{LocaleMatcher: LocaleMatcher("bad")}); !errors.Is(err, intlerr.ErrInvalidOption) {
-		t.Fatalf("SupportedLocalesOf(invalid matcher) error = %v, want intlerr.ErrInvalidOption", err)
+	for _, matcher := range []string{"bad", ""} {
+		t.Run(matcher, func(t *testing.T) {
+			t.Parallel()
+			_, err := SupportedLocalesOf(requested, Options{LocaleMatcher: stringPtr(matcher)})
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("SupportedLocalesOf(invalid matcher) error = %v, want intlerr.ErrInvalidOption", err)
+			}
+			testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "localeMatcher", matcher, "en-US")
+			testcontract.AssertOptionExpected(t, err, `one of "lookup", "best fit"`)
+		})
 	}
 }

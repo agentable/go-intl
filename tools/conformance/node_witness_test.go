@@ -1,6 +1,7 @@
 package conformance
 
 import (
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -59,6 +60,254 @@ func TestValidateNodeWitnessCoverageRequiresNumberFormatErrorWitness(t *testing.
 	if !errors.Is(err, errMissingNodeWitnessCoverage) {
 		t.Fatalf("ValidateNodeWitnessCoverage() error = %v, want missing node witness coverage", err)
 	}
+}
+
+func TestNodeWitnessTopicCoveredIgnoresNonNodeSources(t *testing.T) {
+	t.Parallel()
+
+	topic := requiredNodeTopic("numberformat", "unconstrained matcher", func(Fixture) bool { return true })
+	if nodeWitnessTopicCovered([]Fixture{{Source: "manual"}}, topic) {
+		t.Fatal("nodeWitnessTopicCovered(manual) = true, want false")
+	}
+	if !nodeWitnessTopicCovered([]Fixture{{Source: nodeWitnessSource(nodeSourceNumberFormat)}}, topic) {
+		t.Fatal("nodeWitnessTopicCovered(node) = false, want true")
+	}
+}
+
+func TestNodeWitnessSourceHelpersUseActiveVersion(t *testing.T) {
+	t.Parallel()
+
+	if got := nodeWitnessSource(nodeSourceNumberFormat); got != "node:v26.0.0:numberformat" {
+		t.Fatalf("nodeWitnessSource(numberformat) = %q, want active Node v26 source", got)
+	}
+	if got := nodeWitnessFixtureID("numberformat", "negative-zero-sign"); got != "numberformat-node-v26-negative-zero-sign" {
+		t.Fatalf("nodeWitnessFixtureID() = %q, want active Node v26 fixture ID", got)
+	}
+}
+
+func TestNodeWitnessPredicateHelpersRequireObservableFields(t *testing.T) {
+	t.Parallel()
+
+	expected := "ok"
+	expectedOK := false
+	comparison := -1
+	resolved := json.RawMessage(`{"locale":"en-US"}`)
+	parts := []Part{{Type: "integer", Value: "1"}}
+	rangeParts := []RangePart{{Type: "integer", Value: "1", Source: "shared"}}
+	segments := []SegmentRecord{{Segment: "word"}}
+
+	tests := []struct {
+		name     string
+		match    func(Fixture) bool
+		valid    Fixture
+		invalids []Fixture
+	}{
+		{
+			name:  "expected",
+			match: nodeWitnessHasExpected(nodeSourceNumberFormat),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceNumberFormat), Expected: &expected},
+			invalids: []Fixture{
+				{Source: "formatjs:packages/intl-numberformat/tests/basic.test.ts", Expected: &expected},
+				{Source: nodeWitnessSource(nodeSourceNumberFormat)},
+			},
+		},
+		{
+			name:  "expected feature",
+			match: nodeWitnessHasExpectedForFeature(nodeSourceLocaleCanonicalization, nodeFeatureCanonicalize),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceLocaleCanonicalization), Feature: string(nodeFeatureCanonicalize), Expected: &expected},
+			invalids: []Fixture{
+				{Source: "manual", Feature: string(nodeFeatureCanonicalize), Expected: &expected},
+				{Source: nodeWitnessSource(nodeSourceLocaleCanonicalization), Feature: string(nodeFeatureSelect), Expected: &expected},
+				{Source: nodeWitnessSource(nodeSourceLocaleCanonicalization), Feature: string(nodeFeatureCanonicalize)},
+			},
+		},
+		{
+			name:  "comparison",
+			match: nodeWitnessHasComparison(nodeSourceCollator),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceCollator), ExpectedComparison: &comparison},
+			invalids: []Fixture{
+				{Source: "manual", ExpectedComparison: &comparison},
+				{Source: nodeWitnessSource(nodeSourceCollator)},
+			},
+		},
+		{
+			name:  "comparison resolved",
+			match: nodeWitnessHasComparisonResolved(nodeSourceCollatorOptionContract),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedComparison: &comparison, ExpectedResolved: resolved},
+			invalids: []Fixture{
+				{Source: "manual", ExpectedComparison: &comparison, ExpectedResolved: resolved},
+				{Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedComparison: &comparison},
+				{Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedResolved: resolved},
+			},
+		},
+		{
+			name:  "comparison resolved id",
+			match: nodeWitnessHasComparisonResolvedForID(nodeSourceCollatorOptionContract, "numeric-option-overrides-locale-extension"),
+			valid: Fixture{ID: "collator-node-v26-numeric-option-overrides-locale-extension", Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedComparison: &comparison, ExpectedResolved: resolved},
+			invalids: []Fixture{
+				{ID: "collator-node-v26-case-first-upper-contract", Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedComparison: &comparison, ExpectedResolved: resolved},
+				{ID: "collator-node-v26-numeric-option-overrides-locale-extension", Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedComparison: &comparison},
+				{ID: "collator-node-v26-numeric-option-overrides-locale-extension", Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedResolved: resolved},
+			},
+		},
+		{
+			name:  "segments",
+			match: nodeWitnessHasSegments(nodeSourceSegmenter),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceSegmenter), ExpectedSegments: segments},
+			invalids: []Fixture{
+				{Source: "manual", ExpectedSegments: segments},
+				{Source: nodeWitnessSource(nodeSourceSegmenter)},
+			},
+		},
+		{
+			name:  "error",
+			match: nodeWitnessHasError(nodeSourceNumberFormatErrors),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceNumberFormatErrors), ErrorCode: "invalid_option"},
+			invalids: []Fixture{
+				{Source: "manual:errors", ErrorCode: "invalid_option"},
+				{Source: nodeWitnessSource(nodeSourceNumberFormatErrors)},
+			},
+		},
+		{
+			name:  "error id",
+			match: nodeWitnessHasErrorForID(nodeSourceNumberFormatErrors, "unit-casing"),
+			valid: Fixture{ID: "numberformat-node-v26-unit-casing-rejected", Source: nodeWitnessSource(nodeSourceNumberFormatErrors), ErrorCode: "invalid_option"},
+			invalids: []Fixture{
+				{ID: "numberformat-node-v26-unit-casing-rejected", Source: "manual:errors", ErrorCode: "invalid_option"},
+				{ID: "numberformat-node-v26-invalid-style", Source: nodeWitnessSource(nodeSourceNumberFormatErrors), ErrorCode: "invalid_option"},
+				{ID: "numberformat-node-v26-unit-casing-rejected", Source: nodeWitnessSource(nodeSourceNumberFormatErrors)},
+			},
+		},
+		{
+			name:  "display name lookup",
+			match: nodeWitnessHasDisplayNameLookup(nodeSourceDisplayNames),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceDisplayNames), Expected: &expected, ExpectedOK: &expectedOK},
+			invalids: []Fixture{
+				{Source: "manual", Expected: &expected, ExpectedOK: &expectedOK},
+				{Source: "NODE:V26.0.0:DISPLAYNAMES", Expected: &expected, ExpectedOK: &expectedOK},
+				{Source: nodeWitnessSource(nodeSourceDisplayNames), ExpectedOK: &expectedOK},
+				{Source: nodeWitnessSource(nodeSourceDisplayNames), Expected: &expected},
+			},
+		},
+		{
+			name:  "resolved",
+			match: nodeWitnessHasResolved(nodeSourceNumberFormatResolvedOptions),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceNumberFormatResolvedOptions), ExpectedResolved: resolved},
+			invalids: []Fixture{
+				{Source: "manual", ExpectedResolved: resolved},
+				{Source: nodeWitnessSource(nodeSourceNumberFormatResolvedOptions)},
+			},
+		},
+		{
+			name:  "number edge",
+			match: numberEdgeExpected("negative-zero"),
+			valid: Fixture{ID: "numberformat-node-v26-negative-zero-sign", Source: nodeWitnessSource(nodeSourceNumberFormatEdge), Expected: &expected, ExpectedParts: parts, ExpectedResolved: resolved},
+			invalids: []Fixture{
+				{ID: "numberformat-node-v26-positive-zero-sign", Source: nodeWitnessSource(nodeSourceNumberFormatEdge), Expected: &expected, ExpectedParts: parts, ExpectedResolved: resolved},
+				{ID: "numberformat-node-v26-negative-zero-sign", Source: nodeWitnessSource(nodeSourceNumberFormatEdge), Expected: &expected, ExpectedResolved: resolved},
+				{ID: "numberformat-node-v26-negative-zero-sign", Source: nodeWitnessSource(nodeSourceNumberFormatEdge), Expected: &expected, ExpectedParts: parts},
+			},
+		},
+		{
+			name:  "locale info",
+			match: localeInfoExpected("week-info-rg"),
+			valid: Fixture{ID: "locale-node-v26-week-info-rg-us", Source: nodeWitnessSource(nodeSourceLocaleInfo), Feature: string(nodeFeatureWeekInfo), ExpectedResolved: resolved},
+			invalids: []Fixture{
+				{ID: "locale-node-v26-week-info-sd-us", Source: nodeWitnessSource(nodeSourceLocaleInfo), Feature: string(nodeFeatureWeekInfo), ExpectedResolved: resolved},
+				{ID: "locale-node-v26-week-info-rg-us", Source: nodeWitnessSource(nodeSourceLocaleInfo), Feature: string(nodeFeatureCanonicalize), ExpectedResolved: resolved},
+				{ID: "locale-node-v26-week-info-rg-us", Source: nodeWitnessSource(nodeSourceLocaleInfo), Feature: string(nodeFeatureWeekInfo)},
+			},
+		},
+		{
+			name:  "datetime edge",
+			match: dateTimeEdgeExpected("offset-timezone"),
+			valid: Fixture{ID: "datetimeformat-node-v26-offset-timezone", Source: nodeWitnessSource(nodeSourceDateTimeFormatEdge), Expected: &expected, ExpectedParts: parts, ExpectedResolved: resolved},
+			invalids: []Fixture{
+				{ID: "datetimeformat-node-v26-time-zone-name", Source: nodeWitnessSource(nodeSourceDateTimeFormatEdge), Expected: &expected, ExpectedParts: parts, ExpectedResolved: resolved},
+				{ID: "datetimeformat-node-v26-offset-timezone", Source: nodeWitnessSource(nodeSourceDateTimeFormatEdge), ExpectedParts: parts, ExpectedResolved: resolved},
+				{ID: "datetimeformat-node-v26-offset-timezone", Source: nodeWitnessSource(nodeSourceDateTimeFormatEdge), Expected: &expected, ExpectedResolved: resolved},
+				{ID: "datetimeformat-node-v26-offset-timezone", Source: nodeWitnessSource(nodeSourceDateTimeFormatEdge), Expected: &expected, ExpectedParts: parts},
+			},
+		},
+		{
+			name:  "number range edge",
+			match: nodeWitnessTopicMatch(t, "numberformat", "range collapse edge"),
+			valid: Fixture{ID: "numberformat-node-v26-range-collapse", Source: nodeWitnessSource(nodeSourceNumberFormatEdge), ExpectedRange: &expected, ExpectedRangeParts: rangeParts},
+			invalids: []Fixture{
+				{ID: "numberformat-node-v26-range-collapse", Source: "manual", ExpectedRange: &expected, ExpectedRangeParts: rangeParts},
+				{ID: "numberformat-node-v26-range-collapse", Source: nodeWitnessSource(nodeSourceNumberFormatEdge), ExpectedRangeParts: rangeParts},
+				{ID: "numberformat-node-v26-range-collapse", Source: nodeWitnessSource(nodeSourceNumberFormatEdge), ExpectedRange: &expected},
+			},
+		},
+		{
+			name:  "datetime range resolved edge",
+			match: nodeWitnessTopicMatch(t, "datetimeformat", "dateStyle/timeStyle range parts"),
+			valid: Fixture{ID: "datetimeformat-node-v26-date-time-style-range-parts", Source: nodeWitnessSource(nodeSourceDateTimeFormatEdge), ExpectedRange: &expected, ExpectedRangeParts: rangeParts, ExpectedResolved: resolved},
+			invalids: []Fixture{
+				{ID: "datetimeformat-node-v26-date-time-style-range-parts", Source: "manual", ExpectedRange: &expected, ExpectedRangeParts: rangeParts, ExpectedResolved: resolved},
+				{ID: "datetimeformat-node-v26-hour12-overrides-hour-cycle", Source: nodeWitnessSource(nodeSourceDateTimeFormatEdge), ExpectedRange: &expected, ExpectedRangeParts: rangeParts, ExpectedResolved: resolved},
+				{ID: "datetimeformat-node-v26-date-time-style-range-parts", Source: nodeWitnessSource(nodeSourceDateTimeFormatEdge), ExpectedRangeParts: rangeParts, ExpectedResolved: resolved},
+				{ID: "datetimeformat-node-v26-date-time-style-range-parts", Source: nodeWitnessSource(nodeSourceDateTimeFormatEdge), ExpectedRange: &expected, ExpectedResolved: resolved},
+				{ID: "datetimeformat-node-v26-date-time-style-range-parts", Source: nodeWitnessSource(nodeSourceDateTimeFormatEdge), ExpectedRange: &expected, ExpectedRangeParts: rangeParts},
+			},
+		},
+		{
+			name:  "parts resolved",
+			match: nodeWitnessHasPartsResolved(nodeSourceDurationFormatDigital),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceDurationFormatDigital), ExpectedParts: parts, ExpectedResolved: resolved},
+			invalids: []Fixture{
+				{Source: "manual", ExpectedParts: parts, ExpectedResolved: resolved},
+				{Source: nodeWitnessSource(nodeSourceDurationFormatDigital), ExpectedResolved: resolved},
+				{Source: nodeWitnessSource(nodeSourceDurationFormatDigital), ExpectedParts: parts},
+			},
+		},
+		{
+			name:  "parts resolved feature",
+			match: nodeWitnessHasPartsResolvedForFeature(nodeSourceDateTimeFormatDeepContract, nodeFeatureTimeZoneName),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceDateTimeFormatDeepContract), Feature: string(nodeFeatureTimeZoneName), ExpectedParts: parts, ExpectedResolved: resolved},
+			invalids: []Fixture{
+				{Source: nodeWitnessSource(nodeSourceDateTimeFormatDeepContract), Feature: string(nodeFeatureWeekInfo), ExpectedParts: parts, ExpectedResolved: resolved},
+				{Source: nodeWitnessSource(nodeSourceDateTimeFormatDeepContract), Feature: string(nodeFeatureTimeZoneName), ExpectedResolved: resolved},
+				{Source: nodeWitnessSource(nodeSourceDateTimeFormatDeepContract), Feature: string(nodeFeatureTimeZoneName), ExpectedParts: parts},
+			},
+		},
+		{
+			name:  "range parts resolved",
+			match: nodeWitnessHasRangePartsResolved(nodeSourceDateTimeFormatDeepContract),
+			valid: Fixture{Source: nodeWitnessSource(nodeSourceDateTimeFormatDeepContract), ExpectedRangeParts: rangeParts, ExpectedResolved: resolved},
+			invalids: []Fixture{
+				{Source: "manual", ExpectedRangeParts: rangeParts, ExpectedResolved: resolved},
+				{Source: nodeWitnessSource(nodeSourceDateTimeFormatDeepContract), ExpectedResolved: resolved},
+				{Source: nodeWitnessSource(nodeSourceDateTimeFormatDeepContract), ExpectedRangeParts: rangeParts},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if !tc.match(tc.valid) {
+				t.Fatalf("%s matcher rejected valid fixture", tc.name)
+			}
+			for _, invalid := range tc.invalids {
+				if tc.match(invalid) {
+					t.Fatalf("%s matcher accepted invalid fixture: %+v", tc.name, invalid)
+				}
+			}
+		})
+	}
+}
+
+func nodeWitnessTopicMatch(t *testing.T, packageName, topicName string) func(Fixture) bool {
+	t.Helper()
+
+	for _, topic := range nodeWitnessCoverageMatrix() {
+		if topic.Package == packageName && topic.Topic == topicName {
+			return topic.Match
+		}
+	}
+	t.Fatalf("node witness topic %s/%s not found", packageName, topicName)
+	return nil
 }
 
 func TestNodeWitnessCoverageIntentionalGapsHaveReasons(t *testing.T) {

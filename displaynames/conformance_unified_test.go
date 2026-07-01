@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/agentable/go-intl/internal/intlerr"
-
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -17,10 +17,10 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 
 	conformance.RunFixtures(t, ".", func(t *testing.T, fixture conformance.Fixture) {
 		format, err := New(locale.List{intltest.Locale(t, fixture.Locale)}, conformanceDisplayNamesOptions(t, fixture))
-		if err != nil && fixture.ErrorCode != "" {
-			if !errors.Is(err, conformanceDisplayNamesError(t, fixture.ErrorCode)) {
-				t.Fatalf("New() error = %v, want %q", err, fixture.ErrorCode)
-			}
+		if fixture.ErrorCode == "invalidOption" {
+			testcontract.AssertErrorCode(t, "New()", err, fixture.ErrorCode, func(code string) error {
+				return conformanceDisplayNamesConstructorError(t, code)
+			})
 			return
 		}
 		if err != nil {
@@ -34,10 +34,9 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, ok, err := format.Of(input)
-		if fixture.ErrorCode != "" {
-			if !errors.Is(err, conformanceDisplayNamesError(t, fixture.ErrorCode)) {
-				t.Fatalf("Of(%q) error = %v, want %q", input, err, fixture.ErrorCode)
-			}
+		if testcontract.AssertErrorCode(t, "Of()", err, fixture.ErrorCode, func(code string) error {
+			return conformanceDisplayNamesOfError(t, code)
+		}) {
 			return
 		}
 		if err != nil {
@@ -50,112 +49,67 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 		if ok != wantOK {
 			t.Fatalf("Of(%q) ok = %v, want %v", input, ok, wantOK)
 		}
-		if fixture.Expected == nil {
-			t.Fatal("fixture expected is required")
-		}
-		if got != *fixture.Expected {
-			t.Fatalf("Of(%q) = %q, want %q", input, got, *fixture.Expected)
+		want := fixture.RequiredExpected(t)
+		if got != want {
+			t.Fatalf("Of(%q) = %q, want %q", input, got, want)
 		}
 	})
+}
+
+func TestConformanceDisplayNamesOptionsPreserveExplicitEmptyString(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(intltest.LocaleList(t, "en"), conformanceDisplayNamesOptions(t, conformance.Fixture{
+		Options: json.RawMessage(`{"type":"language","style":""}`),
+	}))
+	if !errors.Is(err, intlerr.ErrInvalidOption) {
+		t.Fatalf("New() error = %v, want %v", err, intlerr.ErrInvalidOption)
+	}
+	testcontract.AssertOptionError(t, err, "displaynames", intlerr.InvalidOption, "style", "", "en")
+	testcontract.AssertOptionExpected(t, err, `one of "long", "short", "narrow"`)
 }
 
 func assertDisplayNamesResolvedOptions(t *testing.T, fixture conformance.Fixture, got ResolvedOptions) {
 	t.Helper()
 
-	var want map[string]json.RawMessage
-	if err := json.Unmarshal(fixture.ExpectedResolved, &want); err != nil {
-		t.Fatal(err)
-	}
-	assertDisplayNamesResolvedString(t, want, "locale", got.Locale.String())
-	assertDisplayNamesResolvedString(t, want, "style", string(got.Style))
-	assertDisplayNamesResolvedString(t, want, "type", string(got.Type))
-	assertDisplayNamesResolvedString(t, want, "fallback", string(got.Fallback))
-	assertDisplayNamesResolvedOptionalString(t, want, "languageDisplay", got.LanguageDisplay)
-}
-
-func assertDisplayNamesResolvedString(t *testing.T, values map[string]json.RawMessage, name, got string) {
-	t.Helper()
-
-	raw, ok := values[name]
-	if !ok {
-		return
-	}
-	var want string
-	if err := json.Unmarshal(raw, &want); err != nil {
-		t.Fatalf("expectedResolvedOptions.%s = %s: %v", name, raw, err)
-	}
-	if got != want {
-		t.Fatalf("ResolvedOptions().%s = %q, want %q", name, got, want)
-	}
-}
-
-func assertDisplayNamesResolvedOptionalString(t *testing.T, values map[string]json.RawMessage, name string, got *LanguageDisplay) {
-	t.Helper()
-
-	raw, ok := values[name]
-	if !ok {
-		return
-	}
-	if string(raw) == "null" {
-		if got != nil {
-			t.Fatalf("ResolvedOptions().%s = %q, want omitted", name, *got)
-		}
-		return
-	}
-	var want LanguageDisplay
-	if err := json.Unmarshal(raw, &want); err != nil {
-		t.Fatalf("expectedResolvedOptions.%s = %s: %v", name, raw, err)
-	}
-	if got == nil {
-		t.Fatalf("ResolvedOptions().%s omitted, want %q", name, want)
-	}
-	if *got != want {
-		t.Fatalf("ResolvedOptions().%s = %q, want %q", name, *got, want)
-	}
+	want := testcontract.ExpectedResolvedOptions(t, fixture)
+	testcontract.AssertResolvedString(t, want, "locale", got.Locale.String())
+	testcontract.AssertResolvedString(t, want, "style", string(got.Style))
+	testcontract.AssertResolvedString(t, want, "type", string(got.Type))
+	testcontract.AssertResolvedString(t, want, "fallback", string(got.Fallback))
+	testcontract.AssertResolvedOptionalString(t, want, "languageDisplay", got.LanguageDisplay)
 }
 
 func conformanceDisplayNamesOptions(t *testing.T, fixture conformance.Fixture) Options {
 	t.Helper()
 
 	var options struct {
-		LocaleMatcher   string `json:"localeMatcher"`
-		Type            string `json:"type"`
-		Style           string `json:"style"`
-		Fallback        string `json:"fallback"`
-		LanguageDisplay string `json:"languageDisplay"`
+		LocaleMatcher   *string `json:"localeMatcher"`
+		Type            *string `json:"type"`
+		Style           *string `json:"style"`
+		Fallback        *string `json:"fallback"`
+		LanguageDisplay *string `json:"languageDisplay"`
 	}
 	if err := json.Unmarshal(fixture.Options, &options); err != nil {
 		t.Fatal(err)
 	}
-	var opts Options
-	if options.LocaleMatcher != "" {
-		opts.LocaleMatcher = LocaleMatcher(options.LocaleMatcher)
+	return Options{
+		LocaleMatcher:   options.LocaleMatcher,
+		Type:            options.Type,
+		Style:           options.Style,
+		Fallback:        options.Fallback,
+		LanguageDisplay: options.LanguageDisplay,
 	}
-	if options.Type != "" {
-		opts.Type = Type(options.Type)
-	}
-	if options.Style != "" {
-		opts.Style = Style(options.Style)
-	}
-	if options.Fallback != "" {
-		opts.Fallback = Fallback(options.Fallback)
-	}
-	if options.LanguageDisplay != "" {
-		opts.LanguageDisplay = LanguageDisplay(options.LanguageDisplay)
-	}
-	return opts
 }
 
-func conformanceDisplayNamesError(t *testing.T, code string) error {
+func conformanceDisplayNamesConstructorError(t testing.TB, code string) error {
 	t.Helper()
 
-	switch code {
-	case "invalidOption":
-		return intlerr.ErrInvalidOption
-	case "invalidCode":
-		return intlerr.ErrInvalidCode
-	default:
-		t.Fatalf("unsupported displaynames error code %q", code)
-		return nil
-	}
+	return testcontract.IntlErrorCode(t, "displaynames constructor", code, "invalidOption")
+}
+
+func conformanceDisplayNamesOfError(t testing.TB, code string) error {
+	t.Helper()
+
+	return testcontract.IntlErrorCode(t, "displaynames Of", code, "invalidCode")
 }

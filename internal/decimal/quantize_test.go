@@ -1,20 +1,36 @@
 package decimal
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestIsValidRoundingIncrement(t *testing.T) {
 	t.Parallel()
 
-	valid := map[int]bool{
-		1: true, 2: true, 5: true, 10: true, 20: true, 25: true, 50: true,
-		100: true, 200: true, 250: true, 500: true,
-		1000: true, 2000: true, 2500: true, 5000: true,
+	valid := make(map[int]bool)
+	for _, increment := range RoundingIncrements() {
+		valid[increment] = true
 	}
 	for i := range 5001 {
 		got := IsValidRoundingIncrement(i)
 		if got != valid[i] {
 			t.Fatalf("IsValidRoundingIncrement(%d) = %v, want %v", i, got, valid[i])
 		}
+	}
+}
+
+func TestRoundingIncrementsReturnsCopy(t *testing.T) {
+	t.Parallel()
+
+	got := RoundingIncrements()
+	want := []int{1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000}
+	if !slices.Equal(got, want) {
+		t.Fatalf("RoundingIncrements() = %v, want %v", got, want)
+	}
+	got[0] = 3
+	if next := RoundingIncrements(); !slices.Equal(next, want) {
+		t.Fatalf("RoundingIncrements() after caller mutation = %v, want %v", next, want)
 	}
 }
 

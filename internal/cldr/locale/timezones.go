@@ -5,37 +5,31 @@
 // Schema: SPECS/50-cldr-data.md#cldr-data-package-convention
 package cldrlocale
 
-import (
-	"slices"
-	"sync"
-)
+import "slices"
 
-var (
-	timeZoneDataOnce       sync.Once
-	canonicalTimeZoneLinks map[string]string
-	timeZonesByRegion      map[string][]string
-)
+type regionTimeZonesRecord struct {
+	region string
+	zones  []string
+}
 
-func loadTimeZoneData() {
-	canonicalTimeZoneLinks = map[string]string{
-		"US/Eastern":    "America/New_York",
-		"US/Pacific":    "America/Los_Angeles",
-		"Asia/Calcutta": "Asia/Kolkata",
-	}
-
-	timeZonesByRegion = map[string][]string{
-		"BR": {
+var timeZonesByRegion = [...]regionTimeZonesRecord{
+	{
+		region: "BR",
+		zones: []string{
 			"America/Araguaina", "America/Bahia", "America/Belem", "America/Boa_Vista",
 			"America/Campo_Grande", "America/Cuiaba", "America/Eirunepe", "America/Fortaleza",
 			"America/Maceio", "America/Manaus", "America/Noronha", "America/Porto_Velho",
 			"America/Recife", "America/Rio_Branco", "America/Santarem", "America/Sao_Paulo",
 		},
-		"CN": {"Asia/Shanghai", "Asia/Urumqi"},
-		"EG": {"Africa/Cairo"},
-		"GB": {"Europe/London"},
-		"IN": {"Asia/Calcutta"},
-		"SA": {"Asia/Riyadh"},
-		"US": {
+	},
+	{region: "CN", zones: []string{"Asia/Shanghai", "Asia/Urumqi"}},
+	{region: "EG", zones: []string{"Africa/Cairo"}},
+	{region: "GB", zones: []string{"Europe/London"}},
+	{region: "IN", zones: []string{"Asia/Calcutta"}},
+	{region: "SA", zones: []string{"Asia/Riyadh"}},
+	{
+		region: "US",
+		zones: []string{
 			"America/Adak", "America/Anchorage", "America/Boise", "America/Chicago",
 			"America/Denver", "America/Detroit", "America/Indiana/Knox", "America/Indiana/Marengo",
 			"America/Indiana/Petersburg", "America/Indiana/Tell_City", "America/Indiana/Vevay",
@@ -45,22 +39,26 @@ func loadTimeZoneData() {
 			"America/North_Dakota/Beulah", "America/North_Dakota/Center", "America/North_Dakota/New_Salem",
 			"America/Phoenix", "America/Sitka", "America/Yakutat", "Pacific/Honolulu",
 		},
-	}
+	},
 }
 
 func CanonicalTimeZoneLink(name string) string {
-	timeZoneDataOnce.Do(loadTimeZoneData)
-	if canonical := canonicalTimeZoneLinks[name]; canonical != "" {
-		return canonical
+	switch name {
+	case "US/Eastern":
+		return "America/New_York"
+	case "US/Pacific":
+		return "America/Los_Angeles"
+	case "Asia/Calcutta":
+		return "Asia/Kolkata"
 	}
 	return name
 }
 
 func TimeZonesForRegion(region string) []string {
-	timeZoneDataOnce.Do(loadTimeZoneData)
-	zones, ok := timeZonesByRegion[region]
-	if !ok {
-		return nil
+	for _, record := range timeZonesByRegion[:] {
+		if record.region == region {
+			return slices.Clone(record.zones)
+		}
 	}
-	return slices.Clone(zones)
+	return nil
 }

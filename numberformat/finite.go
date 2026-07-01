@@ -4,13 +4,8 @@ import (
 	"strings"
 
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
-	"github.com/agentable/go-intl/internal/decimal"
-	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
+	"github.com/agentable/go-intl/internal/ecma402"
 )
-
-func (f *NumberFormat) formatFiniteResult(d decimal.Decimal) ecma402nf.FormattedNumeric {
-	return ecma402nf.FormatNumericToString(d, f.digitOptions)
-}
 
 type digitGrouping struct {
 	primary   int
@@ -21,8 +16,8 @@ func groupingForNumberFormat(loc cldrnumber.Locale, opts ResolvedOptions) digitG
 	pattern := loc.DecimalPattern(opts.NumberingSystem)
 	switch opts.Style {
 	case CurrencyStyle:
-		if opts.CurrencyDisplay != CurrencyDisplayName {
-			pattern = loc.CurrencyPattern(opts.NumberingSystem, string(opts.CurrencySign))
+		if ecma402.ResolvedScalarValue(opts.CurrencyDisplay) != CurrencyDisplayName {
+			pattern = loc.CurrencyPattern(opts.NumberingSystem, string(ecma402.ResolvedScalarValue(opts.CurrencySign)))
 		}
 	case PercentStyle:
 		pattern = loc.PercentPattern(opts.NumberingSystem)
@@ -105,19 +100,12 @@ func groupInteger(integer string, grouping digitGrouping) string {
 	return b.String()
 }
 
-func (f *NumberFormat) useGrouping(formatted string) bool {
-	switch f.resolved.UseGrouping {
-	case UseGroupingFalse:
-		return false
-	case UseGroupingMin2:
-		return integerDigitCount(formatted) >= 5
-	case UseGroupingAuto, UseGroupingAlways:
-	}
-	return true
+func shouldUseGrouping(policy UseGrouping, formatted string) bool {
+	return shouldUseGroupingDigits(policy, integerDigitCount(formatted))
 }
 
-func (f *NumberFormat) useGroupingDigits(digits int) bool {
-	switch f.resolved.UseGrouping {
+func shouldUseGroupingDigits(policy UseGrouping, digits int) bool {
+	switch policy {
 	case UseGroupingFalse:
 		return false
 	case UseGroupingMin2:

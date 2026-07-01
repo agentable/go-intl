@@ -17,7 +17,7 @@ func BenchmarkPluralRules_Cardinal_Cached(b *testing.B) {
 }
 
 func BenchmarkPluralRules_Ordinal_Cached(b *testing.B) {
-	rules := benchmarkPluralRules(b, Options{Type: Ordinal})
+	rules := benchmarkPluralRules(b, Options{Type: stringPtr(Ordinal)})
 
 	b.ReportAllocs()
 	for b.Loop() {

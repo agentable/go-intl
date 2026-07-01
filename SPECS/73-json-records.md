@@ -22,9 +22,9 @@ The guard must exercise host-boundary records through real constructors or publi
 
 - NumberFormat and PluralRules fraction-digit, significant-digit, and precision branches.
 - DateTimeFormat style shortcuts versus granular date/time fields.
-- DurationFormat duration records, digital subsecond fields, and `fractionalDigits` presence.
+- DurationFormat duration records and `fractionalDigits` option presence.
 - DisplayNames language-only `languageDisplay`.
-- Collator `collation` present and absent states.
+- Collator `collation` default and backend-specialized values.
 - Segmenter word records, including `isWordLike` and omitted `ByteIndex`.
 - Locale info records, including week information and text direction.
 
@@ -60,6 +60,8 @@ Adding a public record field or changing `omitempty` behavior without updating t
 | `RoundingPriority` | `roundingPriority` | Always |
 | `TrailingZeroDisplay` | `trailingZeroDisplay` | Always |
 
+NumberFormat branch-only resolved options (`currency`, `currencyDisplay`, `currencySign`, `unit`, `unitDisplay`, and `compactDisplay`) use pointer fields plus `omitempty`; `nil` is the Go bridge for an absent ECMA-402 property.
+
 ### Intl.DateTimeFormat
 
 | Go field | ECMA-402 / JSON field | Presence |
@@ -84,6 +86,8 @@ Adding a public record field or changing `omitempty` behavior without updating t
 | `DateStyle` | `dateStyle` | When style shortcut is used |
 | `TimeStyle` | `timeStyle` | When style shortcut is used |
 
+DateTimeFormat branch-only resolved options (`hourCycle`, `hour12`, component fields, `fractionalSecondDigits`, `timeZoneName`, `dateStyle`, and `timeStyle`) use pointer fields plus `omitempty`; `nil` is the Go bridge for an absent ECMA-402 property. `hour12` is present whenever `hourCycle` is present and is derived from the resolved hour cycle rather than from user option presence.
+
 ### Other Constructors
 
 | Go type | Go field | ECMA-402 / JSON field | Presence |
@@ -91,13 +95,13 @@ Adding a public record field or changing `omitempty` behavior without updating t
 | `pluralrules.ResolvedOptions` | `Locale` | `locale` | Always |
 | `pluralrules.ResolvedOptions` | `Type` | `type` | Always |
 | `pluralrules.ResolvedOptions` | `MinimumIntegerDigits` | `minimumIntegerDigits` | Always |
-| `pluralrules.ResolvedOptions` | `MinimumFractionDigits` | `minimumFractionDigits` | Fraction or precision branch |
-| `pluralrules.ResolvedOptions` | `MaximumFractionDigits` | `maximumFractionDigits` | Fraction or precision branch |
-| `pluralrules.ResolvedOptions` | `MinimumSignificantDigits` | `minimumSignificantDigits` | Significant or precision branch |
-| `pluralrules.ResolvedOptions` | `MaximumSignificantDigits` | `maximumSignificantDigits` | Significant or precision branch |
+| `pluralrules.ResolvedOptions` | `MinimumFractionDigits` | `minimumFractionDigits` | Fraction branch only |
+| `pluralrules.ResolvedOptions` | `MaximumFractionDigits` | `maximumFractionDigits` | Fraction branch only |
+| `pluralrules.ResolvedOptions` | `MinimumSignificantDigits` | `minimumSignificantDigits` | Significant / precision branch |
+| `pluralrules.ResolvedOptions` | `MaximumSignificantDigits` | `maximumSignificantDigits` | Significant / precision branch |
 | `pluralrules.ResolvedOptions` | `PluralCategories` | `pluralCategories` | Always |
 | `pluralrules.ResolvedOptions` | `Notation` | `notation` | Always |
-| `pluralrules.ResolvedOptions` | `CompactDisplay` | `compactDisplay` | Always |
+| `pluralrules.ResolvedOptions` | `CompactDisplay` | `compactDisplay` | Compact notation only |
 | `pluralrules.ResolvedOptions` | `RoundingIncrement` | `roundingIncrement` | Always |
 | `pluralrules.ResolvedOptions` | `RoundingMode` | `roundingMode` | Always |
 | `pluralrules.ResolvedOptions` | `RoundingPriority` | `roundingPriority` | Always |
@@ -113,7 +117,7 @@ Adding a public record field or changing `omitempty` behavior without updating t
 | `durationformat.ResolvedOptions` | `NumberingSystem` | `numberingSystem` | Always |
 | `durationformat.ResolvedOptions` | `Style` | `style` | Always |
 | `durationformat.ResolvedOptions` | `<unit>` / `<unit>Display` | camelCase unit fields | Always |
-| `durationformat.ResolvedOptions` | `FractionalDigits` | `fractionalDigits` | Digital subsecond branch |
+| `durationformat.ResolvedOptions` | `FractionalDigits` | `fractionalDigits` | Option set only |
 | `displaynames.ResolvedOptions` | `Locale` | `locale` | Always |
 | `displaynames.ResolvedOptions` | `Style` | `style` | Always |
 | `displaynames.ResolvedOptions` | `Type` | `type` | Always |
@@ -123,7 +127,7 @@ Adding a public record field or changing `omitempty` behavior without updating t
 | `collator.ResolvedOptions` | `Usage` | `usage` | Always |
 | `collator.ResolvedOptions` | `Sensitivity` | `sensitivity` | Always |
 | `collator.ResolvedOptions` | `CaseFirst` | `caseFirst` | Always |
-| `collator.ResolvedOptions` | `Collation` | `collation` | When non-empty |
+| `collator.ResolvedOptions` | `Collation` | `collation` | Always |
 | `collator.ResolvedOptions` | `Numeric` | `numeric` | Always |
 | `collator.ResolvedOptions` | `IgnorePunctuation` | `ignorePunctuation` | Always |
 | `segmenter.ResolvedOptions` | `Locale` | `locale` | Always |
@@ -144,7 +148,7 @@ Adding a public record field or changing `omitempty` behavior without updating t
 | `segmenter.Segment` | `CodeUnitIndex` | `index` | Always |
 | `segmenter.Segment` | `ByteIndex` | omitted | Internal Go bridge only |
 | `segmenter.Segment` | `Input` | `input` | Always |
-| `segmenter.Segment` | `IsWordLike` | `isWordLike` | Always |
+| `segmenter.Segment` | `IsWordLike` | `isWordLike` | Word granularity records only |
 | `locale.WeekInfo` | `FirstDay` | `firstDay` | Always |
 | `locale.WeekInfo` | `Weekend` | `weekend` | Always |
 | `locale.TextInfo` | `Direction` | `direction` | Always |

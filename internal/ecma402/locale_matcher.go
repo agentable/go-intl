@@ -2,19 +2,25 @@ package ecma402
 
 import "github.com/agentable/go-intl/internal/localematcher"
 
-// LocaleMatcherOption returns the shared ECMA-402 localeMatcher string option
-// rule used by constructors.
-func LocaleMatcherOption(value string) StringOption {
-	return RequiredStringOption("localeMatcher", value, "lookup", "best fit")
+const (
+	localeMatcherOptionName = "localeMatcher"
+	localeMatcherLookup     = "lookup"
+	localeMatcherBestFit    = "best fit"
+)
+
+// LocaleMatcherOptionInput returns the localeMatcher rule after a typed Go
+// options bag has preserved whether the caller supplied the option.
+func LocaleMatcherOptionInput(value string, present bool) StringOption {
+	return OptionalStringOptionInput(localeMatcherOptionName, value, present, localeMatcherLookup, localeMatcherBestFit)
 }
 
 // LocaleMatcherAlgorithm maps an ECMA-402 localeMatcher option value to the
 // internal matcher algorithm.
 func LocaleMatcherAlgorithm(value string) (localematcher.Algorithm, bool) {
 	switch value {
-	case "", "best fit":
+	case "", localeMatcherBestFit:
 		return localematcher.AlgorithmBestFit, true
-	case "lookup":
+	case localeMatcherLookup:
 		return localematcher.AlgorithmLookup, true
 	default:
 		return 0, false

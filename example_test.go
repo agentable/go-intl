@@ -24,8 +24,8 @@ func Example_getCanonicalLocales() {
 
 func Example_numberFormat() {
 	format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
-		Style:    numberformat.CurrencyStyle,
-		Currency: numberformat.Currency("USD"),
+		Style:    gointl.String(numberformat.CurrencyStyle),
+		Currency: gointl.String("USD"),
 	})
 	if err != nil {
 		panic(err)
@@ -38,9 +38,9 @@ func Example_numberFormat() {
 
 func Example_dateTimeFormat() {
 	format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
-		Year:  datetimeformat.NumericFieldStyle,
-		Month: datetimeformat.ShortMonthStyle,
-		Day:   datetimeformat.NumericFieldStyle,
+		Year:  gointl.String(string(datetimeformat.NumericFieldStyle)),
+		Month: gointl.String(string(datetimeformat.ShortMonthStyle)),
+		Day:   gointl.String(string(datetimeformat.NumericFieldStyle)),
 	})
 	if err != nil {
 		panic(err)
@@ -53,8 +53,8 @@ func Example_dateTimeFormat() {
 
 func Example_directFormatter() {
 	format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
-		Style:    numberformat.CurrencyStyle,
-		Currency: numberformat.Currency("EUR"),
+		Style:    gointl.String(numberformat.CurrencyStyle),
+		Currency: gointl.String("EUR"),
 	})
 	if err != nil {
 		panic(err)

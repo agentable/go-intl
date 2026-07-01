@@ -28,6 +28,16 @@ func FromInt64(n int64) Decimal {
 	return Decimal{inner: inner, negative: n < 0}
 }
 
+// FromUint64 returns a finite Decimal for n.
+func FromUint64(n uint64) Decimal {
+	return New(false, new(big.Int).SetUint64(n), 0)
+}
+
+// FromBigInt returns a finite Decimal for n. Nil means zero.
+func FromBigInt(n *big.Int) Decimal {
+	return New(n != nil && n.Sign() < 0, n, 0)
+}
+
 func FromFloat64(f float64) Decimal {
 	switch {
 	case math.IsNaN(f):

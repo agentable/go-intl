@@ -7,10 +7,14 @@ import (
 	"github.com/cockroachdb/apd/v3"
 )
 
-var ValidRoundingIncrements = []int{1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000}
+var roundingIncrements = [...]int{1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000}
+
+func RoundingIncrements() []int {
+	return slices.Clone(roundingIncrements[:])
+}
 
 func IsValidRoundingIncrement(inc int) bool {
-	return slices.Contains(ValidRoundingIncrements, inc)
+	return slices.Contains(roundingIncrements[:], inc)
 }
 
 func QuantizeToIncrement(x Decimal, increment int, exp int32, mode RoundingMode) Decimal {

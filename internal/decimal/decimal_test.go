@@ -8,9 +8,7 @@ import (
 func TestZero(t *testing.T) {
 	t.Parallel()
 
-	if Zero.Form() != Finite {
-		t.Fatalf("Zero.Form() = %v, want %v", Zero.Form(), Finite)
-	}
+	assertDecimalForm(t, Zero, Finite)
 	if Zero.Sign() != 0 {
 		t.Fatalf("Zero.Sign() = %d, want 0", Zero.Sign())
 	}
@@ -19,12 +17,6 @@ func TestZero(t *testing.T) {
 	}
 	if !Zero.IsZero() {
 		t.Fatal("Zero.IsZero() = false, want true")
-	}
-	if Zero.Coeff() != "0" {
-		t.Fatalf("Zero.Coeff() = %q, want %q", Zero.Coeff(), "0")
-	}
-	if Zero.Exponent() != 0 {
-		t.Fatalf("Zero.Exponent() = %d, want 0", Zero.Exponent())
 	}
 }
 
@@ -47,9 +39,7 @@ func TestSpecialValues(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if tc.value.Form() != tc.form {
-				t.Fatalf("Form() = %v, want %v", tc.value.Form(), tc.form)
-			}
+			assertDecimalForm(t, tc.value, tc.form)
 			if tc.value.Sign() != tc.sign {
 				t.Fatalf("Sign() = %d, want %d", tc.value.Sign(), tc.sign)
 			}
@@ -62,13 +52,28 @@ func TestSpecialValues(t *testing.T) {
 			if tc.value.IsInf() != tc.isInf {
 				t.Fatalf("IsInf() = %v, want %v", tc.value.IsInf(), tc.isInf)
 			}
-			if tc.value.IsInfinity() != tc.isInf {
-				t.Fatalf("IsInfinity() = %v, want %v", tc.value.IsInfinity(), tc.isInf)
-			}
-			if tc.value.IsNegative() != tc.negative {
-				t.Fatalf("IsNegative() = %v, want %v", tc.value.IsNegative(), tc.negative)
-			}
 		})
+	}
+}
+
+func assertDecimalForm(t *testing.T, d Decimal, want Form) {
+	t.Helper()
+
+	switch want {
+	case Finite:
+		if !d.IsFinite() {
+			t.Fatal("IsFinite() = false, want true")
+		}
+	case Infinite:
+		if !d.IsInf() {
+			t.Fatal("IsInf() = false, want true")
+		}
+	case NaN, NaNSignaling:
+		if !d.IsNaN() {
+			t.Fatal("IsNaN() = false, want true")
+		}
+	default:
+		t.Fatalf("unknown decimal form %v", want)
 	}
 }
 

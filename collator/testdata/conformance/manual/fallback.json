@@ -1,0 +1,49 @@
+[
+  {
+    "id": "collator-manual-unsupported-case-first-extension-fallback",
+    "source": "manual:collator:fallback",
+    "locale": "en-u-kf-upper",
+    "options": {},
+    "input": {
+      "left": "a",
+      "right": "a"
+    },
+    "expectedComparison": 0,
+    "expectedResolvedOptions": {
+      "caseFirst": "false",
+      "collation": "default"
+    }
+  },
+  {
+    "id": "collator-manual-supported-collation-option",
+    "source": "manual:collator:fallback",
+    "locale": "de",
+    "options": {
+      "collation": "phonebk"
+    },
+    "input": {
+      "left": "ae",
+      "right": "ä"
+    },
+    "expectedComparison": -1,
+    "expectedResolvedOptions": {
+      "caseFirst": "false",
+      "collation": "phonebk"
+    }
+  },
+  {
+    "id": "collator-manual-supported-collation-extension",
+    "source": "manual:collator:fallback",
+    "locale": "de-u-co-phonebk",
+    "options": {},
+    "input": {
+      "left": "ae",
+      "right": "ä"
+    },
+    "expectedComparison": -1,
+    "expectedResolvedOptions": {
+      "caseFirst": "false",
+      "collation": "phonebk"
+    }
+  }
+]

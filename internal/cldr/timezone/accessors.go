@@ -1,25 +1,21 @@
-// Hand-written accessor layer for the timezone domain. The query semantics
-// mirror the legacy root cldr metazone accessors exactly, so DateTimeFormat
-// output is byte-for-byte unchanged.
+// Hand-written accessor layer for the timezone domain. Supported-zone queries
+// read only the narrow index; display-name and format queries decode their own
+// blobs on demand.
 //
-// The legacy code attached TimeZoneName / MetazoneName / ExemplarCity /
-// TimeZoneFormats as methods on the root Locale type. Here Locale is a type
-// alias for the kernel handle, so those are package-level functions taking the
-// locale as their first argument; the change is internal to this package and
-// invisible to callers, who only see CanonicalTimeZoneLink, TimeZoneDisplayName,
-// and GMTOffsetName.
+// Locale is the shared CLDR kernel handle. Timezone-specific queries stay as
+// package functions so DateTimeFormat imports only the timezone domain.
 
 package timezone
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 )
 
-// TimeZoneName is one ECMA-402 timeZoneName option value. It mirrors the legacy
-// root TimeZoneName type.
+// TimeZoneName is one ECMA-402 timeZoneName option value.
 type TimeZoneName string
 
 const (
@@ -29,6 +25,25 @@ const (
 	TimeZoneNameLongOffset   TimeZoneName = "longOffset"
 	TimeZoneNameShortGeneric TimeZoneName = "shortGeneric"
 	TimeZoneNameLongGeneric  TimeZoneName = "longGeneric"
+)
+
+type zoneNameKind string
+
+const (
+	zoneNameLongGeneric   zoneNameKind = "long-generic"
+	zoneNameLongStandard  zoneNameKind = "long-standard"
+	zoneNameLongDaylight  zoneNameKind = "long-daylight"
+	zoneNameShortGeneric  zoneNameKind = "short-generic"
+	zoneNameShortStandard zoneNameKind = "short-standard"
+	zoneNameShortDaylight zoneNameKind = "short-daylight"
+)
+
+const (
+	rootGMTFormat          = "GMT{0}"
+	rootGMTZeroFormat      = "GMT"
+	rootPositiveHourFormat = "+HH:mm"
+	rootNegativeHourFormat = "-HH:mm"
+	rootHourFormat         = rootPositiveHourFormat + ";" + rootNegativeHourFormat
 )
 
 // CanonicalTimeZoneLink resolves a deprecated IANA link to its canonical name,
@@ -42,22 +57,14 @@ func CanonicalTimeZoneLink(name string) string {
 // metazone-period or names blob decode.
 func SupportedTimeZones() []string {
 	supportedOnce.Do(loadSupported)
-	tags := make([]string, len(supportedTags))
-	copy(tags, supportedTags)
-	return tags
-}
-
-// ZoneToMetazone returns the metazone in force for the zone at instant zero,
-// matching the legacy root accessor.
-func ZoneToMetazone(zone string) string {
-	return TimeZoneMetazone(zone, 0)
+	return slices.Clone(supportedTags)
 }
 
 // TimeZoneMetazone returns the metazone in force for the zone at the given
 // unix-milli instant, or "" when no period covers it.
 func TimeZoneMetazone(zone string, instant int64) string {
 	metazonePeriodOnce.Do(loadMetazonePeriods)
-	for _, period := range zoneToMetazones[zone] {
+	for _, period := range metazonePeriodsForZone(zone) {
 		if instant >= period.start && instant < period.end {
 			return period.metazone
 		}
@@ -65,30 +72,22 @@ func TimeZoneMetazone(zone string, instant int64) string {
 	return ""
 }
 
+func metazonePeriodsForZone(zone string) []metazonePeriod {
+	periods, ok := zoneToMetazones[zone]
+	if !ok {
+		return nil
+	}
+	return periods
+}
+
 // TimeZoneDisplayName resolves the localized display name for a zone, falling
 // back through zone-specific names, metazone names, exemplar city, and finally
-// the GMT offset, exactly as the legacy root implementation did.
+// the GMT offset.
 func TimeZoneDisplayName(loc Locale, zone string, form TimeZoneName, isDST bool, instant int64, offsetMs int64) string {
-	kind := "long-generic"
-	switch form {
-	case TimeZoneNameLong:
-		if isDST {
-			kind = "long-daylight"
-		} else {
-			kind = "long-standard"
-		}
-	case TimeZoneNameShort:
-		if isDST {
-			kind = "short-daylight"
-		} else {
-			kind = "short-standard"
-		}
-	case TimeZoneNameShortGeneric:
-		kind = "short-generic"
-	default:
-		// TimeZoneNameLongGeneric and the offset forms resolve through the
-		// long-generic name and the GMT fallback below.
+	if isOffsetTimeZoneName(form) {
+		return GMTOffsetName(loc, offsetMs, form)
 	}
+	kind := displayNameKind(form, isDST)
 	if name := zoneSpecificName(loc, zone, kind); name != "" {
 		return name
 	}
@@ -101,27 +100,58 @@ func TimeZoneDisplayName(loc Locale, zone string, form TimeZoneName, isDST bool,
 	return GMTOffsetName(loc, offsetMs, form)
 }
 
-func zoneSpecificName(loc Locale, zone, kind string) string {
-	namesOnce.Do(loadNames)
-	return timeZoneNameValue(timeZoneNamesByLocale[loc][zone], kind)
+func isOffsetTimeZoneName(form TimeZoneName) bool {
+	return form == TimeZoneNameShortOffset || form == TimeZoneNameLongOffset
 }
 
-func metazoneName(loc Locale, metazone, kind string) string {
-	namesOnce.Do(loadNames)
-	return timeZoneNameValue(metazoneNamesByLocale[loc][metazone], kind)
+func displayNameKind(form TimeZoneName, isDST bool) zoneNameKind {
+	switch form {
+	case TimeZoneNameLong:
+		if isDST {
+			return zoneNameLongDaylight
+		}
+		return zoneNameLongStandard
+	case TimeZoneNameShort:
+		if isDST {
+			return zoneNameShortDaylight
+		}
+		return zoneNameShortStandard
+	case TimeZoneNameShortGeneric:
+		return zoneNameShortGeneric
+	default:
+		return zoneNameLongGeneric
+	}
 }
 
-func timeZoneNameValue(data metazoneNames, kind string) string {
+func zoneSpecificName(loc Locale, zone string, kind zoneNameKind) string {
+	namesOnce.Do(loadNames)
+	return timeZoneNameValue(timeZoneNameRecord(timeZoneNamesByLocale, loc, zone), kind)
+}
+
+func metazoneName(loc Locale, metazone string, kind zoneNameKind) string {
+	namesOnce.Do(loadNames)
+	return timeZoneNameValue(timeZoneNameRecord(metazoneNamesByLocale, loc, metazone), kind)
+}
+
+func timeZoneNameRecord(records map[Locale]map[string]metazoneNames, loc Locale, name string) metazoneNames {
+	byName := records[loc]
+	if byName == nil {
+		return metazoneNames{}
+	}
+	return byName[name]
+}
+
+func timeZoneNameValue(data metazoneNames, kind zoneNameKind) string {
 	switch kind {
-	case "long-standard":
+	case zoneNameLongStandard:
 		return data.longStandard
-	case "long-daylight":
+	case zoneNameLongDaylight:
 		return data.longDaylight
-	case "short-generic":
+	case zoneNameShortGeneric:
 		return data.shortGeneric
-	case "short-standard":
+	case zoneNameShortStandard:
 		return data.shortStandard
-	case "short-daylight":
+	case zoneNameShortDaylight:
 		return data.shortDaylight
 	default:
 		return data.longGeneric
@@ -130,22 +160,34 @@ func timeZoneNameValue(data metazoneNames, kind string) string {
 
 func exemplarCity(loc Locale, zone string) string {
 	namesOnce.Do(loadNames)
-	return exemplarCitiesByLocale[loc][zone]
+	cities := exemplarCitiesByLocale[loc]
+	if cities == nil {
+		return ""
+	}
+	return cities[zone]
 }
 
-// timeZoneFormats resolves a locale's GMT/hour offset formats, applying the same
-// CLDR root defaults the legacy implementation used when a field is absent.
+// timeZoneFormats resolves a locale's GMT/hour offset formats, applying CLDR
+// root defaults when a field is absent.
 func timeZoneFormats(loc Locale) timeZoneFormatRefs {
 	formatsOnce.Do(loadFormats)
-	formats := timeZoneFormatsByLocale[loc]
+	formats := timeZoneFormatsForLocale(loc)
 	if formats.gmtFormat == "" {
-		formats.gmtFormat = "GMT{0}"
+		formats.gmtFormat = rootGMTFormat
 	}
 	if formats.gmtZeroFormat == "" {
-		formats.gmtZeroFormat = "GMT"
+		formats.gmtZeroFormat = rootGMTZeroFormat
 	}
 	if formats.hourFormat == "" {
-		formats.hourFormat = "+HH:mm;-HH:mm"
+		formats.hourFormat = rootHourFormat
+	}
+	return formats
+}
+
+func timeZoneFormatsForLocale(loc Locale) timeZoneFormatRefs {
+	formats, ok := timeZoneFormatsByLocale[loc]
+	if !ok {
+		return timeZoneFormatRefs{}
 	}
 	return formats
 }
@@ -164,7 +206,7 @@ func GMTOffsetName(loc Locale, offsetMs int64, form TimeZoneName) string {
 func offsetPattern(hourFormat string, offsetMs int64, long bool) string {
 	positive, negative, ok := strings.Cut(hourFormat, ";")
 	if !ok {
-		positive, negative = "+HH:mm", "-HH:mm"
+		positive, negative = rootPositiveHourFormat, rootNegativeHourFormat
 	}
 	pattern := positive
 	if offsetMs < 0 {

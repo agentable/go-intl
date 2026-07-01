@@ -1,10 +1,10 @@
-// Hand-written accessor layer for the number domain. The query semantics mirror
-// the legacy root cldr number accessors exactly, so NumberFormat,
-// DurationFormat, and RelativeTimeFormat output is byte-for-byte unchanged.
+// Hand-written accessor layer for the number domain. It exposes symbol,
+// pattern, numbering-system, and supported-index queries over lazily decoded
+// const blobs.
 //
-// The accessors are methods on number.Locale so the formatter call sites
-// (loc.DecimalPattern(…), loc.NumberSymbols(…), loc.DefaultNumberingSystem())
-// stay identical to the legacy root cldr.Locale methods they replaced.
+// The accessors are methods on number.Locale so formatter call sites read as
+// direct locale-domain queries: loc.DecimalPattern(...), loc.NumberSymbols(...),
+// and loc.DefaultNumberingSystem().
 
 package number
 
@@ -12,7 +12,13 @@ import (
 	"slices"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+	"github.com/agentable/go-intl/internal/localeid"
 	"github.com/agentable/go-intl/internal/numbering"
+)
+
+const (
+	defaultCurrencyPattern = "\u00a4#,##0.00"
+	defaultTimeSeparator   = ":"
 )
 
 // ResolveLocale resolves a tag to its number-domain locale handle, forwarding to
@@ -28,20 +34,21 @@ func ResolveLocale(tag string) (Locale, bool) {
 // triggers the main number-data decode.
 func SupportedLocales() []string {
 	supportedOnce.Do(loadSupported)
-	tags := make([]string, len(supportedTags))
-	copy(tags, supportedTags)
-	return tags
+	return slices.Clone(supportedTags)
 }
 
 // SupportedNumberingSystems returns the canonical numbering-system identifiers
 // backed by generated number data merged with the ECMA-402 simple numbering
 // systems, in sorted order. It reads only the narrow numbering-system blob and
-// never triggers the main number-data decode. The result mirrors the legacy
-// root supported path exactly.
+// never triggers the main number-data decode.
 func SupportedNumberingSystems() []string {
 	numberingSystemOnce.Do(loadNumberingSystemExtras)
-	out := slices.Clone(numbering.SimpleNumberingSystems)
-	for _, numberingSystem := range numberingSystemExtras {
+	return slices.Clone(supportedNumberingSystems)
+}
+
+func mergeSupportedNumberingSystems(extras []string) []string {
+	out := numbering.SimpleNumberingSystems()
+	for _, numberingSystem := range extras {
 		if numberingSystem != "" && !slices.Contains(out, numberingSystem) {
 			out = append(out, numberingSystem)
 		}
@@ -51,86 +58,123 @@ func SupportedNumberingSystems() []string {
 }
 
 // NumberSymbols returns the symbols for the given numbering system, defaulting
-// to the locale's default numbering system when numberingSystem is empty.
+// to the locale's default numbering system when numberingSystem is empty or has
+// no generated symbol row.
 func (l Locale) NumberSymbols(numberingSystem string) NumberSymbols {
-	data := numberDataByLocale()[l]
-	if numberingSystem == "" {
-		numberingSystem = data.defaultNS
+	data, resolvedNumberingSystem := l.dataForResolvedNumberingSystem(numberingSystem)
+	if symbols, ok := data.symbols[resolvedNumberingSystem]; ok {
+		return withNumberSymbolDefaults(symbols)
 	}
-	return data.symbols[numberingSystem]
+	return withNumberSymbolDefaults(data.symbols[data.defaultNumberingSystem])
+}
+
+func withNumberSymbolDefaults(symbols NumberSymbols) NumberSymbols {
+	if symbols.TimeSeparator == "" {
+		symbols.TimeSeparator = defaultTimeSeparator
+	}
+	return symbols
 }
 
 // DecimalPattern returns the decimal pattern for the given numbering system,
 // defaulting to the locale's default numbering system when numberingSystem is
-// empty.
+// empty or has no generated pattern row.
 func (l Locale) DecimalPattern(numberingSystem string) string {
-	data := numberDataByLocale()[l]
-	if numberingSystem == "" {
-		numberingSystem = data.defaultNS
-	}
-	return data.decimal[numberingSystem]
+	data, resolvedNumberingSystem := l.dataForResolvedNumberingSystem(numberingSystem)
+	return numberPattern(data.decimal, resolvedNumberingSystem, data.defaultNumberingSystem)
 }
 
 // PercentPattern returns the percent pattern for the given numbering system,
 // defaulting to the locale's default numbering system when numberingSystem is
-// empty.
+// empty or has no generated pattern row.
 func (l Locale) PercentPattern(numberingSystem string) string {
-	data := numberDataByLocale()[l]
-	if numberingSystem == "" {
-		numberingSystem = data.defaultNS
-	}
-	return data.percent[numberingSystem]
+	data, resolvedNumberingSystem := l.dataForResolvedNumberingSystem(numberingSystem)
+	return numberPattern(data.percent, resolvedNumberingSystem, data.defaultNumberingSystem)
 }
 
 // CurrencyPattern returns the currency pattern for the (numberingSystem, sign)
-// pair, falling back to the "standard" sign. An empty numbering system defaults
-// to the locale's default numbering system.
+// pair, falling back to the locale's default numbering system and then the
+// "standard" sign.
 func (l Locale) CurrencyPattern(numberingSystem, sign string) string {
-	data := numberDataByLocale()[l]
-	if numberingSystem == "" {
-		numberingSystem = data.defaultNS
+	data, resolvedNumberingSystem := l.dataForResolvedNumberingSystem(numberingSystem)
+	patterns := data.currency[resolvedNumberingSystem]
+	if len(patterns) == 0 && resolvedNumberingSystem != data.defaultNumberingSystem {
+		patterns = data.currency[data.defaultNumberingSystem]
 	}
-	patterns := data.currency[numberingSystem]
 	if pattern := patterns[sign]; pattern != "" {
 		return pattern
 	}
-	return patterns["standard"]
+	if pattern := patterns["standard"]; pattern != "" {
+		return pattern
+	}
+	return defaultCurrencyPattern
 }
 
 // ScientificPattern returns the scientific pattern for the given numbering
 // system, defaulting to the locale's default numbering system when
-// numberingSystem is empty.
+// numberingSystem is empty or has no generated pattern row.
 func (l Locale) ScientificPattern(numberingSystem string) string {
-	data := numberDataByLocale()[l]
-	if numberingSystem == "" {
-		numberingSystem = data.defaultNS
+	data, resolvedNumberingSystem := l.dataForResolvedNumberingSystem(numberingSystem)
+	return numberPattern(data.scientific, resolvedNumberingSystem, data.defaultNumberingSystem)
+}
+
+func numberPattern(patterns numberPatternsByNumberingSystem, numberingSystem, defaultNumberingSystem string) string {
+	if pattern := patterns[numberingSystem]; pattern != "" {
+		return pattern
 	}
-	return data.scientific[numberingSystem]
+	if numberingSystem != defaultNumberingSystem {
+		return patterns[defaultNumberingSystem]
+	}
+	return ""
 }
 
 // CompactPattern returns the compact pattern for the (numberingSystem, display,
-// exp, plural) tuple, falling back to the "other" plural form. An empty
+// exponent, plural) tuple, falling back to the "other" plural form. An empty
 // numbering system defaults to the locale's default numbering system.
-func (l Locale) CompactPattern(numberingSystem, display string, exp int, plural string) string {
-	data := numberDataByLocale()[l]
-	if numberingSystem == "" {
-		numberingSystem = data.defaultNS
-	}
-	patterns := data.compact[numberingSystem][display][exp]
+func (l Locale) CompactPattern(numberingSystem, display string, exponent int, plural string) string {
+	data, resolvedNumberingSystem := l.dataForResolvedNumberingSystem(numberingSystem)
+	patterns := compactPatternRecord(data, resolvedNumberingSystem, display, exponent)
 	if pattern := patterns[plural]; pattern != "" {
 		return pattern
 	}
 	return patterns["other"]
 }
 
+func compactPatternRecord(data numberData, numberingSystem, display string, exponent int) compactPluralPatterns {
+	byDisplay := data.compact[numberingSystem]
+	if byDisplay == nil {
+		return nil
+	}
+	byExponent := byDisplay[display]
+	if byExponent == nil {
+		return nil
+	}
+	return byExponent[exponent]
+}
+
 // DefaultNumberingSystem returns the locale's default numbering system from the
-// generated number data, mirroring the legacy root cldr.Locale method.
+// generated number data.
 func (l Locale) DefaultNumberingSystem() string {
-	return numberDataByLocale()[l].defaultNS
+	return numberDataForLocale(l).defaultNumberingSystem
+}
+
+func (l Locale) dataForResolvedNumberingSystem(numberingSystem string) (numberData, string) {
+	data := numberDataForLocale(l)
+	if numberingSystem == "" {
+		return data, data.defaultNumberingSystem
+	}
+	return data, numberingSystem
+}
+
+func numberDataForLocale(loc Locale) numberData {
+	data, ok := numberDataByLocale()[loc]
+	if !ok {
+		return numberData{}
+	}
+	return data
 }
 
 // NumberLocaleData exposes the relevant extension keys used by
-// Intl.NumberFormat ResolveLocale. It mirrors the legacy root cldr type.
+// Intl.NumberFormat ResolveLocale.
 type NumberLocaleData struct{}
 
 // For returns the candidate values for a relevant extension key. Only "nu"
@@ -142,29 +186,15 @@ func (NumberLocaleData) For(locale, key string) []string {
 	return numberingSystemLocaleData(locale)
 }
 
-// numberingSystemLocaleData mirrors the legacy root helper: it returns the
-// locale's default numbering system followed by the simple numbering systems,
-// deduplicated. The default is read from this domain's own number data, exactly
-// as the legacy root path did.
+// numberingSystemLocaleData returns the locale's default numbering system
+// followed by the simple numbering systems, deduplicated. The default is read
+// from this domain's own number data.
 func numberingSystemLocaleData(locale string) []string {
-	defaultNS := "latn"
+	defaultNumberingSystem := numbering.DefaultNumberingSystem
 	if loc, ok := ResolveLocale(locale); ok {
 		if ns := loc.DefaultNumberingSystem(); ns != "" {
-			defaultNS = ns
+			defaultNumberingSystem = ns
 		}
 	}
-	return keywordLocaleData(defaultNS, numbering.SimpleNumberingSystems)
-}
-
-func keywordLocaleData(defaultValue string, values []string) []string {
-	out := make([]string, 0, len(values)+1)
-	if defaultValue != "" {
-		out = append(out, defaultValue)
-	}
-	for _, value := range values {
-		if value != "" && !slices.Contains(out, value) {
-			out = append(out, value)
-		}
-	}
-	return out
+	return localeid.RelevantExtensionValues(defaultNumberingSystem, numbering.SimpleNumberingSystems()...)
 }

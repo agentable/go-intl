@@ -1,6 +1,9 @@
 package locale
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestParseList(t *testing.T) {
 	t.Parallel()
@@ -28,56 +31,25 @@ func TestParseListRejectsInvalidLocale(t *testing.T) {
 	}
 }
 
-func TestListCanonicalizationDedupesAndPreservesOrder(t *testing.T) {
+func TestListStringsPreservesListOrder(t *testing.T) {
 	t.Parallel()
 
 	enUS := parseLocaleForTest("en-us")
 	zh := parseLocaleForTest("zh-Hans-CN-u-nu-latn")
 
-	got := canonicalizeList(List{
+	got := List{
 		enUS,
 		parseLocaleForTest("en-US"),
 		zh,
 		enUS,
-	})
-	want := List{enUS, zh}
-	if len(got) != len(want) {
-		t.Fatalf("canonicalizeList() length = %d, want %d", len(got), len(want))
+	}.Strings()
+	want := []string{"en-US", "en-US", "zh-Hans-CN-u-nu-latn", "en-US"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("List.Strings() = %v, want %v", got, want)
 	}
-	for i := range want {
-		if got[i].String() != want[i].String() {
-			t.Fatalf("canonicalizeList()[%d] = %q, want %q", i, got[i].String(), want[i].String())
-		}
-	}
-}
-
-func TestListCanonicalizationClonesInput(t *testing.T) {
-	t.Parallel()
-
-	input := List{parseLocaleForTest("en-US")}
-	got := canonicalizeList(input)
-	input[0] = parseLocaleForTest("fr")
-	if got[0].String() != "en-US" {
-		t.Fatalf("canonicalizeList() shares input backing array, got %q", got[0].String())
-	}
-}
-
-func TestListStringsUsesCanonicalOrder(t *testing.T) {
-	t.Parallel()
-
-	list := List{
-		parseLocaleForTest("en-US"),
-		parseLocaleForTest("en-us"),
-		parseLocaleForTest("fr"),
-	}
-	got := list.Strings()
-	want := []string{"en-US", "fr"}
-	if len(got) != len(want) {
-		t.Fatalf("List.Strings() length = %d, want %d", len(got), len(want))
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("List.Strings()[%d] = %q, want %q", i, got[i], want[i])
-		}
+	got[0] = "mutated"
+	nextWant := []string{"en-US", "zh-Hans-CN-u-nu-latn"}
+	if next := (List{enUS, zh}).Strings(); !slices.Equal(next, nextWant) {
+		t.Fatalf("List.Strings() after caller mutation = %v, want %v", next, nextWant)
 	}
 }

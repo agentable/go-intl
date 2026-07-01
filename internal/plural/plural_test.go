@@ -27,6 +27,34 @@ func TestCategoryString(t *testing.T) {
 	}
 }
 
+func TestParseCategory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		want Category
+		ok   bool
+	}{
+		{name: "zero", want: Zero, ok: true},
+		{name: "one", want: One, ok: true},
+		{name: "two", want: Two, ok: true},
+		{name: "few", want: Few, ok: true},
+		{name: "many", want: Many, ok: true},
+		{name: "other", want: Other, ok: true},
+		{name: "invalid"},
+		{name: ""},
+	}
+	for _, tc := range tests {
+		got, ok := ParseCategory(tc.name)
+		if ok != tc.ok {
+			t.Fatalf("ParseCategory(%q) ok = %v, want %v", tc.name, ok, tc.ok)
+		}
+		if got != tc.want {
+			t.Fatalf("ParseCategory(%q) = %s, want %s", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestCategoryMarshalText(t *testing.T) {
 	t.Parallel()
 

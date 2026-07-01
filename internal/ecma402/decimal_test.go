@@ -7,8 +7,6 @@ import (
 	"github.com/agentable/go-intl/internal/decimal"
 )
 
-var _ MathematicalValue = decimal.Decimal{}
-
 func TestParseDecimalInputAllowsSpecialValues(t *testing.T) {
 	t.Parallel()
 

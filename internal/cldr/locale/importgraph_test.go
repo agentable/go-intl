@@ -50,19 +50,28 @@ const deadRootPackage = modulePrefix + "internal/cldr"
 // cycle or pull in another domain's data. The reason column records why the
 // edge is allowed to exist; a leaf importing anything outside this set, codec,
 // or locale fails the gate.
-var sharedUtilityLeaves = map[string]string{
-	// localeid bridges BCP 47 identifiers and likely-subtag expansion for the
-	// locale kernel; it carries no CLDR payload.
-	"internal/localeid": "locale identity and likely-subtag expansion",
-	// numbering holds ECMA-402 numbering-system metadata shared by the number
-	// and date symbol tables.
-	"internal/numbering": "numbering-system metadata",
-	// pattern is the brace-delimited pattern tokenizer reused by displaynames
-	// before field substitution.
-	"internal/pattern": "brace-delimited pattern tokenizer",
-	// plural is the cardinal/ordinal plural rule engine the un-blob-ized
-	// cldr/plural domain wraps.
-	"internal/plural": "plural rule engine",
+type sharedUtilityLeaf struct {
+	path   string
+	reason string
+}
+
+var sharedUtilityLeaves = [...]sharedUtilityLeaf{
+	{
+		path:   "internal/localeid",
+		reason: "locale identity and likely-subtag expansion",
+	},
+	{
+		path:   "internal/numbering",
+		reason: "numbering-system metadata",
+	},
+	{
+		path:   "internal/pattern",
+		reason: "brace-delimited pattern tokenizer",
+	},
+	{
+		path:   "internal/plural",
+		reason: "plural rule engine",
+	},
 }
 
 // leafToLeafEdge is one explicit, reasoned exception to "leaves do not import
@@ -81,7 +90,7 @@ type leafToLeafEdge struct {
 // currency domain, the single CLDR owner shared by NumberFormat and
 // DisplayNames. The gate fails if a listed edge is absent from the actual import
 // graph, so a row cannot outlive the edge it sanctions.
-var leafToLeafEdges = []leafToLeafEdge{
+var leafToLeafEdges = [...]leafToLeafEdge{
 	{
 		from:   "displaynames",
 		to:     "currency",
@@ -93,7 +102,7 @@ var leafToLeafEdges = []leafToLeafEdge{
 // codec primitives and the locale kernel, which have their own stricter rules.
 // TestCLDRImportGraphDirection asserts this list matches the on-disk set, so a
 // new domain cannot silently escape the gate.
-var cldrDomains = []string{
+var cldrDomains = [...]string{
 	"currency",
 	"date",
 	"displaynames",
@@ -111,7 +120,7 @@ func TestCLDRImportGraphDirection(t *testing.T) {
 	// Completeness: cldrDomains must equal the on-disk set of Go package
 	// directories under internal/cldr (minus codec and the kernel). A domain
 	// added on disk but missing here would never have its imports scanned.
-	if disk := onDiskDomains(t); !slices.Equal(disk, slices.Sorted(slices.Values(cldrDomains))) {
+	if disk := onDiskDomains(t); !slices.Equal(disk, slices.Sorted(slices.Values(cldrDomains[:]))) {
 		t.Errorf("cldrDomains list %v does not match on-disk domain set %v; update the list", cldrDomains, disk)
 	}
 
@@ -142,7 +151,7 @@ func TestCLDRImportGraphDirection(t *testing.T) {
 		}
 	})
 
-	for _, domain := range cldrDomains {
+	for _, domain := range cldrDomains[:] {
 		t.Run(domain, func(t *testing.T) {
 			t.Parallel()
 			for _, imp := range moduleImports(t, domain) {
@@ -155,14 +164,14 @@ func TestCLDRImportGraphDirection(t *testing.T) {
 	}
 
 	// Record which leaf->leaf edges are present so missing rows are caught.
-	for _, domain := range cldrDomains {
+	for _, domain := range cldrDomains[:] {
 		for _, imp := range moduleImports(t, domain) {
 			to, ok := domainOf(imp)
 			if !ok {
 				continue
 			}
 			edge := leafToLeafEdge{from: domain, to: to}
-			for _, e := range leafToLeafEdges {
+			for _, e := range leafToLeafEdges[:] {
 				if e.from == edge.from && e.to == edge.to {
 					seenEdges[leafToLeafEdge{from: e.from, to: e.to, reason: e.reason}] = true
 				}
@@ -171,7 +180,7 @@ func TestCLDRImportGraphDirection(t *testing.T) {
 	}
 
 	// Shrink-only enforcement: every declared edge must exist in the graph.
-	for _, e := range leafToLeafEdges {
+	for _, e := range leafToLeafEdges[:] {
 		if !seenEdges[e] {
 			t.Errorf("leaf->leaf exception %s -> %s is no longer in the import graph; remove its row (%s)", e.from, e.to, e.reason)
 		}
@@ -219,15 +228,24 @@ func isAllowedLeafImport(domain, imp string) bool {
 		return true
 	}
 	if rel, ok := strings.CutPrefix(imp, modulePrefix); ok {
-		if _, isUtil := sharedUtilityLeaves[rel]; isUtil {
+		if isSharedUtilityLeaf(rel) {
 			return true
 		}
 	}
 	if to, ok := domainOf(imp); ok {
-		for _, e := range leafToLeafEdges {
+		for _, e := range leafToLeafEdges[:] {
 			if e.from == domain && e.to == to {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func isSharedUtilityLeaf(rel string) bool {
+	for _, leaf := range sharedUtilityLeaves[:] {
+		if leaf.path == rel {
+			return true
 		}
 	}
 	return false

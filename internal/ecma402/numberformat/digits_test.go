@@ -129,6 +129,57 @@ func TestFormatNumericToStringReturnsRoundedValue(t *testing.T) {
 	}
 }
 
+func TestFormatNumericToStringPriorityReturnsChosenRoundedValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		opts      DigitOptions
+		in        string
+		formatted string
+		rounded   string
+	}{
+		{
+			name:      "more precision chooses fixed candidate",
+			opts:      DigitOptions{MinimumIntegerDigits: 1, MinimumFractionDigits: 0, MaximumFractionDigits: 2, MinimumSignificantDigits: 1, MaximumSignificantDigits: 2, RoundingIncrement: 1, RoundingMode: "halfExpand", RoundingPriority: "morePrecision", TrailingZeroDisplay: "auto"},
+			in:        "1.2345",
+			formatted: "1.23",
+			rounded:   "1.23",
+		},
+		{
+			name:      "more precision chooses significant candidate",
+			opts:      DigitOptions{MinimumIntegerDigits: 1, MinimumFractionDigits: 0, MaximumFractionDigits: 1, MinimumSignificantDigits: 1, MaximumSignificantDigits: 4, RoundingIncrement: 1, RoundingMode: "halfExpand", RoundingPriority: "morePrecision", TrailingZeroDisplay: "auto"},
+			in:        "1.2345",
+			formatted: "1.235",
+			rounded:   "1.235",
+		},
+		{
+			name:      "less precision chooses fixed candidate",
+			opts:      DigitOptions{MinimumIntegerDigits: 1, MinimumFractionDigits: 0, MaximumFractionDigits: 0, MinimumSignificantDigits: 1, MaximumSignificantDigits: 4, RoundingIncrement: 1, RoundingMode: "halfExpand", RoundingPriority: "lessPrecision", TrailingZeroDisplay: "auto"},
+			in:        "1.2345",
+			formatted: "1",
+			rounded:   "1",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			d, err := decimal.ParseString(tc.in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := FormatNumericToString(d, tc.opts)
+			if got.Formatted != tc.formatted {
+				t.Fatalf("Formatted = %q, want %q", got.Formatted, tc.formatted)
+			}
+			if got.Rounded.String() != tc.rounded {
+				t.Fatalf("Rounded = %s, want %s", got.Rounded.String(), tc.rounded)
+			}
+		})
+	}
+}
+
 func TestFormatNumericToStringReturnsNonFiniteValue(t *testing.T) {
 	t.Parallel()
 

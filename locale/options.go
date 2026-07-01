@@ -1,45 +1,41 @@
 package locale
 
 import (
-	"slices"
 	"strings"
+
+	"github.com/agentable/go-intl/internal/localeid"
 
 	"golang.org/x/text/language"
 )
 
 type Options struct {
-	Language        string
-	Script          string
-	Region          string
-	Variants        []string
-	Calendar        string
-	Collation       string
-	HourCycle       string
-	CaseFirst       string
+	Language        *string
+	Script          *string
+	Region          *string
+	Calendar        *string
+	Collation       *string
+	HourCycle       *string
+	CaseFirst       *string
 	Numeric         *bool
-	NumberingSystem string
-	FirstDayOfWeek  string
+	NumberingSystem *string
+	FirstDayOfWeek  *string
 }
 
 func applyLanguageOptions(loc *Locale, opts Options) error {
-	if opts.Language == "" && opts.Script == "" && opts.Region == "" && opts.Variants == nil {
+	if opts.Language == nil && opts.Script == nil && opts.Region == nil {
 		return nil
 	}
-	lang, script, region := tagParts(loc.tag)
-	if opts.Language != "" {
-		lang = strings.ToLower(opts.Language)
+	lang, script, region := localeid.Parts(loc.tag)
+	if err := applySubtagOption(&lang, opts.Language, "language", localeLanguageExpected, localeid.CanonicalUnicodeLanguageSubtag); err != nil {
+		return err
 	}
-	if opts.Script != "" {
-		script = canonicalScript(opts.Script)
+	if err := applySubtagOption(&script, opts.Script, "script", localeScriptExpected, localeid.CanonicalUnicodeScriptSubtag); err != nil {
+		return err
 	}
-	if opts.Region != "" {
-		region = strings.ToUpper(opts.Region)
+	if err := applySubtagOption(&region, opts.Region, "region", localeRegionExpected, localeid.CanonicalUnicodeRegionSubtag); err != nil {
+		return err
 	}
-	variants := loc.Variants()
-	if opts.Variants != nil {
-		variants = slices.Clone(opts.Variants)
-	}
-	base, err := buildLanguageTag(lang, script, region, variants)
+	base, err := buildLanguageTag(lang, script, region, loc.Variants())
 	if err != nil {
 		return err
 	}
@@ -47,40 +43,52 @@ func applyLanguageOptions(loc *Locale, opts Options) error {
 	return nil
 }
 
-func applyOptions(loc *Locale, opts Options) {
-	if opts.Calendar != "" {
-		loc.ext.calendar = strings.ToLower(opts.Calendar)
+func applyOptions(loc *Locale, opts Options) error {
+	if err := applyStringOption(&loc.ext.calendar, opts.Calendar, "calendar", localeUnicodeTypeExpected); err != nil {
+		return err
 	}
-	if opts.Collation != "" {
-		loc.ext.collation = strings.ToLower(opts.Collation)
+	if err := applyStringOption(&loc.ext.collation, opts.Collation, "collation", localeUnicodeTypeExpected); err != nil {
+		return err
 	}
-	if opts.HourCycle != "" {
-		loc.ext.hourCycle = strings.ToLower(opts.HourCycle)
+	if err := applyStringOption(&loc.ext.hourCycle, opts.HourCycle, "hourCycle", localeHourCycleExpected); err != nil {
+		return err
 	}
-	if opts.CaseFirst != "" {
-		loc.ext.caseFirst = strings.ToLower(opts.CaseFirst)
+	if err := applyStringOption(&loc.ext.caseFirst, opts.CaseFirst, "caseFirst", localeCaseFirstExpected); err != nil {
+		return err
 	}
 	if opts.Numeric != nil {
-		loc.ext.numericSet = true
-		loc.ext.numeric = *opts.Numeric
-		if *opts.Numeric {
-			loc.ext.numericValue = ""
-		} else {
-			loc.ext.numericValue = "false"
-		}
+		loc.ext.setNumericOption(*opts.Numeric)
 	}
-	if opts.NumberingSystem != "" {
-		loc.ext.numberingSystem = strings.ToLower(opts.NumberingSystem)
+	if err := applyStringOption(&loc.ext.numberingSystem, opts.NumberingSystem, "numberingSystem", localeUnicodeTypeExpected); err != nil {
+		return err
 	}
-	if opts.FirstDayOfWeek != "" {
-		loc.ext.firstDayOfWeek = strings.ToLower(opts.FirstDayOfWeek)
+	return applyStringOption(&loc.ext.firstDayOfWeek, opts.FirstDayOfWeek, "firstDayOfWeek", localeFirstDayExpected)
+}
+
+func applyStringOption(dst *string, value *string, name, expected string) error {
+	if value == nil {
+		return nil
 	}
+	if *value == "" {
+		return invalidLocaleOptionExpected(name, *value, expected, nil)
+	}
+	*dst = *value
+	return nil
+}
+
+func applySubtagOption(dst *string, value *string, name, expected string, canonicalize func(string) (string, bool)) error {
+	if value == nil {
+		return nil
+	}
+	canonical, ok := canonicalize(*value)
+	if !ok {
+		return invalidLocaleOptionExpected(name, *value, expected, nil)
+	}
+	*dst = canonical
+	return nil
 }
 
 func buildLanguageTag(lang, script, region string, variants []string) (language.Tag, error) {
-	if err := validateVariants(variants); err != nil {
-		return language.Tag{}, err
-	}
 	parts := []string{lang}
 	if script != "" {
 		parts = append(parts, script)
@@ -89,50 +97,17 @@ func buildLanguageTag(lang, script, region string, variants []string) (language.
 		parts = append(parts, region)
 	}
 	for _, variant := range variants {
-		parts = append(parts, strings.ToLower(variant))
+		canonical, ok := localeid.CanonicalUnicodeVariantSubtag(variant)
+		if !ok {
+			tag := strings.Join(parts, "-") + "-" + variant
+			return language.Tag{}, invalidLocaleOptionExpected("languageIdentifier", tag, localeLanguageIdentifierExpected, nil)
+		}
+		parts = append(parts, canonical)
 	}
 	tag := strings.Join(parts, "-")
 	parsed, err := language.Parse(tag)
 	if err != nil {
-		return language.Tag{}, invalidLocaleOption("languageIdentifier", tag, err)
+		return language.Tag{}, invalidLocaleOptionExpected("languageIdentifier", tag, localeLanguageIdentifierExpected, err)
 	}
 	return parsed, nil
-}
-
-func validateVariants(variants []string) error {
-	seen := map[string]bool{}
-	for _, variant := range variants {
-		v := strings.ToLower(variant)
-		if seen[v] || !isVariantSubtag(v) {
-			return invalidLocaleOption("variants", variant, nil)
-		}
-		seen[v] = true
-	}
-	return nil
-}
-
-func isVariantSubtag(v string) bool {
-	if len(v) >= 5 && len(v) <= 8 {
-		return asciiAlnum(v)
-	}
-	return len(v) == 4 && v[0] >= '0' && v[0] <= '9' && asciiAlnum(v)
-}
-
-func asciiAlnum(s string) bool {
-	for i := range len(s) {
-		c := s[i]
-		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
-func canonicalScript(script string) string {
-	script = strings.ToLower(script)
-	if script == "" {
-		return ""
-	}
-	return strings.ToUpper(script[:1]) + script[1:]
 }

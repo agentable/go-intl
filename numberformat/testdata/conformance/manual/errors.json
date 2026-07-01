@@ -8,5 +8,35 @@
     },
     "input": 1,
     "errorCode": "invalid_option"
+  },
+  {
+    "id": "numberformat-manual-empty-numbering-system",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "numberingSystem": ""
+    },
+    "input": 1,
+    "errorCode": "invalid_option"
+  },
+  {
+    "id": "numberformat-manual-empty-currency",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "currency": ""
+    },
+    "input": 1,
+    "errorCode": "invalid_option"
+  },
+  {
+    "id": "numberformat-manual-empty-unit",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "unit": ""
+    },
+    "input": 1,
+    "errorCode": "invalid_option"
   }
 ]

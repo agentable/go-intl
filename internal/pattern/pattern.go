@@ -61,26 +61,38 @@ func Partition(text string) (Pattern, error) {
 
 // FormatIndexed replaces numeric placeholders with the corresponding value.
 func FormatIndexed(text string, values ...string) string {
-	parts, err := Partition(text)
-	if err != nil {
+	beginIndex := strings.IndexByte(text, '{')
+	if beginIndex < 0 {
 		return text
 	}
+
 	var out strings.Builder
-	for _, part := range parts {
-		switch part.Type {
-		case Literal:
-			out.WriteString(part.Value)
-		default:
-			value, ok := indexedValue(part.Type, values)
-			if !ok {
-				out.WriteByte('{')
-				out.WriteString(part.Type)
-				out.WriteByte('}')
-				continue
-			}
-			out.WriteString(value)
+	out.Grow(len(text))
+	nextIndex := 0
+	length := len(text)
+	for beginIndex >= 0 && beginIndex < length {
+		endIndex := strings.IndexByte(text[beginIndex:], '}')
+		if endIndex < 0 {
+			return text
 		}
+		endIndex += beginIndex
+		out.WriteString(text[nextIndex:beginIndex])
+		name := text[beginIndex+1 : endIndex]
+		if value, ok := indexedValue(name, values); ok {
+			out.WriteString(value)
+		} else {
+			out.WriteByte('{')
+			out.WriteString(name)
+			out.WriteByte('}')
+		}
+		nextIndex = endIndex + 1
+		offset := strings.IndexByte(text[nextIndex:], '{')
+		if offset < 0 {
+			break
+		}
+		beginIndex = nextIndex + offset
 	}
+	out.WriteString(text[nextIndex:length])
 	return out.String()
 }
 

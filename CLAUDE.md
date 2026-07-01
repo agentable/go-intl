@@ -15,6 +15,9 @@ task verify               # deps + fmt + vet + lint + test + conformance + data 
 task vuln                 # govulncheck ./...
 task deps                 # go mod download && go mod tidy
 task deps:update          # update root and nested module dependencies
+task codegraph:source        # build ignored source-only CodeGraph mirror under .tmp/codegraph-source
+task codegraph:source:status # show source-only CodeGraph mirror status
+task codegraph:source:clean  # remove the source-only CodeGraph mirror
 task conformance:verify   # fixture schema + XFAIL + skip-list + divergence audit + coverage + Node witness matrix
 task data                 # regenerate CLDR data from local npm CLDR checkout
 task data:check           # verify generated CLDR data is byte-identical
@@ -76,6 +79,20 @@ go-intl/
 The root package mirrors the JavaScript `Intl` namespace shape as closely as Go allows. Formatter-specific constructors, options, and methods live in their formatter packages; `internal/*` stays private.
 
 ## Agent Workflow
+
+### CodeGraph Workflow - Keep Source And References Separate
+
+The repository root intentionally does not carry a committed `.codegraph/`
+index. For current-source exploration, run `task codegraph:source` and query the
+ignored mirror at `.tmp/codegraph-source` with commands such as
+`codegraph explore -p .tmp/codegraph-source "<question>"` or
+`codegraph node -p .tmp/codegraph-source <symbol-or-file>`.
+
+Do not initialize a root CodeGraph index that includes `.references/`; it makes
+source answers noisy and can index huge reference trees. Reference repositories
+may keep their own CodeGraph indexes and should be queried separately when a
+task needs FormatJS, Node, or Go `intl` implementation evidence. Never commit
+`.codegraph/` or `.tmp/`.
 
 ### Design Workflow - Read ECMA-402 and SPECS First
 
@@ -186,7 +203,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it resolved digit options and consume the rounded numeric value.
 - Freeze constructor-derived hot-path state on formatter instances. Cached method calls must not redo locale negotiation, option validation, digit-option resolution, plural-rule lookup, or embedded formatter construction. `DurationFormat` composes constructor-resolved `NumberFormat` and `ListFormat` instances.
 - Keep constructor and `SupportedLocalesOf` options aligned with the JavaScript single-options-object model. Public Go entrypoints receive exactly one typed `Options` value; use `Options{}` for omitted or empty JS options instead of variadic `Options`.
-- Keep NumberFormat unit identifiers exact and case-sensitive. `UnitIdentifier("METER")` must not silently become `"meter"`; native `Intl.NumberFormat` rejects non-canonical unit casing.
+- Keep NumberFormat unit identifiers exact and case-sensitive. `Unit("METER")` must not silently become `"meter"`; native `Intl.NumberFormat` rejects non-canonical unit casing.
 - Represent optional scalar input options as pointers (`*int`, `*bool`, `*string`) and use root helpers `gointl.Int`, `gointl.Bool`, and `gointl.String` at call sites. Constructor code must copy pointed-to scalar values into internal config before storing anything on formatter instances.
 - Represent JS-omitted resolved options as pointers (`*int`, `*LanguageDisplay`, etc.) rather than zero-valued primitives. ECMA-402 distinguishes "property absent" from "property = 0"; reuse a Go zero value collapses the two and makes resolved-options comparisons ambiguous.
 - Each formatter package declares its own `PartType` constant set that mirrors the ECMA-402 partition record types it can emit (including types reachable only through embedded NumberFormat / list patterns). Do not share `PartType` types across packages — partition records are scoped to the constructor, and sharing creates cross-package coupling where ECMA-402 has none.

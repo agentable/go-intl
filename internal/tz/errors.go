@@ -1,6 +1,9 @@
 package tz
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrUnsupportedTimeZone classifies unresolved IANA names and invalid fixed offsets.
 //
@@ -8,12 +11,34 @@ import "errors"
 // ErrUnsupportedTimeZone at the package boundary.
 var ErrUnsupportedTimeZone error = unsupportedTimeZoneError{}
 
-type unsupportedTimeZoneError struct{}
+type unsupportedTimeZoneError struct {
+	reason string
+	name   string
+}
 
-func (unsupportedTimeZoneError) Error() string {
-	return "tz: unsupported time zone"
+func (e unsupportedTimeZoneError) Error() string {
+	reason := e.reason
+	if reason == "" {
+		reason = "unsupported time zone"
+	}
+	if e.name != "" {
+		return fmt.Sprintf("tz: %s %q", reason, e.name)
+	}
+	return "tz: " + reason
 }
 
 func (unsupportedTimeZoneError) Is(target error) bool {
-	return target == errors.ErrUnsupported
+	if target == errors.ErrUnsupported {
+		return true
+	}
+	_, ok := target.(unsupportedTimeZoneError)
+	return ok
+}
+
+func unsupportedTimeZone(name string) error {
+	return unsupportedTimeZoneError{name: name}
+}
+
+func invalidOffset(name string) error {
+	return unsupportedTimeZoneError{reason: "invalid offset", name: name}
 }

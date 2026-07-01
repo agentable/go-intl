@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"testing"
 	"time"
 )
 
@@ -39,6 +40,25 @@ type Fixture struct {
 	ErrorCode          string          `json:"errorCode,omitempty"`
 }
 
+// FeatureSupportedLocalesOf is the conformance fixture feature for
+// Intl.<Constructor>.supportedLocalesOf behavior.
+const FeatureSupportedLocalesOf = "supportedLocalesOf"
+
+// IsSupportedLocalesOf reports whether the fixture exercises supportedLocalesOf.
+func (f Fixture) IsSupportedLocalesOf() bool {
+	return f.Feature == FeatureSupportedLocalesOf
+}
+
+// RequiredExpected returns the fixture's expected string output.
+func (f Fixture) RequiredExpected(t testing.TB) string {
+	t.Helper()
+
+	if f.Expected == nil {
+		t.Fatal("fixture expected is required")
+	}
+	return *f.Expected
+}
+
 type Part struct {
 	Type  string `json:"type"`
 	Value string `json:"value"`
@@ -58,9 +78,33 @@ type SegmentRecord struct {
 	IsWordLike    *bool  `json:"isWordLike,omitempty"`
 }
 
+type fixtureField string
+
+const (
+	fixtureFieldID      fixtureField = "id"
+	fixtureFieldSource  fixtureField = "source"
+	fixtureFieldLocale  fixtureField = "locale"
+	fixtureFieldOptions fixtureField = "options"
+	fixtureFieldInput   fixtureField = "input"
+)
+
+type fixtureSourceKind string
+
+const (
+	fixtureSourceUnknown  fixtureSourceKind = ""
+	fixtureSourceManual   fixtureSourceKind = "manual"
+	fixtureSourceFormatJS fixtureSourceKind = "formatjs"
+	fixtureSourceNode     fixtureSourceKind = "node"
+)
+
+const (
+	nodeFixtureDirPrefix    = "node-v"
+	nodeFixtureSourcePrefix = "node:v"
+)
+
 func LoadFixtures(root string) ([]Fixture, error) {
 	var fixtures []Fixture
-	base := filepath.Join(root, "testdata", "conformance")
+	base := conformanceFixturesPath(root)
 	validateDateTimeInputs := strings.HasSuffix(filepath.Clean(root), "datetimeformat")
 	if _, err := os.Stat(base); err != nil {
 		if os.IsNotExist(err) {
@@ -97,10 +141,19 @@ func LoadFixtures(root string) ([]Fixture, error) {
 	return fixtures, nil
 }
 
+func fixturesByID(fixtures []Fixture) map[string]Fixture {
+	byID := make(map[string]Fixture, len(fixtures))
+	for _, fixture := range fixtures {
+		byID[fixture.ID] = fixture
+	}
+	return byID
+}
+
 func validateFixtureFile(path, rel string, fixtures []Fixture, validateDateTimeInputs bool) error {
 	fileSource := ""
+	inErrorsFile := filepath.Base(path) == "errors.json"
 	for _, fixture := range fixtures {
-		if err := validateFixture(path, rel, fixture, validateDateTimeInputs); err != nil {
+		if err := validateFixture(path, rel, fixture, inErrorsFile, validateDateTimeInputs); err != nil {
 			return err
 		}
 		if fileSource == "" {
@@ -114,14 +167,14 @@ func validateFixtureFile(path, rel string, fixtures []Fixture, validateDateTimeI
 	return nil
 }
 
-func validateFixture(path, rel string, fixture Fixture, validateDateTimeInputs bool) error {
+func validateFixture(path, rel string, fixture Fixture, inErrorsFile bool, validateDateTimeInputs bool) error {
 	if err := validateFixtureShape(path, fixture); err != nil {
 		return err
 	}
 	if err := validateFixtureSourceDirectory(path, rel, fixture); err != nil {
 		return err
 	}
-	if err := validateErrorFixtureFile(path, fixture); err != nil {
+	if err := validateErrorFixtureFile(path, fixture, inErrorsFile); err != nil {
 		return err
 	}
 	if !validateDateTimeInputs {
@@ -137,18 +190,18 @@ func validateFixtureShape(path string, fixture Fixture) error {
 	return nil
 }
 
-func missingFixtureField(fixture Fixture) string {
+func missingFixtureField(fixture Fixture) fixtureField {
 	switch {
 	case fixture.ID == "":
-		return "id"
+		return fixtureFieldID
 	case fixture.Source == "":
-		return "source"
+		return fixtureFieldSource
 	case fixture.Locale == "":
-		return "locale"
+		return fixtureFieldLocale
 	case fixture.Options == nil:
-		return "options"
+		return fixtureFieldOptions
 	case fixture.Input == nil:
-		return "input"
+		return fixtureFieldInput
 	default:
 		return ""
 	}
@@ -163,43 +216,78 @@ func validateFixtureSourceDirectory(path, rel string, fixture Fixture) error {
 }
 
 func fixtureSourceMatchesDirectory(sourceDir string, fixture Fixture) bool {
-	kind := fixtureSourceKind(fixture.Source)
+	kind := fixtureSourceKindOf(fixture.Source)
 	switch {
-	case sourceDir == "manual":
-		return kind == "manual"
-	case sourceDir == "formatjs":
-		return kind == "formatjs"
-	case strings.HasPrefix(sourceDir, "node-v"):
-		return kind == "node" && nodeFixtureMatchesDirectory(sourceDir, fixture)
-	case sourceDir == "node":
-		return kind == "node"
+	case sourceDir == string(fixtureSourceManual):
+		return kind == fixtureSourceManual
+	case sourceDir == string(fixtureSourceFormatJS):
+		return kind == fixtureSourceFormatJS
+	case strings.HasPrefix(sourceDir, nodeFixtureDirPrefix):
+		return kind == fixtureSourceNode && nodeFixtureMatchesDirectory(sourceDir, fixture)
+	case sourceDir == string(fixtureSourceNode):
+		return kind == fixtureSourceNode
 	default:
 		return true
 	}
 }
 
 func nodeFixtureMatchesDirectory(sourceDir string, fixture Fixture) bool {
-	version := strings.TrimPrefix(sourceDir, "node-v")
-	sourcePrefix := "node:v" + version
+	version := strings.TrimPrefix(sourceDir, nodeFixtureDirPrefix)
+	sourcePrefix := nodeFixtureSourcePrefix + version
 	return strings.Contains(fixture.ID, "-"+sourceDir+"-") &&
 		(strings.HasPrefix(fixture.Source, sourcePrefix+".") || strings.HasPrefix(fixture.Source, sourcePrefix+":"))
 }
 
-func fixtureSourceKind(source string) string {
+func fixtureSourceKindOf(source string) fixtureSourceKind {
 	switch {
-	case source == "manual" || strings.HasPrefix(source, "manual:"):
-		return "manual"
-	case strings.HasPrefix(source, "formatjs:"):
-		return "formatjs"
-	case strings.HasPrefix(source, "node:"):
-		return "node"
+	case source == string(fixtureSourceManual) || strings.HasPrefix(source, string(fixtureSourceManual)+":"):
+		return fixtureSourceManual
+	case strings.HasPrefix(source, string(fixtureSourceFormatJS)+":"):
+		return fixtureSourceFormatJS
+	case strings.HasPrefix(source, string(fixtureSourceNode)+":"):
+		return fixtureSourceNode
 	default:
-		return ""
+		return fixtureSourceUnknown
 	}
 }
 
-func validateErrorFixtureFile(path string, fixture Fixture) error {
-	inErrorsFile := filepath.Base(path) == "errors.json"
+func fixtureHasNativeExpectation(fixture Fixture) bool {
+	return fixture.Expected != nil ||
+		fixture.ExpectedOK != nil ||
+		len(fixture.ExpectedLocales) > 0 ||
+		len(fixture.ExpectedParts) > 0 ||
+		fixture.ExpectedRange != nil ||
+		len(fixture.ExpectedRangeParts) > 0 ||
+		fixture.ExpectedComparison != nil ||
+		len(fixture.ExpectedResolved) > 0 ||
+		len(fixture.ExpectedSegments) > 0 ||
+		fixture.ErrorCode != ""
+}
+
+type nativeWitnessStatus string
+
+const (
+	nativeWitnessValid         nativeWitnessStatus = ""
+	nativeWitnessUnknown       nativeWitnessStatus = "unknown"
+	nativeWitnessNotNode       nativeWitnessStatus = "not-node"
+	nativeWitnessNoExpectation nativeWitnessStatus = "no-expectation"
+)
+
+func classifyNativeWitness(fixturesByID map[string]Fixture, id string) (Fixture, nativeWitnessStatus) {
+	witness, ok := fixturesByID[id]
+	if !ok {
+		return Fixture{}, nativeWitnessUnknown
+	}
+	if fixtureSourceKindOf(witness.Source) != fixtureSourceNode {
+		return witness, nativeWitnessNotNode
+	}
+	if !fixtureHasNativeExpectation(witness) {
+		return witness, nativeWitnessNoExpectation
+	}
+	return witness, nativeWitnessValid
+}
+
+func validateErrorFixtureFile(path string, fixture Fixture, inErrorsFile bool) error {
 	if fixture.ErrorCode != "" && !inErrorsFile {
 		return fmt.Errorf("%s: fixture %q has errorCode outside errors.json: %w", path, fixture.ID, errInvalidErrorFixture)
 	}

@@ -11,6 +11,11 @@ func intPtr(v int) *int {
 	return &v
 }
 
+func stringPtr[T ~string](v T) *string {
+	value := string(v)
+	return &value
+}
+
 func TestOptionsPointerValuesCopiedDuringConstruction(t *testing.T) {
 	t.Parallel()
 

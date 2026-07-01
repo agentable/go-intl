@@ -10,7 +10,7 @@ func ParseOffsetString(s string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return sign * int64(hour*3600*1000+minute*60*1000), nil
+	return offsetMilliseconds(sign, hour, minute), nil
 }
 
 func CanonicalOffsetString(s string) (string, error) {
@@ -18,11 +18,31 @@ func CanonicalOffsetString(s string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return canonicalOffsetString(sign, hour, minute), nil
+}
+
+func parseFixedOffset(s string) (int64, string, error) {
+	sign, hour, minute, err := parseOffsetString(s)
+	if err != nil {
+		return 0, "", err
+	}
+	return offsetMilliseconds(sign, hour, minute), canonicalOffsetString(sign, hour, minute), nil
+}
+
+func isOffsetName(s string) bool {
+	return s != "" && (s[0] == '+' || s[0] == '-')
+}
+
+func offsetMilliseconds(sign int64, hour, minute int) int64 {
+	return sign * int64(hour*3600*1000+minute*60*1000)
+}
+
+func canonicalOffsetString(sign int64, hour, minute int) string {
 	signRune := '+'
 	if sign < 0 && (hour != 0 || minute != 0) {
 		signRune = '-'
 	}
-	return fmt.Sprintf("%c%02d:%02d", signRune, hour, minute), nil
+	return fmt.Sprintf("%c%02d:%02d", signRune, hour, minute)
 }
 
 func parseOffsetString(s string) (int64, int, int, error) {
@@ -65,10 +85,6 @@ func parseOffsetString(s string) (int64, int, int, error) {
 		return 0, 0, 0, invalidOffset(s)
 	}
 	return sign, hour, minute, nil
-}
-
-func invalidOffset(s string) error {
-	return fmt.Errorf("tz: invalid offset %q: %w", s, ErrUnsupportedTimeZone)
 }
 
 func asciiDigits(s string) bool {

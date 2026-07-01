@@ -1,6 +1,9 @@
 package localematcher
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestLookupMatcher(t *testing.T) {
 	t.Parallel()
@@ -45,17 +48,32 @@ func TestLookupMatcherUsesDerivedAvailableLocale(t *testing.T) {
 	}
 }
 
+func TestRemoveUnicodeExtensionForMatcher(t *testing.T) {
+	t.Parallel()
+
+	base, extension := removeUnicodeExtension("en-US-u-ca-gregory-x-private")
+	if base != "en-US-x-private" || extension != "-u-ca-gregory" {
+		t.Fatalf("removeUnicodeExtension(valid) = %q, %q; want base without u and extension", base, extension)
+	}
+
+	base, extension = removeUnicodeExtension("u-ca-gregory")
+	if base != "u-ca-gregory" || extension != "" {
+		t.Fatalf("removeUnicodeExtension(invalid) = %q, %q; want original locale and empty extension", base, extension)
+	}
+}
+
 func TestLookupSupportedLocales(t *testing.T) {
 	t.Parallel()
 
 	got := LookupSupportedLocales([]string{"en", "fr", "zh-Hant"}, []string{"en-US-u-ca-gregory", "fr-FR", "zh-Hant-TW", "de"})
 	want := []string{"en-US", "fr-FR", "zh-Hant-TW"}
-	if len(got) != len(want) {
+	if !slices.Equal(got, want) {
 		t.Fatalf("LookupSupportedLocales() = %#v, want %#v", got, want)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("LookupSupportedLocales() = %#v, want %#v", got, want)
-		}
+
+	got = LookupSupportedLocales([]string{"zh-Hant-HK"}, []string{"zh-HK-u-nu-hanidec", "en"})
+	want = []string{"zh-HK"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("LookupSupportedLocales(derived) = %#v, want %#v", got, want)
 	}
 }

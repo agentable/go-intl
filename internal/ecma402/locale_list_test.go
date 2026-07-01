@@ -47,6 +47,17 @@ func TestRequestedLocaleStringsDedupesCanonicalLocalesAndClones(t *testing.T) {
 	}
 }
 
+func TestCanonicalLocaleListDedupesCanonicalLocales(t *testing.T) {
+	t.Parallel()
+
+	locales := locale.List{intltest.Locale(t, "en-us"), intltest.Locale(t, "fr"), intltest.Locale(t, "en-US")}
+	got := CanonicalLocaleList(locales)
+	want := []string{"en-US", "fr"}
+	if !slices.Equal(got.Strings(), want) {
+		t.Fatalf("CanonicalLocaleList() = %v, want %v", got.Strings(), want)
+	}
+}
+
 func TestValidationLocaleUsesFirstCanonicalRequestOrDefault(t *testing.T) {
 	t.Parallel()
 
@@ -58,6 +69,16 @@ func TestValidationLocaleUsesFirstCanonicalRequestOrDefault(t *testing.T) {
 	got = ValidationLocale(nil)
 	if got.String() != DefaultLocale() {
 		t.Fatalf("ValidationLocale(nil) = %q, want %q", got.String(), DefaultLocale())
+	}
+}
+
+func TestValidationLocaleUsesDefaultLocaleOverride(t *testing.T) {
+	restore := OverrideDefaultLocaleForTest("fr")
+	t.Cleanup(restore)
+
+	got := ValidationLocale(nil)
+	if got.String() != "fr" {
+		t.Fatalf("ValidationLocale(nil) = %q, want fr", got.String())
 	}
 }
 
@@ -81,7 +102,13 @@ func TestSupportedLocalesOfAppliesLocaleMatcherOption(t *testing.T) {
 	t.Parallel()
 
 	requested := locale.List{intltest.Locale(t, "en-US"), intltest.Locale(t, "fr-CA")}
-	got, err := SupportedLocalesOf("testformat", []string{"en", "fr"}, requested, "lookup", nil, ErrInvalidOption)
+	matcher := "lookup"
+	got, err := SupportedLocalesOf(SupportedLocalesOptions{
+		Owner:         "testformat",
+		Supported:     []string{"en", "fr"},
+		Requested:     requested,
+		LocaleMatcher: &matcher,
+	})
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf(lookup) error = %v", err)
 	}
@@ -95,7 +122,25 @@ func TestSupportedLocalesOfAppliesLocaleMatcherOption(t *testing.T) {
 		}
 	}
 
-	got, err = SupportedLocalesOf("testformat", []string{"en"}, requested, "fast", nil, ErrInvalidOption)
+	got, err = SupportedLocalesOf(SupportedLocalesOptions{
+		Owner:     "testformat",
+		Supported: []string{"en", "fr"},
+		Requested: requested,
+	})
+	if err != nil {
+		t.Fatalf("SupportedLocalesOf(omitted matcher) error = %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("SupportedLocalesOf(omitted matcher) length = %d, want %d: %v", len(got), len(want), got)
+	}
+
+	matcher = "fast"
+	got, err = SupportedLocalesOf(SupportedLocalesOptions{
+		Owner:         "testformat",
+		Supported:     []string{"en"},
+		Requested:     requested,
+		LocaleMatcher: &matcher,
+	})
 	if got != nil {
 		t.Fatalf("SupportedLocalesOf(invalid matcher) = %v, want nil", got)
 	}
@@ -106,7 +151,20 @@ func TestSupportedLocalesOfAppliesLocaleMatcherOption(t *testing.T) {
 	if !ok {
 		t.Fatalf("SupportedLocalesOf(invalid matcher) error = %T, want OptionError", err)
 	}
-	if optErr.Owner != "testformat" || optErr.Name != "localeMatcher" || optErr.Value != "fast" || optErr.Locale != "en-US" {
-		t.Fatalf("OptionError = %+v, want testformat localeMatcher fast en-US", optErr)
+	if optErr.Owner != "testformat" || optErr.Name != "localeMatcher" || optErr.Value != "fast" || optErr.Locale != "en-US" || optErr.Expected != `one of "lookup", "best fit"` {
+		t.Fatalf(`OptionError = %+v, want testformat localeMatcher fast en-US expected one of "lookup", "best fit"`, optErr)
+	}
+	matcher = ""
+	got, err = SupportedLocalesOf(SupportedLocalesOptions{
+		Owner:         "testformat",
+		Supported:     []string{"en"},
+		Requested:     requested,
+		LocaleMatcher: &matcher,
+	})
+	if got != nil {
+		t.Fatalf("SupportedLocalesOf(empty matcher) = %v, want nil", got)
+	}
+	if !errors.Is(err, ErrInvalidOption) {
+		t.Fatalf("SupportedLocalesOf(empty matcher) error = %v, want ErrInvalidOption", err)
 	}
 }

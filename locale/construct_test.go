@@ -12,7 +12,7 @@ import (
 func TestNewWithOptions(t *testing.T) {
 	t.Parallel()
 
-	loc, err := New("ja", Options{Calendar: "japanese", HourCycle: "h23"})
+	loc, err := New("ja", Options{Calendar: stringPtr("japanese"), HourCycle: stringPtr("h23")})
 	if err != nil {
 		t.Fatalf("New err = %v", err)
 	}
@@ -24,7 +24,7 @@ func TestNewWithOptions(t *testing.T) {
 func TestNewOptionsOverrideTagExtensions(t *testing.T) {
 	t.Parallel()
 
-	loc, err := New("en-US-u-ca-buddhist-hc-h12", Options{Calendar: "gregory", HourCycle: "h23"})
+	loc, err := New("en-US-u-ca-buddhist-hc-h12", Options{Calendar: stringPtr("gregory"), HourCycle: stringPtr("h23")})
 	if err != nil {
 		t.Fatalf("New err = %v", err)
 	}
@@ -36,11 +36,10 @@ func TestNewOptionsOverrideTagExtensions(t *testing.T) {
 func TestNewLanguageIdentifierOptions(t *testing.T) {
 	t.Parallel()
 
-	loc, err := New("en-US-u-nu-arab", Options{
-		Language: "zh",
-		Script:   "Hans",
-		Region:   "CN",
-		Variants: []string{"pinyin"},
+	loc, err := New("en-US-pinyin-u-nu-arab", Options{
+		Language: stringPtr("ZH"),
+		Script:   stringPtr("hANS"),
+		Region:   stringPtr("cn"),
 	})
 	if err != nil {
 		t.Fatalf("New language options err = %v", err)
@@ -53,19 +52,134 @@ func TestNewLanguageIdentifierOptions(t *testing.T) {
 	}
 }
 
-func TestNewRejectsDuplicateVariantOptions(t *testing.T) {
+func TestNewRejectsExplicitEmptyStringOptions(t *testing.T) {
 	t.Parallel()
 
-	_, err := New("en", Options{Variants: []string{"emodeng", "emodeng"}})
-	if !errors.Is(err, intlerr.ErrInvalidOption) {
-		t.Fatalf("New duplicate variants err = %v, want intlerr.ErrInvalidOption", err)
+	for _, tc := range []struct {
+		name     string
+		opts     Options
+		expected string
+	}{
+		{name: "language", opts: Options{Language: stringPtr("")}, expected: localeLanguageExpected},
+		{name: "script", opts: Options{Script: stringPtr("")}, expected: localeScriptExpected},
+		{name: "region", opts: Options{Region: stringPtr("")}, expected: localeRegionExpected},
+		{name: "calendar", opts: Options{Calendar: stringPtr("")}, expected: localeUnicodeTypeExpected},
+		{name: "collation", opts: Options{Collation: stringPtr("")}, expected: localeUnicodeTypeExpected},
+		{name: "hourCycle", opts: Options{HourCycle: stringPtr("")}, expected: localeHourCycleExpected},
+		{name: "caseFirst", opts: Options{CaseFirst: stringPtr("")}, expected: localeCaseFirstExpected},
+		{name: "numberingSystem", opts: Options{NumberingSystem: stringPtr("")}, expected: localeUnicodeTypeExpected},
+		{name: "firstDayOfWeek", opts: Options{FirstDayOfWeek: stringPtr("")}, expected: localeFirstDayExpected},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := New("en", tc.opts)
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("New(empty %s) error = %v, want intlerr.ErrInvalidOption", tc.name, err)
+			}
+			detail := assertStructuredLocaleError(t, err, intlerr.InvalidOption)
+			if detail.Name != tc.name || detail.Value != "" || detail.Expected != tc.expected {
+				t.Fatalf("New(empty %s) error detail = %+v, want name=%q value empty expected %q", tc.name, detail, tc.name, tc.expected)
+			}
+		})
 	}
 }
 
-func TestNewInvalidOption(t *testing.T) {
+func TestNewNormalizesRawOptionValuesDuringValidation(t *testing.T) {
 	t.Parallel()
 
-	_, err := New("en", Options{HourCycle: "h25"})
+	loc, err := New("en", Options{
+		Calendar:        stringPtr("GREGORIAN"),
+		HourCycle:       stringPtr("H23"),
+		CaseFirst:       stringPtr("UPPER"),
+		NumberingSystem: stringPtr("ARAB"),
+		FirstDayOfWeek:  stringPtr("MON"),
+	})
+	if err != nil {
+		t.Fatalf("New err = %v", err)
+	}
+	if got, want := loc.String(), "en-u-ca-gregory-fw-mon-hc-h23-kf-upper-nu-arab"; got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+	if got := loc.Calendar(); got != "gregory" {
+		t.Fatalf("Calendar() = %q, want gregory", got)
+	}
+	if got := loc.HourCycle(); got != "h23" {
+		t.Fatalf("HourCycle() = %q, want h23", got)
+	}
+	if got := loc.CaseFirst(); got != "upper" {
+		t.Fatalf("CaseFirst() = %q, want upper", got)
+	}
+	if got := loc.NumberingSystem(); got != "arab" {
+		t.Fatalf("NumberingSystem() = %q, want arab", got)
+	}
+	if got := loc.FirstDayOfWeek(); got != "mon" {
+		t.Fatalf("FirstDayOfWeek() = %q, want mon", got)
+	}
+}
+
+func TestNewRejectsUnicodeFoldedTypeOptions(t *testing.T) {
+	t.Parallel()
+
+	const foldedASCII = "\u212Aarab"
+	for _, tc := range []struct {
+		name string
+		opts Options
+	}{
+		{name: "calendar", opts: Options{Calendar: stringPtr(foldedASCII)}},
+		{name: "collation", opts: Options{Collation: stringPtr(foldedASCII)}},
+		{name: "numberingSystem", opts: Options{NumberingSystem: stringPtr(foldedASCII)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := New("en", tc.opts)
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("New(%s) error = %v, want intlerr.ErrInvalidOption", tc.name, err)
+			}
+			detail := assertStructuredLocaleError(t, err, intlerr.InvalidOption)
+			if detail.Name != tc.name || detail.Value != foldedASCII || detail.Expected != localeUnicodeTypeExpected {
+				t.Fatalf("New(%s) error detail = %+v, want name=%q value=%q expected %q",
+					tc.name, detail, tc.name, foldedASCII, localeUnicodeTypeExpected)
+			}
+		})
+	}
+}
+
+func TestNewRejectsNonASCIIEnumOptions(t *testing.T) {
+	t.Parallel()
+
+	const foldedASCII = "\u212A"
+	for _, tc := range []struct {
+		name     string
+		opts     Options
+		value    string
+		expected string
+	}{
+		{name: "hourCycle", opts: Options{HourCycle: stringPtr(foldedASCII + "23")}, value: foldedASCII + "23", expected: localeHourCycleExpected},
+		{name: "caseFirst", opts: Options{CaseFirst: stringPtr(foldedASCII + "upper")}, value: foldedASCII + "upper", expected: localeCaseFirstExpected},
+		{name: "firstDayOfWeek", opts: Options{FirstDayOfWeek: stringPtr(foldedASCII + "mon")}, value: foldedASCII + "mon", expected: localeFirstDayExpected},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := New("en", tc.opts)
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("New(%s) error = %v, want intlerr.ErrInvalidOption", tc.name, err)
+			}
+			detail := assertStructuredLocaleError(t, err, intlerr.InvalidOption)
+			if detail.Name != tc.name || detail.Value != tc.value || detail.Expected != tc.expected {
+				t.Fatalf("New(%s) error detail = %+v, want name=%q value=%q expected %q",
+					tc.name, detail, tc.name, tc.value, tc.expected)
+			}
+		})
+	}
+}
+
+func TestLocaleNewRejectsInvalidOption(t *testing.T) {
+	t.Parallel()
+
+	_, err := New("en", Options{HourCycle: stringPtr("h25")})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New err = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -74,7 +188,7 @@ func TestNewInvalidOption(t *testing.T) {
 func TestNewCanonicalizesNumericFirstDayOfWeekZero(t *testing.T) {
 	t.Parallel()
 
-	loc, err := New("en-US", Options{FirstDayOfWeek: "0"})
+	loc, err := New("en-US", Options{FirstDayOfWeek: stringPtr("0")})
 	if err != nil {
 		t.Fatalf("New err = %v", err)
 	}
@@ -89,7 +203,7 @@ func TestNewCanonicalizesNumericFirstDayOfWeekZero(t *testing.T) {
 func TestFromTag(t *testing.T) {
 	t.Parallel()
 
-	loc, err := FromTag(language.Japanese, Options{Calendar: "japanese"})
+	loc, err := FromTag(language.Japanese, Options{Calendar: stringPtr("japanese")})
 	if err != nil {
 		t.Fatalf("FromTag err = %v", err)
 	}
@@ -144,6 +258,17 @@ func TestNewNumericOptionPresence(t *testing.T) {
 	if disabled.Numeric() {
 		t.Fatal("Numeric() = true, want false")
 	}
+
+	enabledOverride, err := New("en-US-u-kn-false", Options{Numeric: boolPtr(true)})
+	if err != nil {
+		t.Fatalf("New numeric=true overriding false err = %v", err)
+	}
+	if got, want := enabledOverride.String(), "en-US-u-kn"; got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+	if !enabledOverride.Numeric() {
+		t.Fatal("Numeric() = false, want true")
+	}
 }
 
 func TestEqual(t *testing.T) {
@@ -179,10 +304,10 @@ func TestTextMarshaling(t *testing.T) {
 	}
 }
 
-func TestNewPreservesExistingVariantsWhenOptionsVariantsUnset(t *testing.T) {
+func TestNewPreservesExistingVariantsWhenLanguageOptionsChange(t *testing.T) {
 	t.Parallel()
 
-	loc, err := New("de-1901", Options{Region: "AT"})
+	loc, err := New("de-1901", Options{Region: stringPtr("AT")})
 	if err != nil {
 		t.Fatalf("New err = %v", err)
 	}

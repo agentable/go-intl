@@ -22,7 +22,7 @@ func ExtractLikelySubtags(raw map[string]string) LikelySubtags {
 	min := make(map[SubtagTriple]string, len(raw))
 	for _, key := range slices.Sorted(maps.Keys(raw)) {
 		triple := parseTriple(raw[key])
-		normalized := normalizeTag(key)
+		normalized := strings.ReplaceAll(key, "_", "-")
 		max[normalized] = triple
 		if strings.HasPrefix(normalized, "und") {
 			continue
@@ -48,5 +48,3 @@ func parseTriple(tag string) SubtagTriple {
 	}
 	return triple
 }
-
-func normalizeTag(tag string) string { return strings.ReplaceAll(tag, "_", "-") }

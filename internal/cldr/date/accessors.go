@@ -1,15 +1,17 @@
-// Hand-written accessor layer for the date domain. The query semantics mirror
-// the legacy root cldr date accessors exactly, so DateTimeFormat output is
-// byte-for-byte unchanged.
+// Hand-written accessor layer for the date domain. It exposes gregorian
+// calendar data, day-period rules, locale data, and narrow supported indexes over
+// lazily decoded const blobs.
 
 package date
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"time"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+	"github.com/agentable/go-intl/internal/localeid"
 	"github.com/agentable/go-intl/internal/numbering"
 )
 
@@ -24,9 +26,7 @@ func ResolveLocale(tag string) (Locale, bool) {
 // gregorian or day-period blob decode.
 func SupportedLocales() []string {
 	supportedOnce.Do(loadSupported)
-	tags := make([]string, len(supportedTags))
-	copy(tags, supportedTags)
-	return tags
+	return slices.Clone(supportedTags)
 }
 
 // SupportedCalendars returns the canonical ECMA-402 calendar identifiers backed
@@ -39,11 +39,11 @@ func SupportedCalendars() []string {
 
 // DayPeriodFor returns the day-period type that contains the given wall-clock
 // time for the locale, or "" when no rule matches. Point rules (From == To) take
-// precedence over range rules, matching the legacy root behavior.
+// precedence over range rules.
 func DayPeriodFor(loc Locale, hour, minute int) string {
 	dayPeriodOnce.Do(loadDayPeriods)
 	value := time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute
-	rules := dayPeriodRules[loc]
+	rules := dayPeriodRulesForLocale(loc)
 	for _, rule := range rules {
 		if rule.From == rule.To && value == rule.From {
 			return rule.Type
@@ -66,12 +66,19 @@ func DayPeriodFor(loc Locale, hour, minute int) string {
 	return ""
 }
 
+func dayPeriodRulesForLocale(loc Locale) []DayPeriodRange {
+	rules, ok := dayPeriodRules[loc]
+	if !ok {
+		return nil
+	}
+	return rules
+}
+
 // GregorianFor returns the resolved gregorian calendar view for the locale,
-// assembled from the per-locale calendar data exactly as the legacy root
-// accessor did.
+// assembled from the per-locale calendar data.
 func GregorianFor(loc Locale) Gregorian {
 	gregorianOnce.Do(loadGregorian)
-	data := gregorianData[loc]
+	data := gregorianCalendarData(loc)
 	var gregorian Gregorian
 	wideFormat := data.names[calendarNameKey{width: "wide", context: "format"}]
 	abbrFormat := data.names[calendarNameKey{width: "abbreviated", context: "format"}]
@@ -94,23 +101,30 @@ func GregorianFor(loc Locale) Gregorian {
 	copy(gregorian.Weekdays.StandWide[:], wideStandalone.weekdays)
 	copy(gregorian.Weekdays.StandAbbr[:], abbrStandalone.weekdays)
 	copy(gregorian.Weekdays.StandNarrow[:], narrowStandalone.weekdays)
-	gregorian.DayPeriods.AM = dayPeriodNames{Wide: nameAt(wideFormat.dayPeriods, 1), Abbr: nameAt(abbrFormat.dayPeriods, 1), Narrow: nameAt(narrowFormat.dayPeriods, 1)}
-	gregorian.DayPeriods.PM = dayPeriodNames{Wide: nameAt(wideFormat.dayPeriods, 3), Abbr: nameAt(abbrFormat.dayPeriods, 3), Narrow: nameAt(narrowFormat.dayPeriods, 3)}
-	gregorian.DayPeriods.Flex = flexibleDayPeriodNames(data.names)
+	gregorian.DayPeriods.AM = dayPeriodNamesAt(wideFormat.dayPeriods, abbrFormat.dayPeriods, narrowFormat.dayPeriods, dayPeriodAMSlot)
+	gregorian.DayPeriods.PM = dayPeriodNamesAt(wideFormat.dayPeriods, abbrFormat.dayPeriods, narrowFormat.dayPeriods, dayPeriodPMSlot)
+	gregorian.DayPeriods.Flex = flexibleDayPeriodNames(wideFormat.dayPeriods, abbrFormat.dayPeriods, narrowFormat.dayPeriods)
 	gregorian.DateFormats = styleArray(data.date)
 	gregorian.TimeFormats = styleArray(data.time)
 	gregorian.DateTimeFormats = styleArray(data.dateTime)
 	gregorian.DateTimeAtFormats = styleArray(data.dateTimeAt)
-	gregorian.AvailableFormats = data.available
-	gregorian.IntervalFormats = data.intervals
+	gregorian.AvailableFormats = maps.Clone(data.available)
+	gregorian.IntervalFormats = cloneIntervalFormats(data.intervals)
 	gregorian.IntervalFallback = data.intervalFallback
-	gregorian.AppendItems = data.appendItems
+	gregorian.AppendItems = maps.Clone(data.appendItems)
 	return gregorian
 }
 
+func gregorianCalendarData(loc Locale) calendarData {
+	data, ok := gregorianData[loc]
+	if !ok {
+		return calendarData{}
+	}
+	return data
+}
+
 // nameAt indexes a day-period name list, returning "" when the index is past the
-// list (the legacy literal stored fixed-length slices, but a decoded nil/short
-// slice must read as empty rather than panic).
+// list. A decoded nil or short slice must read as empty rather than panic.
 func nameAt(values []string, index int) string {
 	if index < len(values) {
 		return values[index]
@@ -118,67 +132,72 @@ func nameAt(values []string, index int) string {
 	return ""
 }
 
+func dayPeriodNamesAt(wide, abbr, narrow []string, index int) dayPeriodNames {
+	return dayPeriodNames{
+		Wide:   nameAt(wide, index),
+		Abbr:   nameAt(abbr, index),
+		Narrow: nameAt(narrow, index),
+	}
+}
+
+var dateStyleSlotOrder = [...]string{"full", "long", "medium", "short"}
+
 func styleArray(values map[string]string) [4]string {
-	return [4]string{values["full"], values["long"], values["medium"], values["short"]}
-}
-
-func dayPeriodName(values []string, key string) string {
-	index := dayPeriodNameIndex(key)
-	if index < len(values) {
-		return values[index]
+	var styles [4]string
+	for i, key := range dateStyleSlotOrder {
+		styles[i] = values[key]
 	}
-	return ""
+	return styles
 }
 
-func dayPeriodNameIndex(key string) int {
-	switch key {
-	case "midnight":
-		return 0
-	case "am":
-		return 1
-	case "noon":
-		return 2
-	case "pm":
-		return 3
-	case "morning1":
-		return 4
-	case "morning2":
-		return 5
-	case "afternoon1":
-		return 6
-	case "afternoon2":
-		return 7
-	case "evening1":
-		return 8
-	case "evening2":
-		return 9
-	case "night1":
-		return 10
-	case "night2":
-		return 11
-	default:
-		return 100
-	}
+const (
+	dayPeriodAMSlot = 1
+	dayPeriodPMSlot = 3
+)
+
+type flexibleDayPeriodSlot struct {
+	key   string
+	index int
 }
 
-func flexibleDayPeriodNames(names map[calendarNameKey]calendarNames) map[string]dayPeriodNames {
-	wide := names[calendarNameKey{width: "wide", context: "format"}].dayPeriods
-	abbr := names[calendarNameKey{width: "abbreviated", context: "format"}].dayPeriods
-	narrow := names[calendarNameKey{width: "narrow", context: "format"}].dayPeriods
-	keys := []string{"midnight", "noon", "morning1", "morning2", "afternoon1", "afternoon2", "evening1", "evening2", "night1", "night2"}
-	out := make(map[string]dayPeriodNames)
-	for _, key := range keys {
-		if name := dayPeriodName(wide, key); name != "" {
-			out[key] = dayPeriodNames{Wide: name, Abbr: dayPeriodName(abbr, key), Narrow: dayPeriodName(narrow, key)}
+var flexibleDayPeriodSlots = [...]flexibleDayPeriodSlot{
+	{key: "midnight", index: 0},
+	{key: "noon", index: 2},
+	{key: "morning1", index: 4},
+	{key: "morning2", index: 5},
+	{key: "afternoon1", index: 6},
+	{key: "afternoon2", index: 7},
+	{key: "evening1", index: 8},
+	{key: "evening2", index: 9},
+	{key: "night1", index: 10},
+	{key: "night2", index: 11},
+}
+
+func flexibleDayPeriodNames(wide, abbr, narrow []string) map[string]dayPeriodNames {
+	out := make(map[string]dayPeriodNames, len(flexibleDayPeriodSlots))
+	for _, period := range flexibleDayPeriodSlots {
+		names := dayPeriodNamesAt(wide, abbr, narrow, period.index)
+		if names.Wide != "" {
+			out[period.key] = names
 		}
+	}
+	return out
+}
+
+func cloneIntervalFormats(formats map[string]map[string]string) map[string]map[string]string {
+	if formats == nil {
+		return nil
+	}
+	out := make(map[string]map[string]string, len(formats))
+	for skeleton, fields := range formats {
+		out[skeleton] = maps.Clone(fields)
 	}
 	return out
 }
 
 // DateLocaleData exposes the extension keys Intl.DateTimeFormat ResolveLocale
 // consults. It owns the calendar key directly and derives the hour-cycle and
-// numbering-system keys from the locale kernel, matching the legacy root
-// DateLocaleData semantics.
+// numbering-system keys from the locale kernel.
 type DateLocaleData struct{}
 
 func (DateLocaleData) For(locale, key string) []string {
@@ -195,23 +214,21 @@ func (DateLocaleData) For(locale, key string) []string {
 }
 
 func numberingSystemLocaleData(locale string) []string {
-	defaultNS := "latn"
+	defaultNumberingSystem := numbering.DefaultNumberingSystem
 	if loc, ok := cldrlocale.ResolveLocale(locale); ok {
 		if ns := loc.DefaultNumberingSystem(); ns != "" {
-			defaultNS = ns
+			defaultNumberingSystem = ns
 		}
 	}
-	return keywordLocaleData(defaultNS, numbering.SimpleNumberingSystems)
+	return localeid.RelevantExtensionValues(defaultNumberingSystem, numbering.SimpleNumberingSystems()...)
 }
 
 func hourCycleLocaleData(locale string) []string {
 	region := localeRegion(locale)
-	if region == "" {
-		if localeLanguage(locale) == "en" {
-			return []string{"h12", "h23"}
-		}
+	if region == "" && localeLanguage(locale) == "en" {
+		return localeid.RelevantExtensionValues("", "h12", "h23")
 	}
-	return keywordLocaleData("", cldrlocale.HourCyclePreference(region))
+	return localeid.RelevantExtensionValues("", cldrlocale.HourCyclePreference(region)...)
 }
 
 func localeLanguage(locale string) string {
@@ -229,7 +246,7 @@ func localeRegion(locale string) string {
 		if len(part) == 1 {
 			return ""
 		}
-		if len(part) == 2 && isASCIIAlpha(part) || len(part) == 3 && isASCIIDigit(part) {
+		if localeid.IsUnicodeRegionSubtag(part) {
 			if part == "ZZ" {
 				return ""
 			}
@@ -237,35 +254,4 @@ func localeRegion(locale string) string {
 		}
 	}
 	return ""
-}
-
-func isASCIIAlpha(s string) bool {
-	for _, r := range s {
-		if r < 'A' || r > 'Z' && (r < 'a' || r > 'z') {
-			return false
-		}
-	}
-	return s != ""
-}
-
-func isASCIIDigit(s string) bool {
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return s != ""
-}
-
-func keywordLocaleData(defaultValue string, values []string) []string {
-	out := make([]string, 0, len(values)+1)
-	if defaultValue != "" {
-		out = append(out, defaultValue)
-	}
-	for _, value := range values {
-		if value != "" && !slices.Contains(out, value) {
-			out = append(out, value)
-		}
-	}
-	return out
 }

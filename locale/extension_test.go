@@ -56,6 +56,40 @@ func TestParseUnicodeExtensions(t *testing.T) {
 	}
 }
 
+func TestParseCanonicalizesNumericFirstDayOfWeekAliases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		value string
+		want  string
+	}{
+		{value: "0", want: "sun"},
+		{value: "1", want: "mon"},
+		{value: "2", want: "tue"},
+		{value: "3", want: "wed"},
+		{value: "4", want: "thu"},
+		{value: "5", want: "fri"},
+		{value: "6", want: "sat"},
+		{value: "7", want: "sun"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.value, func(t *testing.T) {
+			t.Parallel()
+
+			loc, err := Parse("en-US-u-fw-" + tc.value)
+			if err != nil {
+				t.Fatalf("Parse err = %v", err)
+			}
+			if got := loc.FirstDayOfWeek(); got != tc.want {
+				t.Fatalf("FirstDayOfWeek() = %q, want %q", got, tc.want)
+			}
+			if got, want := loc.String(), "en-US-u-fw-"+tc.want; got != want {
+				t.Fatalf("String() = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestParseUnicodeExtensionBaseNameExcludesExtension(t *testing.T) {
 	t.Parallel()
 
@@ -68,7 +102,7 @@ func TestParseUnicodeExtensionBaseNameExcludesExtension(t *testing.T) {
 func TestNewOptionsOverrideKnownUnicodeExtensionOnly(t *testing.T) {
 	t.Parallel()
 
-	loc, err := New("en-US-u-foo-ca-buddhist-zz-abc", Options{Calendar: "gregory"})
+	loc, err := New("en-US-u-foo-ca-buddhist-zz-abc", Options{Calendar: stringPtr("gregory")})
 	if err != nil {
 		t.Fatalf("New err = %v", err)
 	}
@@ -77,21 +111,45 @@ func TestNewOptionsOverrideKnownUnicodeExtensionOnly(t *testing.T) {
 	}
 }
 
+func TestNewOptionsPreserveUnknownUnicodeKeywordsWhileReplacingKnownKeywords(t *testing.T) {
+	t.Parallel()
+
+	loc, err := New("en-US-u-foo-ca-buddhist-kk-true-zz-abc", Options{
+		Calendar: stringPtr("gregory"),
+		Numeric:  boolPtr(true),
+	})
+	if err != nil {
+		t.Fatalf("New err = %v", err)
+	}
+	if got, want := loc.String(), "en-US-u-foo-ca-gregory-kk-kn-zz-abc"; got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+}
+
 func TestParseInvalidUnicodeExtensions(t *testing.T) {
 	t.Parallel()
 
-	for _, in := range []string{
-		"en-US-u-hc-h25",
-		"en-US-u-kf-middle",
-		"en-US-u-fw-funday",
-		"en-US-u-ca-a",
-		"en-US-u-nu-ab_cd",
+	for _, tc := range []struct {
+		in       string
+		name     string
+		value    string
+		expected string
+	}{
+		{in: "en-US-u-hc-h25", name: "hourCycle", value: "h25", expected: localeHourCycleExpected},
+		{in: "en-US-u-kf-middle", name: "caseFirst", value: "middle", expected: localeCaseFirstExpected},
+		{in: "en-US-u-fw-funday", name: "firstDayOfWeek", value: "funday", expected: localeFirstDayExpected},
+		{in: "en-US-u-ca-a", name: "languageTag", value: "en-US-u-ca-a", expected: localeLanguageTagExpected},
+		{in: "en-US-u-nu-ab_cd", name: "languageTag", value: "en-US-u-nu-ab_cd", expected: localeLanguageTagExpected},
 	} {
-		t.Run(in, func(t *testing.T) {
+		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
-			_, err := Parse(in)
+			_, err := Parse(tc.in)
 			if !errors.Is(err, intlerr.ErrInvalidValue) {
-				t.Fatalf("Parse(%q) err = %v, want intlerr.ErrInvalidValue", in, err)
+				t.Fatalf("Parse(%q) err = %v, want intlerr.ErrInvalidValue", tc.in, err)
+			}
+			detail := assertStructuredLocaleError(t, err, intlerr.InvalidValue)
+			if detail.Name != tc.name || detail.Value != tc.value || detail.Expected != tc.expected {
+				t.Fatalf("Parse(%q) error detail = %+v, want name=%q value=%q expected=%q", tc.in, detail, tc.name, tc.value, tc.expected)
 			}
 		})
 	}

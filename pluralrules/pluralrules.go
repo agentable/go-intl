@@ -1,7 +1,6 @@
 package pluralrules
 
 import (
-	"errors"
 	"strings"
 	"sync"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/agentable/go-intl/internal/ecma402"
 	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
 	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
-	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/internal/localematcher"
 	"github.com/agentable/go-intl/locale"
 )
@@ -37,13 +35,14 @@ func (c Category) MarshalText() ([]byte, error) {
 }
 
 type PluralRules struct {
-	loc             locale.Locale
-	rangeLocale     string
-	cfg             config
+	dataLocale      string
 	digitOptions    ecma402nf.DigitOptions
 	integerOperands bool
-	rule            func(ecma402pr.OperandsRecord) ecma402pr.Category
+	rule            pluralRuleFunc
+	resolved        ResolvedOptions
 }
+
+type pluralRuleFunc func(ecma402pr.OperandsRecord) ecma402pr.Category
 
 var pluralRulesLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
 	return localematcher.NewMatcher(plural.SupportedLocales(), cldrlocale.Maximize)
@@ -51,112 +50,107 @@ var pluralRulesLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
 
 func New(locales locale.List, opts Options) (*PluralRules, error) {
 	cfg := configFromOptions(opts)
-	if err := cfg.validate(); err != nil {
+	validationLocale := ecma402.ValidationLocale(locales)
+	validationLocaleName := validationLocale.String()
+	if err := cfg.validate(validationLocaleName); err != nil {
 		return nil, err
 	}
-	resolvedDigits, invalid, ok := ecma402nf.SetNumberFormatDigitOptions(cfg.digitOptionInput(), 0, 3, cfg.notation)
+	resolvedDigits, invalid, ok := ecma402nf.SetNumberFormatDigitOptions(cfg.digits, 0, 3, cfg.notation)
 	if ok {
-		return nil, invalidOption(invalid.Name, invalid.Value)
+		return nil, ecma402nf.InvalidDigitOptionError(pluralRulesOwner, invalid, validationLocaleName)
 	}
-	cfg.applyResolvedDigits(resolvedDigits)
-	validationLocale := ecma402.ValidationLocale(locales)
 	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
 		Locales:       locales,
 		Fallback:      validationLocale,
 		LocaleMatcher: cfg.localeMatcher,
 		Matcher:       pluralRulesLocaleMatcher(),
 	})
-	dataLocale := resolution.DataLocale
-	if dataLocale == "" {
-		dataLocale = ecma402.DefaultLocale()
-	}
-	rule, ok := plural.CardinalRule(dataLocale)
-	if cfg.typ == Ordinal {
-		rule, ok = plural.OrdinalRule(dataLocale)
-	}
-	if !ok {
-		rule, _ = plural.CardinalRule("en")
+	dataLocale := ecma402.ResolveDataLocaleTag(resolution)
+	rule := plural.CardinalRuleOrDefault(dataLocale)
+	if cfg.typ == string(Ordinal) {
+		if ordinalRule, ok := plural.OrdinalRule(dataLocale); ok {
+			rule = ordinalRule
+		}
 	}
 	return &PluralRules{
-		loc:             resolution.Locale,
-		rangeLocale:     resolution.Locale.Tag().String(),
-		cfg:             cfg,
+		dataLocale:      dataLocale,
 		digitOptions:    resolvedDigits.DigitOptions,
-		integerOperands: cfg.canUseIntegerOperands(),
+		integerOperands: resolvedDigits.CanUseIntegerOperands(cfg.notation),
 		rule:            rule,
+		resolved:        resolvedOptionsForPluralRules(resolution.Locale, cfg, resolvedDigits, dataLocale),
 	}, nil
 }
 
 // Select returns the plural category for a numeric value.
 func (f *PluralRules) Select(v Value) (Category, error) {
+	numeric := v.numeric
 	if f.integerOperands {
-		switch v.kind {
-		case valueInt64:
-			return f.selectInteger(v.int64), nil
-		case valueUint64:
-			return f.selectUnsignedInteger(v.uint64), nil
-		case valueDecimal:
+		switch numeric.Kind {
+		case ecma402.NumericValueInt64:
+			return selectInteger(numeric.Int64, f.rule), nil
+		case ecma402.NumericValueUint64:
+			return selectUnsignedInteger(numeric.Uint64, f.rule), nil
+		case ecma402.NumericValueDecimal:
 		}
 	}
-	if err := ecma402.RequireFiniteDecimalInput(v.decimal); err != nil {
-		return Other, invalidValue("value", v.decimal.String(), err)
+	if err := ecma402.RequireFiniteDecimalInput(numeric.Decimal); err != nil {
+		return Other, invalidValue("value", numeric.Decimal.String(), f.resolved.Locale.String(), err)
 	}
-	_, _, category := f.resolveDecimal(v.decimal)
+	_, _, category := resolveDecimal(numeric.Decimal, f.resolved.Notation, f.digitOptions, f.rule)
 	return category, nil
-}
-
-func parseFiniteDecimalValue(name, value string) (decimal.Decimal, error) {
-	d, err := ecma402.ParseFiniteDecimalInput(value)
-	if err != nil {
-		return decimal.Decimal{}, invalidValue(name, value, err)
-	}
-	return d, nil
 }
 
 // SelectRange returns the plural category for a numeric range.
 func (f *PluralRules) SelectRange(start, end Value) (Category, error) {
+	startNumeric := start.numeric
+	endNumeric := end.numeric
 	if f.integerOperands {
 		switch {
-		case start.kind == valueInt64 && end.kind == valueInt64:
-			startCategory := f.selectInteger(start.int64)
-			if start.int64 == end.int64 {
+		case startNumeric.Kind == ecma402.NumericValueInt64 && endNumeric.Kind == ecma402.NumericValueInt64:
+			startCategory := selectInteger(startNumeric.Int64, f.rule)
+			if startNumeric.Int64 == endNumeric.Int64 {
 				return startCategory, nil
 			}
-			return f.selectRangeCategories(startCategory, f.selectInteger(end.int64)), nil
-		case start.kind == valueUint64 && end.kind == valueUint64:
-			startCategory := f.selectUnsignedInteger(start.uint64)
-			if start.uint64 == end.uint64 {
+			return selectRangeCategories(startCategory, selectInteger(endNumeric.Int64, f.rule), f), nil
+		case startNumeric.Kind == ecma402.NumericValueUint64 && endNumeric.Kind == ecma402.NumericValueUint64:
+			startCategory := selectUnsignedInteger(startNumeric.Uint64, f.rule)
+			if startNumeric.Uint64 == endNumeric.Uint64 {
 				return startCategory, nil
 			}
-			return f.selectRangeCategories(startCategory, f.selectUnsignedInteger(end.uint64)), nil
+			return selectRangeCategories(startCategory, selectUnsignedInteger(endNumeric.Uint64, f.rule), f), nil
 		}
 	}
-	if err := ecma402.RequireFiniteDecimalInput(start.decimal); err != nil {
-		return Other, invalidValue("start", start.decimal.String(), err)
+	if err := ecma402.RequireFiniteDecimalInput(startNumeric.Decimal); err != nil {
+		return Other, invalidValue("start", startNumeric.Decimal.String(), f.resolved.Locale.String(), err)
 	}
-	if err := ecma402.RequireFiniteDecimalInput(end.decimal); err != nil {
-		return Other, invalidValue("end", end.decimal.String(), err)
+	if err := ecma402.RequireFiniteDecimalInput(endNumeric.Decimal); err != nil {
+		return Other, invalidValue("end", endNumeric.Decimal.String(), f.resolved.Locale.String(), err)
 	}
-	return f.selectRangeDecimal(start.decimal, end.decimal), nil
+	return selectRangeDecimal(startNumeric.Decimal, endNumeric.Decimal, f), nil
 }
 
-func (f *PluralRules) selectRangeDecimal(start, end decimal.Decimal) Category {
-	_, startRounded, startCategory := f.resolveDecimal(start)
-	_, endRounded, endCategory := f.resolveDecimal(end)
-	return f.selectRangeResolved(startRounded, startCategory, endRounded, endCategory)
+func selectRangeDecimal(start, end decimal.Decimal, f *PluralRules) Category {
+	notation := f.resolved.Notation
+	digitOptions := f.digitOptions
+	rule := f.rule
+	_, startRounded, startCategory := resolveDecimal(start, notation, digitOptions, rule)
+	_, endRounded, endCategory := resolveDecimal(end, notation, digitOptions, rule)
+	return selectRangeResolved(startRounded, startCategory, endRounded, endCategory, f)
 }
 
-func (f *PluralRules) selectRangeResolved(startRounded decimal.Decimal, startCategory Category, endRounded decimal.Decimal, endCategory Category) Category {
+func selectRangeResolved(startRounded decimal.Decimal, startCategory Category, endRounded decimal.Decimal, endCategory Category, f *PluralRules) Category {
 	if startRounded.Cmp(endRounded) == 0 {
 		return startCategory
 	}
-	return f.selectRangeCategories(startCategory, endCategory)
+	return selectRangeCategories(startCategory, endCategory, f)
 }
 
-func (f *PluralRules) selectRangeCategories(startCategory Category, endCategory Category) Category {
-	if category, ok := plural.Range(
-		f.rangeLocale,
-		f.cfg.typ.String(),
+func selectRangeCategories(startCategory Category, endCategory Category, f *PluralRules) Category {
+	if f.resolved.Type != Cardinal {
+		return endCategory
+	}
+	if category, ok := plural.CardinalRange(
+		f.dataLocale,
 		ecma402pr.Category(startCategory),
 		ecma402pr.Category(endCategory),
 	); ok {
@@ -165,31 +159,33 @@ func (f *PluralRules) selectRangeCategories(startCategory Category, endCategory 
 	return endCategory
 }
 
-func (f *PluralRules) selectInteger(n int64) Category {
-	return Category(f.rule(ecma402pr.GetIntegerOperands(n)))
+func selectInteger(n int64, rule pluralRuleFunc) Category {
+	return Category(rule(ecma402pr.GetIntegerOperands(n)))
 }
 
-func (f *PluralRules) selectUnsignedInteger(n uint64) Category {
-	return Category(f.rule(ecma402pr.GetUnsignedIntegerOperands(n)))
+func selectUnsignedInteger(n uint64, rule pluralRuleFunc) Category {
+	return Category(rule(ecma402pr.GetUnsignedIntegerOperands(n)))
 }
 
-func (f *PluralRules) resolveDecimal(d decimal.Decimal) (string, decimal.Decimal, Category) {
-	exponent := f.computeExponent(d)
+func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf.DigitOptions, rule pluralRuleFunc) (string, decimal.Decimal, Category) {
+	exponent := pluralExponent(d, notation)
 	if exponent != 0 {
 		d = decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent is derived from decimal.Log10Floor int32.
 	}
-	result := ecma402nf.FormatNumericToString(d, f.digitOptions)
+	result := ecma402nf.FormatNumericToString(d, digitOptions)
 	formatted := strings.TrimPrefix(result.Formatted, "-")
 	ops := ecma402pr.GetOperands(formatted, exponent)
-	return formatted, result.Rounded, Category(f.rule(ops))
+	return formatted, result.Rounded, Category(rule(ops))
 }
 
-func (f *PluralRules) computeExponent(d decimal.Decimal) int {
-	switch f.cfg.notation {
-	case string(ScientificNotation):
-		return scientificExponent(d, false)
-	case string(EngineeringNotation):
-		return scientificExponent(d, true)
+func pluralExponent(d decimal.Decimal, notation Notation) int {
+	switch notation {
+	case ScientificNotation:
+		exponent, _ := ecma402nf.ScientificExponent(d, false)
+		return exponent
+	case EngineeringNotation:
+		exponent, _ := ecma402nf.ScientificExponent(d, true)
+		return exponent
 	default:
 		// Compact notation is not exposed via the plural operand c/e: ICU and V8
 		// derive plural operands from the source value (e.g. 1_200_000) rather
@@ -198,38 +194,6 @@ func (f *PluralRules) computeExponent(d decimal.Decimal) int {
 	}
 }
 
-func scientificExponent(d decimal.Decimal, engineering bool) int {
-	abs := decimal.Abs(d)
-	if abs.IsZero() {
-		return 0
-	}
-	magnitude, err := decimal.Log10Floor(abs)
-	if err != nil {
-		return 0
-	}
-	exponent := int(magnitude)
-	if engineering {
-		exponent -= positiveMod(exponent, 3)
-	}
-	return exponent
-}
-
-func positiveMod(n, mod int) int {
-	out := n % mod
-	if out < 0 {
-		out += mod
-	}
-	return out
-}
-
-func invalidOption(name, value string) error {
-	return ecma402.InvalidOptionError("pluralrules", name, value, "", intlerr.ErrInvalidOption)
-}
-
-func invalidValue(name, value string, err error) error {
-	cause := intlerr.ErrInvalidValue
-	if err != nil {
-		cause = errors.Join(intlerr.ErrInvalidValue, err)
-	}
-	return intlerr.New(intlerr.InvalidValue, "pluralrules", name, value, "", cause)
+func invalidValue(name, value, loc string, err error) error {
+	return ecma402.InvalidFiniteNumericValueError(pluralRulesOwner, name, value, loc, err)
 }

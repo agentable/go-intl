@@ -11,6 +11,7 @@ func Bool(v bool) *bool {
 }
 
 // String returns a pointer to v for optional string Options fields.
-func String(v string) *string {
-	return &v
+func String[T ~string](v T) *string {
+	value := string(v)
+	return &value
 }

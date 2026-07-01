@@ -1,13 +1,6 @@
 package localematcher
 
-import (
-	"github.com/agentable/go-intl/internal/localeid"
-)
-
-type keyword struct {
-	key   string
-	value string
-}
+import "github.com/agentable/go-intl/internal/localeid"
 
 func UnicodeExtensionValue(extension, key string) string {
 	ext, err := localeid.ParseUnicodeExtension(extension)
@@ -17,13 +10,9 @@ func UnicodeExtensionValue(extension, key string) string {
 	return ext.ValueForKey(key)
 }
 
-func InsertUnicodeExtensionAndCanonicalize(loc string, keywords []keyword) string {
+func InsertUnicodeExtensionAndCanonicalize(loc string, keywords []localeid.UnicodeKeyword) string {
 	if len(keywords) == 0 {
 		return loc
 	}
-	out := make([]localeid.UnicodeKeyword, 0, len(keywords))
-	for _, kw := range keywords {
-		out = append(out, localeid.UnicodeKeyword{Key: kw.key, Value: kw.value})
-	}
-	return localeid.InsertUnicodeExtension(loc, nil, out)
+	return localeid.InsertUnicodeExtension(loc, nil, keywords)
 }

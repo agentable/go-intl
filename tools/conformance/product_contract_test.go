@@ -13,13 +13,11 @@ import (
 func TestSegmenterNodeContractCoversSupportedLocales(t *testing.T) {
 	t.Parallel()
 
-	fixtures, err := LoadFixtures(filepath.Join(repositoryRoot(t), "segmenter"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixtures := loadPackageFixtures(t, "segmenter")
 	coverage := map[string]map[string]bool{}
+	localeContractSource := nodeWitnessSource(nodeSourceSegmenterLocaleContract)
 	for _, fixture := range fixtures {
-		if fixture.Source != "node:v26.0.0:segmenter:locale-contract" {
+		if fixture.Source != localeContractSource {
 			continue
 		}
 		var options struct {
@@ -47,57 +45,37 @@ func TestSegmenterNodeContractCoversSupportedLocales(t *testing.T) {
 func TestCollatorNodeOptionContractsExistBeforeBackendAcceptance(t *testing.T) {
 	t.Parallel()
 
-	fixtures, err := LoadFixtures(filepath.Join(repositoryRoot(t), "collator"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	byID := make(map[string]Fixture, len(fixtures))
-	for _, fixture := range fixtures {
-		byID[fixture.ID] = fixture
-	}
+	fixtures := loadPackageFixtures(t, "collator")
+	byID := fixturesByID(fixtures)
 	for _, id := range []string{
-		"collator-node-v26-search-usage-contract",
-		"collator-node-v26-numeric-locale-extension-contract",
-		"collator-node-v26-case-first-upper-contract",
-		"collator-node-v26-case-first-lower-contract",
-		"collator-node-v26-locale-case-first-upper-contract",
-		"collator-node-v26-german-phonebook-option-contract",
-		"collator-node-v26-german-phonebook-locale-contract",
+		nodeWitnessFixtureID("collator", "search-usage-contract"),
+		nodeWitnessFixtureID("collator", "numeric-locale-extension-contract"),
+		nodeWitnessFixtureID("collator", "case-first-upper-contract"),
+		nodeWitnessFixtureID("collator", "case-first-lower-contract"),
+		nodeWitnessFixtureID("collator", "locale-case-first-upper-contract"),
+		nodeWitnessFixtureID("collator", "german-phonebook-option-contract"),
+		nodeWitnessFixtureID("collator", "german-phonebook-locale-contract"),
 	} {
-		fixture, ok := byID[id]
-		if !ok {
-			t.Fatalf("missing collator node option contract fixture %q", id)
-		}
+		fixture := requireFixtureByID(t, byID, id, "collator node option contract")
 		if fixture.ExpectedComparison == nil {
 			t.Fatalf("fixture %q missing expectedComparison", id)
 		}
-		if len(fixture.ExpectedResolved) == 0 {
-			t.Fatalf("fixture %q missing expectedResolvedOptions", id)
-		}
+		requireExpectedResolvedOptions(t, fixture)
 	}
 }
 
 func TestSegmenterTailoredLocaleContractsRemainWithheld(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.Join(repositoryRoot(t), "segmenter")
-	fixtures, err := LoadFixtures(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	byID := make(map[string]Fixture, len(fixtures))
-	for _, fixture := range fixtures {
-		byID[fixture.ID] = fixture
-	}
+	root := packageRoot(t, "segmenter")
+	fixtures := loadPackageFixtures(t, "segmenter")
+	byID := fixturesByID(fixtures)
 	for _, id := range []string{
-		"segmenter-node-v26-th-word-tailored-contract",
-		"segmenter-node-v26-ja-word-tailored-contract",
-		"segmenter-node-v26-zh-hant-word-tailored-contract",
+		nodeWitnessFixtureID("segmenter", "th-word-tailored-contract"),
+		nodeWitnessFixtureID("segmenter", "ja-word-tailored-contract"),
+		nodeWitnessFixtureID("segmenter", "zh-hant-word-tailored-contract"),
 	} {
-		fixture, ok := byID[id]
-		if !ok {
-			t.Fatalf("missing segmenter tailored-locale node contract fixture %q", id)
-		}
+		fixture := requireFixtureByID(t, byID, id, "segmenter tailored-locale node contract")
 		if len(fixture.ExpectedSegments) == 0 {
 			t.Fatalf("fixture %q missing expectedSegments", id)
 		}
@@ -110,23 +88,15 @@ func TestSegmenterTailoredLocaleContractsRemainWithheld(t *testing.T) {
 func TestSegmenterManualCapabilityBoundaryCoversTailoredLocales(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.Join(repositoryRoot(t), "segmenter")
-	fixtures, err := LoadFixtures(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixtures := loadPackageFixtures(t, "segmenter")
 
-	var boundary Fixture
-	for _, fixture := range fixtures {
-		if fixture.ID == "segmenter-manual-supported-locales-excludes-tailored-locales" {
-			boundary = fixture
-			break
-		}
-	}
-	if boundary.ID == "" {
-		t.Fatal("missing segmenter manual supported-locales capability boundary fixture")
-	}
-	if got, want := boundary.Feature, "supportedLocalesOf"; got != want {
+	boundary := requireFixtureByID(
+		t,
+		fixturesByID(fixtures),
+		"segmenter-manual-supported-locales-excludes-tailored-locales",
+		"segmenter manual supported-locales capability boundary",
+	)
+	if got, want := boundary.Feature, FeatureSupportedLocalesOf; got != want {
 		t.Fatalf("segmenter manual capability boundary feature = %q, want %q", got, want)
 	}
 	if len(boundary.ExpectedLocales) != 1 || boundary.ExpectedLocales[0] != "en" {
@@ -151,11 +121,8 @@ func TestSegmenterManualCapabilityBoundaryCoversTailoredLocales(t *testing.T) {
 func TestDateTimeFormatNodeDeepContractsExist(t *testing.T) {
 	t.Parallel()
 
-	fixtures, err := LoadFixtures(filepath.Join(repositoryRoot(t), "datetimeformat"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	const source = "node:v26.0.0:datetimeformat:p4-deep-contract"
+	fixtures := loadPackageFixtures(t, "datetimeformat")
+	source := nodeWitnessSource(nodeSourceDateTimeFormatDeepContract)
 	byID := map[string]Fixture{}
 	timeZoneNameForms := map[string]bool{}
 	for _, fixture := range fixtures {
@@ -163,9 +130,7 @@ func TestDateTimeFormatNodeDeepContractsExist(t *testing.T) {
 			continue
 		}
 		byID[fixture.ID] = fixture
-		if len(fixture.ExpectedResolved) == 0 {
-			t.Fatalf("fixture %q missing expectedResolvedOptions", fixture.ID)
-		}
+		requireExpectedResolvedOptions(t, fixture)
 		var options struct {
 			TimeZoneName string `json:"timeZoneName"`
 		}
@@ -178,17 +143,14 @@ func TestDateTimeFormatNodeDeepContractsExist(t *testing.T) {
 	}
 
 	for _, id := range []string{
-		"datetimeformat-node-v26-range-date-time-utc-h23",
-		"datetimeformat-node-v26-range-time-utc-h23",
-		"datetimeformat-node-v26-range-shared-month-prefix",
-		"datetimeformat-node-v26-tz-metazone-london-winter",
-		"datetimeformat-node-v26-tz-metazone-london-summer",
-		"datetimeformat-node-v26-tz-offset-string-kolkata",
+		nodeWitnessFixtureID("datetimeformat", "range-date-time-utc-h23"),
+		nodeWitnessFixtureID("datetimeformat", "range-time-utc-h23"),
+		nodeWitnessFixtureID("datetimeformat", "range-shared-month-prefix"),
+		nodeWitnessFixtureID("datetimeformat", "tz-metazone-london-winter"),
+		nodeWitnessFixtureID("datetimeformat", "tz-metazone-london-summer"),
+		nodeWitnessFixtureID("datetimeformat", "tz-offset-string-kolkata"),
 	} {
-		fixture, ok := byID[id]
-		if !ok {
-			t.Fatalf("missing DateTimeFormat node deep contract fixture %q", id)
-		}
+		fixture := requireFixtureByID(t, byID, id, "DateTimeFormat node deep contract")
 		if fixture.ExpectedRange == nil && fixture.Expected == nil {
 			t.Fatalf("fixture %q missing expected output", id)
 		}
@@ -204,53 +166,65 @@ func TestDateTimeFormatNodeDeepContractsExist(t *testing.T) {
 func TestNumberFormatResolvedOptionContractsExist(t *testing.T) {
 	t.Parallel()
 
-	fixtures, err := LoadFixtures(filepath.Join(repositoryRoot(t), "numberformat"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	byID := make(map[string]Fixture, len(fixtures))
-	for _, fixture := range fixtures {
-		byID[fixture.ID] = fixture
-	}
+	fixtures := loadPackageFixtures(t, "numberformat")
+	byID := fixturesByID(fixtures)
 	for _, id := range []string{
 		"numberformat-manual-resolved-compact-defaults",
 		"numberformat-manual-resolved-significant-digits-hide-fraction",
 		"numberformat-manual-resolved-scientific-currency-defaults",
 	} {
-		fixture, ok := byID[id]
-		if !ok {
-			t.Fatalf("missing NumberFormat resolved-options contract fixture %q", id)
-		}
-		if len(fixture.ExpectedResolved) == 0 {
-			t.Fatalf("fixture %q missing expectedResolvedOptions", id)
-		}
+		fixture := requireFixtureByID(t, byID, id, "NumberFormat resolved-options contract")
+		requireExpectedResolvedOptions(t, fixture)
 	}
 }
 
 func TestDisplayNamesResolvedOptionContractsExist(t *testing.T) {
 	t.Parallel()
 
-	fixtures, err := LoadFixtures(filepath.Join(repositoryRoot(t), "displaynames"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	byID := make(map[string]Fixture, len(fixtures))
-	for _, fixture := range fixtures {
-		byID[fixture.ID] = fixture
-	}
+	fixtures := loadPackageFixtures(t, "displaynames")
+	byID := fixturesByID(fixtures)
 	for _, id := range []string{
 		"displaynames-manual-resolved-region-omits-language-display",
 		"displaynames-manual-resolved-language-defaults",
 		"displaynames-manual-resolved-language-standard-short",
 	} {
-		fixture, ok := byID[id]
-		if !ok {
-			t.Fatalf("missing DisplayNames resolved-options contract fixture %q", id)
-		}
-		if len(fixture.ExpectedResolved) == 0 {
-			t.Fatalf("fixture %q missing expectedResolvedOptions", id)
-		}
+		fixture := requireFixtureByID(t, byID, id, "DisplayNames resolved-options contract")
+		requireExpectedResolvedOptions(t, fixture)
 	}
+}
+
+func loadPackageFixtures(t *testing.T, packageName string) []Fixture {
+	t.Helper()
+
+	fixtures, err := LoadFixtures(packageRoot(t, packageName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fixtures
+}
+
+func packageRoot(t *testing.T, packageName string) string {
+	t.Helper()
+
+	return filepath.Join(repositoryRoot(t), packageName)
+}
+
+func requireExpectedResolvedOptions(t *testing.T, fixture Fixture) {
+	t.Helper()
+
+	if len(fixture.ExpectedResolved) == 0 {
+		t.Fatalf("fixture %q missing expectedResolvedOptions", fixture.ID)
+	}
+}
+
+func requireFixtureByID(t *testing.T, byID map[string]Fixture, id, label string) Fixture {
+	t.Helper()
+
+	fixture, ok := byID[id]
+	if !ok {
+		t.Fatalf("missing %s fixture %q", label, id)
+	}
+	return fixture
 }
 
 func repositoryRoot(t *testing.T) string {

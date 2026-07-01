@@ -3,9 +3,10 @@ package cldr
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
+
+	cldrpattern "github.com/agentable/go-intl/internal/pattern"
 )
 
 type ListPatterns map[string]map[string]ListPattern
@@ -20,12 +21,15 @@ type ListPattern struct {
 func loadListPatterns(root string, locales []string) (map[string]ListPatterns, error) {
 	loaded := make(map[string]ListPatterns)
 	for _, locale := range locales {
-		if locale == "und" {
+		if locale == undefinedLocale {
 			continue
 		}
 		path := filepath.Join(root, "cldr-misc-full", "main", locale, "listPatterns.json")
-		raw, err := os.ReadFile(path)
+		raw, ok, err := readOptionalFile(path)
 		if err != nil {
+			return nil, err
+		}
+		if !ok {
 			continue
 		}
 		var doc struct {
@@ -40,11 +44,17 @@ func loadListPatterns(root string, locales []string) (map[string]ListPatterns, e
 		if !ok {
 			return nil, fmt.Errorf("listPatterns body missing for %s", locale)
 		}
+		if body.ListPatterns == nil {
+			return nil, fmt.Errorf("listPatterns data missing for %s", locale)
+		}
 		patterns := make(ListPatterns)
 		for _, key := range listPatternKeys {
 			pattern, ok := body.ListPatterns[key.cldr]
 			if !ok {
-				continue
+				return nil, fmt.Errorf("listPatterns %s missing for %s", key.cldr, locale)
+			}
+			if err := validateListPattern(key.cldr, pattern); err != nil {
+				return nil, err
 			}
 			if patterns[key.typ] == nil {
 				patterns[key.typ] = make(map[string]ListPattern)
@@ -55,44 +65,36 @@ func loadListPatterns(root string, locales []string) (map[string]ListPatterns, e
 			loaded[locale] = patterns
 		}
 	}
-	out := make(map[string]ListPatterns, len(locales))
-	for _, locale := range locales {
-		if locale == "und" {
-			continue
-		}
-		if patterns, ok := loaded[locale]; ok {
-			out[locale] = patterns
-			continue
-		}
-		if patterns, ok := inheritedListPatterns(locale, loaded); ok {
-			out[locale] = patterns
-		}
-	}
-	return out, nil
+	return inheritedLocaleData(locales, loaded), nil
 }
 
-func inheritedListPatterns(locale string, loaded map[string]ListPatterns) (ListPatterns, bool) {
-	for parent := parentLocale(locale); parent != ""; parent = parentLocale(parent) {
-		if patterns, ok := loaded[parent]; ok {
-			return patterns, true
+func validateListPattern(cldrKey string, pattern ListPattern) error {
+	for _, field := range [...]struct {
+		name  string
+		value string
+	}{
+		{name: "2", value: pattern.Pair},
+		{name: "start", value: pattern.Start},
+		{name: "middle", value: pattern.Middle},
+		{name: "end", value: pattern.End},
+	} {
+		if strings.Count(field.value, "{0}") != 1 || strings.Count(field.value, "{1}") != 1 {
+			return fmt.Errorf("%s.%s invalid: expected one {0} and one {1}, got %q", cldrKey, field.name, field.value)
+		}
+		if _, err := cldrpattern.Partition(field.value); err != nil {
+			return fmt.Errorf("%s.%s invalid pattern: %w", cldrKey, field.name, err)
 		}
 	}
-	return nil, false
+	return nil
 }
 
-func parentLocale(locale string) string {
-	pos := strings.LastIndex(locale, "-")
-	if pos < 0 {
-		return ""
-	}
-	return locale[:pos]
-}
-
-var listPatternKeys = []struct {
+type listPatternKey struct {
 	cldr  string
 	typ   string
 	style string
-}{
+}
+
+var listPatternKeys = [...]listPatternKey{
 	{cldr: "listPattern-type-standard", typ: "conjunction", style: "long"},
 	{cldr: "listPattern-type-standard-short", typ: "conjunction", style: "short"},
 	{cldr: "listPattern-type-standard-narrow", typ: "conjunction", style: "narrow"},

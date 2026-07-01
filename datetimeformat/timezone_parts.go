@@ -4,6 +4,7 @@ import (
 	"time"
 
 	cldrtimezone "github.com/agentable/go-intl/internal/cldr/timezone"
+	"github.com/agentable/go-intl/internal/ecma402"
 	"github.com/agentable/go-intl/internal/tz"
 )
 
@@ -23,39 +24,32 @@ func (f *DateTimeFormat) genericTimeZonePatternName(width int, t time.Time) stri
 	return f.localizedTimeZonePatternName(form, width, t)
 }
 
-func (f *DateTimeFormat) offsetTimeZonePatternName(_ int, t time.Time) string {
-	_, info := f.timeZoneInfo(t)
+func (f *DateTimeFormat) offsetTimeZonePatternName(t time.Time) string {
+	_, info := resolvedTimeZoneInfo(f.resolved.TimeZone, f.location, t)
 	form := cldrtimezone.TimeZoneNameShortOffset
-	if f.resolved.TimeZoneName == LongOffsetTimeZoneName {
+	if ecma402.ResolvedScalarValue(f.resolved.TimeZoneName) == LongOffsetTimeZoneName {
 		form = cldrtimezone.TimeZoneNameLongOffset
 	}
-	return cldrtimezone.GMTOffsetName(f.timeZoneLoc(), info.OffsetMs, form)
+	return cldrtimezone.GMTOffsetName(cldrtimezone.Locale(f.cldrLoc), info.OffsetMs, form)
 }
 
 func (f *DateTimeFormat) localizedTimeZonePatternName(form cldrtimezone.TimeZoneName, width int, t time.Time) string {
-	zone, info := f.timeZoneInfo(t)
+	loc := cldrtimezone.Locale(f.cldrLoc)
+	zone, info := resolvedTimeZoneInfo(f.resolved.TimeZone, f.location, t)
 	if zone != "" && zone != "Local" {
-		if name := cldrtimezone.TimeZoneDisplayName(f.timeZoneLoc(), zone, form, info.IsDST, t.UnixMilli(), info.OffsetMs); name != "" {
+		if name := cldrtimezone.TimeZoneDisplayName(loc, zone, form, info.IsDST, t.UnixMilli(), info.OffsetMs); name != "" {
 			return name
 		}
 	}
 	if form == cldrtimezone.TimeZoneNameShort && width < 4 && info.Abbrv != "" {
 		return info.Abbrv
 	}
-	return cldrtimezone.GMTOffsetName(f.timeZoneLoc(), info.OffsetMs, form)
+	return cldrtimezone.GMTOffsetName(loc, info.OffsetMs, form)
 }
 
-// timeZoneLoc bridges the date-domain locale handle to the timezone domain.
-// Both are aliases of the same kernel locale handle type, so the conversion is
-// an identity, not a numeric reinterpretation.
-func (f *DateTimeFormat) timeZoneLoc() cldrtimezone.Locale {
-	return cldrtimezone.Locale(f.cldrLoc)
-}
-
-func (f *DateTimeFormat) timeZoneInfo(t time.Time) (string, tz.ZoneInfo) {
-	zone := f.resolved.TimeZone
-	if f.location != nil {
-		return zone, tz.LookupAt(f.location, t)
+func resolvedTimeZoneInfo(zone string, location *time.Location, t time.Time) (string, tz.ZoneInfo) {
+	if location != nil {
+		return zone, tz.LookupAt(location, t)
 	}
 	if zone == "" {
 		zone = "UTC"

@@ -1,12 +1,11 @@
-// Hand-written decode layer for the locale kernel. It expands the const blobs in
-// data.go into the same in-memory structures the legacy literal locales.go,
-// likely_subtags.go, preference.go, and numbering.go produced, behind per-blob
-// sync.Once gates.
+// Hand-written decode layer for the locale kernel. It expands const blobs from
+// data.go into the locale registry, likely-subtag, preference, and numbering
+// records consumed by accessors.go, behind per-blob sync.Once gates.
 //
 // The kernel owns the Locale handle type every formatter domain borrows. A
 // domain's packed keys depend on the locale index this package assigns, so the
 // registry decode here is authoritative: Locale(i) is the i-th tag in the sorted
-// _localeBlob, "und" pinned at 0, exactly as the legacy literal table assigned.
+// _localeBlob, with "und" pinned at 0.
 
 package cldrlocale
 
@@ -51,93 +50,64 @@ var (
 )
 
 func loadLocaleRegistry() {
-	r := codec.NewReader(_localeBlob)
-	count := r.Uvarint()
-	availableLocaleTags = make([]string, count)
-	localeIndex = make(map[string]Locale, count)
-	for i := range availableLocaleTags {
-		tag := r.StringRef(_data)
-		availableLocaleTags[i] = tag
+	availableLocaleTags = codec.StringRefSlice(_localeBlob, _data)
+	localeIndex = make(map[string]Locale, len(availableLocaleTags))
+	for i, tag := range availableLocaleTags {
 		localeIndex[tag] = Locale(i)
 	}
 }
 
 func loadLikelySubtags() {
 	max := codec.NewReader(_maximizeBlob)
-	maxCount := max.Uvarint()
-	likelySubtags = make([]maximizeSubtagRecord, maxCount)
-	for i := range likelySubtags {
-		likelySubtags[i] = maximizeSubtagRecord{
-			key:    max.StringRef(_data),
-			lang:   max.StringRef(_data),
-			script: max.StringRef(_data),
-			region: max.StringRef(_data),
-		}
-	}
+	likelySubtags = codec.CountedSlice[maximizeSubtagRecord](&max, decodeMaximizeSubtagRecord)
 
 	min := codec.NewReader(_minimizeBlob)
-	minCount := min.Uvarint()
-	minimizeSubtags = make([]minimizeSubtagRecord, minCount)
-	for i := range minimizeSubtags {
-		minimizeSubtags[i] = minimizeSubtagRecord{
-			lang:      min.StringRef(_data),
-			script:    min.StringRef(_data),
-			region:    min.StringRef(_data),
-			minimized: min.StringRef(_data),
-		}
+	minimizeSubtags = codec.CountedSlice[minimizeSubtagRecord](&min, decodeMinimizeSubtagRecord)
+}
+
+func decodeMaximizeSubtagRecord(r *codec.Reader) maximizeSubtagRecord {
+	return maximizeSubtagRecord{
+		key:    r.StringRef(_data),
+		lang:   r.StringRef(_data),
+		script: r.StringRef(_data),
+		region: r.StringRef(_data),
+	}
+}
+
+func decodeMinimizeSubtagRecord(r *codec.Reader) minimizeSubtagRecord {
+	return minimizeSubtagRecord{
+		lang:      r.StringRef(_data),
+		script:    r.StringRef(_data),
+		region:    r.StringRef(_data),
+		minimized: r.StringRef(_data),
 	}
 }
 
 func loadNumbering() {
 	r := codec.NewReader(_numberingBlob)
-	count := r.Uvarint()
-	numberingByLocale = make(map[Locale]string, count)
-	locales := codec.Delta(&r)
-	for range count {
-		loc := Locale(locales.Next32())
-		numberingByLocale[loc] = r.StringRef(_data)
-	}
+	numberingByLocale = codec.Uint16DeltaMap[Locale, string](&r, decodeDefaultNumberingSystem)
 }
+
+func decodeDefaultNumberingSystem(r *codec.Reader) string { return r.StringRef(_data) }
+
+func decodePreferenceList(r *codec.Reader) []string { return r.StringRefSlice(_data) }
 
 func loadPreferenceData() {
 	hour := codec.NewReader(_hourCycleBlob)
-	hourCount := hour.Uvarint()
-	hourCyclePreference = make(map[string][]string, hourCount)
-	for range hourCount {
-		region := hour.StringRef(_data)
-		values := make([]string, hour.Uvarint())
-		for i := range values {
-			values[i] = hour.StringRef(_data)
-		}
-		hourCyclePreference[region] = values
-	}
+	hourCyclePreference = codec.StringRefKeyMap[[]string](&hour, _data, decodePreferenceList)
 
 	week := codec.NewReader(_weekBlob)
-	weekCount := week.Uvarint()
-	weekPreferenceByRegion = make(map[string]weekPreference, weekCount)
-	for range weekCount {
-		region := week.StringRef(_data)
-		first := time.Weekday(week.Uvarint())
-		weekendStart := time.Weekday(week.Uvarint())
-		weekendEnd := time.Weekday(week.Uvarint())
-		minDays := int(week.Uvarint())
-		weekPreferenceByRegion[region] = weekPreference{
-			first:        first,
-			weekendStart: weekendStart,
-			weekendEnd:   weekendEnd,
-			minDays:      minDays,
-		}
-	}
+	weekPreferenceByRegion = codec.StringRefKeyMap[weekPreference](&week, _data, decodeWeekPreference)
 
 	calendar := codec.NewReader(_calendarBlob)
-	calCount := calendar.Uvarint()
-	calendarPreference = make(map[string][]string, calCount)
-	for range calCount {
-		region := calendar.StringRef(_data)
-		values := make([]string, calendar.Uvarint())
-		for i := range values {
-			values[i] = calendar.StringRef(_data)
-		}
-		calendarPreference[region] = values
+	calendarPreference = codec.StringRefKeyMap[[]string](&calendar, _data, decodePreferenceList)
+}
+
+func decodeWeekPreference(r *codec.Reader) weekPreference {
+	return weekPreference{
+		first:        time.Weekday(r.Uvarint()),
+		weekendStart: time.Weekday(r.Uvarint()),
+		weekendEnd:   time.Weekday(r.Uvarint()),
+		minDays:      int(r.Uvarint()),
 	}
 }

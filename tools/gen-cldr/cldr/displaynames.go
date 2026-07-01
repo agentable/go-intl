@@ -3,7 +3,6 @@ package cldr
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -32,7 +31,7 @@ type StyledNames struct {
 func loadDisplayNames(root string, locales []string) (map[string]DisplayNames, error) {
 	loaded := make(map[string]DisplayNames)
 	for _, locale := range locales {
-		if locale == "und" {
+		if locale == undefinedLocale {
 			continue
 		}
 		data, ok, err := readDisplayNamesLocale(root, locale)
@@ -43,29 +42,7 @@ func loadDisplayNames(root string, locales []string) (map[string]DisplayNames, e
 			loaded[locale] = data
 		}
 	}
-	out := make(map[string]DisplayNames, len(locales))
-	for _, locale := range locales {
-		if locale == "und" {
-			continue
-		}
-		if data, ok := loaded[locale]; ok {
-			out[locale] = data
-			continue
-		}
-		if data, ok := inheritedDisplayNames(locale, loaded); ok {
-			out[locale] = data
-		}
-	}
-	return out, nil
-}
-
-func inheritedDisplayNames(locale string, loaded map[string]DisplayNames) (DisplayNames, bool) {
-	for parent := parentLocale(locale); parent != ""; parent = parentLocale(parent) {
-		if data, ok := loaded[parent]; ok {
-			return data, true
-		}
-	}
-	return DisplayNames{}, false
+	return inheritedLocaleData(locales, loaded), nil
 }
 
 func readDisplayNamesLocale(root, locale string) (DisplayNames, bool, error) {
@@ -108,12 +85,12 @@ func readDisplayNamesLocale(root, locale string) (DisplayNames, bool, error) {
 
 func readLocaleNamesFile(root, locale, file, field string) (map[string]string, bool, error) {
 	path := filepath.Join(root, "cldr-localenames-full", "main", locale, file)
-	raw, err := os.ReadFile(path)
+	raw, ok, err := readOptionalFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, false, nil
-		}
-		return nil, false, fmt.Errorf("read %s: %w", path, err)
+		return nil, false, err
+	}
+	if !ok {
+		return nil, false, nil
 	}
 	var doc struct {
 		Main map[string]struct {
@@ -123,33 +100,39 @@ func readLocaleNamesFile(root, locale, file, field string) (map[string]string, b
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, false, fmt.Errorf("parse %s: %w", path, err)
 	}
+	if doc.Main == nil {
+		return nil, false, fmt.Errorf("%s body missing for %s", file, locale)
+	}
 	body, ok := doc.Main[locale]
 	if !ok {
 		return nil, false, fmt.Errorf("%s body missing for %s", file, locale)
 	}
+	if body.LocaleDisplayNames == nil {
+		return nil, false, fmt.Errorf("%s localeDisplayNames missing for %s", file, locale)
+	}
 	values := body.LocaleDisplayNames[field]
 	if len(values) == 0 {
-		return nil, false, nil
+		return nil, false, fmt.Errorf("%s %s data missing for %s", file, field, locale)
 	}
 	return values, true, nil
 }
 
 func readLocaleDisplayNamesFile(root, locale string) (calendars map[string]string, pattern string, err error) {
 	path := filepath.Join(root, "cldr-localenames-full", "main", locale, "localeDisplayNames.json")
-	raw, readErr := os.ReadFile(path)
-	if readErr != nil {
-		if os.IsNotExist(readErr) {
-			return nil, "", nil
-		}
-		return nil, "", fmt.Errorf("read %s: %w", path, readErr)
+	raw, ok, err := readOptionalFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+	if !ok {
+		return nil, "", nil
 	}
 	var doc struct {
 		Main map[string]struct {
-			LocaleDisplayNames struct {
-				LocaleDisplayPattern struct {
+			LocaleDisplayNames *struct {
+				LocaleDisplayPattern *struct {
 					LocalePattern string `json:"localePattern"`
 				} `json:"localeDisplayPattern"`
-				Types struct {
+				Types *struct {
 					Calendar map[string]string `json:"calendar"`
 				} `json:"types"`
 			} `json:"localeDisplayNames"`
@@ -158,21 +141,34 @@ func readLocaleDisplayNamesFile(root, locale string) (calendars map[string]strin
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, "", fmt.Errorf("parse %s: %w", path, err)
 	}
+	if doc.Main == nil {
+		return nil, "", fmt.Errorf("localeDisplayNames body missing for %s", locale)
+	}
 	body, ok := doc.Main[locale]
 	if !ok {
 		return nil, "", fmt.Errorf("localeDisplayNames body missing for %s", locale)
 	}
-	return body.LocaleDisplayNames.Types.Calendar, body.LocaleDisplayNames.LocaleDisplayPattern.LocalePattern, nil
+	data := body.LocaleDisplayNames
+	if data == nil {
+		return nil, "", fmt.Errorf("localeDisplayNames data missing for %s", locale)
+	}
+	if data.LocaleDisplayPattern == nil || data.LocaleDisplayPattern.LocalePattern == "" {
+		return nil, "", fmt.Errorf("locale display pattern missing for %s", locale)
+	}
+	if data.Types == nil || len(data.Types.Calendar) == 0 {
+		return nil, "", fmt.Errorf("calendar display-name data missing for %s", locale)
+	}
+	return data.Types.Calendar, data.LocaleDisplayPattern.LocalePattern, nil
 }
 
 func readDateTimeFieldNames(root, locale string) (map[string]string, error) {
 	path := filepath.Join(root, "cldr-dates-full", "main", locale, "dateFields.json")
-	raw, err := os.ReadFile(path)
+	raw, ok, err := readOptionalFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("read %s: %w", path, err)
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
 	}
 	var doc struct {
 		Main map[string]struct {
@@ -186,9 +182,15 @@ func readDateTimeFieldNames(root, locale string) (map[string]string, error) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
+	if doc.Main == nil {
+		return nil, fmt.Errorf("dateFields body missing for %s", locale)
+	}
 	body, ok := doc.Main[locale]
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("dateFields body missing for %s", locale)
+	}
+	if len(body.Dates.Fields) == 0 {
+		return nil, fmt.Errorf("dateFields data missing for %s", locale)
 	}
 	out := make(map[string]string, len(body.Dates.Fields))
 	for key, value := range body.Dates.Fields {
@@ -200,78 +202,49 @@ func readDateTimeFieldNames(root, locale string) (map[string]string, error) {
 }
 
 func splitStyleData(raw map[string]string) StyledNames {
-	out := StyledNames{
-		Long:   make(map[string]string),
-		Short:  make(map[string]string),
-		Narrow: make(map[string]string),
-	}
+	out := newStyledNames()
 	for key, value := range raw {
 		if value == "" {
 			continue
 		}
-		base, alt, isAlt := strings.Cut(key, "-alt-")
-		if !isAlt {
-			out.Long[key] = value
+		name, style, _, ok := displayNameStyleKey(key)
+		if !ok {
 			continue
 		}
-		switch alt {
-		case "narrow":
-			out.Narrow[base] = value
-		case "short":
-			out.Short[base] = value
-		}
+		putStyledName(out, style, name, value)
 	}
-	if len(out.Long) == 0 {
-		out.Long = nil
-	}
-	if len(out.Short) == 0 {
-		out.Short = nil
-	}
-	if len(out.Narrow) == 0 {
-		out.Narrow = nil
-	}
-	return out
-}
-
-var cldrToTC39DateTimeField = map[string]string{
-	"week": "weekOfYear",
-	"zone": "timeZoneName",
+	return compactStyledNames(out)
 }
 
 func splitDateTimeFieldStyleData(raw map[string]string) StyledNames {
-	out := StyledNames{
-		Long:   make(map[string]string),
-		Short:  make(map[string]string),
-		Narrow: make(map[string]string),
-	}
+	out := newStyledNames()
 	for key, value := range raw {
 		if value == "" {
 			continue
 		}
 		base, suffix, hasSuffix := strings.Cut(key, "-")
-		field := cldrToTC39DateTimeField[base]
-		if field == "" {
-			field = base
+		field := dateTimeFieldLookupCode(base)
+		style := displayNameStyleLong
+		if hasSuffix {
+			if !isDisplayNameAltStyle(suffix) {
+				continue
+			}
+			style = suffix
 		}
-		switch {
-		case !hasSuffix:
-			out.Long[field] = value
-		case suffix == "narrow":
-			out.Narrow[field] = value
-		case suffix == "short":
-			out.Short[field] = value
-		}
+		putStyledName(out, style, field, value)
 	}
-	if len(out.Long) == 0 {
-		out.Long = nil
+	return compactStyledNames(out)
+}
+
+func dateTimeFieldLookupCode(code string) string {
+	switch code {
+	case "week":
+		return "weekOfYear"
+	case "zone":
+		return "timeZoneName"
+	default:
+		return code
 	}
-	if len(out.Short) == 0 {
-		out.Short = nil
-	}
-	if len(out.Narrow) == 0 {
-		out.Narrow = nil
-	}
-	return out
 }
 
 var regionSuffixRe = regexp.MustCompile(`-([A-Za-z]{2}|\d{3})\b`)
@@ -280,37 +253,73 @@ func buildStandardLanguageNames(languages, territories map[string]string, patter
 	if pattern == "" {
 		return splitStyleData(languages)
 	}
-	long := make(map[string]string)
-	short := make(map[string]string)
-	narrow := make(map[string]string)
+	out := newStyledNames()
 	for key, value := range languages {
-		base, alt, isAlt := strings.Cut(key, "-alt-")
-		var target map[string]string
-		var territorySuffix string
-		switch {
-		case !isAlt:
-			target = long
-		case alt == "short":
-			target = short
-			territorySuffix = "-alt-short"
-		case alt == "narrow":
-			target = narrow
-			territorySuffix = "-alt-narrow"
-		default:
+		if value == "" {
 			continue
 		}
-		target[base] = standardLanguageValue(base, value, languages, territories, territorySuffix, pattern)
+		base, style, territorySuffix, ok := displayNameStyleKey(key)
+		if !ok {
+			continue
+		}
+		putStyledName(out, style, base, standardLanguageValue(base, value, languages, territories, territorySuffix, pattern))
 	}
-	if len(long) == 0 {
-		long = nil
+	return compactStyledNames(out)
+}
+
+const (
+	displayNameStyleLong   = "long"
+	displayNameStyleShort  = "short"
+	displayNameStyleNarrow = "narrow"
+)
+
+func isDisplayNameAltStyle(style string) bool {
+	return style == displayNameStyleShort || style == displayNameStyleNarrow
+}
+
+func displayNameStyleKey(key string) (base, style, altSuffix string, ok bool) {
+	base = key
+	style = displayNameStyleLong
+	altBase, alt, isAlt := strings.Cut(key, "-alt-")
+	if !isAlt {
+		return base, style, "", true
 	}
-	if len(short) == 0 {
-		short = nil
+	if !isDisplayNameAltStyle(alt) {
+		return "", "", "", false
 	}
-	if len(narrow) == 0 {
-		narrow = nil
+	return altBase, alt, "-alt-" + alt, true
+}
+
+func putStyledName(out StyledNames, style, key, value string) {
+	switch style {
+	case displayNameStyleLong:
+		out.Long[key] = value
+	case displayNameStyleShort:
+		out.Short[key] = value
+	case displayNameStyleNarrow:
+		out.Narrow[key] = value
 	}
-	return StyledNames{Long: long, Short: short, Narrow: narrow}
+}
+
+func newStyledNames() StyledNames {
+	return StyledNames{
+		Long:   make(map[string]string),
+		Short:  make(map[string]string),
+		Narrow: make(map[string]string),
+	}
+}
+
+func compactStyledNames(out StyledNames) StyledNames {
+	if len(out.Long) == 0 {
+		out.Long = nil
+	}
+	if len(out.Short) == 0 {
+		out.Short = nil
+	}
+	if len(out.Narrow) == 0 {
+		out.Narrow = nil
+	}
+	return out
 }
 
 func standardLanguageValue(tag, dialectValue string, languages, territories map[string]string, territorySuffix, pattern string) string {

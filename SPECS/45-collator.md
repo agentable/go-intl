@@ -37,13 +37,13 @@ const (
 )
 
 type Options struct {
-    LocaleMatcher     LocaleMatcher
-    Usage             Usage
-    Sensitivity       Sensitivity
-    CaseFirst         CaseFirst
+    LocaleMatcher     *string
+    Usage             *string
+    Sensitivity       *string
+    CaseFirst         *string
     Numeric           *bool
     IgnorePunctuation *bool
-    Collation         string
+    Collation         *string
 }
 
 type Collator struct{ /* immutable resolved options + locale tag + collate options */ }
@@ -57,41 +57,45 @@ func (c *Collator) ResolvedOptions() ResolvedOptions
 MUST rules:
 
 1. `Compare` returns a negative, zero, or positive integer, matching `bytes.Compare`, `strings.Compare`, and the comparator shape that `slices.SortFunc` expects.
-2. `Numeric` and `IgnorePunctuation` use `*bool` presence fields so that zero `Options{}` means "no caller preference", while `Numeric: gointl.Bool(false)` can explicitly override locale `kn`. Constructors copy pointee values into internal config.
+2. `LocaleMatcher`, `Usage`, `Sensitivity`, `CaseFirst`, `Numeric`, `IgnorePunctuation`, and `Collation` use pointer presence fields so that zero `Options{}` means "no caller preference", while `LocaleMatcher: gointl.String(collator.LookupLocaleMatcher)` selects lookup, `Usage: gointl.String(collator.SearchUsage)` requests search tailoring, `Sensitivity: gointl.String(collator.BaseSensitivity)` selects a comparison strength, `CaseFirst: gointl.String(collator.FalseCaseFirst)` explicitly overrides locale `kf`, `Numeric: gointl.Bool(false)` can explicitly override locale `kn`, and `Collation: gointl.String("")` is an explicit invalid option instead of omitted input. Constructors copy pointee values into internal config.
 2a. `New` accepts one `Options` value; `Options{}` represents omitted or empty JS options.
 3. Each `Compare` call MUST acquire a fresh `*collate.Collator` (via `collate.New`). `golang.org/x/text/collate.Collator` is NOT safe for concurrent use; the wrapping `*Collator` is.
 4. `Collator` is immutable after construction.
-5. `Collation` and `CaseFirst` may be supplied through the Unicode `co` and `kf` extensions only after the implementation can truthfully apply them. In the active scope, unsupported collation/case-first requests on the matched locale return `ErrUnsupportedOption`; extensions on fallback candidates that are not selected must not affect construction. This is a narrowed implementation gap, not a permanent API philosophy.
+5. `Collation` and `CaseFirst` are resolved through ECMA-402 locale negotiation. Backend-supported `co` values are applied through the private `collate` tag and reflected in `ResolvedOptions().Collation`; well-formed unsupported `co` and locale `kf` extension values fall back to the active default resolved options. Explicit `Options.CaseFirst = gointl.String(upper|lower)` returns `ErrUnsupportedOption` because it is an option value the active backend cannot apply truthfully.
 
 ### 1.1 Current support tier
 
-Current tier: **narrowed implementation gap** for the rows below.
+Current tier: **locale-scoped backend capability** for collation specializations,
+with narrowed gaps for the rows below.
 
-Because explicit collation tailoring is currently rejected, the root
-`Intl.supportedValuesOf("collation")` equivalent and unrestricted
-`Locale.GetCollations()` return an empty list. `Locale` instances with an
-explicit `co` extension still return that explicit value from `GetCollations()`
-because ECMA-402 locale info reflects the locale tag before constructor support
-is considered.
+The active backend advertises collation specializations through
+`golang.org/x/text/collate.Supported()` Unicode-extension tags. The root
+`Intl.supportedValuesOf("collation")` equivalent returns the sorted global set
+of those backend-applied specializations, excluding ECMA-402 reserved values
+`default`, `standard`, and `search`; the current supported set includes
+`phonebk`. Constructor locale data remains locale-scoped: `de-u-co-phonebk` and
+`Options{Collation: gointl.String("phonebk")}` for German resolve to
+`ResolvedOptions().Collation == "phonebk"`, while the same well-formed value for
+a locale without backend support falls back to `"default"`.
 
 The dependency evidence for keeping these gaps narrow lives in
 `reports/golang.org-x-text.md`.
 native-engine backend-proof fixtures under `collator/testdata/conformance/node-v26/`
 cover the default sort behavior the active backend can already apply; option
-contract fixtures plus XFAIL entries cover behavior that must not be accepted
+contract fixtures plus XFAIL entries cover behavior that must not be advertised
 until the backend proves it.
 
 Supported option precedence:
 
 - `kn` is active. Locale `kn=true` sets numeric comparison unless an explicit `Options.Numeric` value overrides it.
 - `Options.Numeric: gointl.Bool(false)` is an explicit caller preference and must override locale `-u-kn-true`.
-- `kf` and non-default `co` remain capability gaps. They may be parsed and classified, but they must not be reported as supported unless the backend applies the requested behavior.
+- `kf` locale extensions remain a capability gap. Unsupported `co` values may be parsed as locale negotiation inputs, but they must not be reported as supported unless the backend applies the requested behavior.
 
 | Gap | Current behavior | Rationale | review_after | Removal path |
 |-----|------------------|-----------|--------------|--------------|
 | `usage = "search"` | Constructor returns `ErrUnsupportedOption`. | Search collation must not pretend to be sort collation; ECMA-402 says search data may have different behavior. | 2026-09-30 | Identify a CLDR/x/text-backed search tailoring path, add native comparison fixtures, then accept `SearchUsage`. |
-| `caseFirst = "upper" \| "lower"` | Constructor returns `ErrUnsupportedOption`. | The active backend cannot yet control case-level direction truthfully. | 2026-09-30 | Add backend support or a documented dependency report, then verify resolved options and ordering fixtures. |
-| non-default `collation` | Constructor returns `ErrUnsupportedOption`. | Advertising CLDR collation identifiers without applying tailoring would overpromise. | 2026-09-30 | Map supported CLDR collation identifiers to backend behavior, add supportedValues/resolvedOptions fixtures, and keep unsupported identifiers rejected. |
+| explicit `caseFirst = "upper" \| "lower"` | Constructor returns `ErrUnsupportedOption`. | The active backend cannot yet control case-level direction truthfully, and explicit options should not pretend to be applied. | 2026-09-30 | Add backend support or a documented dependency report, then verify resolved options and ordering fixtures. |
+| explicit collation option reflected in `ResolvedOptions().Locale` | Supported explicit collation options apply to comparison and `ResolvedOptions().Collation`, while the resolved locale tag remains the base matched locale. | ECMA-402 ResolveLocale and FormatJS clear supported locale keywords when an option value overrides them; Node v26 reflects this option in the resolved locale tag, so the native fixture stays XFAIL as an observed engine divergence. | 2026-09-30 | Keep the Node witness under XFAIL unless the normative spec changes; do not change the shared resolver merely to mirror this native tag detail. |
 
 ---
 
@@ -106,13 +110,15 @@ Supported option precedence:
 | `numeric = true` | `collate.Numeric` | |
 | `numeric = false` with locale `kn=true` | (no options) | Explicit option overrides locale extension; resolved locale drops the `kn` extension when false is selected. |
 | `caseFirst = "false"` | (no options) | Default case order. |
-| `caseFirst = "upper" \| "lower"` | constructor error | Returns `ErrUnsupportedOption`; active collation backend cannot apply case-level direction. |
+| explicit `caseFirst = "upper" \| "lower"` | constructor error | Returns `ErrUnsupportedOption`; active collation backend cannot apply case-level direction. |
+| locale `kf=upper\|lower` | (no options) | Unsupported locale extension value falls back to default `caseFirst=false`. |
 | `ignorePunctuation = true` | BCP 47 `ka=shifted` on the private `collate` tag | Uses `golang.org/x/text/collate` UCA alternate-shifted handling; does not rewrite input strings. |
 | `usage = "search"` | constructor error | Current implementation gap; returns `ErrUnsupportedOption` until real search tailoring exists. |
-| well-formed `collation = "<value>"` | constructor error | Current implementation gap; returns `ErrUnsupportedOption` until requested collation tailoring can be applied. |
+| backend-supported `collation = "<value>"` | BCP 47 `co=<value>` on the private `collate` tag | Locale-scoped backend support; currently proves German `phonebk` through manual and Node witness fixtures. |
+| well-formed unsupported `collation = "<value>"` | (no options) | Negotiation input; unsupported values fall back to resolved collation `"default"`. |
 | malformed `collation = "<value>"` | constructor error | Returns `ErrInvalidOption`; invalid Unicode locale extension type syntax is caller-fixable input. |
 
-Rows marked constructor error are current implementation gaps, not accepted divergences. They must move to implemented behavior or an explicit dependency report before `collator` can claim complete ECMA-402 option coverage.
+Rows marked constructor error are active backend refusals, not accepted divergences. Accepted collation support requires backend behavior, supported-values evidence, and resolved-options fixtures in the same change.
 
 ---
 
@@ -132,20 +138,19 @@ type ResolvedOptions struct {
 
 Defaults at construction:
 
-- `Usage = SortUsage`
 - `Usage = SortUsage`; explicit `SearchUsage` returns `ErrUnsupportedOption`.
 - `Sensitivity = VariantSensitivity` when omitted.
-- `CaseFirst = FalseCaseFirst`; explicit `upper` / `lower` or locale `kf=upper|lower` returns `ErrUnsupportedOption`.
-- `Collation = "default"`; explicit `default` and locale `co=default|standard|search` resolve to default collation, while real tailoring requests such as `co=phonebk` return `ErrUnsupportedOption` until tailoring is real.
+- `CaseFirst = FalseCaseFirst`; explicit `upper` / `lower` returns `ErrUnsupportedOption`, while locale `kf=upper|lower` falls back to `false`.
+- `Collation = "default"` unless active locale-scoped backend data adopts a requested `co` value; supported German `phonebk` resolves to `"phonebk"`.
 - `Numeric` defaults to `false`; `IgnorePunctuation` defaults to `false` and explicit `true` is reflected in comparison and resolved options.
-- JSON field names and `omitempty` behavior follow [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors).
+- JSON field names and presence behavior follow [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors); `collation` is always present because ECMA-402 reports `"default"` when no backend specialization applies.
 
 ---
 
 ## 4. Errors
 
 - `gointl.ErrInvalidOption`: invalid `LocaleMatcher`, `Usage`, `Sensitivity`, or `CaseFirst`.
-- `gointl.ErrUnsupportedOption`: valid but unimplemented `usage=search`, `caseFirst=upper|lower`, or collation tailoring.
+- `gointl.ErrUnsupportedOption`: valid but unimplemented explicit `usage=search` or `caseFirst=upper|lower`. Well-formed unsupported collation requests are fallback inputs, not errors.
 
 Constructor and `SupportedLocalesOf` failures expose `*gointl.Error` and follow SPEC 12's `expected ...; got ...` text rule. `Compare` does not return errors. Strings that fail UTF-8 validation are compared by replacement-rune behavior of `x/text/collate`.
 
@@ -161,9 +166,10 @@ MUST rules:
 
 1. Use `internal/collation.SupportedLocales()` as the supported set (drops `und` and Unicode-extension forms returned by `x/text/collate.Supported()`). The package lives outside `internal/cldr/` because its data is sourced from `golang.org/x/text/collate`, not CLDR.
 2. Call `localematcher.FilterLocalesWithMaximizer`.
-3. Do not advertise requested Unicode extension forms that the active constructor support boundary rejects: non-default `co` tailoring and `kf=upper|lower`.
+3. Preserve requested Unicode extension forms when the base locale is supported. `SupportedLocalesOf` is a locale availability check, not a collation-tailoring support check.
 4. Accept one `Options` value; `Options{}` represents omitted static-method options.
-5. Read only `LocaleMatcher`.
+5. Read only `LocaleMatcher`; `nil` means omitted and an explicit empty string is invalid.
+6. Use `internal/collation.SupportedCollationsForLocale` as Collator `co` locale data so specialization support remains tied to the backend locale that advertised it.
 
 ---
 
@@ -173,7 +179,8 @@ MUST rules:
 |------------|----|-------|
 | `collator.compare(x, y) -> -1 \| 0 \| 1` | `Compare(x, y) int` with any negative / positive value | Typed bridge (matches `slices.SortFunc`). |
 | `caseFirst` reflected in tailoring | `upper` / `lower` rejected with `ErrUnsupportedOption` | Narrowed implementation gap; see §1.1. |
+| `collation` reflected in tailoring | backend-supported locale-scoped values such as German `phonebk` are applied through `co=<value>` | Implemented behavior. |
 | `ignorePunctuation` reflected in comparison | `true` maps to `x/text/collate` alternate-shifted handling through `ka=shifted` | Implemented behavior. |
 | `usage = "search"` distinct tailoring | rejected with `ErrUnsupportedOption` | Narrowed implementation gap; see §1.1. |
 
-All future accepted divergences must be enumerated in `collator/testdata/divergences.md` when they are added.
+Accepted divergences must be enumerated in `collator/testdata/divergences.md` when they are added.

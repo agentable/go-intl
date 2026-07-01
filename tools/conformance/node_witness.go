@@ -9,11 +9,61 @@ import (
 
 var errMissingNodeWitnessCoverage = errors.New("missing node witness coverage")
 
+const (
+	activeNodeWitnessVersion = "v26.0.0"
+	nodeWitnessSourcePrefix  = "node:" + activeNodeWitnessVersion
+)
+
 type nodeWitnessCoverageStatus string
 
 const (
 	nodeWitnessRequired       nodeWitnessCoverageStatus = "required"
 	nodeWitnessIntentionalGap nodeWitnessCoverageStatus = "intentional-gap"
+)
+
+type nodeWitnessSourceSuffix string
+
+const (
+	nodeSourceLocale                          nodeWitnessSourceSuffix = "locale"
+	nodeSourceLocaleCanonicalization          nodeWitnessSourceSuffix = "locale:canonicalization"
+	nodeSourceLocaleInfo                      nodeWitnessSourceSuffix = "locale:info"
+	nodeSourceLocaleErrors                    nodeWitnessSourceSuffix = "locale:errors"
+	nodeSourceNumberFormat                    nodeWitnessSourceSuffix = "numberformat"
+	nodeSourceNumberFormatResolvedOptions     nodeWitnessSourceSuffix = "numberformat:resolved-options"
+	nodeSourceNumberFormatErrors              nodeWitnessSourceSuffix = "numberformat:errors"
+	nodeSourceNumberFormatEdge                nodeWitnessSourceSuffix = "numberformat:edge"
+	nodeSourceDateTimeFormat                  nodeWitnessSourceSuffix = "datetimeformat"
+	nodeSourceDateTimeFormatErrors            nodeWitnessSourceSuffix = "datetimeformat:errors"
+	nodeSourceDateTimeFormatEdge              nodeWitnessSourceSuffix = "datetimeformat:edge"
+	nodeSourceDateTimeFormatDeepContract      nodeWitnessSourceSuffix = "datetimeformat:p4-deep-contract"
+	nodeSourcePluralRules                     nodeWitnessSourceSuffix = "pluralrules"
+	nodeSourcePluralRulesErrors               nodeWitnessSourceSuffix = "pluralrules:errors"
+	nodeSourceListFormat                      nodeWitnessSourceSuffix = "listformat"
+	nodeSourceListFormatErrors                nodeWitnessSourceSuffix = "listformat:errors"
+	nodeSourceRelativeTimeFormat              nodeWitnessSourceSuffix = "relativetimeformat"
+	nodeSourceRelativeTimeFormatErrors        nodeWitnessSourceSuffix = "relativetimeformat:errors"
+	nodeSourceDurationFormat                  nodeWitnessSourceSuffix = "durationformat"
+	nodeSourceDurationFormatErrors            nodeWitnessSourceSuffix = "durationformat:errors"
+	nodeSourceDurationFormatDigital           nodeWitnessSourceSuffix = "durationformat:digital"
+	nodeSourceDisplayNames                    nodeWitnessSourceSuffix = "displaynames"
+	nodeSourceDisplayNamesErrors              nodeWitnessSourceSuffix = "displaynames:errors"
+	nodeSourceCollator                        nodeWitnessSourceSuffix = "collator"
+	nodeSourceCollatorErrors                  nodeWitnessSourceSuffix = "collator:errors"
+	nodeSourceCollatorOptionContract          nodeWitnessSourceSuffix = "collator:option-contract"
+	nodeSourceCollatorBackendProof            nodeWitnessSourceSuffix = "collator:backend-proof"
+	nodeSourceSegmenter                       nodeWitnessSourceSuffix = "segmenter"
+	nodeSourceSegmenterErrors                 nodeWitnessSourceSuffix = "segmenter:errors"
+	nodeSourceSegmenterLocaleContract         nodeWitnessSourceSuffix = "segmenter:locale-contract"
+	nodeSourceSegmenterTailoredLocaleContract nodeWitnessSourceSuffix = "segmenter:tailored-locale-contract"
+)
+
+type nodeFixtureFeature string
+
+const (
+	nodeFeatureCanonicalize nodeFixtureFeature = "canonicalize"
+	nodeFeatureSelect       nodeFixtureFeature = "select"
+	nodeFeatureTimeZoneName nodeFixtureFeature = "timeZoneName"
+	nodeFeatureWeekInfo     nodeFixtureFeature = "weekInfo"
 )
 
 type nodeWitnessCoverageTopic struct {
@@ -29,6 +79,7 @@ func ValidateNodeWitnessCoverage(packageRoots []string) error {
 	for _, root := range packageRoots {
 		rootsByPackage[filepath.Base(filepath.Clean(root))] = root
 	}
+	fixturesByPackage := make(map[string][]Fixture, len(rootsByPackage))
 
 	for _, topic := range nodeWitnessCoverageMatrix() {
 		if topic.Status == nodeWitnessIntentionalGap {
@@ -41,9 +92,14 @@ func ValidateNodeWitnessCoverage(packageRoots []string) error {
 		if !ok {
 			continue
 		}
-		fixtures, err := LoadFixtures(root)
-		if err != nil {
-			return err
+		fixtures, ok := fixturesByPackage[topic.Package]
+		if !ok {
+			var err error
+			fixtures, err = LoadFixtures(root)
+			if err != nil {
+				return err
+			}
+			fixturesByPackage[topic.Package] = fixtures
 		}
 		if nodeWitnessTopicCovered(fixtures, topic) {
 			continue
@@ -55,7 +111,7 @@ func ValidateNodeWitnessCoverage(packageRoots []string) error {
 
 func nodeWitnessTopicCovered(fixtures []Fixture, topic nodeWitnessCoverageTopic) bool {
 	for _, fixture := range fixtures {
-		if fixtureSourceKind(fixture.Source) != "node" {
+		if fixtureSourceKindOf(fixture.Source) != fixtureSourceNode {
 			continue
 		}
 		if topic.Match(fixture) {
@@ -67,81 +123,51 @@ func nodeWitnessTopicCovered(fixtures []Fixture, topic nodeWitnessCoverageTopic)
 
 func nodeWitnessCoverageMatrix() []nodeWitnessCoverageTopic {
 	return []nodeWitnessCoverageTopic{
-		requiredNodeTopic("locale", "smoke canonicalization/maximize", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:locale" && f.Expected != nil
-		}),
-		requiredNodeTopic("locale", "Unicode extension canonicalization", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:locale:canonicalization" && f.Feature == "canonicalize" && f.Expected != nil
-		}),
+		requiredNodeTopic("locale", "smoke canonicalization/maximize", nodeWitnessHasExpected(nodeSourceLocale)),
+		requiredNodeTopic("locale", "Unicode extension canonicalization", nodeWitnessHasExpectedForFeature(nodeSourceLocaleCanonicalization, nodeFeatureCanonicalize)),
 		requiredNodeTopic("locale", "rg week-info override", localeInfoExpected("week-info-rg")),
 		requiredNodeTopic("locale", "sd week-info region", localeInfoExpected("week-info-sd")),
 		requiredNodeTopic("locale", "fw week-info override", localeInfoExpected("week-info-fw")),
-		requiredNodeTopic("locale", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:locale:errors")),
-		requiredNodeTopic("numberformat", "smoke format", nodeSourceHasExpected("node:v26.0.0:numberformat")),
-		requiredNodeTopic("numberformat", "resolved-options branches", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:numberformat:resolved-options" && len(f.ExpectedResolved) > 0
-		}),
-		requiredNodeTopic("numberformat", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:numberformat:errors")),
-		requiredNodeTopic("numberformat", "unit casing rejection", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:numberformat:errors" && strings.Contains(f.ID, "unit-casing") && f.ErrorCode != ""
-		}),
+		requiredNodeTopic("locale", "constructor error/refusal", nodeWitnessHasError(nodeSourceLocaleErrors)),
+		requiredNodeTopic("numberformat", "smoke format", nodeWitnessHasExpected(nodeSourceNumberFormat)),
+		requiredNodeTopic("numberformat", "resolved-options branches", nodeWitnessHasResolved(nodeSourceNumberFormatResolvedOptions)),
+		requiredNodeTopic("numberformat", "constructor error/refusal", nodeWitnessHasError(nodeSourceNumberFormatErrors)),
+		requiredNodeTopic("numberformat", "unit casing rejection", nodeWitnessHasErrorForID(nodeSourceNumberFormatErrors, "unit-casing")),
 		requiredNodeTopic("numberformat", "negative zero edge", numberEdgeExpected("negative-zero")),
 		requiredNodeTopic("numberformat", "rounding increment edge", numberEdgeExpected("rounding-increment")),
 		requiredNodeTopic("numberformat", "rounding priority edge", numberEdgeExpected("rounding-priority")),
 		requiredNodeTopic("numberformat", "compact plural edge", numberEdgeExpected("compact-plural")),
-		requiredNodeTopic("numberformat", "range collapse edge", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:numberformat:edge" && strings.Contains(f.ID, "range-collapse") && f.ExpectedRange != nil && len(f.ExpectedRangeParts) > 0
-		}),
-		requiredNodeTopic("datetimeformat", "smoke format", nodeSourceHasExpected("node:v26.0.0:datetimeformat")),
-		requiredNodeTopic("datetimeformat", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:datetimeformat:errors")),
-		requiredNodeTopic("datetimeformat", "calendar option rejection", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:datetimeformat:errors" && strings.Contains(f.ID, "calendar") && f.ErrorCode != ""
-		}),
+		requiredNodeTopic("numberformat", "range collapse edge", nodeWitnessHasExpectedRangePartsForID(nodeSourceNumberFormatEdge, "range-collapse")),
+		requiredNodeTopic("datetimeformat", "smoke format", nodeWitnessHasExpected(nodeSourceDateTimeFormat)),
+		requiredNodeTopic("datetimeformat", "constructor error/refusal", nodeWitnessHasError(nodeSourceDateTimeFormatErrors)),
+		requiredNodeTopic("datetimeformat", "calendar option rejection", nodeWitnessHasErrorForID(nodeSourceDateTimeFormatErrors, "calendar")),
 		requiredNodeTopic("datetimeformat", "offset timezone edge", dateTimeEdgeExpected("offset-timezone")),
 		requiredNodeTopic("datetimeformat", "offset timezone boundary", dateTimeEdgeExpected("offset-timezone-boundary")),
 		requiredNodeTopic("datetimeformat", "day-period time-zone-name spacing", dateTimeEdgeExpected("day-period-time-zone-name-spacing")),
 		requiredNodeTopic("datetimeformat", "hour12/hourCycle precedence", dateTimeEdgeExpected("hour12-overrides-hour-cycle")),
-		requiredNodeTopic("datetimeformat", "dateStyle/timeStyle range parts", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:datetimeformat:edge" && strings.Contains(f.ID, "date-time-style-range-parts") && f.ExpectedRange != nil && len(f.ExpectedRangeParts) > 0 && len(f.ExpectedResolved) > 0
-		}),
-		requiredNodeTopic("datetimeformat", "range parts", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:datetimeformat:p4-deep-contract" && len(f.ExpectedRangeParts) > 0 && len(f.ExpectedResolved) > 0
-		}),
-		requiredNodeTopic("datetimeformat", "time-zone name parts", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:datetimeformat:p4-deep-contract" && f.Feature == "timeZoneName" && len(f.ExpectedParts) > 0 && len(f.ExpectedResolved) > 0
-		}),
-		requiredNodeTopic("pluralrules", "smoke select", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:pluralrules" && f.Feature == "select" && f.Expected != nil
-		}),
-		requiredNodeTopic("pluralrules", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:pluralrules:errors")),
-		requiredNodeTopic("listformat", "smoke format", nodeSourceHasExpected("node:v26.0.0:listformat")),
-		requiredNodeTopic("listformat", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:listformat:errors")),
-		requiredNodeTopic("relativetimeformat", "numeric auto literal", nodeSourceHasExpected("node:v26.0.0:relativetimeformat")),
-		requiredNodeTopic("relativetimeformat", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:relativetimeformat:errors")),
-		requiredNodeTopic("durationformat", "smoke format", nodeSourceHasExpected("node:v26.0.0:durationformat")),
-		requiredNodeTopic("durationformat", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:durationformat:errors")),
-		requiredNodeTopic("durationformat", "digital parts and resolved options", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:durationformat:digital" && len(f.ExpectedParts) > 0 && len(f.ExpectedResolved) > 0
-		}),
-		requiredNodeTopic("displaynames", "smoke display name lookup", func(f Fixture) bool {
-			return strings.EqualFold(f.Source, "node:v26.0.0:displaynames") && f.Expected != nil && f.ExpectedOK != nil
-		}),
-		requiredNodeTopic("displaynames", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:displaynames:errors")),
-		requiredNodeTopic("collator", "smoke compare", nodeSourceHasComparison("node:v26.0.0:collator")),
-		requiredNodeTopic("collator", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:collator:errors")),
-		requiredNodeTopic("collator", "option resolved contracts", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:collator:option-contract" && f.ExpectedComparison != nil && len(f.ExpectedResolved) > 0
-		}),
-		requiredNodeTopic("collator", "numeric option overrides locale extension", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:collator:option-contract" && strings.Contains(f.ID, "numeric-option-overrides-locale-extension") && f.ExpectedComparison != nil && len(f.ExpectedResolved) > 0
-		}),
-		requiredNodeTopic("collator", "backend ordering proof", func(f Fixture) bool {
-			return f.Source == "node:v26.0.0:collator:backend-proof" && f.ExpectedComparison != nil && len(f.ExpectedResolved) > 0
-		}),
-		requiredNodeTopic("segmenter", "smoke segmentation", nodeSourceHasSegments("node:v26.0.0:segmenter")),
-		requiredNodeTopic("segmenter", "constructor error/refusal", nodeSourceHasError("node:v26.0.0:segmenter:errors")),
-		requiredNodeTopic("segmenter", "advertised locale word/sentence contract", nodeSourceHasSegments("node:v26.0.0:segmenter:locale-contract")),
-		requiredNodeTopic("segmenter", "tailored locale withheld contract", nodeSourceHasSegments("node:v26.0.0:segmenter:tailored-locale-contract")),
+		requiredNodeTopic("datetimeformat", "dateStyle/timeStyle range parts", nodeWitnessHasExpectedRangePartsResolvedForID(nodeSourceDateTimeFormatEdge, "date-time-style-range-parts")),
+		requiredNodeTopic("datetimeformat", "range parts", nodeWitnessHasRangePartsResolved(nodeSourceDateTimeFormatDeepContract)),
+		requiredNodeTopic("datetimeformat", "time-zone name parts", nodeWitnessHasPartsResolvedForFeature(nodeSourceDateTimeFormatDeepContract, nodeFeatureTimeZoneName)),
+		requiredNodeTopic("pluralrules", "smoke select", nodeWitnessHasExpectedForFeature(nodeSourcePluralRules, nodeFeatureSelect)),
+		requiredNodeTopic("pluralrules", "constructor error/refusal", nodeWitnessHasError(nodeSourcePluralRulesErrors)),
+		requiredNodeTopic("listformat", "smoke format", nodeWitnessHasExpected(nodeSourceListFormat)),
+		requiredNodeTopic("listformat", "constructor error/refusal", nodeWitnessHasError(nodeSourceListFormatErrors)),
+		requiredNodeTopic("relativetimeformat", "numeric auto literal", nodeWitnessHasExpected(nodeSourceRelativeTimeFormat)),
+		requiredNodeTopic("relativetimeformat", "constructor error/refusal", nodeWitnessHasError(nodeSourceRelativeTimeFormatErrors)),
+		requiredNodeTopic("durationformat", "smoke format", nodeWitnessHasExpected(nodeSourceDurationFormat)),
+		requiredNodeTopic("durationformat", "constructor error/refusal", nodeWitnessHasError(nodeSourceDurationFormatErrors)),
+		requiredNodeTopic("durationformat", "digital parts and resolved options", nodeWitnessHasPartsResolved(nodeSourceDurationFormatDigital)),
+		requiredNodeTopic("displaynames", "smoke display name lookup", nodeWitnessHasDisplayNameLookup(nodeSourceDisplayNames)),
+		requiredNodeTopic("displaynames", "constructor error/refusal", nodeWitnessHasError(nodeSourceDisplayNamesErrors)),
+		requiredNodeTopic("collator", "smoke compare", nodeWitnessHasComparison(nodeSourceCollator)),
+		requiredNodeTopic("collator", "constructor error/refusal", nodeWitnessHasError(nodeSourceCollatorErrors)),
+		requiredNodeTopic("collator", "option resolved contracts", nodeWitnessHasComparisonResolved(nodeSourceCollatorOptionContract)),
+		requiredNodeTopic("collator", "numeric option overrides locale extension", nodeWitnessHasComparisonResolvedForID(nodeSourceCollatorOptionContract, "numeric-option-overrides-locale-extension")),
+		requiredNodeTopic("collator", "backend ordering proof", nodeWitnessHasComparisonResolved(nodeSourceCollatorBackendProof)),
+		requiredNodeTopic("segmenter", "smoke segmentation", nodeWitnessHasSegments(nodeSourceSegmenter)),
+		requiredNodeTopic("segmenter", "constructor error/refusal", nodeWitnessHasError(nodeSourceSegmenterErrors)),
+		requiredNodeTopic("segmenter", "advertised locale word/sentence contract", nodeWitnessHasSegments(nodeSourceSegmenterLocaleContract)),
+		requiredNodeTopic("segmenter", "tailored locale withheld contract", nodeWitnessHasSegments(nodeSourceSegmenterTailoredLocaleContract)),
 	}
 }
 
@@ -149,55 +175,171 @@ func requiredNodeTopic(packageName, topic string, match func(Fixture) bool) node
 	return nodeWitnessCoverageTopic{Package: packageName, Topic: topic, Status: nodeWitnessRequired, Match: match}
 }
 
-func nodeSourceHasExpected(source string) func(Fixture) bool {
+func nodeWitnessSource(suffix nodeWitnessSourceSuffix) string {
+	return nodeWitnessSourcePrefix + ":" + string(suffix)
+}
+
+func nodeWitnessFixtureID(surface, topic string) string {
+	return surface + "-" + nodeFixtureDirPrefix + nodeWitnessMajorVersion() + "-" + topic
+}
+
+func nodeWitnessMajorVersion() string {
+	version := strings.TrimPrefix(activeNodeWitnessVersion, "v")
+	major, _, _ := strings.Cut(version, ".")
+	return major
+}
+
+func fixtureHasNodeFeature(f Fixture, feature nodeFixtureFeature) bool {
+	return f.Feature == string(feature)
+}
+
+type nodeWitnessFixturePredicate func(Fixture) bool
+
+func nodeWitnessFixtureMatcher(suffix nodeWitnessSourceSuffix, match nodeWitnessFixturePredicate) func(Fixture) bool {
+	source := nodeWitnessSource(suffix)
 	return func(f Fixture) bool {
-		return f.Source == source && f.Expected != nil
+		return f.Source == source && match(f)
 	}
 }
 
-func nodeSourceHasComparison(source string) func(Fixture) bool {
+func nodeWitnessFixtureMatcherForFeature(suffix nodeWitnessSourceSuffix, feature nodeFixtureFeature, match nodeWitnessFixturePredicate) func(Fixture) bool {
+	source := nodeWitnessSource(suffix)
 	return func(f Fixture) bool {
-		return f.Source == source && f.ExpectedComparison != nil
+		return f.Source == source && fixtureHasNodeFeature(f, feature) && match(f)
 	}
 }
 
-func nodeSourceHasSegments(source string) func(Fixture) bool {
+func nodeWitnessFixtureMatcherForID(suffix nodeWitnessSourceSuffix, idPart string, match nodeWitnessFixturePredicate) func(Fixture) bool {
+	source := nodeWitnessSource(suffix)
 	return func(f Fixture) bool {
-		return f.Source == source && len(f.ExpectedSegments) > 0
+		return f.Source == source && strings.Contains(f.ID, idPart) && match(f)
 	}
 }
 
-func nodeSourceHasError(source string) func(Fixture) bool {
-	return func(f Fixture) bool {
-		return f.Source == source && f.ErrorCode != ""
-	}
+func nodeWitnessHasExpected(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
+	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasExpected)
+}
+
+func nodeWitnessHasExpectedForFeature(suffix nodeWitnessSourceSuffix, feature nodeFixtureFeature) func(Fixture) bool {
+	return nodeWitnessFixtureMatcherForFeature(suffix, feature, nodeWitnessFixtureHasExpected)
+}
+
+func nodeWitnessHasComparison(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
+	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasComparison)
+}
+
+func nodeWitnessHasComparisonResolved(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
+	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasComparisonResolved)
+}
+
+func nodeWitnessHasComparisonResolvedForID(suffix nodeWitnessSourceSuffix, idPart string) func(Fixture) bool {
+	return nodeWitnessFixtureMatcherForID(suffix, idPart, nodeWitnessFixtureHasComparisonResolved)
+}
+
+func nodeWitnessHasSegments(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
+	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasSegments)
+}
+
+func nodeWitnessHasError(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
+	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasError)
+}
+
+func nodeWitnessHasErrorForID(suffix nodeWitnessSourceSuffix, idPart string) func(Fixture) bool {
+	return nodeWitnessFixtureMatcherForID(suffix, idPart, nodeWitnessFixtureHasError)
+}
+
+func nodeWitnessHasDisplayNameLookup(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
+	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasDisplayNameLookup)
+}
+
+func nodeWitnessHasResolved(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
+	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasResolved)
+}
+
+func nodeWitnessHasExpectedRangePartsForID(suffix nodeWitnessSourceSuffix, idPart string) func(Fixture) bool {
+	return nodeWitnessFixtureMatcherForID(suffix, idPart, nodeWitnessFixtureHasExpectedRangeParts)
+}
+
+func nodeWitnessHasExpectedRangePartsResolvedForID(suffix nodeWitnessSourceSuffix, idPart string) func(Fixture) bool {
+	return nodeWitnessFixtureMatcherForID(suffix, idPart, nodeWitnessFixtureHasExpectedRangePartsResolved)
+}
+
+func nodeWitnessHasPartsResolved(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
+	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasPartsResolved)
+}
+
+func nodeWitnessHasPartsResolvedForFeature(suffix nodeWitnessSourceSuffix, feature nodeFixtureFeature) func(Fixture) bool {
+	return nodeWitnessFixtureMatcherForFeature(suffix, feature, nodeWitnessFixtureHasPartsResolved)
+}
+
+func nodeWitnessHasRangePartsResolved(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
+	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasRangePartsResolved)
 }
 
 func numberEdgeExpected(idPart string) func(Fixture) bool {
-	return func(f Fixture) bool {
-		return f.Source == "node:v26.0.0:numberformat:edge" &&
-			strings.Contains(f.ID, idPart) &&
-			f.Expected != nil &&
-			len(f.ExpectedParts) > 0 &&
-			len(f.ExpectedResolved) > 0
-	}
+	return nodeWitnessHasExpectedPartsResolved(nodeSourceNumberFormatEdge, idPart)
 }
 
 func localeInfoExpected(idPart string) func(Fixture) bool {
-	return func(f Fixture) bool {
-		return f.Source == "node:v26.0.0:locale:info" &&
-			strings.Contains(f.ID, idPart) &&
-			f.Feature == "weekInfo" &&
-			len(f.ExpectedResolved) > 0
-	}
+	return nodeWitnessFixtureMatcherForID(nodeSourceLocaleInfo, idPart, func(f Fixture) bool {
+		return fixtureHasNodeFeature(f, nodeFeatureWeekInfo) && nodeWitnessFixtureHasResolved(f)
+	})
 }
 
 func dateTimeEdgeExpected(idPart string) func(Fixture) bool {
-	return func(f Fixture) bool {
-		return f.Source == "node:v26.0.0:datetimeformat:edge" &&
-			strings.Contains(f.ID, idPart) &&
-			f.Expected != nil &&
-			len(f.ExpectedParts) > 0 &&
-			len(f.ExpectedResolved) > 0
-	}
+	return nodeWitnessHasExpectedPartsResolved(nodeSourceDateTimeFormatEdge, idPart)
+}
+
+func nodeWitnessHasExpectedPartsResolved(suffix nodeWitnessSourceSuffix, idPart string) func(Fixture) bool {
+	return nodeWitnessFixtureMatcherForID(suffix, idPart, nodeWitnessFixtureHasExpectedPartsResolved)
+}
+
+func nodeWitnessFixtureHasComparisonResolved(f Fixture) bool {
+	return nodeWitnessFixtureHasComparison(f) && nodeWitnessFixtureHasResolved(f)
+}
+
+func nodeWitnessFixtureHasComparison(f Fixture) bool {
+	return f.ExpectedComparison != nil
+}
+
+func nodeWitnessFixtureHasExpected(f Fixture) bool {
+	return f.Expected != nil
+}
+
+func nodeWitnessFixtureHasError(f Fixture) bool {
+	return f.ErrorCode != ""
+}
+
+func nodeWitnessFixtureHasDisplayNameLookup(f Fixture) bool {
+	return f.Expected != nil && f.ExpectedOK != nil
+}
+
+func nodeWitnessFixtureHasSegments(f Fixture) bool {
+	return len(f.ExpectedSegments) > 0
+}
+
+func nodeWitnessFixtureHasPartsResolved(f Fixture) bool {
+	return len(f.ExpectedParts) > 0 && nodeWitnessFixtureHasResolved(f)
+}
+
+func nodeWitnessFixtureHasExpectedPartsResolved(f Fixture) bool {
+	return nodeWitnessFixtureHasExpected(f) &&
+		len(f.ExpectedParts) > 0 &&
+		nodeWitnessFixtureHasResolved(f)
+}
+
+func nodeWitnessFixtureHasRangePartsResolved(f Fixture) bool {
+	return len(f.ExpectedRangeParts) > 0 && nodeWitnessFixtureHasResolved(f)
+}
+
+func nodeWitnessFixtureHasExpectedRangeParts(f Fixture) bool {
+	return f.ExpectedRange != nil && len(f.ExpectedRangeParts) > 0
+}
+
+func nodeWitnessFixtureHasExpectedRangePartsResolved(f Fixture) bool {
+	return nodeWitnessFixtureHasExpectedRangeParts(f) && nodeWitnessFixtureHasResolved(f)
+}
+
+func nodeWitnessFixtureHasResolved(f Fixture) bool {
+	return len(f.ExpectedResolved) > 0
 }

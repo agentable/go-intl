@@ -1,63 +1,85 @@
 package durationformat
 
 import (
-	"fmt"
-	"slices"
-
-	"github.com/agentable/go-intl/internal/intlerr"
-
 	"github.com/agentable/go-intl/internal/ecma402"
-	"github.com/agentable/go-intl/locale"
+)
+
+const durationFormatOwner = "durationformat"
+
+var (
+	durationStyleValues = [...]string{
+		string(LongStyle),
+		string(ShortStyle),
+		string(NarrowStyle),
+		string(DigitalStyle),
+	}
+	durationDisplayValues = [...]string{
+		string(AutoDisplay),
+		string(AlwaysDisplay),
+	}
+	durationDateUnitStyleValues = [...]string{
+		string(LongUnitStyle),
+		string(ShortUnitStyle),
+		string(NarrowUnitStyle),
+	}
+	durationTimeUnitStyleValues = [...]string{
+		string(LongUnitStyle),
+		string(ShortUnitStyle),
+		string(NarrowUnitStyle),
+		string(NumericUnitStyle),
+		string(TwoDigitUnitStyle),
+	}
+	durationSubsecondUnitStyleValues = [...]string{
+		string(LongUnitStyle),
+		string(ShortUnitStyle),
+		string(NarrowUnitStyle),
+		string(NumericUnitStyle),
+	}
 )
 
 type Options struct {
-	LocaleMatcher       LocaleMatcher
-	NumberingSystem     string
-	Style               Style
-	Years               UnitStyle
-	YearsDisplay        Display
-	Months              UnitStyle
-	MonthsDisplay       Display
-	Weeks               UnitStyle
-	WeeksDisplay        Display
-	Days                UnitStyle
-	DaysDisplay         Display
-	Hours               UnitStyle
-	HoursDisplay        Display
-	Minutes             UnitStyle
-	MinutesDisplay      Display
-	Seconds             UnitStyle
-	SecondsDisplay      Display
-	Milliseconds        UnitStyle
-	MillisecondsDisplay Display
-	Microseconds        UnitStyle
-	MicrosecondsDisplay Display
-	Nanoseconds         UnitStyle
-	NanosecondsDisplay  Display
+	LocaleMatcher       *string
+	NumberingSystem     *string
+	Style               *string
+	Years               *string
+	YearsDisplay        *string
+	Months              *string
+	MonthsDisplay       *string
+	Weeks               *string
+	WeeksDisplay        *string
+	Days                *string
+	DaysDisplay         *string
+	Hours               *string
+	HoursDisplay        *string
+	Minutes             *string
+	MinutesDisplay      *string
+	Seconds             *string
+	SecondsDisplay      *string
+	Milliseconds        *string
+	MillisecondsDisplay *string
+	Microseconds        *string
+	MicrosecondsDisplay *string
+	Nanoseconds         *string
+	NanosecondsDisplay  *string
 	FractionalDigits    *int
 }
 
 type config struct {
 	localeMatcher       string
+	localeMatcherSet    bool
 	numberingSystem     string
+	numberingSystemSet  bool
 	style               string
-	years               unitConfig
-	months              unitConfig
-	weeks               unitConfig
-	days                unitConfig
-	hours               unitConfig
-	minutes             unitConfig
-	seconds             unitConfig
-	milliseconds        unitConfig
-	microseconds        unitConfig
-	nanoseconds         unitConfig
+	units               [unitCount]unitConfig
 	fractionalDigits    int
 	hasFractionalDigits bool
 }
 
 type unitConfig struct {
-	style   string
-	display string
+	style      string
+	styleSet   bool
+	display    string
+	displaySet bool
 }
 
 type resolvedUnitConfig struct {
@@ -73,63 +95,82 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	if opts.LocaleMatcher != "" {
-		cfg.localeMatcher = string(opts.LocaleMatcher)
-	}
-	if opts.NumberingSystem != "" {
-		cfg.numberingSystem = opts.NumberingSystem
-	}
-	if opts.Style != "" {
-		cfg.style = string(opts.Style)
-	}
-	cfg.years = unitConfig{style: string(opts.Years), display: string(opts.YearsDisplay)}
-	cfg.months = unitConfig{style: string(opts.Months), display: string(opts.MonthsDisplay)}
-	cfg.weeks = unitConfig{style: string(opts.Weeks), display: string(opts.WeeksDisplay)}
-	cfg.days = unitConfig{style: string(opts.Days), display: string(opts.DaysDisplay)}
-	cfg.hours = unitConfig{style: string(opts.Hours), display: string(opts.HoursDisplay)}
-	cfg.minutes = unitConfig{style: string(opts.Minutes), display: string(opts.MinutesDisplay)}
-	cfg.seconds = unitConfig{style: string(opts.Seconds), display: string(opts.SecondsDisplay)}
-	cfg.milliseconds = unitConfig{style: string(opts.Milliseconds), display: string(opts.MillisecondsDisplay)}
-	cfg.microseconds = unitConfig{style: string(opts.Microseconds), display: string(opts.MicrosecondsDisplay)}
-	cfg.nanoseconds = unitConfig{style: string(opts.Nanoseconds), display: string(opts.NanosecondsDisplay)}
-	if opts.FractionalDigits != nil {
-		cfg.fractionalDigits = *opts.FractionalDigits
-		cfg.hasFractionalDigits = true
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOptionInput(&cfg.numberingSystem, &cfg.numberingSystemSet, opts.NumberingSystem)
+	ecma402.ApplyOption(&cfg.style, opts.Style)
+	cfg.units = optionUnitConfigs(opts)
+	ecma402.ApplyOptionInput(&cfg.fractionalDigits, &cfg.hasFractionalDigits, opts.FractionalDigits)
+}
+
+func optionUnitConfigs(opts Options) [unitCount]unitConfig {
+	return [unitCount]unitConfig{
+		yearsIndex:        optionUnitConfig(opts.Years, opts.YearsDisplay),
+		monthsIndex:       optionUnitConfig(opts.Months, opts.MonthsDisplay),
+		weeksIndex:        optionUnitConfig(opts.Weeks, opts.WeeksDisplay),
+		daysIndex:         optionUnitConfig(opts.Days, opts.DaysDisplay),
+		hoursIndex:        optionUnitConfig(opts.Hours, opts.HoursDisplay),
+		minutesIndex:      optionUnitConfig(opts.Minutes, opts.MinutesDisplay),
+		secondsIndex:      optionUnitConfig(opts.Seconds, opts.SecondsDisplay),
+		millisecondsIndex: optionUnitConfig(opts.Milliseconds, opts.MillisecondsDisplay),
+		microsecondsIndex: optionUnitConfig(opts.Microseconds, opts.MicrosecondsDisplay),
+		nanosecondsIndex:  optionUnitConfig(opts.Nanoseconds, opts.NanosecondsDisplay),
 	}
 }
 
-func (cfg config) validate(loc locale.Locale) error {
-	if check, ok := ecma402.InvalidStringOption(
-		ecma402.LocaleMatcherOption(cfg.localeMatcher),
-		ecma402.RequiredStringOption("style", cfg.style, string(LongStyle), string(ShortStyle), string(NarrowStyle), string(DigitalStyle)),
-	); ok {
-		return invalidOption(check.Name, check.Value, loc)
+func optionUnitConfig(style, display *string) unitConfig {
+	var cfg unitConfig
+	ecma402.ApplyOptionInput(&cfg.style, &cfg.styleSet, style)
+	ecma402.ApplyOptionInput(&cfg.display, &cfg.displaySet, display)
+	return cfg
+}
+
+func durationStyleOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption("style", value, durationStyleValues[:]...)
+}
+
+func durationDisplayOption(name, value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption(name, value, durationDisplayValues[:]...)
+}
+
+func durationUnitStyleOption(name, value string, set durationUnitStyleSet) ecma402.StringOption {
+	switch set {
+	case durationDateUnitStyleSet:
+		return ecma402.RequiredStringOption(name, value, durationDateUnitStyleValues[:]...)
+	case durationTimeUnitStyleSet:
+		return ecma402.RequiredStringOption(name, value, durationTimeUnitStyleValues[:]...)
+	case durationSubsecondUnitStyleSet:
+		return ecma402.RequiredStringOption(name, value, durationSubsecondUnitStyleValues[:]...)
+	default:
+		return ecma402.RequiredStringOption(name, value)
 	}
-	if cfg.numberingSystem != "" && !ecma402.IsWellFormedUnicodeType(cfg.numberingSystem) {
-		return invalidOption("numberingSystem", cfg.numberingSystem, loc)
+}
+
+func (cfg config) validate(locName string) error {
+	if err := ecma402.ValidateStringOptions(
+		durationFormatOwner,
+		locName,
+		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.localeMatcherSet),
+		durationStyleOption(cfg.style),
+	); err != nil {
+		return err
 	}
-	if check, ok := ecma402.InvalidIntegerOption(ecma402.IntegerOption{
+	if err := ecma402.ValidateUnicodeTypeOptionInput(durationFormatOwner, "numberingSystem", cfg.numberingSystem, locName, cfg.numberingSystemSet); err != nil {
+		return err
+	}
+	return ecma402.ValidateIntegerOptions(durationFormatOwner, locName, ecma402.IntegerOption{
 		Name:  "fractionalDigits",
 		Value: cfg.fractionalDigits,
 		Min:   0,
 		Max:   9,
 		Set:   cfg.hasFractionalDigits,
-	}); ok {
-		return invalidOption(check.Name, fmt.Sprint(check.Value), loc)
-	}
-	return nil
+	})
 }
 
-func invalidOption(name, value string, loc locale.Locale) error {
-	return ecma402.InvalidOptionError("durationformat", name, value, loc.String(), intlerr.ErrInvalidOption)
-}
-
-func resolveUnitOptions(cfg config, loc locale.Locale) ([unitCount]resolvedUnitConfig, error) {
+func resolveUnitOptions(cfg config, locName string) ([unitCount]resolvedUnitConfig, error) {
 	var out [unitCount]resolvedUnitConfig
 	prevStyle := UnitStyle("")
-	for _, spec := range durationUnitSpecs {
-		unit := getUnitConfig(cfg, spec.index)
-		resolved, err := getDurationUnitOptions(spec, unit, Style(cfg.style), prevStyle, loc)
+	for _, spec := range durationUnitSpecs[:] {
+		resolved, err := getDurationUnitOptions(spec, cfg.units[spec.index], Style(cfg.style), prevStyle, locName)
 		if err != nil {
 			return out, err
 		}
@@ -141,46 +182,19 @@ func resolveUnitOptions(cfg config, loc locale.Locale) ([unitCount]resolvedUnitC
 	return out, nil
 }
 
-func getUnitConfig(cfg config, index unitIndex) unitConfig {
-	switch index {
-	case yearsIndex:
-		return cfg.years
-	case monthsIndex:
-		return cfg.months
-	case weeksIndex:
-		return cfg.weeks
-	case daysIndex:
-		return cfg.days
-	case hoursIndex:
-		return cfg.hours
-	case minutesIndex:
-		return cfg.minutes
-	case secondsIndex:
-		return cfg.seconds
-	case millisecondsIndex:
-		return cfg.milliseconds
-	case microsecondsIndex:
-		return cfg.microseconds
-	case nanosecondsIndex:
-		return cfg.nanoseconds
-	case unitCount:
-	}
-	return unitConfig{}
-}
-
-func getDurationUnitOptions(spec durationUnitSpec, unit unitConfig, baseStyle Style, prevStyle UnitStyle, loc locale.Locale) (resolvedUnitConfig, error) {
+func getDurationUnitOptions(spec durationUnitSpec, unit unitConfig, baseStyle Style, prevStyle UnitStyle, loc string) (resolvedUnitConfig, error) {
 	style := UnitStyle(unit.style)
 	displayDefault := AlwaysDisplay
-	if style == "" {
+	if !unit.styleSet {
 		switch {
 		case baseStyle == DigitalStyle:
 			style = spec.digitalDefault
-			if spec.unit != "hours" && spec.unit != "minutes" && spec.unit != "seconds" {
+			if !spec.clockUnit {
 				displayDefault = AutoDisplay
 			}
-		case prevStyle == fractionalUnitStyle || prevStyle == NumericUnitStyle || prevStyle == TwoDigitUnitStyle:
+		case continuesDurationStyleChain(prevStyle):
 			style = NumericUnitStyle
-			if spec.unit != "minutes" && spec.unit != "seconds" {
+			if !spec.clockContinuation {
 				displayDefault = AutoDisplay
 			}
 		default:
@@ -188,39 +202,60 @@ func getDurationUnitOptions(spec durationUnitSpec, unit unitConfig, baseStyle St
 			displayDefault = AutoDisplay
 		}
 	}
-	if !slices.Contains(spec.styles, style) {
-		return resolvedUnitConfig{}, invalidOption(spec.unit, string(style), loc)
+	if err := ecma402.ValidateStringOptions(durationFormatOwner, loc, durationUnitStyleOption(spec.unit, string(style), spec.styleSet)); err != nil {
+		return resolvedUnitConfig{}, err
 	}
 	if style == NumericUnitStyle && spec.fractional {
 		style = fractionalUnitStyle
 		displayDefault = AutoDisplay
 	}
 	display := Display(unit.display)
-	if display == "" {
+	if !unit.displaySet {
 		display = displayDefault
 	}
-	if display != AutoDisplay && display != AlwaysDisplay {
-		return resolvedUnitConfig{}, invalidOption(spec.unit+"Display", string(display), loc)
+	if err := ecma402.ValidateStringOptions(
+		durationFormatOwner,
+		loc,
+		durationDisplayOption(spec.unit+"Display", string(display)),
+	); err != nil {
+		return resolvedUnitConfig{}, err
 	}
 	if err := validateDurationUnitStyle(spec.unit, style, display, prevStyle, loc); err != nil {
 		return resolvedUnitConfig{}, err
 	}
-	if (spec.unit == "minutes" || spec.unit == "seconds") && (prevStyle == NumericUnitStyle || prevStyle == TwoDigitUnitStyle) {
+	if spec.clockContinuation && continuesClockStyleChain(prevStyle) {
 		style = TwoDigitUnitStyle
 	}
 	return resolvedUnitConfig{style: style, display: display}, nil
 }
 
-func validateDurationUnitStyle(unit string, style UnitStyle, display Display, prevStyle UnitStyle, loc locale.Locale) error {
+func validateDurationUnitStyle(unit string, style UnitStyle, display Display, prevStyle UnitStyle, loc string) error {
 	if display == AlwaysDisplay && style == fractionalUnitStyle {
-		return invalidOption(unit+"Display", string(display), loc)
+		return invalidDurationUnitOption(
+			unit+"Display",
+			string(display),
+			"auto display when formatting subsecond units as a fractional part",
+			loc,
+		)
 	}
 	if prevStyle == fractionalUnitStyle && style != fractionalUnitStyle {
-		return invalidOption(unit, string(style), loc)
+		return invalidDurationUnitOption(unit, string(style), "fractional style while continuing a subsecond fractional chain", loc)
 	}
-	if (prevStyle == NumericUnitStyle || prevStyle == TwoDigitUnitStyle) &&
+	if continuesClockStyleChain(prevStyle) &&
 		style != fractionalUnitStyle && style != NumericUnitStyle && style != TwoDigitUnitStyle {
-		return invalidOption(unit, string(style), loc)
+		return invalidDurationUnitOption(unit, string(style), "numeric, 2-digit, or fractional style while continuing a digital time chain", loc)
 	}
 	return nil
+}
+
+func continuesDurationStyleChain(style UnitStyle) bool {
+	return style == fractionalUnitStyle || continuesClockStyleChain(style)
+}
+
+func continuesClockStyleChain(style UnitStyle) bool {
+	return style == NumericUnitStyle || style == TwoDigitUnitStyle
+}
+
+func invalidDurationUnitOption(name, value, expected, loc string) error {
+	return ecma402.InvalidOptionErrorExpected(durationFormatOwner, name, value, loc, expected, nil)
 }

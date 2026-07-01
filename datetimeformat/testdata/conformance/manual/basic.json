@@ -25,5 +25,23 @@
       "end": "2026-05-10T12:00:00Z"
     },
     "expectedRange": "May 8 – 10, 2026"
+  },
+  {
+    "id": "datetimeformat-manual-unsupported-calendar-option-fallback",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "calendar": "buddhist"
+    },
+    "input": "2026-05-08T12:00:00Z",
+    "expected": "5/8/2026"
+  },
+  {
+    "id": "datetimeformat-manual-unsupported-calendar-extension-fallback",
+    "source": "manual",
+    "locale": "en-US-u-ca-buddhist",
+    "options": {},
+    "input": "2026-05-08T12:00:00Z",
+    "expected": "5/8/2026"
   }
 ]

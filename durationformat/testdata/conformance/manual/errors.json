@@ -1,0 +1,12 @@
+[
+  {
+    "id": "durationformat-manual-empty-numbering-system",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "numberingSystem": ""
+    },
+    "input": {},
+    "errorCode": "invalid_option"
+  }
+]

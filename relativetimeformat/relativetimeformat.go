@@ -12,35 +12,55 @@ type RelativeTimeFormat struct {
 	resolved ResolvedOptions
 	number   *numberformat.NumberFormat
 	plural   *pluralrules.PluralRules
-	fields   cldrrelativetime.RelativeTimeFields
+	fields   map[Unit]relativeTimeField
 }
 
 func New(locales locale.List, opts Options) (*RelativeTimeFormat, error) {
 	validationLocale := ecma402.ValidationLocale(locales)
+	validationLocaleName := validationLocale.String()
 	cfg := defaultConfig()
 	applyOptions(&cfg, opts)
-	if err := cfg.validate(validationLocale); err != nil {
+	if err := cfg.validate(validationLocaleName); err != nil {
 		return nil, err
 	}
 	resolvedLocale, cldrLoc, numberingSystem := resolveLocale(locales, validationLocale, cfg)
-	number, err := numberformat.New(locale.List{resolvedLocale}, numberformat.Options{NumberingSystem: numberingSystem})
+	number, err := numberformat.New(locale.List{resolvedLocale}, numberformat.Options{NumberingSystem: &numberingSystem})
 	if err != nil {
-		return nil, invalidOption("numberingSystem", numberingSystem, validationLocale)
+		return nil, ecma402.InvalidOptionErrorExpected(
+			relativeTimeFormatOwner,
+			"numberingSystem",
+			numberingSystem,
+			validationLocaleName,
+			"a numbering system supported by relative-time number formatting",
+			err,
+		)
 	}
 	plural, err := pluralrules.New(locale.List{resolvedLocale}, pluralrules.Options{})
 	if err != nil {
-		return nil, invalidOption("locale", resolvedLocale.String(), validationLocale)
+		return nil, ecma402.InvalidOptionErrorExpected(
+			relativeTimeFormatOwner,
+			"locale",
+			resolvedLocale.String(),
+			validationLocaleName,
+			"a locale supported by relative-time plural rules",
+			err,
+		)
+	}
+	fields, err := compileRelativeTimeFields(cldrrelativetime.FieldsFor(cldrLoc), Style(cfg.style))
+	if err != nil {
+		return nil, err
 	}
 	numberOptions := number.ResolvedOptions()
+	resolved := ResolvedOptions{
+		Locale:          resolvedLocale,
+		Style:           Style(cfg.style),
+		Numeric:         Numeric(cfg.numeric),
+		NumberingSystem: numberOptions.NumberingSystem,
+	}
 	return &RelativeTimeFormat{
-		number: number,
-		plural: plural,
-		fields: cldrrelativetime.FieldsFor(cldrLoc),
-		resolved: ResolvedOptions{
-			Locale:          resolvedLocale,
-			Style:           Style(cfg.style),
-			Numeric:         Numeric(cfg.numeric),
-			NumberingSystem: numberOptions.NumberingSystem,
-		},
+		resolved: resolved,
+		number:   number,
+		plural:   plural,
+		fields:   fields,
 	}, nil
 }

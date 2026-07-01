@@ -83,7 +83,7 @@ type ZoneInfo struct {
 }
 ```
 
-`Default` is the single internal owner for the DateTimeFormat default time-zone provider. It canonicalizes IANA links and offset names the same way as explicit `Options.TimeZone`; tests may replace the provider with `OverrideDefaultForTest`, but no public diagnostic or configuration API is exposed.
+`Default` is the single internal owner for the DateTimeFormat default time-zone provider. It canonicalizes IANA links and offset names the same way as explicit `Options.TimeZone`; tests may replace the provider with `OverrideDefaultForTest`, which returns ordinary resolution errors for unsupported names instead of panicking. No public diagnostic or configuration API is exposed.
 
 ### 1.4 CanonicalLink table <a id="canonicallink"></a>
 

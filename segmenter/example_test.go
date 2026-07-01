@@ -3,6 +3,7 @@ package segmenter_test
 import (
 	"fmt"
 
+	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/segmenter"
 )
@@ -10,7 +11,7 @@ import (
 // Example demonstrates Intl.Segmenter.prototype.segment from ECMA-402.
 func Example() {
 	words, err := segmenter.New(mustLocaleList("en"), segmenter.Options{
-		Granularity: segmenter.WordGranularity,
+		Granularity: gointl.String(segmenter.WordGranularity),
 	})
 	if err != nil {
 		panic(err)
@@ -30,7 +31,7 @@ func Example() {
 // Example_options demonstrates Intl.Segmenter constructor options from ECMA-402.
 func Example_options() {
 	sentences, err := segmenter.New(mustLocaleList("en"), segmenter.Options{
-		Granularity: segmenter.SentenceGranularity,
+		Granularity: gointl.String(segmenter.SentenceGranularity),
 	})
 	if err != nil {
 		panic(err)
@@ -48,7 +49,7 @@ func Example_options() {
 // ExampleSegments_Containing demonstrates Intl.Segments.prototype.containing from ECMA-402.
 func ExampleSegments_Containing() {
 	words, err := segmenter.New(mustLocaleList("en"), segmenter.Options{
-		Granularity: segmenter.WordGranularity,
+		Granularity: gointl.String(segmenter.WordGranularity),
 	})
 	if err != nil {
 		panic(err)

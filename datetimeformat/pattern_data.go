@@ -1,6 +1,7 @@
 package datetimeformat
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -57,8 +58,7 @@ func buildPatternData(gregorian cldrdate.Gregorian) *patternData {
 	for i := range data.fractionalTimeCandidates {
 		data.fractionalTimeCandidates[i] = appendFractionalSecondCandidates(data.timeCandidates, i+1)
 	}
-	for _, style := range dateTimeStyles {
-		idx := dateTimeStyleIndex(style)
+	for idx, style := range dateTimeStyles {
 		data.styleOptions[idx] = stylePatternData{
 			dateOptions: stylePatternOptions(dateStylePattern(gregorian, style)),
 			timeOptions: timeStylePatternOptions(timeStylePattern(gregorian, style)),
@@ -68,19 +68,12 @@ func buildPatternData(gregorian cldrdate.Gregorian) *patternData {
 }
 
 func availableFormatCandidates(gregorian cldrdate.Gregorian) []ecma402dtf.Formats {
-	keys := make([]string, 0, len(gregorian.AvailableFormats))
-	for skeleton := range gregorian.AvailableFormats {
-		keys = append(keys, skeleton)
-	}
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(gregorian.AvailableFormats))
 
-	formats := make([]ecma402dtf.Formats, 0, len(keys))
-	for _, skeleton := range keys {
+	formats := make([]ecma402dtf.Formats, len(keys))
+	for i, skeleton := range keys {
 		pattern := gregorian.AvailableFormats[skeleton]
-		if pattern == "" {
-			continue
-		}
-		formats = append(formats, ecma402dtf.Parse(skeleton, pattern, nil, ""))
+		formats[i] = ecma402dtf.Parse(skeleton, pattern, nil, "")
 	}
 	return formats
 }
@@ -103,19 +96,22 @@ var dateTimeStyles = [...]Style{
 	ShortDateTimeStyle,
 }
 
+const defaultDateTimeStyleIndex = 2
+
 func dateTimeStyleIndex(style Style) int {
-	switch style {
-	case FullDateTimeStyle:
-		return 0
-	case LongDateTimeStyle:
-		return 1
-	case MediumDateTimeStyle:
-		return 2
-	case ShortDateTimeStyle:
-		return 3
-	default:
-		return 2
+	if idx, ok := knownDateTimeStyleIndex(style); ok {
+		return idx
 	}
+	return defaultDateTimeStyleIndex
+}
+
+func knownDateTimeStyleIndex(style Style) (int, bool) {
+	for idx, known := range dateTimeStyles {
+		if style == known {
+			return idx, true
+		}
+	}
+	return 0, false
 }
 
 func filterFormats(formats []ecma402dtf.Formats, keep func(ecma402dtf.Formats) bool) []ecma402dtf.Formats {

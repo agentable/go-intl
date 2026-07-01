@@ -3,10 +3,21 @@ package numberformat
 import (
 	"strconv"
 	"strings"
+
+	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
+	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
+	"github.com/agentable/go-intl/internal/numbering"
 )
 
-func (f *NumberFormat) formatFastInt64(v int64) (string, bool) {
-	if !f.decimalIntegerFastPath {
+type integerFastPathState struct {
+	enabled     bool
+	useGrouping UseGrouping
+	symbols     cldrnumber.NumberSymbols
+	grouping    digitGrouping
+}
+
+func formatFastInt64(v int64, state integerFastPathState) (string, bool) {
+	if !state.enabled {
 		return "", false
 	}
 	var scratch [20]byte
@@ -15,43 +26,42 @@ func (f *NumberFormat) formatFastInt64(v int64) (string, bool) {
 	if negative {
 		raw = raw[1:]
 	}
-	return f.formatFastInteger(raw, negative)
+	return formatFastInteger(raw, negative, state.useGrouping, state.symbols, state.grouping)
 }
 
-func (f *NumberFormat) formatFastUint64(v uint64) (string, bool) {
-	if !f.decimalIntegerFastPath {
+func formatFastUint64(v uint64, state integerFastPathState) (string, bool) {
+	if !state.enabled {
 		return "", false
 	}
 	var scratch [20]byte
 	raw := strconv.AppendUint(scratch[:0], v, 10)
-	return f.formatFastInteger(raw, false)
+	return formatFastInteger(raw, false, state.useGrouping, state.symbols, state.grouping)
 }
 
-func canUseDecimalIntegerFastPath(resolved ResolvedOptions, digits digitState) bool {
+func canUseDecimalIntegerFastPath(resolved ResolvedOptions, digits ecma402nf.DigitOptions) bool {
 	return resolved.Style == DecimalStyle &&
 		resolved.Notation == StandardNotation &&
 		resolved.SignDisplay == AutoSignDisplay &&
-		resolved.NumberingSystem == "latn" &&
-		digits.minInt == 1 &&
-		digits.minFrac == 0 &&
-		digits.maxFrac == 3 &&
-		digits.minSig == 0 &&
-		digits.maxSig == 0 &&
-		resolved.RoundingIncrement == 1 &&
-		resolved.RoundingMode == HalfExpandRoundingMode &&
-		resolved.RoundingPriority == AutoRoundingPriority &&
-		resolved.TrailingZeroDisplay == AutoTrailingZeroDisplay
+		resolved.NumberingSystem == numbering.DefaultNumberingSystem &&
+		digits.MinimumIntegerDigits == 1 &&
+		digits.MinimumFractionDigits == 0 &&
+		digits.MaximumFractionDigits == 3 &&
+		digits.MinimumSignificantDigits == 0 &&
+		digits.MaximumSignificantDigits == 0 &&
+		digits.RoundingIncrement == 1 &&
+		digits.RoundingMode == string(HalfExpandRoundingMode) &&
+		digits.RoundingPriority == string(AutoRoundingPriority) &&
+		digits.TrailingZeroDisplay == string(AutoTrailingZeroDisplay)
 }
 
-func (f *NumberFormat) formatFastInteger(digits []byte, negative bool) (string, bool) {
-	symbols := f.symbols()
-	grouped := f.useGroupingDigits(len(digits)) && needsGrouping(len(digits), f.grouping)
+func formatFastInteger(digits []byte, negative bool, useGrouping UseGrouping, symbols cldrnumber.NumberSymbols, grouping digitGrouping) (string, bool) {
+	grouped := shouldUseGroupingDigits(useGrouping, len(digits)) && needsGrouping(len(digits), grouping)
 	size := len(digits)
 	if negative {
 		size += len(symbols.Minus)
 	}
 	if grouped {
-		size += groupSeparatorCount(len(digits), f.grouping) * len(symbols.Group)
+		size += groupSeparatorCount(len(digits), grouping) * len(symbols.Group)
 	}
 
 	var b strings.Builder
@@ -60,7 +70,7 @@ func (f *NumberFormat) formatFastInteger(digits []byte, negative bool) (string, 
 		b.WriteString(symbols.Minus)
 	}
 	if grouped {
-		writeGroupedBytes(&b, digits, f.grouping, symbols.Group)
+		writeGroupedBytes(&b, digits, grouping, symbols.Group)
 	} else {
 		b.Write(digits)
 	}

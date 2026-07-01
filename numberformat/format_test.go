@@ -14,8 +14,26 @@ import (
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 )
+
+func mustNumberSymbolsForLocale(t *testing.T, tag string) cldrnumber.NumberSymbols {
+	t.Helper()
+
+	loc := mustNumberLocale(t, tag)
+	return loc.NumberSymbols("")
+}
+
+func mustNumberLocale(t *testing.T, tag string) cldrnumber.Locale {
+	t.Helper()
+
+	loc, ok := cldrnumber.ResolveLocale(tag)
+	if !ok {
+		t.Fatalf("cldrnumber.ResolveLocale(%q) = false", tag)
+	}
+	return loc
+}
 
 func TestNumberFormatFormat(t *testing.T) {
 	t.Parallel()
@@ -33,27 +51,53 @@ func TestNumberFormatFormatEqualsFormatToPartsJoin(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		opts  Options
-		value float64
+		name   string
+		locale string
+		opts   Options
+		value  float64
 	}{
-		{name: "decimal", opts: Options{}, value: 1234.5},
-		{name: "percent", opts: Options{Style: PercentStyle}, value: 0.5},
-		{name: "currency", opts: Options{Style: CurrencyStyle, Currency: Currency("USD")}, value: 1234.5},
+		{name: "decimal", locale: "en", opts: Options{}, value: 1234.5},
+		{name: "german grouping", locale: "de-DE", opts: Options{}, value: 1234.5},
+		{name: "non latin digits", locale: "en", opts: Options{NumberingSystem: stringPtr("arab")}, value: 1234.5},
+		{name: "percent", locale: "en", opts: Options{Style: stringPtr(PercentStyle)}, value: 0.5},
+		{name: "currency", locale: "en", opts: Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD")}, value: 1234.5},
+		{name: "currency accounting", locale: "en-US", opts: Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencySign: stringPtr(AccountingCurrencySign)}, value: -12},
+		{name: "currency name", locale: "en-US", opts: Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencyDisplay: stringPtr(CurrencyDisplayName)}, value: 1},
+		{name: "currency name accounting", locale: "en-US", opts: Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencyDisplay: stringPtr(CurrencyDisplayName), CurrencySign: stringPtr(AccountingCurrencySign)}, value: -12},
+		{name: "unit", locale: "en", opts: Options{Style: stringPtr(UnitStyle), Unit: stringPtr("meter")}, value: 2},
+		{name: "scientific", locale: "en", opts: Options{Notation: stringPtr(ScientificNotation), MaximumFractionDigits: intPtr(2)}, value: 0.0123},
+		{name: "engineering", locale: "en", opts: Options{Notation: stringPtr(EngineeringNotation), MaximumFractionDigits: intPtr(2)}, value: 12345},
+		{name: "compact", locale: "en", opts: Options{Notation: stringPtr(CompactNotation), MaximumFractionDigits: intPtr(1)}, value: 1500},
+		{name: "compact long", locale: "en", opts: Options{Notation: stringPtr(CompactNotation), CompactDisplay: stringPtr(LongCompactDisplay), MaximumFractionDigits: intPtr(1)}, value: 1500},
+		{name: "nan", locale: "en", opts: Options{}, value: math.NaN()},
+		{name: "negative infinity unit", locale: "en", opts: Options{Style: stringPtr(UnitStyle), Unit: stringPtr("meter")}, value: math.Inf(-1)},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			format, err := New(locale.List{intltest.Locale(t, "en")}, tc.opts)
+			format, err := New(locale.List{intltest.Locale(t, tc.locale)}, tc.opts)
 			if err != nil {
 				t.Fatalf("New(%s) error = %v", tc.name, err)
 			}
-			if got, want := format.Format(Float(tc.value)), joinParts(format.FormatToParts(Float(tc.value))); got != want {
+			if got, want := format.Format(Float(tc.value)), joinNumberParts(format.FormatToParts(Float(tc.value))); got != want {
 				t.Fatalf("Format(%v) = %q, want joined FormatToParts %q", tc.value, got, want)
 			}
 		})
 	}
+}
+
+func joinNumberParts(parts []Part) string {
+	size := 0
+	for _, part := range parts {
+		size += len(part.Value)
+	}
+	var b strings.Builder
+	b.Grow(size)
+	for _, part := range parts {
+		b.WriteString(part.Value)
+	}
+	return b.String()
 }
 
 func TestNumberFormatFractionDigitOptions(t *testing.T) {
@@ -86,7 +130,7 @@ func TestNumberFormatMinimumFractionDigitsOnly(t *testing.T) {
 func TestNumberFormatUseGroupingFalse(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: UseGroupingFalse})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: stringPtr(UseGroupingFalse)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +142,7 @@ func TestNumberFormatUseGroupingFalse(t *testing.T) {
 func TestNumberFormatUseGroupingMin2(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: UseGroupingMin2})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: stringPtr(UseGroupingMin2)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +189,7 @@ func TestNumberFormatCLDRPrimarySecondaryGrouping(t *testing.T) {
 		t.Fatalf("FormatToParts(123456.456) = %#v, want %#v", parts, wantParts)
 	}
 
-	currency, err := New(locale.List{intltest.Locale(t, "hi")}, Options{Style: CurrencyStyle, Currency: Currency("USD")})
+	currency, err := New(locale.List{intltest.Locale(t, "hi")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +201,7 @@ func TestNumberFormatCLDRPrimarySecondaryGrouping(t *testing.T) {
 func TestNumberFormatPublicIntegerBridges(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: UseGroupingFalse})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: stringPtr(UseGroupingFalse)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +258,7 @@ func TestNumberFormatPublicIntegerBridgesUseGroupedLatnFastPath(t *testing.T) {
 func TestNumberFormatFormatValueCoversUnsignedFastPath(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: UseGroupingFalse})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: stringPtr(UseGroupingFalse)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +289,7 @@ func TestNumberFormatFormatValueCoversUnsignedFastPath(t *testing.T) {
 func TestNumberFormatPublicToPartsBridges(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: UseGroupingFalse})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{UseGrouping: stringPtr(UseGroupingFalse)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +318,7 @@ func TestNumberFormatPublicToPartsBridges(t *testing.T) {
 func TestNumberFormatToPartsLocalizesDigitsWithoutMutatingSource(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{NumberingSystem: "arab"})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{NumberingSystem: stringPtr("arab")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,13 +391,16 @@ func TestNumberFormatFormatInvalidValue(t *testing.T) {
 
 	if _, err := Decimal("not a number"); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
 		t.Fatalf("Decimal() error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
+	} else {
+		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "numberformat", "decimal", "not a number", "")
+		testcontract.AssertErrorExpected(t, err, "a well-formed decimal string, NaN, Infinity, or -Infinity")
 	}
 }
 
 func TestNumberFormatSignDisplayAlways(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{SignDisplay: AlwaysSignDisplay})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{SignDisplay: stringPtr(AlwaysSignDisplay)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +437,7 @@ func TestNumberFormatSignDisplayModes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			format, err := New(locale.List{intltest.Locale(t, "en")}, Options{SignDisplay: SignDisplay(tc.mode)})
+			format, err := New(locale.List{intltest.Locale(t, "en")}, Options{SignDisplay: stringPtr(SignDisplay(tc.mode))})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -423,7 +470,7 @@ func TestNumberFormatFormatInfinity(t *testing.T) {
 func TestNumberFormatSignDisplaySpecialValues(t *testing.T) {
 	t.Parallel()
 
-	always, err := New(locale.List{intltest.Locale(t, "en")}, Options{SignDisplay: AlwaysSignDisplay})
+	always, err := New(locale.List{intltest.Locale(t, "en")}, Options{SignDisplay: stringPtr(AlwaysSignDisplay)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -434,7 +481,7 @@ func TestNumberFormatSignDisplaySpecialValues(t *testing.T) {
 		t.Fatalf("always Format(+Inf) = %q, want +∞", got)
 	}
 
-	never, err := New(locale.List{intltest.Locale(t, "en")}, Options{SignDisplay: NeverSignDisplay})
+	never, err := New(locale.List{intltest.Locale(t, "en")}, Options{SignDisplay: stringPtr(NeverSignDisplay)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,7 +493,7 @@ func TestNumberFormatSignDisplaySpecialValues(t *testing.T) {
 func TestNumberFormatSignDisplayNotation(t *testing.T) {
 	t.Parallel()
 
-	scientific, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: ScientificNotation, SignDisplay: AlwaysSignDisplay, MaximumFractionDigits: intPtr(1)})
+	scientific, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(ScientificNotation), SignDisplay: stringPtr(AlwaysSignDisplay), MaximumFractionDigits: intPtr(1)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -454,7 +501,7 @@ func TestNumberFormatSignDisplayNotation(t *testing.T) {
 		t.Fatalf("scientific Format(1200) = %q, want +1.2E3", got)
 	}
 
-	compact, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: CompactNotation, SignDisplay: NeverSignDisplay, MaximumFractionDigits: intPtr(1)})
+	compact, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(CompactNotation), SignDisplay: stringPtr(NeverSignDisplay), MaximumFractionDigits: intPtr(1)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -466,7 +513,7 @@ func TestNumberFormatSignDisplayNotation(t *testing.T) {
 func TestNumberFormatFormatPercent(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: PercentStyle})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(PercentStyle)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -482,7 +529,7 @@ func TestNumberFormatFormatPercent(t *testing.T) {
 func TestNumberFormatPercentPreservesDecimalMagnitude(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: PercentStyle, UseGrouping: UseGroupingFalse})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(PercentStyle), UseGrouping: stringPtr(UseGroupingFalse)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,7 +541,7 @@ func TestNumberFormatPercentPreservesDecimalMagnitude(t *testing.T) {
 func TestNumberFormatScientificPreservesDecimalMagnitude(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: ScientificNotation, MaximumSignificantDigits: intPtr(16), UseGrouping: UseGroupingFalse})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(ScientificNotation), MaximumSignificantDigits: intPtr(16), UseGrouping: stringPtr(UseGroupingFalse)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -506,7 +553,7 @@ func TestNumberFormatScientificPreservesDecimalMagnitude(t *testing.T) {
 func TestNumberFormatFormatCurrencyUSD(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("USD")})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -527,7 +574,7 @@ func TestNumberFormatFormatCurrencyUSD(t *testing.T) {
 func TestNumberFormatFormatCurrencyJPY(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("JPY")})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("JPY")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,7 +591,7 @@ func TestNumberFormatFormatCurrencyJPY(t *testing.T) {
 func TestNumberFormatFormatCurrencyCode(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencyDisplay: CurrencyDisplayCode})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencyDisplay: stringPtr(CurrencyDisplayCode)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -560,12 +607,13 @@ func TestNumberFormatFormatCurrencyCode(t *testing.T) {
 func TestNumberFormatCurrencyPatternPlacement(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencyDisplay: CurrencyDisplayCode})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencyDisplay: stringPtr(CurrencyDisplayCode)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	pattern := format.cldrLoc.CurrencyPattern(format.ResolvedOptions().NumberingSystem, "standard")
-	if got := joinParts(format.formatToPartsValue(12)); got != strings.Replace(pattern, "¤#,##0.00", "USD12.00", 1) {
+	numberLocale := mustNumberLocale(t, "en-US")
+	pattern := numberLocale.CurrencyPattern(format.ResolvedOptions().NumberingSystem, "standard")
+	if got := joinNumberParts(format.formatToPartsValue(12)); got != strings.Replace(pattern, "¤#,##0.00", "USD12.00", 1) {
 		t.Fatalf("FormatToParts(12) joined = %q, want CLDR currency pattern %q", got, pattern)
 	}
 }
@@ -579,10 +627,10 @@ func TestNumberFormatCurrencySignPlacement(t *testing.T) {
 		in   any
 		want string
 	}{
-		{name: "standard negative", opts: Options{Style: CurrencyStyle, Currency: Currency("USD")}, in: -12, want: "-$12.00"},
-		{name: "standard positive sign", opts: Options{Style: CurrencyStyle, Currency: Currency("USD"), SignDisplay: AlwaysSignDisplay}, in: 12, want: "+$12.00"},
-		{name: "accounting negative", opts: Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencySign: AccountingCurrencySign}, in: -12, want: "($12.00)"},
-		{name: "accounting hidden sign", opts: Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencySign: AccountingCurrencySign, SignDisplay: NeverSignDisplay}, in: -12, want: "$12.00"},
+		{name: "standard negative", opts: Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD")}, in: -12, want: "-$12.00"},
+		{name: "standard positive sign", opts: Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), SignDisplay: stringPtr(AlwaysSignDisplay)}, in: 12, want: "+$12.00"},
+		{name: "accounting negative", opts: Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencySign: stringPtr(AccountingCurrencySign)}, in: -12, want: "($12.00)"},
+		{name: "accounting hidden sign", opts: Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencySign: stringPtr(AccountingCurrencySign), SignDisplay: stringPtr(NeverSignDisplay)}, in: -12, want: "$12.00"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -602,7 +650,7 @@ func TestNumberFormatCurrencySignPlacement(t *testing.T) {
 func TestNumberFormatCurrencyAccountingParts(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencySign: AccountingCurrencySign})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencySign: stringPtr(AccountingCurrencySign)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -622,7 +670,7 @@ func TestNumberFormatCurrencyAccountingParts(t *testing.T) {
 func TestNumberFormatFormatCurrencyName(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencyDisplay: CurrencyDisplayName})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencyDisplay: stringPtr(CurrencyDisplayName)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -638,7 +686,7 @@ func TestNumberFormatFormatCurrencyName(t *testing.T) {
 func TestNumberFormatFormatCurrencyNamePlural(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencyDisplay: CurrencyDisplayName})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencyDisplay: stringPtr(CurrencyDisplayName)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -654,9 +702,9 @@ func TestNumberFormatCurrencyDisplayNameUsesRoundedPlural(t *testing.T) {
 	t.Parallel()
 
 	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{
-		Style:                 CurrencyStyle,
-		Currency:              Currency("USD"),
-		CurrencyDisplay:       CurrencyDisplayName,
+		Style:                 stringPtr(CurrencyStyle),
+		Currency:              stringPtr("USD"),
+		CurrencyDisplay:       stringPtr(CurrencyDisplayName),
 		MinimumFractionDigits: intPtr(0), MaximumFractionDigits: intPtr(0),
 	})
 	if err != nil {
@@ -670,7 +718,7 @@ func TestNumberFormatCurrencyDisplayNameUsesRoundedPlural(t *testing.T) {
 func TestNumberFormatFormatCurrencyNarrowSymbol(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencyDisplay: CurrencyDisplayNarrowSymbol})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencyDisplay: stringPtr(CurrencyDisplayNarrowSymbol)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -686,7 +734,7 @@ func TestNumberFormatFormatCurrencyNarrowSymbol(t *testing.T) {
 func TestNumberFormatFormatUnitMeter(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: UnitStyle, Unit: Unit("meter")})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(UnitStyle), Unit: stringPtr("meter")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -702,16 +750,18 @@ func TestNumberFormatFormatUnitMeter(t *testing.T) {
 func TestNumberFormatRejectsUnitStyleWithoutUnit(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: UnitStyle})
+	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(UnitStyle)})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New(unit style without unit) error = %v, want intlerr.ErrInvalidOption", err)
 	}
+	testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "unit", "", "en")
+	testcontract.AssertOptionExpected(t, err, `a sanctioned unit identifier when style is "unit"`)
 }
 
 func TestNumberFormatFormatScientific(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: ScientificNotation, MaximumFractionDigits: intPtr(2)})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(ScientificNotation), MaximumFractionDigits: intPtr(2)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -727,7 +777,7 @@ func TestNumberFormatFormatScientific(t *testing.T) {
 func TestNumberFormatFormatEngineering(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: EngineeringNotation, MaximumFractionDigits: intPtr(2)})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(EngineeringNotation), MaximumFractionDigits: intPtr(2)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -739,7 +789,7 @@ func TestNumberFormatFormatEngineering(t *testing.T) {
 func TestNumberFormatFormatScientificNegativeExponent(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: ScientificNotation, MaximumFractionDigits: intPtr(2)})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(ScientificNotation), MaximumFractionDigits: intPtr(2)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -755,7 +805,7 @@ func TestNumberFormatFormatScientificNegativeExponent(t *testing.T) {
 func TestNumberFormatFormatCompact(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: CompactNotation, MaximumFractionDigits: intPtr(1)})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(CompactNotation), MaximumFractionDigits: intPtr(1)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -771,7 +821,7 @@ func TestNumberFormatFormatCompact(t *testing.T) {
 func TestNumberFormatFormatCompactDefaultPrecision(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: CompactNotation})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(CompactNotation)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -801,37 +851,37 @@ func TestNumberFormatNotationCombinesWithStyle(t *testing.T) {
 	}{
 		{
 			name:  "compact percent",
-			opts:  Options{Style: PercentStyle, Notation: CompactNotation},
+			opts:  Options{Style: stringPtr(PercentStyle), Notation: stringPtr(CompactNotation)},
 			value: 12345,
 			want:  "1.2M%",
 		},
 		{
 			name:  "scientific percent",
-			opts:  Options{Style: PercentStyle, Notation: ScientificNotation},
+			opts:  Options{Style: stringPtr(PercentStyle), Notation: stringPtr(ScientificNotation)},
 			value: 0.0123,
 			want:  "1E0%",
 		},
 		{
 			name:  "compact currency",
-			opts:  Options{Style: CurrencyStyle, Currency: Currency("USD"), Notation: CompactNotation},
+			opts:  Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), Notation: stringPtr(CompactNotation)},
 			value: 1234567,
 			want:  "$1.2M",
 		},
 		{
 			name:  "scientific currency",
-			opts:  Options{Style: CurrencyStyle, Currency: Currency("USD"), Notation: ScientificNotation},
+			opts:  Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), Notation: stringPtr(ScientificNotation)},
 			value: 1234,
 			want:  "$1.234E3",
 		},
 		{
 			name:  "compact unit",
-			opts:  Options{Style: UnitStyle, Unit: Unit("meter"), Notation: CompactNotation},
+			opts:  Options{Style: stringPtr(UnitStyle), Unit: stringPtr("meter"), Notation: stringPtr(CompactNotation)},
 			value: 1234567,
 			want:  "1.2M m",
 		},
 		{
 			name:  "scientific unit",
-			opts:  Options{Style: UnitStyle, Unit: Unit("meter"), Notation: ScientificNotation},
+			opts:  Options{Style: stringPtr(UnitStyle), Unit: stringPtr("meter"), Notation: stringPtr(ScientificNotation)},
 			value: 1234,
 			want:  "1.234E3 m",
 		},
@@ -862,25 +912,25 @@ func TestNumberFormatSpecialValuesUseStylePatterns(t *testing.T) {
 	}{
 		{
 			name:  "percent NaN",
-			opts:  Options{Style: PercentStyle},
+			opts:  Options{Style: stringPtr(PercentStyle)},
 			value: math.NaN(),
 			want:  "NaN%",
 		},
 		{
 			name:  "scientific percent infinity",
-			opts:  Options{Style: PercentStyle, Notation: ScientificNotation},
+			opts:  Options{Style: stringPtr(PercentStyle), Notation: stringPtr(ScientificNotation)},
 			value: math.Inf(1),
 			want:  "∞%",
 		},
 		{
 			name:  "accounting currency negative infinity",
-			opts:  Options{Style: CurrencyStyle, Currency: Currency("USD"), CurrencySign: AccountingCurrencySign},
+			opts:  Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencySign: stringPtr(AccountingCurrencySign)},
 			value: math.Inf(-1),
 			want:  "($∞)",
 		},
 		{
 			name:  "unit infinity",
-			opts:  Options{Style: UnitStyle, Unit: Unit("meter")},
+			opts:  Options{Style: stringPtr(UnitStyle), Unit: stringPtr("meter")},
 			value: math.Inf(1),
 			want:  "∞ m",
 		},
@@ -903,7 +953,7 @@ func TestNumberFormatSpecialValuesUseStylePatterns(t *testing.T) {
 func TestNumberFormatFormatCompactLong(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: CompactNotation, CompactDisplay: LongCompactDisplay, MaximumFractionDigits: intPtr(1)})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(CompactNotation), CompactDisplay: stringPtr(LongCompactDisplay), MaximumFractionDigits: intPtr(1)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -926,13 +976,13 @@ func TestNumberFormatRoundingOptions(t *testing.T) {
 		want string
 	}{
 		{name: "half expand", opts: Options{MaximumFractionDigits: intPtr(0)}, in: 1.5, want: "2"},
-		{name: "half trunc", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: HalfTruncRoundingMode}, in: 1.5, want: "1"},
-		{name: "half even lower", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: HalfEvenRoundingMode}, in: 2.5, want: "2"},
-		{name: "half even upper", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: HalfEvenRoundingMode}, in: 3.5, want: "4"},
-		{name: "ceil negative", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: CeilRoundingMode}, in: -1.9, want: "-1"},
-		{name: "floor negative", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: FloorRoundingMode}, in: -1.1, want: "-2"},
+		{name: "half trunc", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: stringPtr(HalfTruncRoundingMode)}, in: 1.5, want: "1"},
+		{name: "half even lower", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: stringPtr(HalfEvenRoundingMode)}, in: 2.5, want: "2"},
+		{name: "half even upper", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: stringPtr(HalfEvenRoundingMode)}, in: 3.5, want: "4"},
+		{name: "ceil negative", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: stringPtr(CeilRoundingMode)}, in: -1.9, want: "-1"},
+		{name: "floor negative", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: stringPtr(FloorRoundingMode)}, in: -1.1, want: "-2"},
 		{name: "rounding increment", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), RoundingIncrement: intPtr(5)}, in: 1.23, want: "1.25"},
-		{name: "strip integer zeros", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), TrailingZeroDisplay: StripIfIntegerTrailingZeroDisplay}, in: 1, want: "1"},
+		{name: "strip integer zeros", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), TrailingZeroDisplay: stringPtr(StripIfIntegerTrailingZeroDisplay)}, in: 1, want: "1"},
 		{name: "minimum integer digits", opts: Options{MinimumIntegerDigits: intPtr(3), MaximumFractionDigits: intPtr(0)}, in: 5, want: "005"},
 	}
 	for _, tc := range tests {
@@ -964,7 +1014,7 @@ func TestNumberFormatSignificantDigitOptions(t *testing.T) {
 		{name: "maximum significant rounds integer", opts: Options{MaximumSignificantDigits: intPtr(3)}, in: 1234.5, want: "1,230"},
 		{name: "minimum and maximum significant small decimal", opts: Options{MinimumSignificantDigits: intPtr(2), MaximumSignificantDigits: intPtr(4)}, in: 0.0012345, want: "0.001235"},
 		{name: "minimum integer digits", opts: Options{MinimumIntegerDigits: intPtr(3), MinimumSignificantDigits: intPtr(3)}, in: 1.2, want: "001.20"},
-		{name: "strip integer zeros", opts: Options{MinimumSignificantDigits: intPtr(3), TrailingZeroDisplay: StripIfIntegerTrailingZeroDisplay}, in: 1, want: "1"},
+		{name: "strip integer zeros", opts: Options{MinimumSignificantDigits: intPtr(3), TrailingZeroDisplay: stringPtr(StripIfIntegerTrailingZeroDisplay)}, in: 1, want: "1"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -990,12 +1040,12 @@ func TestNumberFormatRoundingPriority(t *testing.T) {
 		in   any
 		want string
 	}{
-		{name: "more precision chooses significant", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), MinimumSignificantDigits: intPtr(2), MaximumSignificantDigits: intPtr(4), RoundingPriority: MorePrecisionRoundingPriority}, in: 1.2345, want: "1.235"},
-		{name: "less precision chooses fraction", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), MinimumSignificantDigits: intPtr(2), MaximumSignificantDigits: intPtr(4), RoundingPriority: LessPrecisionRoundingPriority}, in: 1.2345, want: "1.23"},
-		{name: "more precision keeps integer fraction", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), MinimumSignificantDigits: intPtr(2), MaximumSignificantDigits: intPtr(4), RoundingPriority: MorePrecisionRoundingPriority}, in: 12345, want: "12,345.00"},
-		{name: "less precision rounds integer significant", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), MinimumSignificantDigits: intPtr(2), MaximumSignificantDigits: intPtr(4), RoundingPriority: LessPrecisionRoundingPriority}, in: 12345, want: "12,350"},
-		{name: "more precision default significant", opts: Options{MaximumFractionDigits: intPtr(2), RoundingPriority: MorePrecisionRoundingPriority}, in: 1.2345, want: "1.2345"},
-		{name: "less precision default significant", opts: Options{MaximumFractionDigits: intPtr(2), RoundingPriority: LessPrecisionRoundingPriority}, in: 1.2345, want: "1.23"},
+		{name: "more precision chooses significant", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), MinimumSignificantDigits: intPtr(2), MaximumSignificantDigits: intPtr(4), RoundingPriority: stringPtr(MorePrecisionRoundingPriority)}, in: 1.2345, want: "1.235"},
+		{name: "less precision chooses fraction", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), MinimumSignificantDigits: intPtr(2), MaximumSignificantDigits: intPtr(4), RoundingPriority: stringPtr(LessPrecisionRoundingPriority)}, in: 1.2345, want: "1.23"},
+		{name: "more precision keeps integer fraction", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), MinimumSignificantDigits: intPtr(2), MaximumSignificantDigits: intPtr(4), RoundingPriority: stringPtr(MorePrecisionRoundingPriority)}, in: 12345, want: "12,345.00"},
+		{name: "less precision rounds integer significant", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), MinimumSignificantDigits: intPtr(2), MaximumSignificantDigits: intPtr(4), RoundingPriority: stringPtr(LessPrecisionRoundingPriority)}, in: 12345, want: "12,350"},
+		{name: "more precision default significant", opts: Options{MaximumFractionDigits: intPtr(2), RoundingPriority: stringPtr(MorePrecisionRoundingPriority)}, in: 1.2345, want: "1.2345"},
+		{name: "less precision default significant", opts: Options{MaximumFractionDigits: intPtr(2), RoundingPriority: stringPtr(LessPrecisionRoundingPriority)}, in: 1.2345, want: "1.23"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1027,25 +1077,36 @@ func TestNumberFormatRoundingIncrementRequiresFixedFractionDigits(t *testing.T) 
 	if _, err := New(locale.List{intltest.Locale(t, "en")}, Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), RoundingIncrement: intPtr(5)}); err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
-	if _, err := New(locale.List{intltest.Locale(t, "en")}, Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), RoundingIncrement: intPtr(5), RoundingPriority: MorePrecisionRoundingPriority}); !errors.Is(err, intlerr.ErrInvalidOption) {
+	if _, err := New(locale.List{intltest.Locale(t, "en")}, Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2), RoundingIncrement: intPtr(5), RoundingPriority: stringPtr(MorePrecisionRoundingPriority)}); !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
+	} else {
+		testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "roundingIncrement", "5", "en")
+		testcontract.AssertOptionExpected(t, err, "roundingIncrement 1 unless fraction digit rounding uses equal minimumFractionDigits and maximumFractionDigits")
 	}
 }
 
-func TestPartitionDecimalUsesNumberSymbols(t *testing.T) {
+func TestNumberFormatToPartsUsesCLDRNumberSymbols(t *testing.T) {
 	t.Parallel()
 
-	symbols := cldrnumber.NumberSymbols{Decimal: "·", Group: "_", Minus: "−"}
+	format, err := New(locale.List{intltest.Locale(t, "de-DE")}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := Decimal("-1234.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	symbols := mustNumberSymbolsForLocale(t, "de-DE")
 	want := []Part{
-		{Type: PartMinusSign, Value: "−"},
+		{Type: PartMinusSign, Value: symbols.Minus},
 		{Type: PartInteger, Value: "1"},
-		{Type: PartGroup, Value: "_"},
+		{Type: PartGroup, Value: symbols.Group},
 		{Type: PartInteger, Value: "234"},
-		{Type: PartDecimal, Value: "·"},
+		{Type: PartDecimal, Value: symbols.Decimal},
 		{Type: PartFraction, Value: "5"},
 	}
-	if got := partitionDecimal("-1,234.5", symbols); !reflect.DeepEqual(got, want) {
-		t.Fatalf("partitionDecimal() = %#v, want %#v", got, want)
+	if got := format.FormatToParts(value); !reflect.DeepEqual(got, want) {
+		t.Fatalf("FormatToParts(-1234.5) = %#v, want %#v", got, want)
 	}
 }
 
@@ -1056,16 +1117,20 @@ func TestLocalizeNumberStringUsesNumberSymbols(t *testing.T) {
 	if got := localizeNumberString("-1,234.5", symbols); got != "−1_234·5" {
 		t.Fatalf("localizeNumberString() = %q, want %q", got, "−1_234·5")
 	}
+	symbols = cldrnumber.NumberSymbols{Decimal: ",", Group: ".", Minus: "-"}
+	if got := localizeNumberString("-1,234.5", symbols); got != "-1.234,5" {
+		t.Fatalf("localizeNumberString() = %q, want %q", got, "-1.234,5")
+	}
 }
 
 func TestNumberFormatUsesCLDRNumberSymbols(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{SignDisplay: AlwaysSignDisplay})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{SignDisplay: stringPtr(AlwaysSignDisplay)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	symbols := format.symbols()
+	symbols := mustNumberSymbolsForLocale(t, "en")
 	if got := format.formatValue(nil); got != symbols.Plus+symbols.NaN {
 		t.Fatalf("Format(nil) = %q, want CLDR signed NaN %q", got, symbols.Plus+symbols.NaN)
 	}
@@ -1077,7 +1142,7 @@ func TestNumberFormatUsesCLDRNumberSymbols(t *testing.T) {
 		t.Fatalf("FormatToParts(5) = %#v, want %#v", got, want)
 	}
 
-	percent, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: PercentStyle})
+	percent, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(PercentStyle)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1086,7 +1151,7 @@ func TestNumberFormatUsesCLDRNumberSymbols(t *testing.T) {
 		t.Fatalf("percent FormatToParts() = %#v, want %#v", got, want)
 	}
 
-	scientific, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: ScientificNotation, MaximumFractionDigits: intPtr(2)})
+	scientific, err := New(locale.List{intltest.Locale(t, "en")}, Options{Notation: stringPtr(ScientificNotation), MaximumFractionDigits: intPtr(2)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1103,11 +1168,11 @@ func TestNumberFormatEqualRangeUsesCLDRApproximateSign(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	symbols := format.symbols()
-	if got := format.formatRangeValue(2, 2); got != symbols.ApproxSign+"2" {
+	symbols := mustNumberSymbolsForLocale(t, "en")
+	if got := mustFormatRangeValue(t, format, 2, 2); got != symbols.ApproxSign+"2" {
 		t.Fatalf("FormatRange(2, 2) = %q, want %q", got, symbols.ApproxSign+"2")
 	}
-	parts := format.formatRangeToPartsValue(2, 2)
+	parts := mustFormatRangeToPartsValue(t, format, 2, 2)
 	if len(parts) == 0 || parts[0] != (RangePart{Type: PartApproximatelySign, Value: symbols.ApproxSign, Source: SourceShared}) {
 		t.Fatalf("FormatRangeToParts(2, 2) = %#v, want CLDR approximate sign first", parts)
 	}

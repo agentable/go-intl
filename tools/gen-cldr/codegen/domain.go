@@ -22,7 +22,7 @@ type domain struct {
 
 // domains is the domain registry. New domains are migrated in one row at a
 // time as the literal renderers retire.
-var domains = []domain{
+var domains = [...]domain{
 	{pkg: "unit", emit: encodeUnits},
 	{pkg: "date", emit: encodeDates},
 	{pkg: "relativetime", emit: encodeRelativeTime},
@@ -33,9 +33,9 @@ var domains = []domain{
 	{pkg: "displaynames", emit: encodeDisplayNames},
 }
 
-// payloadPath returns the repo-relative payload file for a domain.
-func (d domain) payloadPath() string {
-	return "internal/cldr/" + d.pkg + "/data.go"
+// payloadFile returns the internal/cldr-relative payload file for a domain.
+func (d domain) payloadFile() string {
+	return d.pkg + "/data.go"
 }
 
 // renderDomainFiles renders the const-only payload (data.go) for every
@@ -43,14 +43,15 @@ func (d domain) payloadPath() string {
 // only its own strings — the representation invariant that dissolves the shared
 // global string table.
 func renderDomainFiles(input RuntimeInput) ([]generatedFile, error) {
-	files := make([]generatedFile, 0, len(domains))
-	for _, d := range domains {
+	files := make([]generatedFile, len(domains))
+	for i, d := range domains[:] {
 		table := NewStringTable()
 		src, err := d.emit(input, table)
+		name := d.payloadFile()
 		if err != nil {
-			return nil, err
+			return nil, renderCLDRFileError(name, err)
 		}
-		files = append(files, generatedFile{name: d.pkg + "/data.go", src: src})
+		files[i] = generatedFile{name: name, src: src}
 	}
 	return files, nil
 }

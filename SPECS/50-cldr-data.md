@@ -63,6 +63,12 @@ Each semantic domain is a Go package under `internal/cldr/<domain>/` with a gene
 
 The locale-matching distance / paradigm / matchVariables / territoryContainment tables had no production consumer (the runtime matcher in `internal/localematcher` carries its own distance table), so they are no longer generated.
 
+Runtime CLDR accessors may interpret locale subtags only to select already
+generated data. When they need script or region shape checks, such as
+`date.DateLocaleData` hour-cycle region lookup or display-name language-region
+composition, they must delegate to `internal/localeid` instead of embedding
+domain-local ASCII/length grammar.
+
 #### Supported-value narrow indexes
 
 `SupportedLocales`, `SupportedNumberingSystems`, `SupportedCalendars`, `SupportedCurrencies`, `SupportedTimeZones`, and `UnitSupportedLocales` are cold-start-path queries that must **not** decode the domain's main payload. Each is generated as a small dedicated `const _<...>Blob` with its own `sync.Once`, owned by the domain that proves the support:
@@ -393,7 +399,8 @@ MUST rules:
 2. `internal/localematcher` **MUST NOT** import any `internal/cldr` package; formatter constructors inject generated supported-locale slices and maximizers into the matcher.
 3. Root `Intl.supportedValuesOf` accessors consume the owning domain's narrow index (§1.2). Root `supportedValuesOf("collation")` uses `internal/collation`, not the CLDR candidate list, so it advertises only values the active Collator can apply.
 4. `SupportedCalendars()` derives from date calendar payload keys, maps CLDR `"gregorian"` → ECMA-402 `"gregory"`, and appends `"iso8601"` only when Gregorian data exists. `SupportedNumberingSystems()` includes the full ECMA-402 simple digit set even when the profile generates no matching CLDR symbol payload.
-5. The root `internal/cldr/` directory is not a Go package. It must contain version metadata and domain subdirectories only; no production code may import a retired root CLDR package.
+5. Number-domain decimal, percent, scientific, symbol, and currency pattern accessors must fall back from a requested numbering-system row to the locale default numbering-system row when the requested row is absent. Compact pattern accessors keep missing tuple results empty so NumberFormat can distinguish unavailable compact formats from base pattern defaults.
+6. The root `internal/cldr/` directory is not a Go package. It must contain version metadata and domain subdirectories only; no production code may import a retired root CLDR package.
 
 > **Why**: `availableLocales.json` may list locales without complete formatter payload; supported lists must come from real payload, or `ResolveLocale` could hit a payload-less locale and drift the fallback from Generated reference.
 

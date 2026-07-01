@@ -6,5 +6,15 @@
     "options": {},
     "input": {"value": 1, "unit": "invalid"},
     "errorCode": "invalid_value"
+  },
+  {
+    "id": "relativetimeformat-manual-empty-numbering-system",
+    "source": "manual:relativetimeformat-basic",
+    "locale": "en-US",
+    "options": {
+      "numberingSystem": ""
+    },
+    "input": {"value": 1, "unit": "day"},
+    "errorCode": "invalid_option"
   }
 ]

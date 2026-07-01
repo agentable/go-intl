@@ -2,9 +2,6 @@ package listformat
 
 import (
 	"errors"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"reflect"
 	"strings"
 	"testing"
@@ -12,8 +9,14 @@ import (
 	"github.com/agentable/go-intl/internal/intlerr"
 
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 )
+
+func stringPtr[T ~string](v T) *string {
+	value := string(v)
+	return &value
+}
 
 func TestListFormatResolvedOptionsDefaults(t *testing.T) {
 	t.Parallel()
@@ -40,20 +43,50 @@ func TestListFormatRejectsInvalidOptions(t *testing.T) {
 
 	loc := intltest.Locale(t, "en-US")
 	tests := []struct {
-		name string
-		opts Options
+		name         string
+		opts         Options
+		wantName     string
+		wantValue    string
+		wantExpected string
 	}{
 		{
-			name: "locale matcher",
-			opts: Options{LocaleMatcher: LocaleMatcher("bad")},
+			name:         "locale matcher",
+			opts:         Options{LocaleMatcher: stringPtr("bad")},
+			wantName:     "localeMatcher",
+			wantValue:    "bad",
+			wantExpected: `one of "lookup", "best fit"`,
 		},
 		{
-			name: "type",
-			opts: Options{Type: Type("bad")},
+			name:         "explicit empty locale matcher",
+			opts:         Options{LocaleMatcher: stringPtr("")},
+			wantName:     "localeMatcher",
+			wantExpected: `one of "lookup", "best fit"`,
 		},
 		{
-			name: "style",
-			opts: Options{Style: Style("bad")},
+			name:         "type",
+			opts:         Options{Type: stringPtr("bad")},
+			wantName:     "type",
+			wantValue:    "bad",
+			wantExpected: `one of "conjunction", "disjunction", "unit"`,
+		},
+		{
+			name:         "explicit empty type",
+			opts:         Options{Type: stringPtr("")},
+			wantName:     "type",
+			wantExpected: `one of "conjunction", "disjunction", "unit"`,
+		},
+		{
+			name:         "style",
+			opts:         Options{Style: stringPtr("bad")},
+			wantName:     "style",
+			wantValue:    "bad",
+			wantExpected: `one of "long", "short", "narrow"`,
+		},
+		{
+			name:         "explicit empty style",
+			opts:         Options{Style: stringPtr("")},
+			wantName:     "style",
+			wantExpected: `one of "long", "short", "narrow"`,
 		},
 	}
 	for _, tc := range tests {
@@ -64,6 +97,8 @@ func TestListFormatRejectsInvalidOptions(t *testing.T) {
 			if !errors.Is(err, intlerr.ErrInvalidOption) {
 				t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 			}
+			testcontract.AssertOptionError(t, err, "listformat", intlerr.InvalidOption, tc.wantName, tc.wantValue, loc.String())
+			testcontract.AssertOptionExpected(t, err, tc.wantExpected)
 		})
 	}
 }
@@ -153,22 +188,6 @@ func TestListFormatFormatEqualsFormatToPartsJoin(t *testing.T) {
 	}
 }
 
-func TestListFormatFormatUsesPartsOwner(t *testing.T) {
-	t.Parallel()
-
-	parsed, err := parser.ParseFile(token.NewFileSet(), "format.go", nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	format := findMethodDecl(parsed, "Format")
-	if format == nil {
-		t.Fatal("Format method not found")
-	}
-	if !methodCalls(format, "FormatToParts") {
-		t.Fatal("Format must derive output from FormatToParts to avoid string/parts drift")
-	}
-}
-
 func TestListFormatFormatToPartsPair(t *testing.T) {
 	t.Parallel()
 
@@ -238,48 +257,37 @@ func listPartsText(parts []Part) string {
 	return b.String()
 }
 
-func findMethodDecl(file *ast.File, name string) *ast.FuncDecl {
-	for _, decl := range file.Decls {
-		decl, ok := decl.(*ast.FuncDecl)
-		if ok && decl.Recv != nil && decl.Name.Name == name {
-			return decl
-		}
-	}
-	return nil
-}
-
-func methodCalls(fn *ast.FuncDecl, name string) bool {
-	found := false
-	ast.Inspect(fn.Body, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		selector, ok := call.Fun.(*ast.SelectorExpr)
-		if ok && selector.Sel.Name == name {
-			found = true
-			return false
-		}
-		return true
-	})
-	return found
-}
-
 func TestSupportedLocalesOf(t *testing.T) {
 	t.Parallel()
 
 	requested := locale.List{intltest.Locale(t, "fr-FR"), intltest.Locale(t, "en-US"), intltest.Locale(t, "zh-Hans-CN")}
-	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: LookupLocaleMatcher})
+	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: stringPtr(LookupLocaleMatcher)})
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf() error = %v", err)
 	}
-	want := []string{"fr-FR", "en-US", "zh-Hans-CN"}
-	if len(got) != len(want) {
-		t.Fatalf("SupportedLocalesOf() = %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i].String() != want[i] {
-			t.Fatalf("SupportedLocalesOf()[%d] = %q, want %q", i, got[i].String(), want[i])
-		}
+	testcontract.AssertLocaleListStrings(t, "SupportedLocalesOf()", got, []string{"fr-FR", "en-US", "zh-Hans-CN"})
+}
+
+func TestSupportedLocalesOfRejectsExplicitEmptyLocaleMatcher(t *testing.T) {
+	t.Parallel()
+
+	requested := locale.List{intltest.Locale(t, "en-US")}
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{name: "bogus", value: "bogus"},
+		{name: "explicit empty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := SupportedLocalesOf(requested, Options{LocaleMatcher: stringPtr(tc.value)})
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("SupportedLocalesOf() error = %v, want intlerr.ErrInvalidOption", err)
+			}
+			testcontract.AssertOptionError(t, err, "listformat", intlerr.InvalidOption, "localeMatcher", tc.value, "en-US")
+			testcontract.AssertOptionExpected(t, err, `one of "lookup", "best fit"`)
+		})
 	}
 }

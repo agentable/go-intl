@@ -53,9 +53,7 @@ func TestToIntlMathematicalValue(t *testing.T) {
 			if got.String() != tc.want {
 				t.Fatalf("String() = %q, want %q", got.String(), tc.want)
 			}
-			if got.Form() != tc.form {
-				t.Fatalf("Form() = %v, want %v", got.Form(), tc.form)
-			}
+			assertDecimalForm(t, got, tc.form)
 			if got.Negative() != tc.negative {
 				t.Fatalf("Negative() = %v, want %v", got.Negative(), tc.negative)
 			}

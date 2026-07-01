@@ -44,11 +44,11 @@ const (
 )
 
 type Options struct {
-    LocaleMatcher   LocaleMatcher
-    Type            Type
-    Style           Style
-    Fallback        Fallback
-    LanguageDisplay LanguageDisplay
+    LocaleMatcher   *string
+    Type            *string
+    Style           *string
+    Fallback        *string
+    LanguageDisplay *string
 }
 
 type DisplayNames struct{ /* immutable resolved options + lookup data */ }
@@ -61,10 +61,10 @@ func (d *DisplayNames) ResolvedOptions() ResolvedOptions
 
 MUST rules:
 
-1. `New` accepts one `Options` value. `Options.Type` is required; an empty string returns `ErrInvalidOption` with name `"type"`.
-2. Default values for unset fields are ECMA-402 defaults: `Style=LongStyle`, `Fallback=CodeFallback`. `Options.LanguageDisplay` is a zero-value string bridge for the options bag. `ResolvedOptions.LanguageDisplay` defaults to `DialectLanguageDisplay` only when `Type=Language`; for other types it must be absent (`nil`), mirroring ECMA-402 §12.4.2 step 22.
+1. `New` accepts one `Options` value. `Options.Type` is required; `nil` means the required option is missing, and `gointl.String("")` returns `ErrInvalidOption` with name `"type"`.
+2. String options use presence-aware `*string` fields. `nil` means omitted/default: `LocaleMatcher=BestFitLocaleMatcher`, `Style=LongStyle`, `Fallback=CodeFallback`, and `LanguageDisplay=DialectLanguageDisplay`. Explicit empty strings are invalid for `localeMatcher`, `type`, `style`, `fallback`, and `languageDisplay`. `ResolvedOptions.LanguageDisplay` is reported only when `Type=Language`; for other types it must be absent (`nil`), mirroring ECMA-402 §12.4.2 step 22.
 3. `Of` returns `(name, true, nil)` for a successful lookup. When the code is unknown and `Fallback=CodeFallback`, return the input code canonicalized per type with `true`. When unknown and `Fallback=NoneFallback`, return `("", false, nil)`.
-4. `Of` validates the code shape per type before lookup (Unicode `unicode_language_id` for language codes, ISO 3166 region, ISO 15924 script, ISO 4217 currency, BCP 47 calendar, ECMA-402 dateTimeField). Language codes allow language/script/region/variant subtags only; extensions, private-use tags, grandfathered tags, and extlang forms are invalid for `DisplayNames.of`. Invalid shape returns an error wrapping `ErrInvalidCode`.
+4. `Of` validates the code shape per type before lookup (Unicode `unicode_language_id` for language codes, ISO 3166 region, ISO 15924 script, ISO 4217 currency, BCP 47 calendar, ECMA-402 dateTimeField). Language codes allow language/script/region/variant subtags only; extensions, private-use tags, grandfathered tags, and extlang forms are invalid for `DisplayNames.of`. Invalid shape returns an error wrapping `ErrInvalidCode` and carries the constructor-resolved locale in the structured error record.
 5. `DisplayNames` is immutable after construction and safe for concurrent use.
 
 > **Why `(string, bool, error)`**: ECMA-402 returns `string | undefined` for successful validation but throws `RangeError` for invalid code shape. Go needs both pieces: `(string, bool)` bridges `string | undefined`, and `error` bridges the throw path.
@@ -130,7 +130,7 @@ MUST rules:
 1. Use `internal/cldr/displaynames.SupportedLocales()` as the supported set.
 2. Call `localematcher.FilterLocalesWithMaximizer`.
 3. Accept one `Options` value; `Options{}` represents omitted static-method options.
-4. Read only `LocaleMatcher`; ignore other options for this static method.
+4. Read only `LocaleMatcher`; ignore other options for this static method. `nil` means omitted and an explicit empty string is invalid.
 
 ---
 

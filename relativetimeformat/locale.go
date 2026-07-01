@@ -1,7 +1,6 @@
 package relativetimeformat
 
 import (
-	"slices"
 	"sync"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
@@ -14,21 +13,17 @@ import (
 )
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrrelativetime.Locale, string) {
-	defaultLocale := ecma402.DefaultLocale()
 	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
 		Locales:               locales,
 		Fallback:              fallback,
 		LocaleMatcher:         cfg.localeMatcher,
 		Matcher:               relativeTimeLocaleMatcher(),
-		RelevantExtensionKeys: []string{"nu"},
-		OptionValues:          []localematcher.Option{{Key: "nu", Value: cfg.numberingSystem}},
+		RelevantExtensionKeys: ecma402.NumberingSystemExtensionKeys(),
+		OptionValues:          ecma402.NumberingSystemExtensionOptions(cfg.numberingSystem),
 		LocaleData:            cldrnumber.NumberLocaleData{},
 	})
-	cldrLoc, ok := cldrrelativetime.ResolveLocale(resolution.DataLocale)
-	if !ok {
-		cldrLoc, _ = cldrrelativetime.ResolveLocale(defaultLocale)
-	}
-	numberingSystem := resolution.Extensions["nu"]
+	cldrLoc := ecma402.ResolveDataLocale(resolution, cldrrelativetime.ResolveLocale)
+	numberingSystem := resolution.Extensions[ecma402.UnicodeExtensionKeyNumberingSystem]
 	if numberingSystem == "" {
 		if loc, ok := cldrlocale.ResolveLocale(resolution.DataLocale); ok {
 			numberingSystem = loc.DefaultNumberingSystem()
@@ -38,13 +33,11 @@ func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (loc
 }
 
 var supportedLocales = sync.OnceValue(func() []string {
-	numbers := cldrnumber.SupportedLocales()
-	plurals := cldrplural.SupportedLocales()
-
-	out := slices.Clone(cldrrelativetime.SupportedLocales())
-	return slices.DeleteFunc(out, func(loc string) bool {
-		return !slices.Contains(numbers, loc) || !slices.Contains(plurals, loc)
-	})
+	return cldrlocale.IntersectSupportedLocales(
+		cldrrelativetime.SupportedLocales(),
+		cldrnumber.SupportedLocales(),
+		cldrplural.SupportedLocales(),
+	)
 })
 
 var relativeTimeLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {

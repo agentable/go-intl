@@ -1,7 +1,10 @@
 package pluralrules
 
 import (
+	"slices"
+
 	"github.com/agentable/go-intl/internal/cldr/plural"
+	"github.com/agentable/go-intl/internal/ecma402"
 	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
 	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 	"github.com/agentable/go-intl/locale"
@@ -17,7 +20,7 @@ type ResolvedOptions struct {
 	MaximumSignificantDigits *int                `json:"maximumSignificantDigits,omitempty"`
 	PluralCategories         []Category          `json:"pluralCategories"`
 	Notation                 Notation            `json:"notation"`
-	CompactDisplay           CompactDisplay      `json:"compactDisplay"`
+	CompactDisplay           *CompactDisplay     `json:"compactDisplay,omitempty"`
 	RoundingIncrement        int                 `json:"roundingIncrement"`
 	RoundingMode             RoundingMode        `json:"roundingMode"`
 	RoundingPriority         RoundingPriority    `json:"roundingPriority"`
@@ -25,33 +28,42 @@ type ResolvedOptions struct {
 }
 
 func (f *PluralRules) ResolvedOptions() ResolvedOptions {
-	categories := publicCategories(plural.Categories(f.loc.Tag().String(), f.cfg.typ.String()))
-	resolved := ResolvedOptions{
-		Locale:               f.loc,
-		Type:                 f.cfg.typ,
-		MinimumIntegerDigits: f.cfg.minIntDigits,
-		PluralCategories:     categories,
-		Notation:             Notation(f.cfg.notation),
-		CompactDisplay:       CompactDisplay(f.cfg.compactDisplay),
-		RoundingIncrement:    f.cfg.roundingIncrement,
-		RoundingMode:         RoundingMode(f.cfg.roundingMode),
-		RoundingPriority:     RoundingPriority(f.cfg.roundingPriority),
-		TrailingZeroDisplay:  TrailingZeroDisplay(f.cfg.trailingZeroDisplay),
-	}
-	switch f.cfg.roundingType {
-	case ecma402nf.RoundingTypeFractionDigits:
-		resolved.MinimumFractionDigits = resolvedInt(f.cfg.minFracDigits)
-		resolved.MaximumFractionDigits = resolvedInt(f.cfg.maxFracDigits)
-	case ecma402nf.RoundingTypeSignificantDigits:
-		resolved.MinimumSignificantDigits = resolvedInt(f.cfg.minSigDigits)
-		resolved.MaximumSignificantDigits = resolvedInt(f.cfg.maxSigDigits)
-	default:
-		resolved.MinimumFractionDigits = resolvedInt(f.cfg.minFracDigits)
-		resolved.MaximumFractionDigits = resolvedInt(f.cfg.maxFracDigits)
-		resolved.MinimumSignificantDigits = resolvedInt(f.cfg.minSigDigits)
-		resolved.MaximumSignificantDigits = resolvedInt(f.cfg.maxSigDigits)
-	}
+	resolved := f.resolved
+	resolved.MinimumFractionDigits = ecma402.CloneResolvedScalar(resolved.MinimumFractionDigits)
+	resolved.MaximumFractionDigits = ecma402.CloneResolvedScalar(resolved.MaximumFractionDigits)
+	resolved.MinimumSignificantDigits = ecma402.CloneResolvedScalar(resolved.MinimumSignificantDigits)
+	resolved.MaximumSignificantDigits = ecma402.CloneResolvedScalar(resolved.MaximumSignificantDigits)
+	resolved.PluralCategories = slices.Clone(resolved.PluralCategories)
+	resolved.CompactDisplay = ecma402.CloneResolvedScalar(resolved.CompactDisplay)
 	return resolved
+}
+
+func resolvedOptionsForPluralRules(loc locale.Locale, cfg config, digits ecma402nf.ResolvedDigitOptions, dataLocale string) ResolvedOptions {
+	categories := publicCategories(plural.Categories(dataLocale, cfg.typ))
+	digitProperties := digits.ResolvedPluralRulesProperties()
+	return ResolvedOptions{
+		Locale:                   loc,
+		Type:                     Type(cfg.typ),
+		MinimumIntegerDigits:     digits.MinimumIntegerDigits,
+		MinimumFractionDigits:    digitProperties.MinimumFractionDigits,
+		MaximumFractionDigits:    digitProperties.MaximumFractionDigits,
+		MinimumSignificantDigits: digitProperties.MinimumSignificantDigits,
+		MaximumSignificantDigits: digitProperties.MaximumSignificantDigits,
+		PluralCategories:         categories,
+		Notation:                 Notation(cfg.notation),
+		CompactDisplay:           resolvedCompactDisplay(cfg),
+		RoundingIncrement:        digits.RoundingIncrement,
+		RoundingMode:             RoundingMode(digits.RoundingMode),
+		RoundingPriority:         RoundingPriority(digits.RoundingPriority),
+		TrailingZeroDisplay:      TrailingZeroDisplay(digits.TrailingZeroDisplay),
+	}
+}
+
+func resolvedCompactDisplay(cfg config) *CompactDisplay {
+	if cfg.notation != string(CompactNotation) {
+		return nil
+	}
+	return ecma402.ResolvedScalar(CompactDisplay(cfg.compactDisplay))
 }
 
 func publicCategories(categories []ecma402pr.Category) []Category {
@@ -60,8 +72,4 @@ func publicCategories(categories []ecma402pr.Category) []Category {
 		out[i] = Category(category)
 	}
 	return out
-}
-
-func resolvedInt(v int) *int {
-	return &v
 }

@@ -20,54 +20,32 @@ const (
 	RoundHalfEven
 )
 
+var roundingModeNames = [...]string{
+	RoundCeil:       "ceil",
+	RoundFloor:      "floor",
+	RoundExpand:     "expand",
+	RoundTrunc:      "trunc",
+	RoundHalfCeil:   "halfCeil",
+	RoundHalfFloor:  "halfFloor",
+	RoundHalfExpand: "halfExpand",
+	RoundHalfTrunc:  "halfTrunc",
+	RoundHalfEven:   "halfEven",
+}
+
 func (m RoundingMode) String() string {
-	switch m {
-	case RoundCeil:
-		return "ceil"
-	case RoundFloor:
-		return "floor"
-	case RoundExpand:
-		return "expand"
-	case RoundTrunc:
-		return "trunc"
-	case RoundHalfCeil:
-		return "halfCeil"
-	case RoundHalfFloor:
-		return "halfFloor"
-	case RoundHalfExpand:
-		return "halfExpand"
-	case RoundHalfTrunc:
-		return "halfTrunc"
-	case RoundHalfEven:
-		return "halfEven"
-	default:
+	if m < 0 || int(m) >= len(roundingModeNames) {
 		return "unknown"
 	}
+	return roundingModeNames[m]
 }
 
 func ParseRoundingMode(s string) (RoundingMode, error) {
-	switch s {
-	case "ceil":
-		return RoundCeil, nil
-	case "floor":
-		return RoundFloor, nil
-	case "expand":
-		return RoundExpand, nil
-	case "trunc":
-		return RoundTrunc, nil
-	case "halfCeil":
-		return RoundHalfCeil, nil
-	case "halfFloor":
-		return RoundHalfFloor, nil
-	case "halfExpand":
-		return RoundHalfExpand, nil
-	case "halfTrunc":
-		return RoundHalfTrunc, nil
-	case "halfEven":
-		return RoundHalfEven, nil
-	default:
-		return 0, fmt.Errorf("decimal: invalid rounding mode %q: %w", s, ErrInvalidDecimal)
+	for mode, name := range roundingModeNames {
+		if s == name {
+			return RoundingMode(mode), nil
+		}
 	}
+	return 0, fmt.Errorf("decimal: invalid rounding mode %q: %w", s, ErrInvalidDecimal)
 }
 
 func UnsignedRoundingMode(mode RoundingMode, isNegative bool) RoundingMode {
@@ -101,10 +79,10 @@ func UnsignedRoundingMode(mode RoundingMode, isNegative bool) RoundingMode {
 }
 
 func ApplyUnsignedRoundingMode(x, r1, r2 Decimal, mode RoundingMode) Decimal {
-	if compare(x, r1) == 0 || compare(r1, r2) == 0 {
+	if x.Cmp(r1) == 0 || r1.Cmp(r2) == 0 {
 		return r1
 	}
-	if compare(x, r2) == 0 {
+	if x.Cmp(r2) == 0 {
 		return r2
 	}
 	switch mode {
@@ -116,7 +94,7 @@ func ApplyUnsignedRoundingMode(x, r1, r2 Decimal, mode RoundingMode) Decimal {
 	}
 	d1 := sub(x, r1)
 	d2 := sub(r2, x)
-	switch compare(d1, d2) {
+	switch d1.Cmp(d2) {
 	case -1:
 		return r1
 	case 1:
@@ -133,10 +111,6 @@ func ApplyUnsignedRoundingMode(x, r1, r2 Decimal, mode RoundingMode) Decimal {
 		return r1
 	}
 	return r2
-}
-
-func compare(a, b Decimal) int {
-	return a.inner.Cmp(&b.inner)
 }
 
 func sub(a, b Decimal) Decimal {

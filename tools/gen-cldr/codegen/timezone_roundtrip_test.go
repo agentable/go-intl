@@ -1,10 +1,6 @@
 package codegen
 
 import (
-	"context"
-	"os"
-	"path/filepath"
-	"slices"
 	"testing"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
@@ -39,10 +35,10 @@ func TestTimezoneRoundTrip(t *testing.T) {
 		}
 	}
 
-	// Metazone names, zone-specific names, exemplar cities: replicate the legacy
-	// fallback resolution independently from the extract rows and compare to the
-	// production TimeZoneDisplayName.
-	for locale := range metazoneNameUnion(data) {
+	// Metazone names, zone-specific names, exemplar cities: derive the fallback
+	// resolution independently from the extract rows and compare to the production
+	// TimeZoneDisplayName.
+	for _, locale := range metazoneNameLocales(data) {
 		loc, ok := cldrlocale.ResolveLocale(locale)
 		if !ok {
 			continue
@@ -68,27 +64,25 @@ func TestTimezoneRoundTrip(t *testing.T) {
 	// Supported-zone narrow index.
 	wantTags := timezoneSupportedZones(data)
 	gotTags := timezone.SupportedTimeZones()
-	if !slices.Equal(gotTags, wantTags) {
-		t.Errorf("SupportedTimeZones mismatch:\n got %v\nwant %v", gotTags, wantTags)
-	}
+	assertStringSliceEqual(t, "SupportedTimeZones", gotTags, wantTags)
 }
 
 func assertZoneNames(t *testing.T, loc timezone.Locale, locale string, data extract.Metazones) {
 	t.Helper()
-	// Zone-specific names take precedence over metazone names in the legacy
-	// fallback. Probe each zone with no covering metazone period so the display
+	// Zone-specific names take precedence over metazone names. Probe each zone
+	// with no covering metazone period so the display
 	// name resolves to the zone-specific name directly.
 	for zone, names := range data.ZoneNames[locale] {
-		for form, kind := range displayFormKinds {
-			want := metazoneNameField(names, kind)
+		for _, check := range displayFormKindChecks[:] {
+			want := metazoneNameField(names, check.kind)
 			if want == "" {
 				continue
 			}
 			// Use an instant with no metazone period so the metazone branch yields
 			// "" and the zone-specific name is the resolved value.
-			got := timezone.TimeZoneDisplayName(loc, zone, form, false, noMetazoneInstant, 0)
+			got := timezone.TimeZoneDisplayName(loc, zone, check.form, false, noMetazoneInstant, 0)
 			if got != want {
-				t.Errorf("TimeZoneDisplayName(%q, %q, %q) zone name = %q, want %q", locale, zone, form, got, want)
+				t.Errorf("TimeZoneDisplayName(%q, %q, %q) zone name = %q, want %q", locale, zone, check.form, got, want)
 			}
 		}
 	}
@@ -113,14 +107,19 @@ func assertExemplarCities(t *testing.T, loc timezone.Locale, locale string, data
 	}
 }
 
-// displayFormKinds maps the TimeZoneName forms whose resolution path reads a
-// single metazoneNames field to the legacy kind string, so the test can pick the
-// expected field. shortGeneric/longGeneric are covered by the long/short forms.
-var displayFormKinds = map[timezone.TimeZoneName]string{
-	timezone.TimeZoneNameLongGeneric: "long-generic",
+// displayFormKindChecks names the TimeZoneName forms whose resolution path reads
+// a single metazoneNames field, plus the field kind used to pick the expected
+// value. shortGeneric/longGeneric are covered by the long/short forms.
+type displayFormKindCheck struct {
+	form timezone.TimeZoneName
+	kind string
 }
 
-// metazoneNameField mirrors the legacy timeZoneNameValue field selection.
+var displayFormKindChecks = [...]displayFormKindCheck{
+	{form: timezone.TimeZoneNameLongGeneric, kind: "long-generic"},
+}
+
+// metazoneNameField selects the MetazoneNames field for a CLDR display-name kind.
 func metazoneNameField(names cldr.MetazoneNames, kind string) string {
 	switch kind {
 	case "long-standard":
@@ -140,20 +139,6 @@ func metazoneNameField(names cldr.MetazoneNames, kind string) string {
 
 func zoneHasName(names cldr.MetazoneNames) bool {
 	return names != cldr.MetazoneNames{}
-}
-
-func metazoneNameUnion(data extract.Metazones) map[string]bool {
-	seen := map[string]bool{}
-	for locale := range data.Names {
-		seen[locale] = true
-	}
-	for locale := range data.ZoneNames {
-		seen[locale] = true
-	}
-	for locale := range data.ExemplarCities {
-		seen[locale] = true
-	}
-	return seen
 }
 
 // noMetazoneInstant is an instant before any CLDR metazone period begins, so the
@@ -182,21 +167,6 @@ func periodProbeInstant(start, end int64) int64 {
 func loadTimezoneTestInput(t *testing.T) extract.Metazones {
 	t.Helper()
 
-	repoRoot := filepath.Clean("../../..")
-	cldrDir := filepath.Join(repoRoot, "tools", "gen-cldr", ".cldr-json", "node_modules")
-	if _, err := os.Stat(cldrDir); err != nil {
-		t.Skipf("pinned cldr-json checkout absent (%v); run task data:fetch", err)
-	}
-
-	versions, err := cldr.ReadVersionFile(filepath.Join(repoRoot, "internal", "cldr", "VERSION"))
-	if err != nil {
-		t.Fatalf("read VERSION: %v", err)
-	}
-	profile := readUnitTestProfile(t, filepath.Join(repoRoot, "tools", "locale-profile.json"))
-
-	source, err := cldr.LoadAll(context.Background(), cldrDir, versions, profile)
-	if err != nil {
-		t.Fatalf("load cldr-json: %v", err)
-	}
-	return extract.ExtractMetazones(source.Metazones, profile)
+	input := loadRoundTripSource(t)
+	return extract.ExtractMetazones(input.source.Metazones, input.profile)
 }

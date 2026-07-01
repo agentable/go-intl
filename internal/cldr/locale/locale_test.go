@@ -1,10 +1,11 @@
 package cldrlocale
 
 import (
-	"os"
-	"os/exec"
-	"strings"
+	"slices"
 	"testing"
+
+	"github.com/agentable/go-intl/internal/testcontract"
+	"github.com/agentable/go-intl/internal/testprocess"
 )
 
 // narrowIndexSubprocessEnv gates the narrow-index Once assertion so it runs in a
@@ -16,29 +17,15 @@ const narrowIndexSubprocessEnv = "GO_INTL_LOCALE_NARROW_INDEX_SUBPROCESS"
 // registry blob and must never trigger the likely-subtags, numbering, or
 // preference decode.
 //
-// The assertion is order-sensitive: any other test in this binary that touches a
-// maximize/minimize, numbering, or preference lookup populates those
-// package-level structures, after which a same-binary assertion would see them
-// already decoded. Rather than depend on test order, this test re-executes the
-// test binary as a subprocess that runs only the inner assertion via -test.run,
-// so the assertion always observes a process that has decoded nothing heavy.
+// The assertion runs in a fresh process so other locale-kernel tests cannot
+// populate the package-level Once state first.
 func TestRegistryQueriesDoNotDecodeHeavyBlobs(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv(narrowIndexSubprocessEnv) == "1" {
-		assertRegistryQueriesDoNotDecodeHeavyBlobs(t)
+	if !testprocess.RunInFreshProcess(t, narrowIndexSubprocessEnv) {
 		return
 	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=^TestRegistryQueriesDoNotDecodeHeavyBlobs$", "-test.v")
-	cmd.Env = append(os.Environ(), narrowIndexSubprocessEnv+"=1")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("narrow-index subprocess failed: %v\n%s", err, out)
-	}
-	if !strings.Contains(string(out), "PASS") {
-		t.Fatalf("narrow-index subprocess did not report PASS:\n%s", out)
-	}
+	assertRegistryQueriesDoNotDecodeHeavyBlobs(t)
 }
 
 func assertRegistryQueriesDoNotDecodeHeavyBlobs(t *testing.T) {
@@ -88,6 +75,46 @@ func TestSmokeRegistry(t *testing.T) {
 	tags := AvailableLocales()
 	if len(tags) == 0 || tags[0] != "und" {
 		t.Fatalf("AvailableLocales[0] = %q, want und", firstTag(tags))
+	}
+}
+
+func TestAvailableLocalesReturnsCopy(t *testing.T) {
+	t.Parallel()
+
+	testcontract.AssertStringSliceReturnsCopy(t, "AvailableLocales", AvailableLocales)
+}
+
+func TestPreferenceAccessorsReturnCopies(t *testing.T) {
+	t.Parallel()
+
+	testcontract.AssertStringSliceReturnsCopy(t, "HourCyclePreference(US)", func() []string {
+		return HourCyclePreference("US")
+	})
+	testcontract.AssertStringSliceReturnsCopy(t, "CalendarPreference(TH)", func() []string {
+		return CalendarPreference("TH")
+	})
+}
+
+func TestIntersectSupportedLocales(t *testing.T) {
+	t.Parallel()
+
+	got := IntersectSupportedLocales(
+		[]string{"en", "fr", "zh", "de"},
+		[]string{"fr", "en", "zh"},
+		[]string{"zh", "en"},
+	)
+	if want := []string{"en", "zh"}; !slices.Equal(got, want) {
+		t.Fatalf("IntersectSupportedLocales() = %v, want %v", got, want)
+	}
+
+	primary := []string{"en", "fr"}
+	got = IntersectSupportedLocales(primary)
+	if !slices.Equal(got, primary) {
+		t.Fatalf("IntersectSupportedLocales(primary) = %v, want %v", got, primary)
+	}
+	got[0] = "mutated"
+	if primary[0] != "en" {
+		t.Fatalf("IntersectSupportedLocales(primary) reused caller storage; primary[0] = %q", primary[0])
 	}
 }
 

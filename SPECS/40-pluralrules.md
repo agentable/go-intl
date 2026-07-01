@@ -25,10 +25,10 @@ This SPEC does not redefine:
 ```go
 package pluralrules
 
-type Type uint8
+type Type string
 const (
-    Cardinal Type = iota
-    Ordinal
+    Cardinal Type = "cardinal"
+    Ordinal  Type = "ordinal"
 )
 
 type Category uint8
@@ -46,18 +46,19 @@ func (c Category) String() string  // "zero" | "one" | "two" | "few" | "many" | 
 type PluralRules struct{ /* Immutable; including resolved + compiled plural function pointer */ }
 
 type Options struct {
-    Type                 Type
+    LocaleMatcher        *string
+    Type                 *string
     MinimumIntegerDigits *int
     MinimumFractionDigits *int
     MaximumFractionDigits *int
     MinimumSignificantDigits *int
     MaximumSignificantDigits *int
     RoundingIncrement    *int
-    RoundingMode         RoundingMode
-    RoundingPriority     RoundingPriority
-    TrailingZeroDisplay  TrailingZeroDisplay
-    Notation             Notation
-    CompactDisplay       CompactDisplay
+    RoundingMode         *string
+    RoundingPriority     *string
+    TrailingZeroDisplay  *string
+    Notation             *string
+    CompactDisplay       *string
 }
 
 func New(locales locale.List, opts Options) (*PluralRules, error)
@@ -91,35 +92,36 @@ func (r *PluralRules) ResolvedOptions() ResolvedOptions
 
 ```go
 type Options struct {
-    Type                 Type
+    LocaleMatcher        *string
+    Type                 *string
     MinimumIntegerDigits *int
     MinimumFractionDigits *int
     MaximumFractionDigits *int
     MinimumSignificantDigits *int
     MaximumSignificantDigits *int
     RoundingIncrement    *int
-    RoundingMode         RoundingMode
-    RoundingPriority     RoundingPriority
-    TrailingZeroDisplay  TrailingZeroDisplay
-    Notation             Notation
-    CompactDisplay       CompactDisplay
+    RoundingMode         *string
+    RoundingPriority     *string
+    TrailingZeroDisplay  *string
+    Notation             *string
+    CompactDisplay       *string
 }
 ```
 
 **MUST** Rules:
 
 1. Exposed options must override ECMA-402 `Intl.PluralRules` number-format digit surface: notation, compactDisplay, fraction/significant digits, roundingIncrement, roundingMode, roundingPriority, trailingZeroDisplay.
-2. `Type` **MUST** be a Go typed enum, the zero value `Cardinal` is the default; exposing bare string enumerations is prohibited.
+2. String option fields **MUST** use package named types and constants as vocabulary, but the public `Options` fields are `*string`; nil means omitted/default and `gointl.String("")` remains an explicit invalid value.
 3. `New` accepts a `Options` value. Passing in multiple `Options` is a compile-time call site error.
-4. The digit scalar can be omitted and the `*int` field must be used to express presence; the call point uses `gointl.Int(n)`, and the constructor copies the pointee value into the internal config.
+4. String and scalar option fields must express presence with pointers: `LocaleMatcher`, `Type`, `Notation`, `CompactDisplay`, `RoundingMode`, `RoundingPriority`, `TrailingZeroDisplay`, all digit integer fields, and `RoundingIncrement`; the call point uses `gointl.String(v)` or `gointl.Int(n)`, and the constructor copies pointee values into the internal config.
 
 > **Why typed Options**:
-> 1. Go callers should see optional value boundaries at compile time; `"ordinal"` such strings only belong to JS option objects and are not the natural shape of Go API.
+> 1. Go callers should see optional value boundaries at compile time; `Ordinal`, `CompactNotation`, and `HalfEvenRoundingMode` remain package vocabulary while `gointl.String(...)` expresses ECMA-402 option presence.
 > 2. A `Options` value is easier to compare, cache, and document than functional options, and it does not hide state in the closure execution order.
 > 3. If messageformat-go holds an ICU string, an explicit mapping should be done at the adapter boundary; the pressure of transparent transmission of the upstream string cannot be transferred to go-intl's long-term public API.
 >
-> **Rejected**: `WithType(string)` - defer spelling errors to runtime and let the long-term API be pulled by the JS object model.
-> **Rejected**: Accepts both string and typed enum - dual-rail input parameters = verification path bifurcation + cache key bifurcation.
+> **Rejected**: `WithType(string)` - scatter verification timing and make cache keys depend on closure order.
+> **Rejected**: Accepts both direct enum values and pointer strings - dual-rail input parameters = verification path bifurcation + cache key bifurcation.
 
 #### 1.2.1 Digit option pipeline
 
@@ -147,13 +149,15 @@ type ResolvedOptions struct {
 ### 1.3 Calling example
 
 ```go
-pr, err := pluralrules.New(mustLocaleList("en"))
+pr, err := pluralrules.New(mustLocaleList("en"), pluralrules.Options{})
 // pr.Select(pluralrules.Int(1)) == pluralrules.One, nil
 // pr.Select(pluralrules.Int(2)) == pluralrules.Other, nil
-// value, _ := pluralrules.Decimal("0.5")
-// pr.Select(value) == pluralrules.Other, nil
+ordinal, err := pluralrules.New(mustLocaleList("en"),
+    pluralrules.Options{Type: gointl.String(pluralrules.Ordinal)})
+// ordinal.Select(pluralrules.Int(1)) == pluralrules.One, nil
 
-pr, _ := pluralrules.New(mustLocaleList("en"), pluralrules.Options{Type: pluralrules.Ordinal})
+pr, _ := pluralrules.New(mustLocaleList("en"),
+    pluralrules.Options{Type: gointl.String(pluralrules.Ordinal)})
 // pr.Select(pluralrules.Int(1)) == pluralrules.One   ("1st")
 // pr.Select(pluralrules.Int(2)) == pluralrules.Two   ("2nd")
 // pr.Select(pluralrules.Int(3)) == pluralrules.Few   ("3rd")
@@ -445,13 +449,13 @@ type ResolvedOptions struct {
     Locale                   locale.Locale
     Type                     Type
     MinimumIntegerDigits     int
-    MinimumFractionDigits    int
-    MaximumFractionDigits    int
-    MinimumSignificantDigits int
-    MaximumSignificantDigits int
+    MinimumFractionDigits    *int
+    MaximumFractionDigits    *int
+    MinimumSignificantDigits *int
+    MaximumSignificantDigits *int
     PluralCategories         []Category
     Notation                 Notation
-    CompactDisplay           CompactDisplay
+    CompactDisplay           *CompactDisplay
     RoundingIncrement        int
     RoundingMode             RoundingMode
     RoundingPriority         RoundingPriority
@@ -463,8 +467,10 @@ type ResolvedOptions struct {
 
 1. The field order **MUST** be consistent with the ECMA-402 §16.4.5 spec order.
 2. `PluralCategories` **MUST** return the category actually defined by the locale (reverse check from the `cardinal_rules.go` / `ordinal_rules.go` per-locale table of codegen), **disabled** from returning all 6 categories of hard-coded lists.
-3. **MUST** return value type (non-pointer), concurrency safe.
-4. JSON field names and `omitempty` behavior **MUST** comply with [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors).
+3. Digit resolved-option fields **MUST** use pointers. Fraction-digit properties are non-nil only for the fraction-digit branch; significant-digit properties are non-nil for the significant, more-precision, and less-precision branches.
+4. `CompactDisplay` **MUST** be nil unless `Notation == CompactNotation`; constructor validation still rejects invalid `compactDisplay` values even when `Notation` is standard.
+5. **MUST** return an immutable snapshot (value type); pointer-backed resolved scalars must not expose formatter state to callers.
+6. JSON field names and `omitempty` behavior **MUST** comply with [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors).
 
 ---
 
@@ -522,10 +528,10 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - [ ] `pluralrules`, `internal/ecma402/pluralrules`, and `tools/gen-plural-rules` do not import `golang.org/x/text/feature/plural` (`grep -r "x/text/feature/plural" .` is empty in the main module of the warehouse).
 - [ ] `pluralrules.New(mustLocaleList("en")).Select(pluralrules.Int(1)) == One`.
 - [ ] `pluralrules.New(mustLocaleList("en")).Select(pluralrules.Int(2)) == Other`.
-- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(1)) == One`(1st).
-- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(2)) == Two`(2nd).
-- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(3)) == Few`(3rd).
-- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: Ordinal}).Select(pluralrules.Int(4)) == Other`(4th).
+- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: gointl.String(Ordinal)}).Select(pluralrules.Int(1)) == One`(1st).
+- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: gointl.String(Ordinal)}).Select(pluralrules.Int(2)) == Two`(2nd).
+- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: gointl.String(Ordinal)}).Select(pluralrules.Int(3)) == Few`(3rd).
+- [ ] `pluralrules.New(mustLocaleList("en"), Options{Type: gointl.String(Ordinal)}).Select(pluralrules.Int(4)) == Other`(4th).
 - [ ] `pluralrules.New(mustLocaleList("pl")).Select(pluralrules.Int(1)) == One`.
 - [ ] `pluralrules.New(mustLocaleList("pl")).Select(pluralrules.Int(2)) == Few`.
 - [ ] `pluralrules.New(mustLocaleList("pl")).Select(pluralrules.Int(5)) == Many`.
@@ -533,7 +539,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - [ ] `pluralrules.New(mustLocaleList("en")).SelectRange(pluralrules.Int(1), pluralrules.Int(5)) == Other`.
 - [ ] `pluralrules.New(mustLocaleList("en")).SelectRange(pluralrules.Int(1), pluralrules.Int(1)) == One`(step 1 string equality short circuit).
 - [ ] `pluralrules.New(mustLocaleList("zh")).SelectRange(pluralrules.Int(1), pluralrules.Int(5)) == Other`(zh cardinal only Other, all range falls back to Other).
-- [ ] NumberFormat compact path selects plural category through `internal/ecma402/pluralrules.GetOperands` + `internal/cldr/plural.CardinalRule`, which is equal to generated-reference `format_to_parts.ts:262/304/316/331` behavior bytes (use `numberformat.New(mustLocaleList("pl-PL"), numberformat.Options{Notation: numberformat.CompactNotation}).Format(numberformat.Int(1500))` for end-to-end testing).
+- [ ] NumberFormat compact path selects plural category through `internal/ecma402/pluralrules.GetOperands` + `internal/cldr/plural.CardinalRule`, which is equal to generated-reference `format_to_parts.ts:262/304/316/331` behavior bytes (use `numberformat.New(mustLocaleList("pl-PL"), numberformat.Options{Notation: gointl.String(numberformat.CompactNotation)}).Format(numberformat.Int(1500))` for end-to-end testing).
 - [ ] Neither `pluralrules.New(locales, pluralrules.Options{}).SelectFormatted(...)` nor `internal/ecma402/pluralrules.ResolvePlural` exists; the compact plural option is not a public API.
 - [ ] The `OperandsRecord` type is located in `internal/ecma402/pluralrules/operands.go` (single file record); the `pluralrules` package is not redefined.
 - [ ] The `OperandsRecord` field set is exactly `{N,I,F,T OperandValue; V,W,C,E int}` (8 fields, asserted by reflection test).

@@ -8,26 +8,26 @@ import (
 )
 
 func (l Locale) Maximize() Locale {
-	lang, script, region := tagParts(l.tag)
+	lang, script, region := localeid.Parts(l.tag)
 	if maxLang, maxScript, maxRegion, ok := cldrlocale.MaximizeSubtags(lang, script, region); ok {
-		l.tag = mustLanguageTag(joinTagParts(maxLang, maxScript, maxRegion))
+		l.tag = mustLanguageTag(localeid.Join(maxLang, maxScript, maxRegion))
 	}
 	l.freeze()
 	return l
 }
 
 func (l Locale) Minimize() Locale {
-	lang, script, region := tagParts(l.tag)
+	lang, script, region := localeid.Parts(l.tag)
 	if minLang, minScript, minRegion, ok := cldrlocale.MinimizeSubtags(lang, script, region); ok {
-		l.tag = mustLanguageTag(joinTagParts(minLang, minScript, minRegion))
+		l.tag = mustLanguageTag(localeid.Join(minLang, minScript, minRegion))
 		l.freeze()
 		return l
 	}
 	max := l.Maximize().tag.String()
 	for _, candidate := range []string{
 		lang,
-		joinTagParts(lang, "", region),
-		joinTagParts(lang, script, ""),
+		localeid.Join(lang, "", region),
+		localeid.Join(lang, script, ""),
 	} {
 		if candidate == "" {
 			continue
@@ -42,14 +42,6 @@ func (l Locale) Minimize() Locale {
 	}
 	l.freeze()
 	return l
-}
-
-func tagParts(tag language.Tag) (lang, script, region string) {
-	return localeid.Parts(tag)
-}
-
-func joinTagParts(lang, script, region string) string {
-	return localeid.Join(lang, script, region)
 }
 
 func mustLanguageTag(s string) language.Tag {

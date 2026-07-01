@@ -1,6 +1,6 @@
-// Hand-written decode layer for the displaynames domain. It expands the const
-// blobs in data.go into the same per-locale styled-name maps the legacy root
-// loadDisplayNamesData produced, behind per-kind sync.Once gates.
+// Hand-written decode layer for the displaynames domain. It expands
+// domain-private const blobs from data.go into per-locale styled-name maps,
+// behind per-kind sync.Once gates.
 //
 // Each display-name kind (language, territory, script, calendar, date-time
 // field) rides its own blob and its own Once, so querying one kind never decodes
@@ -18,12 +18,11 @@ import (
 	"github.com/agentable/go-intl/internal/cldr/codec"
 )
 
-// styledNames mirrors the legacy root styledNames type: long/short/narrow code
-// maps for one display-name kind.
+// styledNames holds long/short/narrow code maps for one display-name kind.
 type styledNames struct{ long, short, narrow map[string]string }
 
-// languageDisplay mirrors the legacy root languageDisplay type: the dialect and
-// standard styled-name pair for language names.
+// languageDisplay holds the dialect and standard styled-name pair for language
+// names.
 type languageDisplay struct{ dialect, standard styledNames }
 
 // languageRecord couples one locale's language display names with its locale
@@ -74,24 +73,18 @@ func fieldData() map[string]styledNames {
 	return fieldByLocale
 }
 
-func displayNamesSupportedLocales() []string {
-	supportedOnce.Do(loadSupported)
-	return supportedTags
-}
-
 func loadLanguage() {
 	r := codec.NewReader(_dnLanguageBlob)
-	count := r.Uvarint()
-	languageByLocale = make(map[string]languageRecord, count)
-	for i := uint64(0); i < count; i++ {
-		tag := r.StringRef(_data)
-		dialect := decodeStyledNames(&r)
-		standard := decodeStyledNames(&r)
-		pattern := r.StringRef(_data)
-		languageByLocale[tag] = languageRecord{
-			display:       languageDisplay{dialect: dialect, standard: standard},
-			localePattern: pattern,
-		}
+	languageByLocale = codec.StringRefKeyMap[languageRecord](&r, _data, decodeLanguageRecord)
+}
+
+func decodeLanguageRecord(r *codec.Reader) languageRecord {
+	dialect := decodeStyledNames(r)
+	standard := decodeStyledNames(r)
+	pattern := r.StringRef(_data)
+	return languageRecord{
+		display:       languageDisplay{dialect: dialect, standard: standard},
+		localePattern: pattern,
 	}
 }
 
@@ -102,41 +95,17 @@ func loadField()     { fieldByLocale = decodeStyledBlob(_dnDateTimeFieldBlob) }
 
 func decodeStyledBlob(blob string) map[string]styledNames {
 	r := codec.NewReader(blob)
-	count := r.Uvarint()
-	out := make(map[string]styledNames, count)
-	for i := uint64(0); i < count; i++ {
-		tag := r.StringRef(_data)
-		out[tag] = decodeStyledNames(&r)
-	}
-	return out
+	return codec.StringRefKeyMap[styledNames](&r, _data, decodeStyledNames)
 }
 
 func decodeStyledNames(r *codec.Reader) styledNames {
 	return styledNames{
-		long:   decodeStringMap(r),
-		short:  decodeStringMap(r),
-		narrow: decodeStringMap(r),
+		long:   r.StringRefMap(_data),
+		short:  r.StringRefMap(_data),
+		narrow: r.StringRefMap(_data),
 	}
-}
-
-func decodeStringMap(r *codec.Reader) map[string]string {
-	n := r.Uvarint()
-	if n == 0 {
-		return nil
-	}
-	out := make(map[string]string, n)
-	for i := uint64(0); i < n; i++ {
-		key := r.StringRef(_data)
-		out[key] = r.StringRef(_data)
-	}
-	return out
 }
 
 func loadSupported() {
-	r := codec.NewReader(_dnSupportedBlob)
-	count := r.Uvarint()
-	supportedTags = make([]string, count)
-	for i := range supportedTags {
-		supportedTags[i] = r.StringRef(_data)
-	}
+	supportedTags = codec.StringRefSlice(_dnSupportedBlob, _data)
 }

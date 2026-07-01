@@ -1,9 +1,6 @@
 package codegen
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestRenderManifest(t *testing.T) {
 	t.Parallel()
@@ -23,15 +20,11 @@ func TestRenderManifest(t *testing.T) {
 		t.Fatalf("renderManifest: %v", err)
 	}
 	got := string(src)
-	for _, want := range []string{
+	assertSourceContainsAll(t, "renderManifest output", got,
 		"type DataManifest struct",
 		`CLDR:      "48.1.0"`,
 		`"en"`,
 		`Name: "tools/locale-profile.json", SHA256: "def"`,
 		"func Manifest() DataManifest",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("renderManifest output missing %q:\n%s", want, got)
-		}
-	}
+	)
 }

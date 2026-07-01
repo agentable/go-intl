@@ -2,12 +2,12 @@ package segmenter
 
 import (
 	"github.com/agentable/go-intl/internal/ecma402"
-	"github.com/agentable/go-intl/internal/intlerr"
-	"github.com/agentable/go-intl/locale"
 )
 
 type LocaleMatcher string
 type Granularity string
+
+const segmenterOwner = "segmenter"
 
 const (
 	LookupLocaleMatcher  LocaleMatcher = "lookup"
@@ -20,13 +20,14 @@ const (
 
 // Options mirrors the JS Intl.Segmenter options bag.
 type Options struct {
-	LocaleMatcher LocaleMatcher
-	Granularity   Granularity
+	LocaleMatcher *string
+	Granularity   *string
 }
 
 type config struct {
-	localeMatcher string
-	granularity   string
+	localeMatcher    string
+	localeMatcherSet bool
+	granularity      string
 }
 
 func defaultConfig() config {
@@ -37,24 +38,25 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	if opts.LocaleMatcher != "" {
-		cfg.localeMatcher = string(opts.LocaleMatcher)
-	}
-	if opts.Granularity != "" {
-		cfg.granularity = string(opts.Granularity)
-	}
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOption(&cfg.granularity, opts.Granularity)
 }
 
-func (cfg config) validate(loc locale.Locale) error {
-	if check, ok := ecma402.InvalidStringOption(
-		ecma402.LocaleMatcherOption(cfg.localeMatcher),
-		ecma402.RequiredStringOption("granularity", cfg.granularity, string(GraphemeGranularity), string(WordGranularity), string(SentenceGranularity)),
-	); ok {
-		return invalidOption(check.Name, check.Value, loc)
-	}
-	return nil
+func (cfg config) validate(locName string) error {
+	return ecma402.ValidateStringOptions(
+		segmenterOwner,
+		locName,
+		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.localeMatcherSet),
+		segmenterGranularityOption(cfg.granularity),
+	)
 }
 
-func invalidOption(name, value string, loc locale.Locale) error {
-	return ecma402.InvalidOptionError("segmenter", name, value, loc.String(), intlerr.ErrInvalidOption)
+func segmenterGranularityOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption(
+		"granularity",
+		value,
+		string(GraphemeGranularity),
+		string(WordGranularity),
+		string(SentenceGranularity),
+	)
 }

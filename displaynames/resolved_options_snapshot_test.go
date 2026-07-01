@@ -11,7 +11,7 @@ import (
 func TestDisplayNamesResolvedOptionsPointerSnapshot(t *testing.T) {
 	t.Parallel()
 
-	dn, err := displaynames.New(locale.List{intltest.Locale(t, "en")}, displaynames.Options{Type: displaynames.Language, LanguageDisplay: displaynames.StandardLanguageDisplay})
+	dn, err := displaynames.New(locale.List{intltest.Locale(t, "en")}, displaynames.Options{Type: stringPtr(displaynames.Language), LanguageDisplay: stringPtr(displaynames.StandardLanguageDisplay)})
 	if err != nil {
 		t.Fatal(err)
 	}

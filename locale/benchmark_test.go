@@ -16,7 +16,7 @@ func BenchmarkLocale_Parse(b *testing.B) {
 func BenchmarkLocale_New(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		loc, err := New("en-US", Options{Calendar: "gregory", HourCycle: "h23", NumberingSystem: "latn"})
+		loc, err := New("en-US", Options{Calendar: stringPtr("gregory"), HourCycle: stringPtr("h23"), NumberingSystem: stringPtr("latn")})
 		if err != nil {
 			b.Fatal(err)
 		}

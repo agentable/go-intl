@@ -24,8 +24,6 @@ var (
 	NegInfinity = Decimal{form: Infinite, negative: true}
 )
 
-func (d Decimal) Form() Form { return d.form }
-
 func (d Decimal) Sign() int {
 	if d.IsZero() || d.IsNaN() {
 		return 0
@@ -42,37 +40,18 @@ func (d Decimal) IsNaN() bool { return d.form == NaN || d.form == NaNSignaling }
 
 func (d Decimal) IsInf() bool { return d.form == Infinite }
 
-func (d Decimal) IsInfinity() bool { return d.IsInf() }
-
 func (d Decimal) IsFinite() bool { return d.form == Finite }
 
-func (d Decimal) Exponent() int32 { return d.inner.Exponent }
-
-func (d Decimal) Coeff() string {
-	if !d.IsFinite() {
-		return ""
-	}
-	return d.inner.Coeff.Abs(&d.inner.Coeff).String()
-}
-
 func (d Decimal) Negative() bool { return d.negative }
-
-func (d Decimal) IsNegative() bool { return d.Negative() }
 
 func (d Decimal) Cmp(other Decimal) int {
 	return d.inner.Cmp(&other.inner)
 }
 
 func AbsDiffCmp(base, a, b Decimal) int {
-	left := abs(sub(base, a))
-	right := abs(sub(base, b))
+	left := Abs(sub(base, a))
+	right := Abs(sub(base, b))
 	return left.Cmp(right)
-}
-
-func abs(d Decimal) Decimal {
-	d.negative = false
-	d.inner.Negative = false
-	return d
 }
 
 func (d Decimal) String() string {

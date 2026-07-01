@@ -3,51 +3,40 @@ package pluralrules
 import (
 	"math/big"
 
-	"github.com/agentable/go-intl/internal/decimal"
-)
-
-type valueKind uint8
-
-const (
-	valueDecimal valueKind = iota
-	valueInt64
-	valueUint64
+	"github.com/agentable/go-intl/internal/ecma402"
 )
 
 // Value is an opaque ECMA-402 numeric input for PluralRules methods.
 type Value struct {
-	decimal decimal.Decimal
-	kind    valueKind
-	int64   int64
-	uint64  uint64
+	numeric ecma402.NumericValue
 }
 
 // Int returns a signed integer numeric value.
 func Int(v int64) Value {
-	return Value{decimal: decimal.FromInt64(v), kind: valueInt64, int64: v}
+	return Value{numeric: ecma402.Int64NumericValue(v)}
 }
 
 // Uint returns an unsigned integer numeric value.
 func Uint(v uint64) Value {
-	return Value{decimal: decimal.New(false, new(big.Int).SetUint64(v), 0), kind: valueUint64, uint64: v}
+	return Value{numeric: ecma402.Uint64NumericValue(v)}
 }
 
 // Float returns a float64 numeric value.
 func Float(v float64) Value {
-	return Value{decimal: decimal.FromFloat64(v)}
+	return Value{numeric: ecma402.Float64NumericValue(v)}
 }
 
 // BigInt returns an arbitrary-precision integer numeric value. A nil value is
 // treated as zero.
 func BigInt(v *big.Int) Value {
-	return Value{decimal: decimal.New(v != nil && v.Sign() < 0, v, 0)}
+	return Value{numeric: ecma402.BigIntNumericValue(v)}
 }
 
 // Decimal parses a finite ECMA-402 decimal-string bridge value.
 func Decimal(s string) (Value, error) {
-	d, err := parseFiniteDecimalValue("decimal", s)
+	d, err := ecma402.ParseFiniteDecimalInput(s)
 	if err != nil {
-		return Value{}, err
+		return Value{}, invalidValue("decimal", s, "", err)
 	}
-	return Value{decimal: d}, nil
+	return Value{numeric: ecma402.DecimalNumericValue(d)}, nil
 }

@@ -30,6 +30,7 @@ bin/
 
 # Local build folder for storing build artifacts
 build/
+.codegraph/
 .tmp/
 .task/
 tools/gen-cldr/.cldr-json/node_modules/

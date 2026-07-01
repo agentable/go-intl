@@ -96,9 +96,9 @@ go-intl is the **lower** ECMA-402 primitive library; `messageformat-go` is the *
 | `:percent` (`percent.go`,118 LoC) | Self-implementation percentage | **Rewritten as adapter** | `numberformat.New(locale.List{loc}, numberformat.Options{Style: numberformat.PercentStyle})` |
 | `:unit` (`unit.go`,120 LoC) | Self-implemented unit identifier table | **Rewritten as adapter** | `numberformat.New(locale.List{loc}, numberformat.Options{Style: numberformat.UnitStyle, Unit: numberformat.Unit(id)})` |
 | `:offset` (`offset.go`,134 LoC) | Numeric offset + delegate `:number` | **partial adapter** | Offset is done by itself in messageformat-go, number format delegate `numberformat.New(...)` |
-| `:date` (`datetime.go` subset) | Self-implemented LDML 48 dateFields | **Rewritten as adapter** | `datetimeformat.New(locale.List{loc}, datetimeformat.Options{DateStyle: ...})` |
-| `:datetime` (`datetime.go`,324 LoC body) | Self-implemented dateFields/timePrecision | **Rewritten as adapter** | `datetimeformat.New(locale.List{loc}, datetimeformat.Options{DateStyle: ..., TimeStyle: ...})` |
-| `:time` (`datetime.go` subset) | Self-implemented timePrecision | **Rewritten as adapter** | `datetimeformat.New(locale.List{loc}, datetimeformat.Options{TimeStyle: ...})` |
+| `:date` (`datetime.go` subset) | Self-implemented LDML 48 dateFields | **Rewritten as adapter** | `datetimeformat.New(locale.List{loc}, datetimeformat.Options{DateStyle: gointl.String(...)})` |
+| `:datetime` (`datetime.go`,324 LoC body) | Self-implemented dateFields/timePrecision | **Rewritten as adapter** | `datetimeformat.New(locale.List{loc}, datetimeformat.Options{DateStyle: gointl.String(...), TimeStyle: gointl.String(...)})` |
+| `:time` (`datetime.go` subset) | Self-implemented timePrecision | **Rewritten as adapter** | `datetimeformat.New(locale.List{loc}, datetimeformat.Options{TimeStyle: gointl.String(...)})` |
 | `:string` (`string.go`,71 LoC) | String transparent transmission | **Not migrated** | Not related to ECMA-402 |
 | `:math` (`math.go`,159 LoC) | Arithmetic operations | **Not migrated** | Not related to ECMA-402 |
 

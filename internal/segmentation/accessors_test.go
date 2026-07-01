@@ -3,6 +3,8 @@ package segmentation
 import (
 	"slices"
 	"testing"
+
+	"github.com/agentable/go-intl/internal/testcontract"
 )
 
 func TestSupportedLocales(t *testing.T) {
@@ -42,13 +44,5 @@ func TestSupportedLocalesExcludesTailoredLocales(t *testing.T) {
 func TestSupportedLocalesReturnsSnapshot(t *testing.T) {
 	t.Parallel()
 
-	got := SupportedLocales()
-	if len(got) == 0 {
-		t.Fatal("SupportedLocales() is empty")
-	}
-	got[0] = "ja"
-
-	if slices.Contains(SupportedLocales(), "ja") {
-		t.Fatal("SupportedLocales() leaked mutable backing storage")
-	}
+	testcontract.AssertStringSliceReturnsCopy(t, "SupportedLocales", SupportedLocales)
 }

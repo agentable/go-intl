@@ -142,6 +142,9 @@ Formatter constructors **MUST** pass the appropriate generated supported-locale 
 - language-region aliases such as `az-AZ` for `az-Latn-AZ` and `zh-HK` for `zh-Hant-HK`.
 
 Derived fallbacks are matching aliases, not new payload records. `Result.Locale` may be `zh-HK`; `Result.DataLocale` remains `zh-Hant-HK` so constructor locale data reads stay honest.
+The matcher owns only the alias expansion rule; script and region subtag shape
+checks come from `internal/localeid`, the same grammar owner used by
+`Intl.Locale` and DisplayNames code canonicalization.
 
 > **Why `Algorithm` is an int enumeration instead of a string**: Go iota is cheaper than string verification; ECMA-402 spec text is `"lookup"` / `"best fit"` (including spaces), `parseAlgorithm(string) (Algorithm, error)` is used at the boundary to convert, and all internals are int.
 >

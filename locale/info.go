@@ -3,11 +3,11 @@ package locale
 import (
 	"encoding/json"
 	"slices"
-	"strings"
 	"time"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	internalcollation "github.com/agentable/go-intl/internal/collation"
+	"github.com/agentable/go-intl/internal/localeid"
 )
 
 // WeekInfo describes locale week data. Mirrors Intl.Locale.prototype.getWeekInfo().
@@ -98,21 +98,21 @@ func (l Locale) GetWeekInfo() WeekInfo {
 }
 
 func (l Locale) GetTextInfo() TextInfo {
-	lang, script, _ := tagParts(l.tag)
+	lang, script, _ := localeid.Parts(l.tag)
 	if script == "" {
-		_, script, _ = tagParts(l.Maximize().tag)
+		_, script, _ = localeid.Parts(l.Maximize().tag)
 	}
 	if script == "" && lang != "" {
 		_, script, _, _ = cldrlocale.MaximizeSubtags(lang, "", "")
 	}
-	if rtlScripts[script] {
+	if isRightToLeftScript(script) {
 		return TextInfo{Direction: "rtl"}
 	}
 	return TextInfo{Direction: "ltr"}
 }
 
-func (l Locale) region() string {
-	_, _, region := tagParts(l.Maximize().tag)
+func (l Locale) maximizedRegion() string {
+	_, _, region := localeid.Parts(l.Maximize().tag)
 	return region
 }
 
@@ -127,7 +127,7 @@ func (l Locale) regionPreference() regionPreference {
 		region = l.canonicalUnicodeSubdivision("sd")
 	}
 	if region == "" {
-		region = l.region()
+		region = l.maximizedRegion()
 	}
 	if region == "" {
 		region = "001"
@@ -147,26 +147,42 @@ func (l Locale) canonicalUnicodeSubdivision(key string) string {
 	if len(value) < 4 {
 		return ""
 	}
-	var region string
-	switch {
-	case len(value) >= 3 && asciiDigits(value[:3]):
-		region = value[:3]
-	case len(value) >= 2 && asciiLetters(value[:2]):
-		region = strings.ToUpper(value[:2])
-	default:
+	region := canonicalSubdivisionRegion(value)
+	if region == "" {
 		return ""
 	}
-	for i := len(region); i < len(value); i++ {
-		c := value[i]
-		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
-			continue
-		}
+	if !validSubdivisionSuffix(value[len(region):]) {
 		return ""
 	}
-	if _, _, region := tagParts(mustLanguageTag("und-" + region)); region != "" {
+	if _, _, region := localeid.Parts(mustLanguageTag("und-" + region)); region != "" {
 		return region
 	}
 	return ""
+}
+
+func canonicalSubdivisionRegion(value string) string {
+	if len(value) >= 3 {
+		if region, ok := localeid.CanonicalUnicodeRegionSubtag(value[:3]); ok {
+			return region
+		}
+	}
+	if len(value) >= 2 {
+		if region, ok := localeid.CanonicalUnicodeRegionSubtag(value[:2]); ok {
+			return region
+		}
+	}
+	return ""
+}
+
+func validSubdivisionSuffix(s string) bool {
+	for i := range len(s) {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func normalizeCalendarList(in []string) []string {
@@ -213,40 +229,25 @@ func weekdayNumber(day time.Weekday) int {
 	return int(day)
 }
 
-func asciiLetters(s string) bool {
-	for i := range len(s) {
-		c := s[i]
-		if c < 'a' || c > 'z' {
-			return false
-		}
+func isRightToLeftScript(script string) bool {
+	switch script {
+	case "Adlm",
+		"Arab",
+		"Aran",
+		"Hebr",
+		"Mand",
+		"Mani",
+		"Mend",
+		"Merc",
+		"Mero",
+		"Nkoo",
+		"Rohg",
+		"Samr",
+		"Syrc",
+		"Thaa",
+		"Yezi":
+		return true
+	default:
+		return false
 	}
-	return true
-}
-
-func asciiDigits(s string) bool {
-	for i := range len(s) {
-		c := s[i]
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-var rtlScripts = map[string]bool{
-	"Adlm": true,
-	"Arab": true,
-	"Aran": true,
-	"Hebr": true,
-	"Mand": true,
-	"Mani": true,
-	"Mend": true,
-	"Merc": true,
-	"Mero": true,
-	"Nkoo": true,
-	"Rohg": true,
-	"Samr": true,
-	"Syrc": true,
-	"Thaa": true,
-	"Yezi": true,
 }

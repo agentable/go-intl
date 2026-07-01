@@ -4,6 +4,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/agentable/go-intl/internal/testcontract"
 )
 
 func TestGetWeekInfo(t *testing.T) {
@@ -99,20 +101,22 @@ func TestLocaleInfoGetters(t *testing.T) {
 	if got := loc.GetCalendars(); !slices.Equal(got, []string{"gregory"}) {
 		t.Fatalf("GetCalendars() = %#v", got)
 	}
-	withCalendar, err := New("en-US", Options{Calendar: "buddhist"})
+	withCalendar, err := New("en-US", Options{Calendar: stringPtr("buddhist")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := withCalendar.GetCalendars(); !slices.Equal(got, []string{"buddhist"}) {
 		t.Fatalf("GetCalendars() with calendar = %#v", got)
 	}
-	if got := parseLocaleForTest("und").GetCollations(); len(got) != 0 {
-		t.Fatalf("GetCollations(und) = %#v, want no advertised collation tailoring", got)
+	if got := parseLocaleForTest("und").GetCollations(); !slices.Contains(got, "phonebk") {
+		t.Fatalf("GetCollations(und) = %#v, want active Collator collation values including phonebk", got)
 	}
-	if got := loc.GetCollations(); len(got) != 0 {
-		t.Fatalf("GetCollations(en-US) = %#v, want no advertised collation tailoring", got)
+	if got := loc.GetCollations(); !slices.Contains(got, "phonebk") {
+		t.Fatalf("GetCollations(en-US) = %#v, want active Collator collation values including phonebk", got)
+	} else {
+		testcontract.AssertStringSliceSortedUnique(t, "GetCollations(en-US)", got)
 	}
-	withCollation, err := New("en-US", Options{Collation: "phonebk"})
+	withCollation, err := New("en-US", Options{Collation: stringPtr("phonebk")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,14 +126,14 @@ func TestLocaleInfoGetters(t *testing.T) {
 	if got := loc.GetHourCycles(); !slices.Equal(got, []string{"h12", "h23"}) {
 		t.Fatalf("GetHourCycles() = %#v", got)
 	}
-	withHourCycle, err := New("en-US", Options{HourCycle: "h23"})
+	withHourCycle, err := New("en-US", Options{HourCycle: stringPtr("h23")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := withHourCycle.GetHourCycles(); !slices.Equal(got, []string{"h23"}) {
 		t.Fatalf("GetHourCycles() with hourCycle = %#v", got)
 	}
-	withNumberingSystem, err := New("en-US", Options{NumberingSystem: "arab"})
+	withNumberingSystem, err := New("en-US", Options{NumberingSystem: stringPtr("arab")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,9 +149,7 @@ func TestLocaleInfoGetters(t *testing.T) {
 	if got := parseLocaleForTest("en-US").GetTimeZones(); !slices.Contains(got, "America/New_York") || !slices.Contains(got, "America/Los_Angeles") {
 		t.Fatalf("GetTimeZones(en-US) = %#v, want canonical US zones", got)
 	}
-	if got := parseLocaleForTest("en-US").GetTimeZones(); !slices.IsSorted(got) {
-		t.Fatalf("GetTimeZones(en-US) = %#v, want lexicographic order", got)
-	}
+	testcontract.AssertStringSliceSortedUnique(t, "GetTimeZones(en-US)", parseLocaleForTest("en-US").GetTimeZones())
 	if got := parseLocaleForTest("en-GB").GetTimeZones(); !slices.Equal(got, []string{"Europe/London"}) {
 		t.Fatalf("GetTimeZones(en-GB) = %#v, want Europe/London", got)
 	}

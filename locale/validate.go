@@ -2,64 +2,86 @@ package locale
 
 import (
 	"errors"
-	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/agentable/go-intl/internal/intlerr"
+	"github.com/agentable/go-intl/internal/localeid"
 )
 
-var unicodeTypePattern = regexp.MustCompile(`^[a-z0-9]{3,8}(-[a-z0-9]{3,8})*$`)
+var errInvalidLocaleOptionValue = errors.New("invalid locale option value")
+
+const (
+	localeUnicodeTypeExpected        = "a well-formed Unicode locale type"
+	localeLanguageTagExpected        = "a well-formed BCP 47 language tag"
+	localeLanguageIdentifierExpected = "a well-formed BCP 47 language identifier"
+	localeLanguageExpected           = "a well-formed BCP 47 language subtag"
+	localeScriptExpected             = "a well-formed BCP 47 script subtag"
+	localeRegionExpected             = "a well-formed BCP 47 region subtag"
+	localeHourCycleExpected          = `one of "h11", "h12", "h23", "h24"`
+	localeCaseFirstExpected          = `one of "upper", "lower", "false"`
+	localeFirstDayExpected           = "a weekday name or number from 0 through 7"
+)
 
 func (l *Locale) validate() error {
-	var err error
-	if l.ext.calendar, err = normalizeOption("calendar", l.ext.calendar, normalizeUnicodeType); err != nil {
+	if err := normalizeOption(&l.ext.calendar, "calendar", localeUnicodeTypeExpected, normalizeUnicodeType); err != nil {
 		return err
 	}
-	if l.ext.collation, err = normalizeOption("collation", l.ext.collation, normalizeUnicodeType); err != nil {
+	if err := normalizeOption(&l.ext.collation, "collation", localeUnicodeTypeExpected, normalizeUnicodeType); err != nil {
 		return err
 	}
-	if l.ext.numberingSystem, err = normalizeOption("numberingSystem", l.ext.numberingSystem, normalizeUnicodeType); err != nil {
+	if err := normalizeOption(&l.ext.numberingSystem, "numberingSystem", localeUnicodeTypeExpected, normalizeUnicodeType); err != nil {
 		return err
 	}
-	if l.ext.hourCycle, err = normalizeOption("hourCycle", l.ext.hourCycle, normalizeHourCycle); err != nil {
+	if err := normalizeOption(&l.ext.hourCycle, "hourCycle", localeHourCycleExpected, normalizeHourCycle); err != nil {
 		return err
 	}
-	if l.ext.caseFirst, err = normalizeOption("caseFirst", l.ext.caseFirst, normalizeCaseFirst); err != nil {
+	if err := normalizeOption(&l.ext.caseFirst, "caseFirst", localeCaseFirstExpected, normalizeCaseFirst); err != nil {
 		return err
 	}
-	if l.ext.firstDayOfWeek, err = normalizeOption("firstDayOfWeek", l.ext.firstDayOfWeek, normalizeFirstDayOfWeek); err != nil {
-		return err
+	return normalizeOption(&l.ext.firstDayOfWeek, "firstDayOfWeek", localeFirstDayExpected, normalizeFirstDayOfWeek)
+}
+
+func normalizeOption(dst *string, name, expected string, normalize func(string) (string, error)) error {
+	normalized, err := normalize(*dst)
+	if err != nil {
+		return invalidLocaleOptionExpected(name, *dst, expected, err)
 	}
+	*dst = normalized
 	return nil
 }
 
-func normalizeOption(name, value string, normalize func(string) (string, error)) (string, error) {
-	normalized, err := normalize(value)
-	if err != nil {
-		return "", invalidLocaleOption(name, value, nil)
-	}
-	return normalized, nil
-}
-
-func invalidLocaleOption(name, value string, err error) error {
-	return intlerr.New(intlerr.InvalidOption, "locale", name, value, "", localeErrorCause(intlerr.ErrInvalidOption, err))
+func invalidLocaleOptionExpected(name, value, expected string, err error) error {
+	return intlerr.NewInvalidOptionExpected("locale", name, value, "", expected, err)
 }
 
 func invalidLocaleValue(name, value string, err error) error {
-	return intlerr.New(intlerr.InvalidValue, "locale", name, value, "", localeErrorCause(intlerr.ErrInvalidValue, err))
+	return intlerr.NewInvalidValueExpected("locale", name, value, "", expectedLocaleValue(name), err)
 }
 
-func localeErrorCause(sentinel, err error) error {
-	if err == nil || errors.Is(err, sentinel) {
-		return sentinel
+func expectedLocaleValue(name string) string {
+	switch name {
+	case "languageTag":
+		return localeLanguageTagExpected
+	case "calendar", "collation", "numberingSystem":
+		return localeUnicodeTypeExpected
+	case "hourCycle":
+		return localeHourCycleExpected
+	case "caseFirst":
+		return localeCaseFirstExpected
+	case "firstDayOfWeek":
+		return localeFirstDayExpected
+	default:
+		return "a well-formed locale value"
 	}
-	return errors.Join(sentinel, err)
 }
 
 func normalizeLocaleAliases(tag string) string {
 	base, privateUse, hasPrivateUse := strings.Cut(tag, "-x-")
-	base = normalizeCalendarAliases(base)
-	base = normalizeFirstDayAliases(base)
+	if strings.Contains(base, "-u-") {
+		base = normalizeCalendarAliases(base)
+		base = normalizeFirstDayAliases(base)
+	}
 	if !hasPrivateUse {
 		return base
 	}
@@ -67,27 +89,20 @@ func normalizeLocaleAliases(tag string) string {
 }
 
 func normalizeCalendarAliases(tag string) string {
-	tag = strings.ReplaceAll(tag, "-ca-gregorian", "-ca-gregory")
-	tag = strings.ReplaceAll(tag, "-ca-islamic-civil", "-ca-islamicc")
+	for _, alias := range [...]string{"gregorian", "islamic-civil"} {
+		canonical, ok := localeid.CanonicalUnicodeType(alias)
+		if ok && canonical != alias {
+			tag = strings.ReplaceAll(tag, "-ca-"+alias, "-ca-"+canonical)
+		}
+	}
 	return tag
 }
 
 func normalizeFirstDayAliases(tag string) string {
-	replacements := []struct {
-		old string
-		new string
-	}{
-		{"-fw-0", "-fw-sun"},
-		{"-fw-1", "-fw-mon"},
-		{"-fw-2", "-fw-tue"},
-		{"-fw-3", "-fw-wed"},
-		{"-fw-4", "-fw-thu"},
-		{"-fw-5", "-fw-fri"},
-		{"-fw-6", "-fw-sat"},
-		{"-fw-7", "-fw-sun"},
-	}
-	for _, repl := range replacements {
-		tag = strings.ReplaceAll(tag, repl.old, repl.new)
+	for day := range 8 {
+		value := strconv.Itoa(day)
+		canonical, _ := canonicalFirstDay(value)
+		tag = strings.ReplaceAll(tag, "-fw-"+value, "-fw-"+canonical)
 	}
 	return tag
 }
@@ -110,63 +125,77 @@ func normalizeUnicodeType(value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	value = strings.ToLower(value)
-	switch value {
-	case "gregorian":
-		value = "gregory"
-	case "islamic-civil":
-		value = "islamicc"
+	canonical, ok := localeid.CanonicalUnicodeType(value)
+	if !ok {
+		return "", errInvalidLocaleOptionValue
 	}
-	if !unicodeTypePattern.MatchString(value) {
-		return "", intlerr.ErrInvalidValue
-	}
-	return value, nil
+	return canonical, nil
 }
 
 func normalizeHourCycle(value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	value = strings.ToLower(value)
+	value, err := normalizeUnicodeType(value)
+	if err != nil {
+		return "", err
+	}
 	switch value {
 	case "h11", "h12", "h23", "h24":
 		return value, nil
 	}
-	return "", intlerr.ErrInvalidValue
+	return "", errInvalidLocaleOptionValue
 }
 
 func normalizeCaseFirst(value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	value = strings.ToLower(value)
+	value, err := normalizeUnicodeType(value)
+	if err != nil {
+		return "", err
+	}
 	switch value {
 	case "upper", "lower", "false":
 		return value, nil
 	}
-	return "", intlerr.ErrInvalidValue
+	return "", errInvalidLocaleOptionValue
 }
 
 func normalizeFirstDayOfWeek(value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	value = strings.ToLower(value)
+	if canonical, ok := canonicalFirstDay(value); ok {
+		return canonical, nil
+	}
+	value, err := normalizeUnicodeType(value)
+	if err != nil {
+		return "", err
+	}
+	if canonical, ok := canonicalFirstDay(value); ok {
+		return canonical, nil
+	}
+	return "", errInvalidLocaleOptionValue
+}
+
+func canonicalFirstDay(value string) (string, bool) {
 	switch value {
 	case "sun", "0", "7":
-		return "sun", nil
+		return "sun", true
 	case "mon", "1":
-		return "mon", nil
+		return "mon", true
 	case "tue", "2":
-		return "tue", nil
+		return "tue", true
 	case "wed", "3":
-		return "wed", nil
+		return "wed", true
 	case "thu", "4":
-		return "thu", nil
+		return "thu", true
 	case "fri", "5":
-		return "fri", nil
+		return "fri", true
 	case "sat", "6":
-		return "sat", nil
+		return "sat", true
+	default:
+		return "", false
 	}
-	return "", intlerr.ErrInvalidValue
 }

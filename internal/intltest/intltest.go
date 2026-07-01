@@ -4,7 +4,6 @@ package intltest
 import (
 	"encoding/json"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 
@@ -31,6 +30,16 @@ func LocaleList(t testing.TB, tags ...string) locale.List {
 	return locales
 }
 
+func LocaleListJSON(t testing.TB, data []byte) locale.List {
+	t.Helper()
+
+	var tags []string
+	if err := json.Unmarshal(data, &tags); err != nil {
+		t.Fatalf("decode locale list fixture input: %v", err)
+	}
+	return LocaleList(t, tags...)
+}
+
 func ReadFixture(t testing.TB, path string, v any) {
 	t.Helper()
 
@@ -40,14 +49,6 @@ func ReadFixture(t testing.TB, path string, v any) {
 	}
 	if err := json.Unmarshal(data, v); err != nil {
 		t.Fatalf("decode fixture %s: %v", path, err)
-	}
-}
-
-func DiffParts[T any](t testing.TB, got, want []T) {
-	t.Helper()
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("parts = %#v, want %#v", got, want)
 	}
 }
 

@@ -3,6 +3,7 @@ package durationformat_test
 import (
 	"testing"
 
+	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/durationformat"
 	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
@@ -18,7 +19,7 @@ import (
 //     with fractional rollup engaging when the prior time unit is numeric.
 func TestDurationFormatResolvedDigitalDefaults(t *testing.T) {
 	t.Parallel()
-	df, err := durationformat.New(locale.List{intltest.Locale(t, "en")}, durationformat.Options{Style: durationformat.DigitalStyle})
+	df, err := durationformat.New(locale.List{intltest.Locale(t, "en")}, durationformat.Options{Style: gointl.String(durationformat.DigitalStyle)})
 	if err != nil {
 		t.Fatalf("New err = %v", err)
 	}
@@ -44,21 +45,20 @@ func TestDurationFormatResolvedDigitalDefaults(t *testing.T) {
 	}
 
 	timeUnits := []struct {
-		name    string
-		style   durationformat.UnitStyle
-		display durationformat.Display
+		name      string
+		style     durationformat.UnitStyle
+		wantStyle durationformat.UnitStyle
+		display   durationformat.Display
 	}{
-		{"hours", got.Hours, got.HoursDisplay},
-		{"minutes", got.Minutes, got.MinutesDisplay},
-		{"seconds", got.Seconds, got.SecondsDisplay},
+		{"hours", got.Hours, durationformat.NumericUnitStyle, got.HoursDisplay},
+		{"minutes", got.Minutes, durationformat.TwoDigitUnitStyle, got.MinutesDisplay},
+		{"seconds", got.Seconds, durationformat.TwoDigitUnitStyle, got.SecondsDisplay},
 	}
 	for _, u := range timeUnits {
 		// First (hours) is "numeric"; the trackPrevious chain bumps the rest
 		// to "2-digit" because the previous resolved style was numeric/2-digit.
-		switch u.style {
-		case durationformat.NumericUnitStyle, durationformat.TwoDigitUnitStyle:
-		case durationformat.LongUnitStyle, durationformat.ShortUnitStyle, durationformat.NarrowUnitStyle:
-			t.Errorf("%s style = %q, want numeric or 2-digit", u.name, u.style)
+		if u.style != u.wantStyle {
+			t.Errorf("%s style = %q, want %q", u.name, u.style, u.wantStyle)
 		}
 		if u.display != durationformat.AlwaysDisplay {
 			t.Errorf("%s display = %q, want %q", u.name, u.display, durationformat.AlwaysDisplay)
@@ -71,9 +71,9 @@ func TestDurationFormatResolvedDigitalDefaults(t *testing.T) {
 func TestDurationFormatDigitalRespectsExplicitDisplay(t *testing.T) {
 	t.Parallel()
 	df, err := durationformat.New(locale.List{intltest.Locale(t, "en")}, durationformat.Options{
-		Style:        durationformat.DigitalStyle,
-		Years:        durationformat.LongUnitStyle,
-		YearsDisplay: durationformat.AlwaysDisplay,
+		Style:        gointl.String(durationformat.DigitalStyle),
+		Years:        gointl.String(durationformat.LongUnitStyle),
+		YearsDisplay: gointl.String(durationformat.AlwaysDisplay),
 	})
 	if err != nil {
 		t.Fatalf("New err = %v", err)

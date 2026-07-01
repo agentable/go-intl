@@ -3,11 +3,12 @@ package cldr
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 )
+
+const worldRegion = "001"
 
 type PreferenceData struct {
 	HourCycle map[string][]string
@@ -20,6 +21,13 @@ type WeekData struct {
 	WeekendStart string
 	WeekendEnd   string
 	MinDays      int
+}
+
+type rawWeekData struct {
+	FirstDay     map[string]string `json:"firstDay"`
+	WeekendStart map[string]string `json:"weekendStart"`
+	WeekendEnd   map[string]string `json:"weekendEnd"`
+	MinDays      map[string]string `json:"minDays"`
 }
 
 func loadPreferenceData(root string) (PreferenceData, error) {
@@ -40,9 +48,9 @@ func loadPreferenceData(root string) (PreferenceData, error) {
 
 func loadHourCyclePreference(root string) (map[string][]string, error) {
 	path := filepath.Join(root, "cldr-core", "supplemental", "timeData.json")
-	raw, err := os.ReadFile(path)
+	raw, err := readRequiredFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read timeData.json: %w", err)
+		return nil, err
 	}
 	var doc struct {
 		Supplemental struct {
@@ -54,14 +62,25 @@ func loadHourCyclePreference(root string) (map[string][]string, error) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("parse timeData.json: %w", err)
 	}
+	if doc.Supplemental.TimeData == nil {
+		return nil, fmt.Errorf("expected supplemental timeData map")
+	}
+	world, ok := doc.Supplemental.TimeData[worldRegion]
+	if !ok || world.Allowed == "" {
+		return nil, fmt.Errorf("expected supplemental timeData %s default", worldRegion)
+	}
 	out := make(map[string][]string, len(doc.Supplemental.TimeData))
 	for region, data := range doc.Supplemental.TimeData {
-		out[strings.ReplaceAll(region, "_", "-")] = hourCycles(data.Allowed)
+		cycles, err := hourCycles(data.Allowed)
+		if err != nil {
+			return nil, fmt.Errorf("parse hour cycles for %s: %w", region, err)
+		}
+		out[preferenceRegionKey(region)] = cycles
 	}
 	return out, nil
 }
 
-func hourCycles(raw string) []string {
+func hourCycles(raw string) ([]string, error) {
 	out := make([]string, 0, 4)
 	for _, token := range strings.Fields(raw) {
 		switch token {
@@ -73,29 +92,32 @@ func hourCycles(raw string) []string {
 			out = append(out, "h11")
 		case "k":
 			out = append(out, "h24")
+		case "hb", "hB":
+			// CLDR timeData may include day-period hour symbols; ECMA-402
+			// hourCycle records only the base h/H/K/k cycle.
+		default:
+			return nil, fmt.Errorf("invalid hour cycle token %q", token)
 		}
 	}
-	return out
+	return out, nil
 }
 
 func loadWeekData(root string) (map[string]WeekData, error) {
 	path := filepath.Join(root, "cldr-core", "supplemental", "weekData.json")
-	raw, err := os.ReadFile(path)
+	raw, err := readRequiredFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read weekData.json: %w", err)
+		return nil, err
 	}
 	var doc struct {
 		Supplemental struct {
-			WeekData struct {
-				FirstDay     map[string]string `json:"firstDay"`
-				WeekendStart map[string]string `json:"weekendStart"`
-				WeekendEnd   map[string]string `json:"weekendEnd"`
-				MinDays      map[string]string `json:"minDays"`
-			} `json:"weekData"`
+			WeekData rawWeekData `json:"weekData"`
 		} `json:"supplemental"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("parse weekData.json: %w", err)
+	}
+	if err := validateWeekDataShape(doc.Supplemental.WeekData); err != nil {
+		return nil, err
 	}
 	regions := make(map[string]bool)
 	for region := range doc.Supplemental.WeekData.FirstDay {
@@ -110,14 +132,14 @@ func loadWeekData(root string) (map[string]WeekData, error) {
 	for region := range doc.Supplemental.WeekData.MinDays {
 		regions[region] = true
 	}
-	worldMinDays, err := strconv.Atoi(doc.Supplemental.WeekData.MinDays["001"])
+	worldMinDays, err := strconv.Atoi(doc.Supplemental.WeekData.MinDays[worldRegion])
 	if err != nil {
-		return nil, fmt.Errorf("parse minDays %q: %w", doc.Supplemental.WeekData.MinDays["001"], err)
+		return nil, fmt.Errorf("parse minDays %q: %w", doc.Supplemental.WeekData.MinDays[worldRegion], err)
 	}
 	world := WeekData{
-		FirstDay:     doc.Supplemental.WeekData.FirstDay["001"],
-		WeekendStart: doc.Supplemental.WeekData.WeekendStart["001"],
-		WeekendEnd:   doc.Supplemental.WeekData.WeekendEnd["001"],
+		FirstDay:     doc.Supplemental.WeekData.FirstDay[worldRegion],
+		WeekendStart: doc.Supplemental.WeekData.WeekendStart[worldRegion],
+		WeekendEnd:   doc.Supplemental.WeekData.WeekendEnd[worldRegion],
 		MinDays:      worldMinDays,
 	}
 	out := make(map[string]WeekData, len(regions))
@@ -139,16 +161,42 @@ func loadWeekData(root string) (map[string]WeekData, error) {
 			}
 			record.MinDays = days
 		}
-		out[region] = record
+		out[preferenceRegionKey(region)] = record
 	}
 	return out, nil
 }
 
+func validateWeekDataShape(data rawWeekData) error {
+	if err := validateWeekDataMap("firstDay", data.FirstDay); err != nil {
+		return err
+	}
+	if err := validateWeekDataMap("weekendStart", data.WeekendStart); err != nil {
+		return err
+	}
+	if err := validateWeekDataMap("weekendEnd", data.WeekendEnd); err != nil {
+		return err
+	}
+	if err := validateWeekDataMap("minDays", data.MinDays); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateWeekDataMap(name string, values map[string]string) error {
+	if values == nil {
+		return fmt.Errorf("expected supplemental weekData %s map", name)
+	}
+	if values[worldRegion] == "" {
+		return fmt.Errorf("expected supplemental weekData %s %s default", name, worldRegion)
+	}
+	return nil
+}
+
 func loadCalendarPreference(root string) (map[string][]string, error) {
 	path := filepath.Join(root, "cldr-core", "supplemental", "calendarPreferenceData.json")
-	raw, err := os.ReadFile(path)
+	raw, err := readRequiredFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read calendarPreferenceData.json: %w", err)
+		return nil, err
 	}
 	var doc struct {
 		Supplemental struct {
@@ -158,5 +206,19 @@ func loadCalendarPreference(root string) (map[string][]string, error) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("parse calendarPreferenceData.json: %w", err)
 	}
-	return doc.Supplemental.CalendarPreferenceData, nil
+	if doc.Supplemental.CalendarPreferenceData == nil {
+		return nil, fmt.Errorf("expected supplemental calendarPreferenceData map")
+	}
+	if calendars, ok := doc.Supplemental.CalendarPreferenceData[worldRegion]; !ok || len(calendars) == 0 {
+		return nil, fmt.Errorf("expected supplemental calendarPreferenceData %s default", worldRegion)
+	}
+	out := make(map[string][]string, len(doc.Supplemental.CalendarPreferenceData))
+	for region, calendars := range doc.Supplemental.CalendarPreferenceData {
+		out[preferenceRegionKey(region)] = calendars
+	}
+	return out, nil
+}
+
+func preferenceRegionKey(region string) string {
+	return strings.ReplaceAll(region, "_", "-")
 }

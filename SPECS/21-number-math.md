@@ -166,6 +166,13 @@ func New(negative bool, coeff *big.Int, exp int32) Decimal
 // FromInt64 Construct Finite Decimal from int64 (zero allocation fast path).
 func FromInt64(n int64) Decimal
 
+// FromUint64 constructs a finite Decimal from uint64 without a float bridge.
+func FromUint64(n uint64) Decimal
+
+// FromBigInt constructs a finite Decimal from a BigInt bridge value. Nil means 0,
+// and the input is copied into Decimal-owned storage.
+func FromBigInt(n *big.Int) Decimal
+
 // FromFloat64 Constructs Decimal from float64.
 //   - NaN  → NaNValue
 //   - ±Inf → PosInfinity / NegInfinity
@@ -181,7 +188,7 @@ func FromFloat64(f float64) Decimal
 func ParseString(s string) (Decimal, error)
 ```
 
-> **Why `FromInt64` alone**: NumberFormat hot path accepts integer values via `numberformat.Int`; direct construction via `apd.New(int64, exp)` is significantly cheaper than `ParseString(strconv.FormatInt(...))`.
+> **Why integer constructors live in `internal/decimal`**: NumberFormat and PluralRules both expose typed `Int`, `Uint`, and `BigInt` bridges. The exact conversion rule belongs to the decimal owner, so signed, unsigned, nil BigInt, and copied BigInt storage cannot drift between formatter packages.
 >
 > **Why `FromFloat64` uses string conversion instead of `apd.NewFromFloat`**: ECMA-402 `ToIntlMathematicalValue(float64)` requires spec §6.4 "convert via shortest round-trip string"; `apd.NewFromFloat` directly reads float64 binary bits, and will retain pseudo-precision such as `0.30000000000000004`.
 

@@ -1,9 +1,7 @@
 package codegen
 
 import (
-	"context"
-	"os"
-	"path/filepath"
+	"maps"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/cldr/date"
@@ -26,13 +24,14 @@ func TestDateRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	dates := loadDateTestInput(t)
+	gregLocales := dateGregorianLocales(dates)
 
 	// Gregorian view: assemble the expected Gregorian from the extract rows using
 	// the same field projection the accessor performs, then compare to the
 	// production accessor result.
-	for _, locale := range dateGregorianLocales(dates) {
-		loc := resolveDateLocale(t, locale)
-		want := expectedGregorian(dates[locale].Calendars["gregorian"])
+	for _, locale := range gregLocales {
+		loc := resolveKernelLocale(t, locale)
+		want := expectedGregorian(dates[locale].Calendars[dateCLDRGregorianCalendar])
 		assertGregorianEqual(t, locale, date.GregorianFor(loc), want)
 	}
 
@@ -55,59 +54,50 @@ func TestDateRoundTrip(t *testing.T) {
 	}
 
 	// Supported-locale narrow index.
-	wantTags := dateSupportedLocaleTags(dates)
+	wantTags := gregLocales
 	gotTags := date.SupportedLocales()
-	if len(gotTags) != len(wantTags) {
-		t.Fatalf("SupportedLocales len = %d, want %d", len(gotTags), len(wantTags))
-	}
-	for i := range wantTags {
-		if gotTags[i] != wantTags[i] {
-			t.Errorf("SupportedLocales[%d] = %q, want %q", i, gotTags[i], wantTags[i])
-		}
-	}
+	assertStringSliceEqual(t, "SupportedLocales", gotTags, wantTags)
 
 	// Supported-calendar narrow index.
 	wantCal := dateSupportedCalendars(dates)
 	gotCal := date.SupportedCalendars()
-	if len(gotCal) != len(wantCal) {
-		t.Fatalf("SupportedCalendars len = %d, want %d", len(gotCal), len(wantCal))
+	assertStringSliceEqual(t, "SupportedCalendars", gotCal, wantCal)
+}
+
+func TestDateGregorianCalendarRoutes(t *testing.T) {
+	t.Parallel()
+
+	dates := extract.Dates{
+		"en": {
+			Calendars: map[string]cldr.Calendar{
+				dateCLDRGregorianCalendar: {},
+			},
+		},
+		"fr": {
+			Calendars: map[string]cldr.Calendar{
+				"buddhist": {},
+			},
+		},
+		"zh": {
+			Calendars: map[string]cldr.Calendar{
+				dateCLDRGregorianCalendar: {},
+				"chinese":                 {},
+			},
+		},
 	}
-	for i := range wantCal {
-		if gotCal[i] != wantCal[i] {
-			t.Errorf("SupportedCalendars[%d] = %q, want %q", i, gotCal[i], wantCal[i])
-		}
-	}
+
+	gotLocales := dateGregorianLocales(dates)
+	assertStringSliceEqual(t, "dateGregorianLocales()", gotLocales, []string{"en", "zh"})
+	wantCalendars := []string{"buddhist", "chinese", dateSupportedGregorianCalendar, dateSupportedISO8601Calendar}
+	gotCalendars := dateSupportedCalendars(dates)
+	assertStringSliceEqual(t, "dateSupportedCalendars()", gotCalendars, wantCalendars)
 }
 
 func loadDateTestInput(t *testing.T) extract.Dates {
 	t.Helper()
 
-	repoRoot := filepath.Clean("../../..")
-	cldrDir := filepath.Join(repoRoot, "tools", "gen-cldr", ".cldr-json", "node_modules")
-	if _, err := os.Stat(cldrDir); err != nil {
-		t.Skipf("pinned cldr-json checkout absent (%v); run task data:fetch", err)
-	}
-
-	versions, err := cldr.ReadVersionFile(filepath.Join(repoRoot, "internal", "cldr", "VERSION"))
-	if err != nil {
-		t.Fatalf("read VERSION: %v", err)
-	}
-	profile := readUnitTestProfile(t, filepath.Join(repoRoot, "tools", "locale-profile.json"))
-
-	source, err := cldr.LoadAll(context.Background(), cldrDir, versions, profile)
-	if err != nil {
-		t.Fatalf("load cldr-json: %v", err)
-	}
-	return extract.ExtractDates(source.Dates, profile)
-}
-
-func resolveDateLocale(t *testing.T, tag string) cldrlocale.Locale {
-	t.Helper()
-	loc, ok := cldrlocale.ResolveLocale(tag)
-	if !ok {
-		t.Fatalf("kernel locale %q not resolvable", tag)
-	}
-	return loc
+	input := loadRoundTripSource(t)
+	return extract.ExtractDates(input.source.Dates, input.profile)
 }
 
 // expectedGregorian mirrors the production date.GregorianFor projection over the
@@ -172,37 +162,15 @@ func assertGregorianEqual(t *testing.T, locale string, got, want date.Gregorian)
 	if got.IntervalFallback != want.IntervalFallback {
 		t.Errorf("GregorianFor(%q).IntervalFallback = %q, want %q", locale, got.IntervalFallback, want.IntervalFallback)
 	}
-	if !stringMapEqual(got.AvailableFormats, want.AvailableFormats) {
+	if !maps.Equal(got.AvailableFormats, want.AvailableFormats) {
 		t.Errorf("GregorianFor(%q).AvailableFormats mismatch", locale)
 	}
-	if !stringMapEqual(got.AppendItems, want.AppendItems) {
+	if !maps.Equal(got.AppendItems, want.AppendItems) {
 		t.Errorf("GregorianFor(%q).AppendItems mismatch", locale)
 	}
-	if !nestedStringMapEqual(got.IntervalFormats, want.IntervalFormats) {
+	if !maps.EqualFunc(got.IntervalFormats, want.IntervalFormats, func(a, b map[string]string) bool {
+		return maps.Equal(a, b)
+	}) {
 		t.Errorf("GregorianFor(%q).IntervalFormats mismatch", locale)
 	}
-}
-
-func stringMapEqual(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if b[k] != v {
-			return false
-		}
-	}
-	return true
-}
-
-func nestedStringMapEqual(a, b map[string]map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, inner := range a {
-		if !stringMapEqual(inner, b[k]) {
-			return false
-		}
-	}
-	return true
 }

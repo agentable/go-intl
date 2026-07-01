@@ -1,6 +1,9 @@
 package extract
 
-import "github.com/agentable/go-intl/tools/gen-cldr/cldr"
+import (
+	"github.com/agentable/go-intl/internal/unitid"
+	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
+)
 
 type Metazones = cldr.Metazones
 
@@ -48,7 +51,7 @@ func ExtractUnits(raw map[string]cldr.Units, locales []string) Units {
 		}
 		extracted := make(cldr.Units)
 		for unit, data := range units {
-			if runtimeUnitPattern(unit) {
+			if unitid.IsSanctionedSimpleUnitIdentifier(unit) {
 				extracted[unit] = data
 			}
 		}
@@ -57,68 +60,6 @@ func ExtractUnits(raw map[string]cldr.Units, locales []string) Units {
 		}
 	}
 	return out
-}
-
-func runtimeUnitPattern(unit string) bool {
-	switch unit {
-	// Duration units (originally the only category supported, kept for
-	// durationformat / relativetimeformat / numberformat).
-	case "year",
-		"month",
-		"week",
-		"day",
-		"hour",
-		"minute",
-		"second",
-		"millisecond",
-		"microsecond",
-		"nanosecond",
-		// Length / mass / volume — the common SI units MessageFormat 2.0
-		// consumers (and the ECMA-402 sanctioned subset) expect to format.
-		"meter",
-		"kilometer",
-		"centimeter",
-		"millimeter",
-		"mile",
-		"yard",
-		"foot",
-		"inch",
-		"gram",
-		"kilogram",
-		"milligram",
-		"ounce",
-		"pound",
-		"stone",
-		"liter",
-		"milliliter",
-		"gallon",
-		// Information / digital.
-		"byte",
-		"bit",
-		"kilobyte",
-		"megabyte",
-		"gigabyte",
-		"terabyte",
-		"petabyte",
-		// Temperature.
-		"celsius",
-		"fahrenheit",
-		// Frequency.
-		"hertz",
-		"kilohertz",
-		"megahertz",
-		"gigahertz",
-		// Common compound-friendly units (per-hour speeds, percent-like
-		// fractions). The compound pattern handling in NumberFormat needs the
-		// base units; expose the most-cited ones.
-		"degree",
-		"acre",
-		"hectare",
-		"percent":
-		return true
-	default:
-		return false
-	}
 }
 
 func ExtractListPatterns(raw map[string]cldr.ListPatterns, locales []string) ListPatterns {

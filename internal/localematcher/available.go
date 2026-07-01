@@ -1,6 +1,10 @@
 package localematcher
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/agentable/go-intl/internal/localeid"
+)
 
 type availableLocale struct {
 	locale     string
@@ -9,10 +13,10 @@ type availableLocale struct {
 }
 
 func availableLocalesFor(supported []string) []availableLocale {
-	raw := make(map[string]struct{}, len(supported))
+	backed := make(map[string]struct{}, len(supported))
 	for _, loc := range supported {
 		noExtensionLocale, _ := removeUnicodeExtension(loc)
-		raw[noExtensionLocale] = struct{}{}
+		backed[noExtensionLocale] = struct{}{}
 	}
 
 	seen := make(map[string]struct{}, len(supported))
@@ -21,24 +25,24 @@ func availableLocalesFor(supported []string) []availableLocale {
 		noExtensionLocale, _ := removeUnicodeExtension(loc)
 		out = appendAvailableLocale(out, seen, noExtensionLocale, noExtensionLocale, false)
 		if alias, ok := languageRegionAlias(noExtensionLocale); ok {
-			if _, rawAlias := raw[alias]; !rawAlias {
+			if _, backedAlias := backed[alias]; !backedAlias {
 				out = appendAvailableLocale(out, seen, alias, noExtensionLocale, true)
 			}
-			out = appendFallbackLocales(out, seen, raw, alias, noExtensionLocale)
+			out = appendFallbackLocales(out, seen, backed, alias, noExtensionLocale)
 		}
-		out = appendFallbackLocales(out, seen, raw, noExtensionLocale, noExtensionLocale)
+		out = appendFallbackLocales(out, seen, backed, noExtensionLocale, noExtensionLocale)
 	}
 	return out
 }
 
-func appendFallbackLocales(out []availableLocale, seen, raw map[string]struct{}, loc, dataLocale string) []availableLocale {
+func appendFallbackLocales(out []availableLocale, seen, backed map[string]struct{}, loc, dataLocale string) []availableLocale {
 	for {
 		pos := truncationPosition(loc)
 		if pos < 0 {
 			return out
 		}
 		loc = loc[:pos]
-		if _, rawLocale := raw[loc]; rawLocale {
+		if _, backedLocale := backed[loc]; backedLocale {
 			continue
 		}
 		out = appendAvailableLocale(out, seen, loc, dataLocale, true)
@@ -57,41 +61,21 @@ func appendAvailableLocale(out []availableLocale, seen map[string]struct{}, loc,
 }
 
 func languageRegionAlias(loc string) (string, bool) {
-	parts := strings.Split(loc, "-")
-	if len(parts) < 3 || !isScriptSubtag(parts[1]) || !isRegionSubtag(parts[2]) {
+	language, rest, ok := strings.Cut(loc, "-")
+	if !ok {
 		return "", false
 	}
-	alias := parts[0] + "-" + parts[2]
-	if len(parts) > 3 {
-		alias += "-" + strings.Join(parts[3:], "-")
+	script, rest, ok := strings.Cut(rest, "-")
+	if !ok || !localeid.IsUnicodeScriptSubtag(script) {
+		return "", false
+	}
+	region, suffix, hasSuffix := strings.Cut(rest, "-")
+	if !localeid.IsUnicodeRegionSubtag(region) {
+		return "", false
+	}
+	alias := language + "-" + region
+	if hasSuffix {
+		alias += "-" + suffix
 	}
 	return alias, true
-}
-
-func isScriptSubtag(s string) bool {
-	return len(s) == 4 && isASCIIAlpha(s)
-}
-
-func isRegionSubtag(s string) bool {
-	return len(s) == 2 && isASCIIAlpha(s) || len(s) == 3 && isASCIIDigit(s)
-}
-
-func isASCIIAlpha(s string) bool {
-	for i := range len(s) {
-		c := s[i]
-		if c < 'A' || c > 'Z' && c < 'a' || c > 'z' {
-			return false
-		}
-	}
-	return true
-}
-
-func isASCIIDigit(s string) bool {
-	for i := range len(s) {
-		c := s[i]
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return true
 }

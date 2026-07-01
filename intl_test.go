@@ -11,6 +11,7 @@ import (
 	"github.com/agentable/go-intl/displaynames"
 	"github.com/agentable/go-intl/durationformat"
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/listformat"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/numberformat"
@@ -54,12 +55,8 @@ func TestSupportedValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		got := tt.values()
-		if !slices.Contains(got, tt.want) {
-			t.Fatalf("%s supported values missing %q in %v", tt.name, tt.want, got)
-		}
-		if !slices.IsSorted(got) {
-			t.Fatalf("%s supported values = %v, want sorted", tt.name, got)
-		}
+		testcontract.AssertStringSliceContainsAll(t, tt.name+" supported values", got, tt.want)
+		testcontract.AssertStringSliceSortedUnique(t, tt.name, got)
 	}
 }
 
@@ -67,11 +64,9 @@ func TestSupportedNumberingSystemsECMA402SimpleDigits(t *testing.T) {
 	t.Parallel()
 
 	got := SupportedNumberingSystems()
-	for _, want := range []string{"adlm", "arab", "arabext", "beng", "deva", "fullwide", "hanidec", "latn", "thai"} {
-		if !slices.Contains(got, want) {
-			t.Fatalf("SupportedNumberingSystems() missing %q in %v", want, got)
-		}
-	}
+	testcontract.AssertStringSliceContainsAll(t, "SupportedNumberingSystems()", got,
+		"adlm", "arab", "arabext", "beng", "deva", "fullwide", "hanidec", "latn", "thai",
+	)
 }
 
 func TestSupportedCalendarsMatchActiveDateTimeFormat(t *testing.T) {
@@ -84,7 +79,7 @@ func TestSupportedCalendarsMatchActiveDateTimeFormat(t *testing.T) {
 	}
 
 	for _, calendar := range got {
-		format, err := datetimeformat.New(locale.List{intltest.Locale(t, "en-US")}, datetimeformat.Options{Calendar: calendar})
+		format, err := datetimeformat.New(locale.List{intltest.Locale(t, "en-US")}, datetimeformat.Options{Calendar: String(calendar)})
 		if err != nil {
 			t.Fatalf("datetimeformat.New(calendar=%q) error = %v, want advertised calendar accepted", calendar, err)
 		}
@@ -101,7 +96,7 @@ func TestSupportedCalendarsMatchActiveDateTimeFormat(t *testing.T) {
 		{
 			name:    "buddhist option",
 			locales: locale.List{intltest.Locale(t, "en-US")},
-			options: datetimeformat.Options{Calendar: "buddhist"},
+			options: datetimeformat.Options{Calendar: String("buddhist")},
 		},
 		{
 			name:    "buddhist locale",
@@ -112,9 +107,12 @@ func TestSupportedCalendarsMatchActiveDateTimeFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := datetimeformat.New(tc.locales, tc.options)
-			if !errors.Is(err, ErrUnsupportedOption) {
-				t.Fatalf("datetimeformat.New() error = %v, want ErrUnsupportedOption", err)
+			format, err := datetimeformat.New(tc.locales, tc.options)
+			if err != nil {
+				t.Fatalf("datetimeformat.New() error = %v", err)
+			}
+			if got := format.ResolvedOptions().Calendar; got != "gregory" {
+				t.Fatalf("datetimeformat.New() resolved calendar = %q, want gregory fallback", got)
 			}
 		})
 	}
@@ -123,36 +121,42 @@ func TestSupportedCalendarsMatchActiveDateTimeFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("datetimeformat.SupportedLocalesOf() error = %v", err)
 	}
-	wantLocales := []string{"en-US-u-ca-iso8601", "en-US-u-ca-gregory", "en-US"}
-	if !slices.Equal(supported.Strings(), wantLocales) {
-		t.Fatalf("datetimeformat.SupportedLocalesOf() = %v, want %v", supported.Strings(), wantLocales)
-	}
+	testcontract.AssertLocaleListStrings(t, "datetimeformat.SupportedLocalesOf()", supported, []string{"en-US-u-ca-buddhist", "en-US-u-ca-iso8601", "en-US-u-ca-gregory", "en-US"})
 }
 
 func TestRootErrorSentinelsClassifyFormatterErrors(t *testing.T) {
 	t.Parallel()
 
-	if _, err := numberformat.New(intltest.LocaleList(t, "en-US"), numberformat.Options{Style: "bad"}); !errors.Is(err, ErrInvalidOption) {
+	if _, err := numberformat.New(intltest.LocaleList(t, "en-US"), numberformat.Options{Style: String("bad")}); !errors.Is(err, ErrInvalidOption) {
 		t.Fatalf("numberformat.New(invalid style) error = %v, want root ErrInvalidOption", err)
 	}
 
-	if _, err := datetimeformat.New(intltest.LocaleList(t, "en-US"), datetimeformat.Options{Calendar: "buddhist"}); !errors.Is(err, ErrUnsupportedOption) {
-		t.Fatalf("datetimeformat.New(unsupported calendar) error = %v, want root ErrUnsupportedOption", err)
+	if _, err := datetimeformat.New(intltest.LocaleList(t, "en-US"), datetimeformat.Options{TimeZone: String("Mars/Olympus")}); !errors.Is(err, ErrUnsupportedOption) {
+		t.Fatalf("datetimeformat.New(unsupported timeZone) error = %v, want root ErrUnsupportedOption", err)
+	} else if !errors.Is(err, errors.ErrUnsupported) {
+		t.Fatalf("datetimeformat.New(unsupported timeZone) error = %v, want errors.ErrUnsupported", err)
 	}
 
-	dn, err := displaynames.New(intltest.LocaleList(t, "en-US"), displaynames.Options{Type: displaynames.Language})
+	dn, err := displaynames.New(intltest.LocaleList(t, "en-US"), displaynames.Options{Type: String(displaynames.Language)})
 	if err != nil {
 		t.Fatalf("displaynames.New() error = %v", err)
 	}
 	if _, _, err := dn.Of("bad_code"); !errors.Is(err, ErrInvalidCode) {
 		t.Fatalf("displaynames.Of(invalid code) error = %v, want root ErrInvalidCode", err)
 	}
+
+	if _, err := numberformat.Decimal("not a number"); !errors.Is(err, ErrInvalidValue) {
+		t.Fatalf("numberformat.Decimal(invalid) error = %v, want root ErrInvalidValue", err)
+	} else {
+		testcontract.AssertIntlError(t, err, InvalidValue, "numberformat", "decimal", "not a number", "")
+		testcontract.AssertErrorExpected(t, err, "a well-formed decimal string, NaN, Infinity, or -Infinity")
+	}
 }
 
 func TestRootErrorTextTeachesWithoutAbstractOperationNames(t *testing.T) {
 	t.Parallel()
 
-	displayNames, err := displaynames.New(intltest.LocaleList(t, "en-US"), displaynames.Options{Type: displaynames.Language})
+	displayNames, err := displaynames.New(intltest.LocaleList(t, "en-US"), displaynames.Options{Type: String(displaynames.Language)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,28 +179,28 @@ func TestRootErrorTextTeachesWithoutAbstractOperationNames(t *testing.T) {
 		err  error
 	}{
 		{name: "numberformat", err: errorFrom(func() (*numberformat.NumberFormat, error) {
-			return numberformat.New(intltest.LocaleList(t, "en-US"), numberformat.Options{Style: "bad"})
+			return numberformat.New(intltest.LocaleList(t, "en-US"), numberformat.Options{Style: String("bad")})
 		})},
 		{name: "locale parse", err: errorFrom(func() (locale.Locale, error) {
 			return locale.Parse("bad_locale")
 		})},
 		{name: "locale options", err: errorFrom(func() (locale.Locale, error) {
-			return locale.New("en", locale.Options{HourCycle: "bad"})
+			return locale.New("en", locale.Options{HourCycle: String("bad")})
 		})},
 		{name: "datetimeformat", err: errorFrom(func() (*datetimeformat.DateTimeFormat, error) {
-			return datetimeformat.New(intltest.LocaleList(t, "en-US"), datetimeformat.Options{Calendar: "bad!"})
+			return datetimeformat.New(intltest.LocaleList(t, "en-US"), datetimeformat.Options{Calendar: String("bad!")})
 		})},
 		{name: "pluralrules", err: errorFrom(func() (*pluralrules.PluralRules, error) {
-			return pluralrules.New(intltest.LocaleList(t, "en-US"), pluralrules.Options{Type: pluralrules.Type(99)})
+			return pluralrules.New(intltest.LocaleList(t, "en-US"), pluralrules.Options{Type: String("bad")})
 		})},
 		{name: "listformat", err: errorFrom(func() (*listformat.ListFormat, error) {
-			return listformat.New(intltest.LocaleList(t, "en-US"), listformat.Options{Type: "bad"})
+			return listformat.New(intltest.LocaleList(t, "en-US"), listformat.Options{Type: String("bad")})
 		})},
 		{name: "collator", err: errorFrom(func() (*collator.Collator, error) {
-			return collator.New(intltest.LocaleList(t, "en-US"), collator.Options{Usage: collator.SearchUsage})
+			return collator.New(intltest.LocaleList(t, "en-US"), collator.Options{Usage: String(collator.SearchUsage)})
 		})},
 		{name: "segmenter", err: errorFrom(func() (*segmenter.Segmenter, error) {
-			return segmenter.New(intltest.LocaleList(t, "en-US"), segmenter.Options{Granularity: "bad"})
+			return segmenter.New(intltest.LocaleList(t, "en-US"), segmenter.Options{Granularity: String("bad")})
 		})},
 		{name: "displaynames", err: displayNameErr},
 		{name: "relativetimeformat", err: relativeErr},
@@ -231,19 +235,8 @@ func errorFrom[T any](fn func() (T, error)) error {
 func TestSupportedValuesReturnIndependentSlices(t *testing.T) {
 	t.Parallel()
 
-	got := SupportedUnits()
-	if len(got) == 0 {
-		t.Fatal("SupportedUnits() returned empty slice")
-	}
-	got[0] = "mutated"
-
-	next := SupportedUnits()
-	if slices.Contains(next, "mutated") {
-		t.Fatalf("SupportedUnits() returned shared mutable storage: %v", next)
-	}
-	if !slices.IsSorted(next) {
-		t.Fatalf("SupportedUnits() after mutation = %v, want sorted", next)
-	}
+	testcontract.AssertStringSliceReturnsCopy(t, "SupportedUnits", SupportedUnits)
+	testcontract.AssertStringSliceSortedUnique(t, "SupportedUnits", SupportedUnits())
 }
 
 func TestSupportedUnitsMatchECMA402(t *testing.T) {
@@ -269,8 +262,12 @@ func TestSupportedCollationsMatchActiveCollator(t *testing.T) {
 	t.Parallel()
 
 	got := SupportedCollations()
-	if len(got) != 0 {
-		t.Fatalf("SupportedCollations() = %v, want no advertised collation tailoring", got)
+	testcontract.AssertStringSliceContainsAll(t, "SupportedCollations()", got, "phonebk")
+	testcontract.AssertStringSliceSortedUnique(t, "SupportedCollations()", got)
+	for _, forbidden := range []string{"default", "search", "standard"} {
+		if slices.Contains(got, forbidden) {
+			t.Fatalf("SupportedCollations() contains reserved value %q: %v", forbidden, got)
+		}
 	}
 
 	for _, tc := range []struct {
@@ -281,37 +278,17 @@ func TestSupportedCollationsMatchActiveCollator(t *testing.T) {
 		{
 			name:    "search usage",
 			locales: locale.List{intltest.Locale(t, "en")},
-			options: collator.Options{Usage: collator.SearchUsage},
+			options: collator.Options{Usage: String(collator.SearchUsage)},
 		},
 		{
 			name:    "case first upper option",
 			locales: locale.List{intltest.Locale(t, "en")},
-			options: collator.Options{CaseFirst: collator.UpperCaseFirst},
+			options: collator.Options{CaseFirst: String(collator.UpperCaseFirst)},
 		},
 		{
 			name:    "case first lower option",
 			locales: locale.List{intltest.Locale(t, "en")},
-			options: collator.Options{CaseFirst: collator.LowerCaseFirst},
-		},
-		{
-			name:    "locale case first upper",
-			locales: locale.List{intltest.Locale(t, "en-u-kf-upper")},
-			options: collator.Options{},
-		},
-		{
-			name:    "locale case first lower",
-			locales: locale.List{intltest.Locale(t, "en-u-kf-lower")},
-			options: collator.Options{},
-		},
-		{
-			name:    "phonebook option",
-			locales: locale.List{intltest.Locale(t, "de")},
-			options: collator.Options{Collation: "phonebk"},
-		},
-		{
-			name:    "phonebook locale",
-			locales: locale.List{intltest.Locale(t, "de-u-co-phonebk")},
-			options: collator.Options{},
+			options: collator.Options{CaseFirst: String(collator.LowerCaseFirst)},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -324,20 +301,70 @@ func TestSupportedCollationsMatchActiveCollator(t *testing.T) {
 		})
 	}
 
+	for _, tc := range []struct {
+		name          string
+		locales       locale.List
+		options       collator.Options
+		wantCollation string
+	}{
+		{
+			name:          "locale case first upper",
+			locales:       locale.List{intltest.Locale(t, "en-u-kf-upper")},
+			options:       collator.Options{},
+			wantCollation: "default",
+		},
+		{
+			name:          "locale case first lower",
+			locales:       locale.List{intltest.Locale(t, "en-u-kf-lower")},
+			options:       collator.Options{},
+			wantCollation: "default",
+		},
+		{
+			name:          "phonebook option",
+			locales:       locale.List{intltest.Locale(t, "de")},
+			options:       collator.Options{Collation: String("phonebk")},
+			wantCollation: "phonebk",
+		},
+		{
+			name:          "phonebook locale",
+			locales:       locale.List{intltest.Locale(t, "de-u-co-phonebk")},
+			options:       collator.Options{},
+			wantCollation: "phonebk",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			c, err := collator.New(tc.locales, tc.options)
+			if err != nil {
+				t.Fatalf("collator.New() error = %v", err)
+			}
+			resolved := c.ResolvedOptions()
+			if resolved.CaseFirst != collator.FalseCaseFirst || resolved.Collation != tc.wantCollation {
+				t.Fatalf("collator.New() resolved caseFirst/collation = %q/%q, want false/%s", resolved.CaseFirst, resolved.Collation, tc.wantCollation)
+			}
+		})
+	}
+
 	supported, err := collator.SupportedLocalesOf(intltest.LocaleList(t, "de-u-co-phonebk", "en-u-kf-upper", "en-u-kf-lower", "de", "en-u-kf-false"), collator.Options{})
 	if err != nil {
 		t.Fatalf("collator.SupportedLocalesOf() error = %v", err)
 	}
-	want := []string{"de", "en-u-kf-false"}
-	if !slices.Equal(supported.Strings(), want) {
-		t.Fatalf("collator.SupportedLocalesOf() = %v, want %v", supported.Strings(), want)
-	}
+	testcontract.AssertLocaleListStrings(t, "collator.SupportedLocalesOf()", supported, []string{"de-u-co-phonebk", "en-u-kf-upper", "en-u-kf-lower", "de", "en-u-kf-false"})
 }
 
 func TestRootConstructorAliases(t *testing.T) {
 	t.Parallel()
 
 	locales := intltest.LocaleList(t, "en-US")
+	requireRootLocaleAlias(locales[0])
+	requireRootNumberFormatAlias((*numberformat.NumberFormat)(nil))
+	requireRootDateTimeFormatAlias((*datetimeformat.DateTimeFormat)(nil))
+	requireRootPluralRulesAlias((*pluralrules.PluralRules)(nil))
+	requireRootDisplayNamesAlias((*displaynames.DisplayNames)(nil))
+	requireRootCollatorAlias((*collator.Collator)(nil))
+	requireRootSegmenterAlias((*segmenter.Segmenter)(nil))
+
 	list, err := listformat.New(locales, listformat.Options{})
 	if err != nil {
 		t.Fatalf("listformat.New(en-US) error = %v", err)
@@ -374,8 +401,22 @@ func TestRootConstructorAliases(t *testing.T) {
 	}
 }
 
+func requireRootLocaleAlias(Locale) {}
+
+func requireRootNumberFormatAlias(*NumberFormat) {}
+
+func requireRootDateTimeFormatAlias(*DateTimeFormat) {}
+
+func requireRootPluralRulesAlias(*PluralRules) {}
+
 func requireRootListFormatAlias(*ListFormat) {}
 
 func requireRootRelativeTimeFormatAlias(*RelativeTimeFormat) {}
 
 func requireRootDurationFormatAlias(*DurationFormat) {}
+
+func requireRootDisplayNamesAlias(*DisplayNames) {}
+
+func requireRootCollatorAlias(*Collator) {}
+
+func requireRootSegmenterAlias(*Segmenter) {}

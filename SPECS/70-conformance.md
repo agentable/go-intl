@@ -190,7 +190,7 @@ Rules:
 
 1. Consumer profiles must be JSON objects loaded only from `_test.go` files.
 2. They may assert cross-package host contracts; they must not duplicate broad ECMA-402 output matrices that belong in formatter conformance fixtures.
-3. They may assert that unsupported capabilities stay unadvertised, such as collator tailoring, unsupported DateTimeFormat calendars, or Segmenter dictionary/CJK locales.
+3. They may assert that unsupported capabilities stay unadvertised through supported-value or supported-locale accessors, such as collator tailoring, DateTimeFormat calendar supported values, or Segmenter dictionary/CJK locales. Constructor fallback behavior belongs in success fixtures, not error fixtures, when ECMA-402 treats the request as locale negotiation input.
 4. They must preserve caller-provided range order. Reversed ranges are valid inputs for NumberFormat, DateTimeFormat, and PluralRules unless the owning formatter SPEC says otherwise.
 5. A profile change that weakens support boundaries or output behavior must update the owning SPEC first.
 6. Consumer profiles must not force public `map[string]any` APIs. Host-boundary needs are served by typed Go APIs plus JSON-marshallable ECMA-402 records.

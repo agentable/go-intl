@@ -3,6 +3,7 @@ package durationformat_test
 import (
 	"fmt"
 
+	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/durationformat"
 	"github.com/agentable/go-intl/locale"
 )
@@ -10,7 +11,7 @@ import (
 // Example demonstrates Intl.DurationFormat.prototype.format from ECMA-402.
 func Example() {
 	format, err := durationformat.New(mustLocaleList("en"), durationformat.Options{
-		Style: durationformat.DigitalStyle,
+		Style: gointl.String(durationformat.DigitalStyle),
 	})
 	if err != nil {
 		panic(err)
@@ -34,7 +35,7 @@ func Example() {
 // Example_options demonstrates Intl.DurationFormat constructor options from ECMA-402.
 func Example_options() {
 	format, err := durationformat.New(mustLocaleList("en"), durationformat.Options{
-		Style: durationformat.LongStyle,
+		Style: gointl.String(durationformat.LongStyle),
 	})
 	if err != nil {
 		panic(err)
@@ -57,7 +58,7 @@ func Example_options() {
 // ExampleDurationFormat_FormatToParts demonstrates Intl.DurationFormat.prototype.formatToParts from ECMA-402.
 func ExampleDurationFormat_FormatToParts() {
 	format, err := durationformat.New(mustLocaleList("en"), durationformat.Options{
-		Style: durationformat.DigitalStyle,
+		Style: gointl.String(durationformat.DigitalStyle),
 	})
 	if err != nil {
 		panic(err)

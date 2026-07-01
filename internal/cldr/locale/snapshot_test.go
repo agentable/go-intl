@@ -20,6 +20,7 @@ import (
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	cldrplural "github.com/agentable/go-intl/internal/cldr/plural"
 	"github.com/agentable/go-intl/internal/localematcher"
+	"github.com/agentable/go-intl/internal/testcontract"
 )
 
 // repoRoot is the module root relative to this package directory.
@@ -313,12 +314,7 @@ func requireSupportedByProfile(t *testing.T, name string, supported, profile []s
 	if len(supported) == 0 {
 		t.Fatalf("%s is empty", name)
 	}
-	if !slices.IsSorted(supported) {
-		t.Fatalf("%s = [%s], want sorted locale tags", name, strings.Join(supported, ", "))
-	}
-	if got := slices.Compact(slices.Clone(supported)); !slices.Equal(got, supported) {
-		t.Fatalf("%s = [%s], want unique locale tags", name, strings.Join(supported, ", "))
-	}
+	testcontract.AssertStringSliceSortedUnique(t, name, supported)
 
 	profileSet := map[string]bool{}
 	for _, locale := range profile {

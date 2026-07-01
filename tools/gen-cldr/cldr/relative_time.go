@@ -3,8 +3,9 @@ package cldr
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"math"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -19,12 +20,15 @@ type RelativeTimeField struct {
 func loadRelativeTimeFields(root string, locales []string) (map[string]RelativeTimeFields, error) {
 	loaded := make(map[string]RelativeTimeFields)
 	for _, locale := range locales {
-		if locale == "und" {
+		if locale == undefinedLocale {
 			continue
 		}
 		path := filepath.Join(root, "cldr-dates-full", "main", locale, "dateFields.json")
-		raw, err := os.ReadFile(path)
+		raw, ok, err := readOptionalFile(path)
 		if err != nil {
+			return nil, err
+		}
+		if !ok {
 			continue
 		}
 		var doc struct {
@@ -41,6 +45,9 @@ func loadRelativeTimeFields(root string, locales []string) (map[string]RelativeT
 		if !ok {
 			return nil, fmt.Errorf("dateFields body missing for %s", locale)
 		}
+		if body.Dates.Fields == nil {
+			return nil, fmt.Errorf("dateFields data missing for %s", locale)
+		}
 		fields, err := parseRelativeTimeFields(body.Dates.Fields)
 		if err != nil {
 			return nil, fmt.Errorf("parse relative time fields for %s: %w", locale, err)
@@ -49,29 +56,7 @@ func loadRelativeTimeFields(root string, locales []string) (map[string]RelativeT
 			loaded[locale] = fields
 		}
 	}
-	out := make(map[string]RelativeTimeFields, len(locales))
-	for _, locale := range locales {
-		if locale == "und" {
-			continue
-		}
-		if fields, ok := loaded[locale]; ok {
-			out[locale] = fields
-			continue
-		}
-		if fields, ok := inheritedRelativeTimeFields(locale, loaded); ok {
-			out[locale] = fields
-		}
-	}
-	return out, nil
-}
-
-func inheritedRelativeTimeFields(locale string, loaded map[string]RelativeTimeFields) (RelativeTimeFields, bool) {
-	for parent := parentLocale(locale); parent != ""; parent = parentLocale(parent) {
-		if fields, ok := loaded[parent]; ok {
-			return fields, true
-		}
-	}
-	return nil, false
+	return inheritedLocaleData(locales, loaded), nil
 }
 
 func parseRelativeTimeFields(raw map[string]map[string]json.RawMessage) (RelativeTimeFields, error) {
@@ -97,13 +82,24 @@ func parseRelativeTimeFields(raw map[string]map[string]json.RawMessage) (Relativ
 }
 
 func parseRelativeTimeField(raw map[string]json.RawMessage) (RelativeTimeField, error) {
+	future, err := relativeTimePatternMap(raw["relativeTime-type-future"])
+	if err != nil {
+		return RelativeTimeField{}, fmt.Errorf("future: %w", err)
+	}
+	past, err := relativeTimePatternMap(raw["relativeTime-type-past"])
+	if err != nil {
+		return RelativeTimeField{}, fmt.Errorf("past: %w", err)
+	}
 	field := RelativeTimeField{
-		Future:   relativeTimePatternMap(raw["relativeTime-type-future"]),
-		Past:     relativeTimePatternMap(raw["relativeTime-type-past"]),
+		Future:   future,
+		Past:     past,
 		Relative: make(map[string]string),
 	}
 	for key, value := range raw {
-		relativeKey, ok := strings.CutPrefix(key, "relative-type-")
+		relativeKey, ok, err := relativeLiteralKeyFromField(key)
+		if err != nil {
+			return RelativeTimeField{}, fmt.Errorf("parse %s: %w", key, err)
+		}
 		if !ok {
 			continue
 		}
@@ -119,32 +115,52 @@ func parseRelativeTimeField(raw map[string]json.RawMessage) (RelativeTimeField, 
 	return field, nil
 }
 
-func relativeTimePatternMap(raw json.RawMessage) map[string]string {
+func relativeLiteralKeyFromField(field string) (string, bool, error) {
+	key, ok := strings.CutPrefix(field, "relative-type-")
+	if !ok {
+		return "", false, nil
+	}
+	value, err := strconv.ParseFloat(key, 64)
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+		return "", true, fmt.Errorf("invalid relative literal key %q: expected finite numeric key", key)
+	}
+	return key, true, nil
+}
+
+func relativeTimePatternMap(raw json.RawMessage) (map[string]string, error) {
 	if len(raw) == 0 {
-		return nil
+		return nil, nil
 	}
 	var patterns map[string]string
 	if err := json.Unmarshal(raw, &patterns); err != nil {
-		return nil
+		return nil, err
 	}
 	out := make(map[string]string, len(patterns))
 	for key, value := range patterns {
-		plural, ok := strings.CutPrefix(key, "relativeTimePattern-count-")
+		plural, ok, err := pluralCategoryFromField(key, "relativeTimePattern-count-")
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", key, err)
+		}
 		if ok {
+			if value == "" {
+				return nil, fmt.Errorf("%s empty", key)
+			}
 			out[plural] = value
 		}
 	}
 	if len(out) == 0 {
-		return nil
+		return nil, nil
 	}
-	return out
+	return out, nil
 }
 
-var relativeTimeFieldKeys = []struct {
+type relativeTimeFieldKey struct {
 	cldr  string
 	unit  string
 	style string
-}{
+}
+
+var relativeTimeFieldKeys = [...]relativeTimeFieldKey{
 	{cldr: "second", unit: "second", style: "long"},
 	{cldr: "second-short", unit: "second", style: "short"},
 	{cldr: "second-narrow", unit: "second", style: "narrow"},

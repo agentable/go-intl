@@ -1,11 +1,11 @@
 package codegen
 
 import (
-	"bytes"
 	"maps"
 	"slices"
 	"strings"
 
+	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
 )
 
@@ -39,150 +39,97 @@ func encodeLocaleKernel(input RuntimeInput, table *StringTable) ([]byte, error) 
 	localeIndex := localeIndexMap(input.Locales)
 
 	var locales blobEncoder
-	locales.appendUvarint(uint64(len(input.Locales.Tags)))
-	for _, tag := range input.Locales.Tags {
-		locales.appendStringRef(table.Add(tag))
-	}
+	locales.appendStringRefSlice(input.Locales.Tags, table)
 
 	var maximize blobEncoder
 	maxKeys := slices.Sorted(maps.Keys(input.LikelySubtags.Maximize))
-	maximize.appendUvarint(uint64(len(maxKeys)))
-	for _, key := range maxKeys {
+	appendCountedSlice(&maximize, maxKeys, func(key string) {
 		triple := input.LikelySubtags.Maximize[key]
 		maximize.appendStringRef(table.Add(key))
-		maximize.appendStringRef(table.Add(triple.Lang))
-		maximize.appendStringRef(table.Add(triple.Script))
-		maximize.appendStringRef(table.Add(triple.Region))
-	}
+		appendSubtagTriple(&maximize, table, triple)
+	})
 
 	var minimize blobEncoder
 	minTriples := slices.SortedFunc(maps.Keys(input.LikelySubtags.Minimize), func(a, b extract.SubtagTriple) int {
-		return strings.Compare(a.Lang+"-"+a.Script+"-"+a.Region, b.Lang+"-"+b.Script+"-"+b.Region)
+		return strings.Compare(subtagTripleKey(a), subtagTripleKey(b))
 	})
-	minimize.appendUvarint(uint64(len(minTriples)))
-	for _, triple := range minTriples {
+	appendCountedSlice(&minimize, minTriples, func(triple extract.SubtagTriple) {
 		minimized := input.LikelySubtags.Minimize[triple]
-		minimize.appendStringRef(table.Add(triple.Lang))
-		minimize.appendStringRef(table.Add(triple.Script))
-		minimize.appendStringRef(table.Add(triple.Region))
+		appendSubtagTriple(&minimize, table, triple)
 		minimize.appendStringRef(table.Add(minimized))
-	}
+	})
 
 	var numbering blobEncoder
-	numberingRows := localeNumberingOverrides(input.Numbers, localeIndex)
-	numbering.appendUvarint(uint64(len(numberingRows)))
-	for _, row := range numberingRows {
-		numbering.appendDelta(row.locale)
-		numbering.appendStringRef(table.Add(row.system))
+	numberingLocales := localeNumberingOverrideLocales(input.Numbers)
+	if err := numbering.appendLocaleDeltaRecords(numberingLocales, localeIndex, func(locale string) {
+		numbering.appendStringRef(table.Add(input.Numbers[locale].DefaultNumberingSystem))
+	}); err != nil {
+		return nil, err
 	}
 
 	var hourCycle blobEncoder
-	hourRegions := slices.Sorted(maps.Keys(input.Preferences.HourCycle))
-	hourCycle.appendUvarint(uint64(len(hourRegions)))
-	for _, region := range hourRegions {
-		hourCycle.appendStringRef(table.Add(region))
-		values := input.Preferences.HourCycle[region]
-		hourCycle.appendUvarint(uint64(len(values)))
-		for _, value := range values {
-			hourCycle.appendStringRef(table.Add(value))
-		}
-	}
+	appendStringRefKeyMap(&hourCycle, input.Preferences.HourCycle, table, func(values []string) {
+		hourCycle.appendStringRefSlice(values, table)
+	})
 
 	var week blobEncoder
-	weekRegions := slices.Sorted(maps.Keys(input.Preferences.Week))
-	week.appendUvarint(uint64(len(weekRegions)))
-	for _, region := range weekRegions {
-		w := input.Preferences.Week[region]
-		week.appendStringRef(table.Add(region))
+	appendStringRefKeyMap(&week, input.Preferences.Week, table, func(w cldr.WeekData) {
 		week.appendUvarint(weekdayOrdinal(w.FirstDay))
 		week.appendUvarint(weekdayOrdinal(w.WeekendStart))
 		week.appendUvarint(weekdayOrdinal(w.WeekendEnd))
 		week.appendUvarint(uint64(w.MinDays))
-	}
+	})
 
 	var calendar blobEncoder
-	calRegions := slices.Sorted(maps.Keys(input.Preferences.Calendar))
-	calendar.appendUvarint(uint64(len(calRegions)))
-	for _, region := range calRegions {
-		calendar.appendStringRef(table.Add(region))
-		values := input.Preferences.Calendar[region]
-		calendar.appendUvarint(uint64(len(values)))
-		for _, value := range values {
-			calendar.appendStringRef(table.Add(value))
-		}
-	}
+	appendStringRefKeyMap(&calendar, input.Preferences.Calendar, table, func(values []string) {
+		calendar.appendStringRefSlice(values, table)
+	})
 
-	var b bytes.Buffer
-	b.WriteString("package cldrlocale\n\n")
-	if err := table.EmitDataConst(&b, "_data"); err != nil {
-		return nil, err
-	}
-	for _, blob := range []struct {
-		name  string
-		bytes []byte
-	}{
-		{"_localeBlob", locales.bytes()},
-		{"_maximizeBlob", maximize.bytes()},
-		{"_minimizeBlob", minimize.bytes()},
-		{"_numberingBlob", numbering.bytes()},
-		{"_hourCycleBlob", hourCycle.bytes()},
-		{"_weekBlob", week.bytes()},
-		{"_calendarBlob", calendar.bytes()},
-	} {
-		b.WriteString("\n")
-		if err := emitStringConst(&b, blob.name, string(blob.bytes)); err != nil {
-			return nil, err
-		}
-	}
-	return FormatFile(b.Bytes())
+	return renderPayloadFile("cldrlocale", table,
+		payloadBlob{"_localeBlob", locales.bytes()},
+		payloadBlob{"_maximizeBlob", maximize.bytes()},
+		payloadBlob{"_minimizeBlob", minimize.bytes()},
+		payloadBlob{"_numberingBlob", numbering.bytes()},
+		payloadBlob{"_hourCycleBlob", hourCycle.bytes()},
+		payloadBlob{"_weekBlob", week.bytes()},
+		payloadBlob{"_calendarBlob", calendar.bytes()},
+	)
 }
 
-type localeNumberingRow struct {
-	locale uint64
-	system string
+func appendSubtagTriple(e *blobEncoder, table *StringTable, triple extract.SubtagTriple) {
+	e.appendStringRef(table.Add(triple.Lang))
+	e.appendStringRef(table.Add(triple.Script))
+	e.appendStringRef(table.Add(triple.Region))
 }
 
-// localeNumberingOverrides returns the locales whose default numbering system is
-// not "latn", in ascending Locale-index order. It mirrors the legacy
-// DefaultNumberingSystem switch, which fell through to "latn" for every locale
-// without an explicit non-latn override.
-func localeNumberingOverrides(numbers extract.Numbers, localeIndex map[string]uint64) []localeNumberingRow {
-	var rows []localeNumberingRow
+func subtagTripleKey(triple extract.SubtagTriple) string {
+	return triple.Lang + "-" + triple.Script + "-" + triple.Region
+}
+
+// localeNumberingOverrideLocales returns the locales whose default numbering
+// system is not "latn". Locale-index lookup and ordering belong to
+// appendLocaleDeltaRecords.
+func localeNumberingOverrideLocales(numbers extract.Numbers) []string {
+	var locales []string
 	for _, locale := range sortedLocaleKeys(numbers) {
 		ns := numbers[locale].DefaultNumberingSystem
 		if ns == "" || ns == "latn" {
 			continue
 		}
-		idx, ok := localeIndex[locale]
-		if !ok {
-			continue
-		}
-		rows = append(rows, localeNumberingRow{locale: idx, system: ns})
+		locales = append(locales, locale)
 	}
-	slices.SortFunc(rows, func(a, b localeNumberingRow) int { return cmpUint64(a.locale, b.locale) })
-	return rows
+	return locales
 }
 
 // weekdayOrdinal maps a CLDR weekday abbreviation to the time.Weekday ordinal
-// (Sunday = 0 .. Saturday = 6), matching the legacy weekdayLiteral mapping. An
-// unknown value defaults to Sunday, as the legacy switch did.
+// (Sunday = 0 .. Saturday = 6). An unknown value defaults to Sunday, matching
+// the locale preference accessor fallback.
 func weekdayOrdinal(day string) uint64 {
-	switch day {
-	case "sun":
-		return 0
-	case "mon":
-		return 1
-	case "tue":
-		return 2
-	case "wed":
-		return 3
-	case "thu":
-		return 4
-	case "fri":
-		return 5
-	case "sat":
-		return 6
-	default:
+	idx := slices.Index(weekdayOrder[:], day)
+	if idx < 0 {
 		return 0
 	}
+	return uint64(idx)
 }
+
+var weekdayOrder = [...]string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}

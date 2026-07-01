@@ -1,17 +1,12 @@
-// Hand-written decode layer for the number domain. It expands the const blobs in
-// data.go into the same in-memory structures the legacy root loadNumbersByLocale
-// produced, behind per-blob sync.Once gates.
+// Hand-written decode layer for the number domain. It expands domain-private
+// const blobs from data.go into numbering-system, pattern, symbol, and
+// supported-index records consumed by accessors.go, behind per-blob sync.Once
+// gates.
 //
-// Locale handle ownership: the main blob packs a locale index that must match
-// the runtime locale assignment, so this package borrows the locale index space
-// from the cldr/locale kernel package. number.Locale is a distinct named type
-// (not an alias) so it can carry the number accessor methods the formatters call
-// as loc.DecimalPattern(…); it converts to the kernel handle only to share the
-// kernel's locale-resolution and index assignment, which is identical to the
-// legacy root package so keys align. Importing the kernel (rather than the root)
-// keeps number's compile cost off the root data bomb. The dependency is one-way
-// (number -> cldr/locale; the kernel never imports number, so there is no
-// cycle), and it is the permanent home every domain points at.
+// Locale handle ownership: the main blob packs the locale index assigned by the
+// cldr/locale kernel. number.Locale is a distinct named type so it can carry the
+// number accessor methods formatters call as loc.DecimalPattern(...); it converts
+// to the kernel handle only for shared locale resolution and index assignment.
 
 package number
 
@@ -26,22 +21,32 @@ import (
 // accessors.go.
 type Locale uint16
 
-// NumberSymbols holds the locale's numbering-system symbols. Its field set and
-// order match the legacy root cldr.NumberSymbols so formatter output is
-// byte-for-byte unchanged.
+// NumberSymbols holds the locale's numbering-system symbols in the wire order
+// shared with the generator.
 type NumberSymbols struct {
-	Decimal, Group, Percent, Plus, Minus, NaN, Infinity, ApproxSign, PerMille, Exponential, SuperscriptingExponent, TimeSeparator string
+	Decimal, Group, Percent, Plus, Minus, NaN, Infinity, ApproxSign, RangeSign, PerMille, Exponential, SuperscriptingExponent, TimeSeparator string
 }
 
-// numberData mirrors the legacy root numberData: one locale's complete
-// number-formatting payload, keyed internally by numbering system.
+// numberData holds one locale's number-formatting payload, keyed internally by
+// numbering system.
 type numberData struct {
-	defaultNS                    string
-	symbols                      map[string]NumberSymbols
-	decimal, percent, scientific map[string]string
-	currency                     map[string]map[string]string
-	compact                      map[string]map[string]map[int]map[string]string
+	defaultNumberingSystem       string
+	symbols                      numberSymbolsByNumberingSystem
+	decimal, percent, scientific numberPatternsByNumberingSystem
+	currency                     currencyPatternsByNumberingSystem
+	compact                      compactPatternsByNumberingSystem
 }
+
+type numberSymbolsByNumberingSystem map[string]NumberSymbols
+type numberPatternsByNumberingSystem map[string]string
+
+type currencyPatternsByNumberingSystem map[string]currencySignPatterns
+type currencySignPatterns map[string]string
+
+type compactPatternsByNumberingSystem map[string]compactDisplayPatterns
+type compactDisplayPatterns map[string]compactExponentPatterns
+type compactExponentPatterns map[int]compactPluralPatterns
+type compactPluralPatterns map[string]string
 
 var (
 	numbersOnce sync.Once
@@ -50,8 +55,8 @@ var (
 	supportedOnce sync.Once
 	supportedTags []string
 
-	numberingSystemOnce   sync.Once
-	numberingSystemExtras []string
+	numberingSystemOnce       sync.Once
+	supportedNumberingSystems []string
 )
 
 func numberDataByLocale() map[Locale]numberData {
@@ -61,118 +66,87 @@ func numberDataByLocale() map[Locale]numberData {
 
 func loadNumbers() {
 	r := codec.NewReader(_numberBlob)
-	count := r.Uvarint()
-	byLocale = make(map[Locale]numberData, count)
-	indices := codec.Delta(&r)
-	for i := uint64(0); i < count; i++ {
-		loc := Locale(indices.Next())
-		byLocale[loc] = decodeNumberLocale(&r)
-	}
+	byLocale = codec.Uint16DeltaMap[Locale, numberData](&r, decodeNumberLocale)
 }
 
 func decodeNumberLocale(r *codec.Reader) numberData {
 	return numberData{
-		defaultNS:  r.StringRef(_data),
-		symbols:    decodeNumberSymbols(r),
-		decimal:    decodeStringMap(r),
-		percent:    decodeStringMap(r),
-		scientific: decodeStringMap(r),
-		currency:   decodeCurrencyPatterns(r),
-		compact:    decodeCompactPatterns(r),
+		defaultNumberingSystem: r.StringRef(_data),
+		symbols:                decodeNumberSymbols(r),
+		decimal:                decodeNumberPatterns(r),
+		percent:                decodeNumberPatterns(r),
+		scientific:             decodeNumberPatterns(r),
+		currency:               decodeCurrencyPatterns(r),
+		compact:                decodeCompactPatterns(r),
 	}
 }
 
-func decodeNumberSymbols(r *codec.Reader) map[string]NumberSymbols {
-	n := r.Uvarint()
-	if n == 0 {
-		return nil
-	}
-	out := make(map[string]NumberSymbols, n)
-	for i := uint64(0); i < n; i++ {
-		ns := r.StringRef(_data)
-		out[ns] = NumberSymbols{
-			Decimal:                r.StringRef(_data),
-			Group:                  r.StringRef(_data),
-			Percent:                r.StringRef(_data),
-			Plus:                   r.StringRef(_data),
-			Minus:                  r.StringRef(_data),
-			NaN:                    r.StringRef(_data),
-			Infinity:               r.StringRef(_data),
-			ApproxSign:             r.StringRef(_data),
-			PerMille:               r.StringRef(_data),
-			Exponential:            r.StringRef(_data),
-			SuperscriptingExponent: r.StringRef(_data),
-			TimeSeparator:          r.StringRef(_data),
-		}
-	}
-	return out
+func decodeNumberSymbols(r *codec.Reader) numberSymbolsByNumberingSystem {
+	return codec.StringRefKeyMap[NumberSymbols](r, _data, decodeNumberSymbolRow)
 }
 
-func decodeCurrencyPatterns(r *codec.Reader) map[string]map[string]string {
-	n := r.Uvarint()
-	if n == 0 {
-		return nil
+func decodeNumberSymbolRow(r *codec.Reader) NumberSymbols {
+	return NumberSymbols{
+		Decimal:                r.StringRef(_data),
+		Group:                  r.StringRef(_data),
+		Percent:                r.StringRef(_data),
+		Plus:                   r.StringRef(_data),
+		Minus:                  r.StringRef(_data),
+		NaN:                    r.StringRef(_data),
+		Infinity:               r.StringRef(_data),
+		ApproxSign:             r.StringRef(_data),
+		RangeSign:              r.StringRef(_data),
+		PerMille:               r.StringRef(_data),
+		Exponential:            r.StringRef(_data),
+		SuperscriptingExponent: r.StringRef(_data),
+		TimeSeparator:          r.StringRef(_data),
 	}
-	out := make(map[string]map[string]string, n)
-	for i := uint64(0); i < n; i++ {
-		ns := r.StringRef(_data)
-		out[ns] = decodeStringMap(r)
-	}
-	return out
 }
 
-func decodeCompactPatterns(r *codec.Reader) map[string]map[string]map[int]map[string]string {
-	nsCount := r.Uvarint()
-	if nsCount == 0 {
-		return nil
-	}
-	out := make(map[string]map[string]map[int]map[string]string, nsCount)
-	for i := uint64(0); i < nsCount; i++ {
-		ns := r.StringRef(_data)
-		displayCount := r.Uvarint()
-		displays := make(map[string]map[int]map[string]string, displayCount)
-		for d := uint64(0); d < displayCount; d++ {
-			display := r.StringRef(_data)
-			expCount := r.Uvarint()
-			exps := make(map[int]map[string]string, expCount)
-			for e := uint64(0); e < expCount; e++ {
-				exp := int(r.Uvarint())
-				exps[exp] = decodeStringMap(r)
-			}
-			displays[display] = exps
-		}
-		out[ns] = displays
-	}
-	return out
+func decodeNumberPatterns(r *codec.Reader) numberPatternsByNumberingSystem {
+	return numberPatternsByNumberingSystem(r.StringRefMap(_data))
 }
 
-func decodeStringMap(r *codec.Reader) map[string]string {
-	n := r.Uvarint()
-	if n == 0 {
-		return nil
+func decodeCurrencyPatterns(r *codec.Reader) currencyPatternsByNumberingSystem {
+	return codec.StringRefKeyMap[currencySignPatterns](r, _data, decodeCurrencyPatternSet)
+}
+
+func decodeCurrencyPatternSet(r *codec.Reader) currencySignPatterns {
+	return currencySignPatterns(r.StringRefMap(_data))
+}
+
+func decodeCompactPatterns(r *codec.Reader) compactPatternsByNumberingSystem {
+	return codec.StringRefKeyMap[compactDisplayPatterns](r, _data, decodeCompactDisplays)
+}
+
+func decodeCompactDisplays(r *codec.Reader) compactDisplayPatterns {
+	displayCount := r.Uvarint()
+	displays := make(compactDisplayPatterns, displayCount)
+	for range displayCount {
+		display := r.StringRef(_data)
+		displays[display] = decodeCompactExponents(r)
 	}
-	out := make(map[string]string, n)
-	for i := uint64(0); i < n; i++ {
-		key := r.StringRef(_data)
-		out[key] = r.StringRef(_data)
+	return displays
+}
+
+func decodeCompactExponents(r *codec.Reader) compactExponentPatterns {
+	exponentCount := r.Uvarint()
+	exponents := make(compactExponentPatterns, exponentCount)
+	for range exponentCount {
+		exponent := int(r.Uvarint())
+		exponents[exponent] = compactPluralPatterns(r.StringRefMap(_data))
 	}
-	return out
+	return exponents
 }
 
 func loadSupported() {
-	r := codec.NewReader(_numberSupportedBlob)
-	count := r.Uvarint()
-	supportedTags = make([]string, count)
-	for i := range supportedTags {
-		supportedTags[i] = r.StringRef(_data)
-	}
+	supportedTags = codec.StringRefSlice(_numberSupportedBlob, _data)
 }
 
 func loadNumberingSystemExtras() {
-	r := codec.NewReader(_numberingSystemBlob)
-	count := r.Uvarint()
-	numberingSystemExtras = make([]string, count)
-	for i := range numberingSystemExtras {
-		numberingSystemExtras[i] = r.StringRef(_data)
-	}
+	supportedNumberingSystems = mergeSupportedNumberingSystems(decodeNumberingSystemExtras())
+}
+
+func decodeNumberingSystemExtras() []string {
+	return codec.StringRefSlice(_numberingSystemBlob, _data)
 }

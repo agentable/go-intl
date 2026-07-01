@@ -23,17 +23,44 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 	t.Parallel()
 
 	loc := intltest.Locale(t, "en-US-u-nu-latn")
-	minFrac, maxFrac := 0, 3
 	hour12 := false
-	fractionalDigits := 2
+	defaultNumber := mustNumberFormat(t, numberformat.Options{}).ResolvedOptions()
 	significantNumber := mustNumberFormat(t, numberformat.Options{MinimumSignificantDigits: intPtr(3)}).ResolvedOptions()
+	defaultPlural := mustPluralRules(t, pluralrules.Options{}).ResolvedOptions()
 	significantPlural := mustPluralRules(t, pluralrules.Options{MinimumSignificantDigits: intPtr(2)}).ResolvedOptions()
-	styleDateTime := mustDateTimeFormat(t, datetimeformat.Options{
-		DateStyle: datetimeformat.MediumDateTimeStyle,
-		TimeStyle: datetimeformat.ShortDateTimeStyle,
+	compactPlural := mustPluralRules(t, pluralrules.Options{
+		Notation:       stringPtr(pluralrules.CompactNotation),
+		CompactDisplay: stringPtr(pluralrules.LongCompactDisplay),
 	}).ResolvedOptions()
+	componentDateTime := mustDateTimeFormat(t, datetimeformat.Options{
+		Year:   stringPtr(datetimeformat.NumericFieldStyle),
+		Month:  stringPtr(datetimeformat.ShortMonthStyle),
+		Day:    stringPtr(datetimeformat.NumericFieldStyle),
+		Hour:   stringPtr(datetimeformat.NumericFieldStyle),
+		Hour12: &hour12,
+	}).ResolvedOptions()
+	styleDateTime := mustDateTimeFormat(t, datetimeformat.Options{
+		DateStyle: stringPtr(datetimeformat.MediumDateTimeStyle),
+		TimeStyle: stringPtr(datetimeformat.ShortDateTimeStyle),
+	}).ResolvedOptions()
+	phonebookCollation := "phonebk"
 	defaultCollator := mustCollator(t, collator.Options{}).ResolvedOptions()
+	phonebookCollator := mustCollatorFor(t, "de", collator.Options{Collation: &phonebookCollation}).ResolvedOptions()
+	defaultDuration := mustDurationFormat(t, durationformat.Options{}).ResolvedOptions()
+	fractionalDuration := mustDurationFormat(t, durationformat.Options{
+		Style:            stringPtr(durationformat.LongStyle),
+		FractionalDigits: intPtr(2),
+	}).ResolvedOptions()
+	defaultList := mustListFormat(t, listformat.Options{}).ResolvedOptions()
+	defaultRelativeTime := mustRelativeTimeFormat(t, relativetimeformat.Options{}).ResolvedOptions()
+	regionDisplayNames := mustDisplayNames(t, displaynames.Options{Type: stringPtr(displaynames.Region)}).ResolvedOptions()
+	languageDisplayNames := mustDisplayNames(t, displaynames.Options{
+		Type:            stringPtr(displaynames.Language),
+		LanguageDisplay: stringPtr(displaynames.StandardLanguageDisplay),
+	}).ResolvedOptions()
+	wordSegmenter := mustSegmenter(t, segmenter.Options{Granularity: stringPtr(segmenter.WordGranularity)}).ResolvedOptions()
 	wordSegment := mustFirstSegment(t, "hello!", segmenter.WordGranularity)
+	wordPunctuation := mustSegmentAt(t, "hello!", segmenter.WordGranularity, 1)
 	rtlTextInfo := intltest.Locale(t, "ar").GetTextInfo()
 
 	tests := []struct {
@@ -48,24 +75,10 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			want:  []string{`"en-US-u-nu-latn"`},
 		},
 		{
-			name: "number resolved options",
-			value: numberformat.ResolvedOptions{
-				Locale:                loc,
-				NumberingSystem:       "latn",
-				Style:                 numberformat.DecimalStyle,
-				MinimumIntegerDigits:  1,
-				MinimumFractionDigits: &minFrac,
-				MaximumFractionDigits: &maxFrac,
-				UseGrouping:           numberformat.UseGroupingAuto,
-				Notation:              numberformat.StandardNotation,
-				SignDisplay:           numberformat.AutoSignDisplay,
-				RoundingIncrement:     1,
-				RoundingMode:          numberformat.HalfExpandRoundingMode,
-				RoundingPriority:      numberformat.AutoRoundingPriority,
-				TrailingZeroDisplay:   numberformat.AutoTrailingZeroDisplay,
-			},
+			name:  "number resolved options",
+			value: defaultNumber,
 			want: []string{
-				`"locale":"en-US-u-nu-latn"`,
+				`"locale":"en"`,
 				`"minimumFractionDigits":0`,
 				`"maximumFractionDigits":3`,
 				`"trailingZeroDisplay":"auto"`,
@@ -87,24 +100,15 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			want:  []string{`"type":"integer"`, `"value":"10"`, `"source":"startRange"`},
 		},
 		{
-			name: "datetime resolved options",
-			value: datetimeformat.ResolvedOptions{
-				Locale:          loc,
-				Calendar:        "gregory",
-				NumberingSystem: "latn",
-				TimeZone:        "UTC",
-				HourCycle:       datetimeformat.H23HourCycle,
-				Hour12:          &hour12,
-				Year:            datetimeformat.NumericFieldStyle,
-				Month:           datetimeformat.ShortMonthStyle,
-				Day:             datetimeformat.NumericFieldStyle,
-			},
+			name:  "datetime resolved options",
+			value: componentDateTime,
 			want: []string{
-				`"locale":"en-US-u-nu-latn"`,
+				`"locale":"en"`,
+				`"hourCycle":"h23"`,
 				`"hour12":false`,
 				`"month":"short"`,
 			},
-			absent: []string{`"weekday"`, `"fractionalSecondDigits"`},
+			absent: []string{`"weekday"`, `"fractionalSecondDigits"`, `"dateStyle"`, `"timeStyle"`},
 		},
 		{
 			name:  "datetime style shortcut resolved options",
@@ -120,23 +124,10 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			},
 		},
 		{
-			name: "plural resolved options",
-			value: pluralrules.ResolvedOptions{
-				Locale:                loc,
-				Type:                  pluralrules.Cardinal,
-				MinimumIntegerDigits:  1,
-				MinimumFractionDigits: &minFrac,
-				MaximumFractionDigits: &maxFrac,
-				PluralCategories:      []pluralrules.Category{pluralrules.One, pluralrules.Other},
-				Notation:              pluralrules.StandardNotation,
-				CompactDisplay:        pluralrules.ShortCompactDisplay,
-				RoundingIncrement:     1,
-				RoundingMode:          pluralrules.HalfExpandRoundingMode,
-				RoundingPriority:      pluralrules.AutoRoundingPriority,
-				TrailingZeroDisplay:   pluralrules.AutoTrailingZeroDisplay,
-			},
+			name:   "plural resolved options",
+			value:  defaultPlural,
 			want:   []string{`"type":"cardinal"`, `"pluralCategories":["one","other"]`},
-			absent: []string{`"minimumSignificantDigits"`},
+			absent: []string{`"minimumSignificantDigits"`, `"compactDisplay"`},
 		},
 		{
 			name:  "plural significant digit resolved options",
@@ -145,6 +136,12 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 				`"minimumSignificantDigits":2`,
 				`"maximumSignificantDigits":21`,
 			},
+			absent: []string{`"minimumFractionDigits"`, `"maximumFractionDigits"`, `"compactDisplay"`},
+		},
+		{
+			name:   "plural compact resolved options",
+			value:  compactPlural,
+			want:   []string{`"notation":"compact"`, `"compactDisplay":"long"`},
 			absent: []string{`"minimumFractionDigits"`, `"maximumFractionDigits"`},
 		},
 		{
@@ -153,13 +150,9 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			want:  []string{`"type":"element"`, `"value":"a"`},
 		},
 		{
-			name: "list resolved options",
-			value: listformat.ResolvedOptions{
-				Locale: loc,
-				Type:   listformat.Conjunction,
-				Style:  listformat.LongStyle,
-			},
-			want: []string{`"locale":"en-US-u-nu-latn"`, `"type":"conjunction"`, `"style":"long"`},
+			name:  "list resolved options",
+			value: defaultList,
+			want:  []string{`"locale":"en"`, `"type":"conjunction"`, `"style":"long"`},
 		},
 		{
 			name:   "relative time part omits empty unit",
@@ -168,44 +161,20 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			absent: []string{`"unit"`},
 		},
 		{
-			name: "relative time resolved options",
-			value: relativetimeformat.ResolvedOptions{
-				Locale:          loc,
-				Style:           relativetimeformat.LongStyle,
-				Numeric:         relativetimeformat.NumericAlways,
-				NumberingSystem: "latn",
-			},
-			want: []string{`"locale":"en-US-u-nu-latn"`, `"style":"long"`, `"numeric":"always"`, `"numberingSystem":"latn"`},
+			name:  "relative time resolved options",
+			value: defaultRelativeTime,
+			want:  []string{`"locale":"en"`, `"style":"long"`, `"numeric":"always"`, `"numberingSystem":"latn"`},
 		},
 		{
-			name: "duration resolved options",
-			value: durationformat.ResolvedOptions{
-				Locale:              loc,
-				NumberingSystem:     "latn",
-				Style:               durationformat.ShortStyle,
-				Years:               durationformat.ShortUnitStyle,
-				YearsDisplay:        durationformat.AutoDisplay,
-				Months:              durationformat.ShortUnitStyle,
-				MonthsDisplay:       durationformat.AutoDisplay,
-				Weeks:               durationformat.ShortUnitStyle,
-				WeeksDisplay:        durationformat.AutoDisplay,
-				Days:                durationformat.ShortUnitStyle,
-				DaysDisplay:         durationformat.AutoDisplay,
-				Hours:               durationformat.ShortUnitStyle,
-				HoursDisplay:        durationformat.AutoDisplay,
-				Minutes:             durationformat.ShortUnitStyle,
-				MinutesDisplay:      durationformat.AutoDisplay,
-				Seconds:             durationformat.ShortUnitStyle,
-				SecondsDisplay:      durationformat.AutoDisplay,
-				Milliseconds:        durationformat.ShortUnitStyle,
-				MillisecondsDisplay: durationformat.AutoDisplay,
-				Microseconds:        durationformat.ShortUnitStyle,
-				MicrosecondsDisplay: durationformat.AutoDisplay,
-				Nanoseconds:         durationformat.ShortUnitStyle,
-				NanosecondsDisplay:  durationformat.AutoDisplay,
-				FractionalDigits:    &fractionalDigits,
-			},
-			want: []string{`"fractionalDigits":2`, `"millisecondsDisplay":"auto"`},
+			name:   "duration resolved options omits fractional digits",
+			value:  defaultDuration,
+			want:   []string{`"style":"short"`, `"millisecondsDisplay":"auto"`},
+			absent: []string{`"fractionalDigits"`},
+		},
+		{
+			name:  "duration fractional digits resolved options",
+			value: fractionalDuration,
+			want:  []string{`"style":"long"`, `"fractionalDigits":2`, `"milliseconds":"long"`},
 		},
 		{
 			name: "duration record includes subsecond fields",
@@ -218,39 +187,31 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			want: []string{`"seconds":1`, `"milliseconds":2`, `"microseconds":3`, `"nanoseconds":4`},
 		},
 		{
-			name: "display names resolved options omits language display",
-			value: displaynames.ResolvedOptions{
-				Locale:   loc,
-				Style:    displaynames.LongStyle,
-				Type:     displaynames.Region,
-				Fallback: displaynames.CodeFallback,
-			},
+			name:   "display names resolved options omits language display",
+			value:  regionDisplayNames,
 			want:   []string{`"type":"region"`, `"fallback":"code"`},
 			absent: []string{`"languageDisplay"`},
 		},
 		{
-			name: "collator resolved options omits empty collation",
-			value: collator.ResolvedOptions{
-				Locale:            loc,
-				Usage:             collator.SortUsage,
-				Sensitivity:       collator.VariantSensitivity,
-				CaseFirst:         collator.FalseCaseFirst,
-				Numeric:           true,
-				IgnorePunctuation: false,
-			},
-			want:   []string{`"caseFirst":"false"`, `"numeric":true`},
-			absent: []string{`"collation"`},
+			name:  "display names language resolved options includes language display",
+			value: languageDisplayNames,
+			want:  []string{`"type":"language"`, `"languageDisplay":"standard"`},
 		},
 		{
 			name:  "collator resolved options includes default collation",
 			value: defaultCollator,
-			want:  []string{`"collation":"default"`},
+			want:  []string{`"caseFirst":"false"`, `"collation":"default"`, `"numeric":false`},
+		},
+		{
+			name:  "collator resolved options includes backend collation",
+			value: phonebookCollator,
+			want:  []string{`"locale":"de"`, `"collation":"phonebk"`},
 		},
 		{
 			name:   "segment record uses code unit index",
 			value:  segmenter.Segment{Segment: "🙂", CodeUnitIndex: 2, ByteIndex: 4, Input: "a🙂", IsWordLike: false},
-			want:   []string{`"segment":"🙂"`, `"index":2`, `"input":"a🙂"`, `"isWordLike":false`},
-			absent: []string{`"ByteIndex"`, `"byteIndex"`},
+			want:   []string{`"segment":"🙂"`, `"index":2`, `"input":"a🙂"`},
+			absent: []string{`"ByteIndex"`, `"byteIndex"`, `"isWordLike"`},
 		},
 		{
 			name:  "segment word record includes word-like true",
@@ -258,12 +219,14 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			want:  []string{`"segment":"hello"`, `"index":0`, `"input":"hello!"`, `"isWordLike":true`},
 		},
 		{
-			name: "segmenter resolved options",
-			value: segmenter.ResolvedOptions{
-				Locale:      loc,
-				Granularity: segmenter.WordGranularity,
-			},
-			want: []string{`"locale":"en-US-u-nu-latn"`, `"granularity":"word"`},
+			name:  "segment word record includes word-like false",
+			value: wordPunctuation,
+			want:  []string{`"segment":"!"`, `"index":5`, `"input":"hello!"`, `"isWordLike":false`},
+		},
+		{
+			name:  "segmenter resolved options",
+			value: wordSegmenter,
+			want:  []string{`"locale":"en"`, `"granularity":"word"`},
 		},
 		{
 			name:  "week info uses ECMA weekday numbers",
@@ -317,6 +280,11 @@ func intPtr(v int) *int {
 	return &v
 }
 
+func stringPtr[T ~string](v T) *string {
+	value := string(v)
+	return &value
+}
+
 func mustNumberFormat(t *testing.T, opts numberformat.Options) *numberformat.NumberFormat {
 	t.Helper()
 
@@ -347,27 +315,90 @@ func mustPluralRules(t *testing.T, opts pluralrules.Options) *pluralrules.Plural
 	return rules
 }
 
+func mustListFormat(t *testing.T, opts listformat.Options) *listformat.ListFormat {
+	t.Helper()
+
+	format, err := listformat.New(locale.List{intltest.Locale(t, "en")}, opts)
+	if err != nil {
+		t.Fatalf("listformat.New() error = %v", err)
+	}
+	return format
+}
+
+func mustRelativeTimeFormat(t *testing.T, opts relativetimeformat.Options) *relativetimeformat.RelativeTimeFormat {
+	t.Helper()
+
+	format, err := relativetimeformat.New(locale.List{intltest.Locale(t, "en")}, opts)
+	if err != nil {
+		t.Fatalf("relativetimeformat.New() error = %v", err)
+	}
+	return format
+}
+
+func mustDisplayNames(t *testing.T, opts displaynames.Options) *displaynames.DisplayNames {
+	t.Helper()
+
+	names, err := displaynames.New(locale.List{intltest.Locale(t, "en")}, opts)
+	if err != nil {
+		t.Fatalf("displaynames.New() error = %v", err)
+	}
+	return names
+}
+
 func mustCollator(t *testing.T, opts collator.Options) *collator.Collator {
 	t.Helper()
 
-	c, err := collator.New(locale.List{intltest.Locale(t, "en")}, opts)
+	return mustCollatorFor(t, "en", opts)
+}
+
+func mustCollatorFor(t *testing.T, tag string, opts collator.Options) *collator.Collator {
+	t.Helper()
+
+	c, err := collator.New(locale.List{intltest.Locale(t, tag)}, opts)
 	if err != nil {
 		t.Fatalf("collator.New() error = %v", err)
 	}
 	return c
 }
 
+func mustDurationFormat(t *testing.T, opts durationformat.Options) *durationformat.DurationFormat {
+	t.Helper()
+
+	format, err := durationformat.New(locale.List{intltest.Locale(t, "en")}, opts)
+	if err != nil {
+		t.Fatalf("durationformat.New() error = %v", err)
+	}
+	return format
+}
+
 func mustFirstSegment(t *testing.T, input string, granularity segmenter.Granularity) segmenter.Segment {
 	t.Helper()
 
-	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, segmenter.Options{Granularity: granularity})
+	return mustSegmentAt(t, input, granularity, 0)
+}
+
+func mustSegmenter(t *testing.T, opts segmenter.Options) *segmenter.Segmenter {
+	t.Helper()
+
+	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, opts)
 	if err != nil {
 		t.Fatalf("segmenter.New() error = %v", err)
 	}
+	return s
+}
+
+func mustSegmentAt(t *testing.T, input string, granularity segmenter.Granularity, index int) segmenter.Segment {
+	t.Helper()
+
+	s := mustSegmenter(t, segmenter.Options{Granularity: stringPtr(granularity)})
+	i := 0
 	for segment := range s.Segment(input).All() {
-		return segment
+		if i == index {
+			return segment
+		}
+		i++
 	}
-	t.Fatalf("Segment(%q).All() returned no records", input)
+	t.Fatalf("Segment(%q).All() returned fewer than %d records", input, index+1)
 	return segmenter.Segment{}
 }
 

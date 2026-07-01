@@ -2,14 +2,13 @@ package number
 
 import (
 	"maps"
-	"os"
-	"os/exec"
 	"slices"
-	"strings"
 	"testing"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/numbering"
+	"github.com/agentable/go-intl/internal/testcontract"
+	"github.com/agentable/go-intl/internal/testprocess"
 )
 
 // narrowIndexSubprocessEnv gates the narrow-index Once assertion so it runs in a
@@ -20,42 +19,28 @@ const narrowIndexSubprocessEnv = "GO_INTL_NUMBER_NARROW_INDEX_SUBPROCESS"
 // SupportedLocales reads only the supported blob and must never trigger the
 // main number-data decode.
 //
-// The assertion is order-sensitive: any other test in this binary that touches a
-// number lookup populates byLocale, after which a same-binary assertion would
-// see it already decoded. Rather than depend on test order, this test
-// re-executes the test binary as a subprocess that runs only the inner
-// assertion via -test.run, so the assertion always observes a process that has
-// decoded nothing. When adding new number-touching tests, keep the assertion in
-// this subprocess form.
+// The assertion runs in a fresh process so other number-data tests cannot
+// populate the package-level Once state first.
 func TestSupportedLocalesDoesNotDecodeNumberBlob(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv(narrowIndexSubprocessEnv) == "1" {
-		assertSupportedLocalesDoesNotDecodeNumberBlob(t)
+	if !testprocess.RunInFreshProcess(t, narrowIndexSubprocessEnv) {
 		return
 	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=^TestSupportedLocalesDoesNotDecodeNumberBlob$", "-test.v")
-	cmd.Env = append(os.Environ(), narrowIndexSubprocessEnv+"=1")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("narrow-index subprocess failed: %v\n%s", err, out)
-	}
-	if !strings.Contains(string(out), "PASS") {
-		t.Fatalf("narrow-index subprocess did not report PASS:\n%s", out)
-	}
+	testcontract.AssertNarrowStringIndexDoesNotLoad(t, "SupportedLocales", SupportedLocales,
+		testcontract.LoadProbe{Name: "number blob", Loaded: func() bool { return byLocale != nil }},
+	)
 }
 
-func assertSupportedLocalesDoesNotDecodeNumberBlob(t *testing.T) {
-	t.Helper()
+func TestSupportedNumberingSystemsDoesNotDecodeNumberBlob(t *testing.T) {
+	t.Parallel()
 
-	tags := SupportedLocales()
-	if len(tags) == 0 {
-		t.Fatal("SupportedLocales returned no tags")
+	if !testprocess.RunInFreshProcess(t, narrowIndexSubprocessEnv) {
+		return
 	}
-	if byLocale != nil {
-		t.Error("SupportedLocales decoded the number blob; narrow index must not")
-	}
+	testcontract.AssertNarrowStringIndexDoesNotLoad(t, "SupportedNumberingSystems", SupportedNumberingSystems,
+		testcontract.LoadProbe{Name: "number blob", Loaded: func() bool { return byLocale != nil }},
+	)
 }
 
 // TestSupportedNumberingSystemsComesFromGeneratedIndex asserts the numbering
@@ -69,19 +54,13 @@ func TestSupportedNumberingSystemsComesFromGeneratedIndex(t *testing.T) {
 	if len(got) == 0 {
 		t.Fatal("SupportedNumberingSystems returned no values")
 	}
-	if !slices.IsSorted(got) {
-		t.Fatalf("SupportedNumberingSystems = %v, want sorted values", got)
-	}
-	if compact := slices.Compact(slices.Clone(got)); !slices.Equal(compact, got) {
-		t.Fatalf("SupportedNumberingSystems = %v, want unique values", got)
-	}
+	testcontract.AssertStringSliceSortedUnique(t, "SupportedNumberingSystems", got)
 
 	seen := map[string]bool{}
-	for _, ns := range numbering.SimpleNumberingSystems {
+	for _, ns := range numbering.SimpleNumberingSystems() {
 		seen[ns] = true
 	}
-	numberingSystemOnce.Do(loadNumberingSystemExtras)
-	for _, ns := range numberingSystemExtras {
+	for _, ns := range decodeNumberingSystemExtras() {
 		seen[ns] = true
 	}
 	if want := slices.Sorted(maps.Keys(seen)); !slices.Equal(got, want) {
@@ -92,7 +71,7 @@ func TestSupportedNumberingSystemsComesFromGeneratedIndex(t *testing.T) {
 func TestGeneratedNumberingSystemExtrasHaveRuntimePayload(t *testing.T) {
 	t.Parallel()
 
-	numberingSystemOnce.Do(loadNumberingSystemExtras)
+	numberingSystemExtras := decodeNumberingSystemExtras()
 	if len(numberingSystemExtras) == 0 {
 		t.Fatal("generated numbering-system extras are empty; supported numbering systems must reflect CLDR number symbols")
 	}
@@ -147,29 +126,13 @@ func numberingSystemHasRuntimePayload(data map[Locale]numberData, numberingSyste
 func TestSupportedNumberingSystemsReturnsCopy(t *testing.T) {
 	t.Parallel()
 
-	a := SupportedNumberingSystems()
-	if len(a) == 0 {
-		t.Fatal("SupportedNumberingSystems returned no values")
-	}
-	a[0] = "mutated"
-	b := SupportedNumberingSystems()
-	if b[0] == "mutated" {
-		t.Error("SupportedNumberingSystems returned a shared slice; callers can corrupt the cache")
-	}
+	testcontract.AssertStringSliceReturnsCopy(t, "SupportedNumberingSystems", SupportedNumberingSystems)
 }
 
 func TestSupportedLocalesReturnsCopy(t *testing.T) {
 	t.Parallel()
 
-	a := SupportedLocales()
-	if len(a) == 0 {
-		t.Fatal("SupportedLocales returned no tags")
-	}
-	a[0] = "mutated"
-	b := SupportedLocales()
-	if b[0] == "mutated" {
-		t.Error("SupportedLocales returned a shared slice; callers can corrupt the cache")
-	}
+	testcontract.AssertStringSliceReturnsCopy(t, "SupportedLocales", SupportedLocales)
 }
 
 // TestSmokeKnownNumberData is a checkout-independent smoke test: it asserts the
@@ -192,17 +155,41 @@ func TestSmokeKnownNumberData(t *testing.T) {
 	if symbols.Decimal != "." || symbols.Group != "," || symbols.Percent != "%" {
 		t.Fatalf("NumberSymbols = %+v", symbols)
 	}
+	if got, want := symbols.TimeSeparator, ":"; got != want {
+		t.Fatalf("NumberSymbols TimeSeparator = %q, want %q", got, want)
+	}
+	if got := loc.NumberSymbols("missing-symbol-row"); got != symbols {
+		t.Fatalf("NumberSymbols(missing) = %+v, want default %+v", got, symbols)
+	}
 	if got, want := loc.DecimalPattern("latn"), "#,##0.###"; got != want {
 		t.Fatalf("DecimalPattern = %q, want %q", got, want)
 	}
+	if got, want := loc.DecimalPattern("missing-numbering-system"), "#,##0.###"; got != want {
+		t.Fatalf("DecimalPattern(missing numbering system) = %q, want fallback %q", got, want)
+	}
 	if got, want := loc.PercentPattern("latn"), "#,##0%"; got != want {
 		t.Fatalf("PercentPattern = %q, want %q", got, want)
+	}
+	if got, want := loc.PercentPattern("missing-numbering-system"), "#,##0%"; got != want {
+		t.Fatalf("PercentPattern(missing numbering system) = %q, want fallback %q", got, want)
+	}
+	if got, want := loc.ScientificPattern("latn"), "#E0"; got != want {
+		t.Fatalf("ScientificPattern = %q, want %q", got, want)
+	}
+	if got, want := loc.ScientificPattern("missing-numbering-system"), "#E0"; got != want {
+		t.Fatalf("ScientificPattern(missing numbering system) = %q, want fallback %q", got, want)
 	}
 	if got, want := loc.CurrencyPattern("latn", "standard"), "¤#,##0.00"; got != want {
 		t.Fatalf("CurrencyPattern = %q, want %q", got, want)
 	}
 	if got, want := loc.CurrencyPattern("latn", "accounting"), "¤#,##0.00;(¤#,##0.00)"; got != want {
 		t.Fatalf("CurrencyPattern(accounting) = %q, want %q", got, want)
+	}
+	if got, want := loc.CurrencyPattern("latn", "missing-sign"), "¤#,##0.00"; got != want {
+		t.Fatalf("CurrencyPattern(missing sign) = %q, want fallback %q", got, want)
+	}
+	if got, want := loc.CurrencyPattern("missing-numbering-system", "accounting"), "¤#,##0.00;(¤#,##0.00)"; got != want {
+		t.Fatalf("CurrencyPattern(missing numbering system) = %q, want fallback %q", got, want)
 	}
 	if got, want := loc.CompactPattern("latn", "short", 3, "one"), "0K"; got != want {
 		t.Fatalf("CompactPattern(one) = %q, want %q", got, want)
@@ -218,24 +205,109 @@ func TestSmokeKnownNumberData(t *testing.T) {
 	}
 }
 
+func TestSmokeGermanNumberSymbols(t *testing.T) {
+	t.Parallel()
+
+	loc, ok := ResolveLocale("de")
+	if !ok {
+		t.Fatal(`ResolveLocale("de") = false, want true`)
+	}
+	symbols := loc.NumberSymbols("latn")
+	if symbols.Decimal != "," || symbols.Group != "." {
+		t.Fatalf(`NumberSymbols("de", "latn") = decimal %q group %q, want "," and "."`, symbols.Decimal, symbols.Group)
+	}
+	if !slices.Contains(SupportedLocales(), "de") {
+		t.Fatal(`SupportedLocales() does not include "de"`)
+	}
+}
+
+func TestCompactPatternMissingTupleReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	loc, ok := ResolveLocale("en")
+	if !ok {
+		t.Fatal(`ResolveLocale("en") = false, want true`)
+	}
+
+	for _, tc := range []struct {
+		name                             string
+		numberingSystem, display, plural string
+		exponent                         int
+	}{
+		{name: "missing numbering system", numberingSystem: "missing", display: "short", exponent: 3, plural: "other"},
+		{name: "missing display", numberingSystem: "latn", display: "missing", exponent: 3, plural: "other"},
+		{name: "missing exponent", numberingSystem: "latn", display: "short", exponent: 99, plural: "other"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := loc.CompactPattern(tc.numberingSystem, tc.display, tc.exponent, tc.plural); got != "" {
+				t.Fatalf("CompactPattern(%q, %q, %d, %q) = %q, want empty", tc.numberingSystem, tc.display, tc.exponent, tc.plural, got)
+			}
+		})
+	}
+}
+
+func TestMissingLocaleReturnsZeroNumberData(t *testing.T) {
+	t.Parallel()
+
+	loc := Locale(65535)
+	for _, tc := range []struct {
+		name string
+		got  string
+		want string
+	}{
+		{name: "default numbering system", got: loc.DefaultNumberingSystem()},
+		{name: "decimal pattern", got: loc.DecimalPattern("latn")},
+		{name: "percent pattern", got: loc.PercentPattern("latn")},
+		{name: "scientific pattern", got: loc.ScientificPattern("latn")},
+		{name: "compact pattern", got: loc.CompactPattern("latn", "short", 3, "other")},
+		{name: "currency pattern", got: loc.CurrencyPattern("latn", "standard"), want: defaultCurrencyPattern},
+	} {
+		if tc.got != tc.want {
+			t.Errorf("%s = %q, want %q", tc.name, tc.got, tc.want)
+		}
+	}
+
+	symbols := loc.NumberSymbols("latn")
+	if got := symbols.TimeSeparator; got != defaultTimeSeparator {
+		t.Errorf("NumberSymbols(missing).TimeSeparator = %q, want %q", got, defaultTimeSeparator)
+	}
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{name: "Decimal", value: symbols.Decimal},
+		{name: "Group", value: symbols.Group},
+		{name: "Percent", value: symbols.Percent},
+		{name: "Plus", value: symbols.Plus},
+		{name: "Minus", value: symbols.Minus},
+		{name: "NaN", value: symbols.NaN},
+		{name: "Infinity", value: symbols.Infinity},
+		{name: "ApproxSign", value: symbols.ApproxSign},
+		{name: "RangeSign", value: symbols.RangeSign},
+		{name: "PerMille", value: symbols.PerMille},
+		{name: "Exponential", value: symbols.Exponential},
+		{name: "SuperscriptingExponent", value: symbols.SuperscriptingExponent},
+	} {
+		if tc.value != "" {
+			t.Errorf("NumberSymbols(missing).%s = %q, want empty", tc.name, tc.value)
+		}
+	}
+}
+
+func TestNumberSymbolsFillDefaultTimeSeparator(t *testing.T) {
+	t.Parallel()
+
+	if got, want := withNumberSymbolDefaults(NumberSymbols{}).TimeSeparator, ":"; got != want {
+		t.Fatalf("default TimeSeparator = %q, want %q", got, want)
+	}
+}
+
 // TestSmokeSupportedLocalesWithinProfile asserts every SupportedLocales tag is a
 // member of the kernel locale profile subset, scoped to the number domain's
 // borrowed kernel.
 func TestSmokeSupportedLocalesWithinProfile(t *testing.T) {
 	t.Parallel()
 
-	profile := map[string]bool{}
-	for _, tag := range cldrlocale.AvailableLocales() {
-		profile[tag] = true
-	}
-
-	supported := SupportedLocales()
-	if len(supported) == 0 {
-		t.Fatal("SupportedLocales returned no tags")
-	}
-	for _, tag := range supported {
-		if !profile[tag] {
-			t.Errorf("SupportedLocales tag %q is not in the kernel locale profile", tag)
-		}
-	}
+	testcontract.AssertStringSliceSubset(t, "SupportedLocales", SupportedLocales(), "kernel locale profile", cldrlocale.AvailableLocales())
 }

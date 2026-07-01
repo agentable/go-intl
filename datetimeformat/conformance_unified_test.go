@@ -2,13 +2,11 @@ package datetimeformat
 
 import (
 	"encoding/json"
-	"errors"
 	"testing"
 	"time"
 
-	"github.com/agentable/go-intl/internal/intlerr"
-
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -19,10 +17,9 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 	conformance.RunFixtures(t, ".", func(t *testing.T, fixture conformance.Fixture) {
 		loc := intltest.Locale(t, fixture.Locale)
 		format, err := New(locale.List{loc}, conformanceDateTimeOptions(t, fixture))
-		if fixture.ErrorCode != "" {
-			if !errors.Is(err, conformanceDateTimeError(t, fixture.ErrorCode)) {
-				t.Fatalf("New() error = %v, want %q", err, fixture.ErrorCode)
-			}
+		if testcontract.AssertErrorCode(t, "New()", err, fixture.ErrorCode, func(code string) error {
+			return conformanceDateTimeError(t, code)
+		}) {
 			return
 		}
 		if err != nil {
@@ -30,41 +27,28 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 		}
 		if fixture.ExpectedRange != nil {
 			start, end := conformanceDateTimeRangeInput(t, fixture)
-			if got := format.FormatRange(start, end); got != *fixture.ExpectedRange {
-				t.Fatalf("FormatRange(%v, %v) = %q, want %q", start, end, got, *fixture.ExpectedRange)
+			got, err := format.FormatRange(start, end)
+			if err != nil {
+				t.Fatalf("FormatRange(%v, %v) error = %v", start, end, err)
 			}
+			testcontract.AssertExpectedRange(t, "FormatRange", got, fixture.ExpectedRange)
 			if len(fixture.ExpectedRangeParts) > 0 {
-				parts := format.FormatRangeToParts(start, end)
-				if len(parts) != len(fixture.ExpectedRangeParts) {
-					t.Fatalf("FormatRangeToParts(%v, %v) length = %d, want %d", start, end, len(parts), len(fixture.ExpectedRangeParts))
+				parts, err := format.FormatRangeToParts(start, end)
+				if err != nil {
+					t.Fatalf("FormatRangeToParts(%v, %v) error = %v", start, end, err)
 				}
-				for i, part := range parts {
-					want := fixture.ExpectedRangeParts[i]
-					if string(part.Type) != want.Type || part.Value != want.Value || string(part.Source) != want.Source {
-						t.Fatalf("FormatRangeToParts(%v, %v)[%d] = {%q, %q, %q}, want {%q, %q, %q}", start, end, i, part.Type, part.Value, part.Source, want.Type, want.Value, want.Source)
-					}
-				}
+				testcontract.AssertRangeParts(t, "FormatRangeToParts", parts, fixture.ExpectedRangeParts, conformanceDateTimeRangePart)
 			}
 			return
 		}
 		input := conformanceDateTimeInput(t, fixture)
-		if fixture.Expected == nil {
-			t.Fatal("fixture expected is required")
-		}
-		if got := format.Format(input); got != *fixture.Expected {
-			t.Fatalf("Format(%v) = %q, want %q", input, got, *fixture.Expected)
+		want := fixture.RequiredExpected(t)
+		if got := format.Format(input); got != want {
+			t.Fatalf("Format(%v) = %q, want %q", input, got, want)
 		}
 		if len(fixture.ExpectedParts) > 0 {
 			parts := format.FormatToParts(input)
-			if len(parts) != len(fixture.ExpectedParts) {
-				t.Fatalf("FormatToParts(%v) length = %d, want %d", input, len(parts), len(fixture.ExpectedParts))
-			}
-			for i, part := range parts {
-				want := fixture.ExpectedParts[i]
-				if string(part.Type) != want.Type || part.Value != want.Value {
-					t.Fatalf("FormatToParts(%v)[%d] = {%q, %q}, want {%q, %q}", input, i, part.Type, part.Value, want.Type, want.Value)
-				}
-			}
+			testcontract.AssertParts(t, "FormatToParts", parts, fixture.ExpectedParts, conformanceDateTimePart)
 		}
 	})
 }
@@ -72,107 +56,67 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 func conformanceDateTimeError(t *testing.T, code string) error {
 	t.Helper()
 
-	switch code {
-	case "invalid_option":
-		return intlerr.ErrInvalidOption
-	case "unsupported_option":
-		return intlerr.ErrUnsupportedOption
-	default:
-		t.Fatalf("unsupported datetimeformat errorCode %q", code)
-		return nil
-	}
+	return testcontract.IntlErrorCode(t, "datetimeformat", code, "invalid_option", "unsupported_option")
+}
+
+func conformanceDateTimePart(part Part) conformance.Part {
+	return conformance.Part{Type: string(part.Type), Value: part.Value}
+}
+
+func conformanceDateTimeRangePart(part RangePart) conformance.RangePart {
+	return conformance.RangePart{Type: string(part.Type), Value: part.Value, Source: string(part.Source)}
 }
 
 func conformanceDateTimeOptions(t *testing.T, fixture conformance.Fixture) Options {
 	t.Helper()
 
 	var options struct {
-		Calendar               string `json:"calendar"`
-		NumberingSystem        string `json:"numberingSystem"`
-		LocaleMatcher          string `json:"localeMatcher"`
-		FormatMatcher          string `json:"formatMatcher"`
-		TimeZone               string `json:"timeZone"`
-		TimeZoneName           string `json:"timeZoneName"`
-		Weekday                string `json:"weekday"`
-		Era                    string `json:"era"`
-		Year                   string `json:"year"`
-		Month                  string `json:"month"`
-		Day                    string `json:"day"`
-		DayPeriod              string `json:"dayPeriod"`
-		Hour                   string `json:"hour"`
-		Minute                 string `json:"minute"`
-		Second                 string `json:"second"`
-		HourCycle              string `json:"hourCycle"`
-		Hour12                 *bool  `json:"hour12"`
-		DateStyle              string `json:"dateStyle"`
-		TimeStyle              string `json:"timeStyle"`
-		FractionalSecondDigits *int   `json:"fractionalSecondDigits"`
+		Calendar               *string `json:"calendar"`
+		NumberingSystem        *string `json:"numberingSystem"`
+		LocaleMatcher          *string `json:"localeMatcher"`
+		FormatMatcher          *string `json:"formatMatcher"`
+		TimeZone               *string `json:"timeZone"`
+		TimeZoneName           *string `json:"timeZoneName"`
+		Weekday                *string `json:"weekday"`
+		Era                    *string `json:"era"`
+		Year                   *string `json:"year"`
+		Month                  *string `json:"month"`
+		Day                    *string `json:"day"`
+		DayPeriod              *string `json:"dayPeriod"`
+		Hour                   *string `json:"hour"`
+		Minute                 *string `json:"minute"`
+		Second                 *string `json:"second"`
+		HourCycle              *string `json:"hourCycle"`
+		Hour12                 *bool   `json:"hour12"`
+		DateStyle              *string `json:"dateStyle"`
+		TimeStyle              *string `json:"timeStyle"`
+		FractionalSecondDigits *int    `json:"fractionalSecondDigits"`
 	}
 	if err := json.Unmarshal(fixture.Options, &options); err != nil {
 		t.Fatal(err)
 	}
-	var opts Options
-	if options.Calendar != "" {
-		opts.Calendar = options.Calendar
+	return Options{
+		Calendar:               options.Calendar,
+		NumberingSystem:        options.NumberingSystem,
+		LocaleMatcher:          options.LocaleMatcher,
+		FormatMatcher:          options.FormatMatcher,
+		TimeZone:               options.TimeZone,
+		TimeZoneName:           options.TimeZoneName,
+		Weekday:                options.Weekday,
+		Era:                    options.Era,
+		Year:                   options.Year,
+		Month:                  options.Month,
+		Day:                    options.Day,
+		DayPeriod:              options.DayPeriod,
+		Hour:                   options.Hour,
+		Minute:                 options.Minute,
+		Second:                 options.Second,
+		HourCycle:              options.HourCycle,
+		Hour12:                 options.Hour12,
+		DateStyle:              options.DateStyle,
+		TimeStyle:              options.TimeStyle,
+		FractionalSecondDigits: options.FractionalSecondDigits,
 	}
-	if options.NumberingSystem != "" {
-		opts.NumberingSystem = options.NumberingSystem
-	}
-	if options.LocaleMatcher != "" {
-		opts.LocaleMatcher = LocaleMatcher(options.LocaleMatcher)
-	}
-	if options.FormatMatcher != "" {
-		opts.FormatMatcher = FormatMatcher(options.FormatMatcher)
-	}
-	if options.TimeZone != "" {
-		opts.TimeZone = options.TimeZone
-	}
-	if options.TimeZoneName != "" {
-		opts.TimeZoneName = TimeZoneName(options.TimeZoneName)
-	}
-	if options.Weekday != "" {
-		opts.Weekday = FieldStyle(options.Weekday)
-	}
-	if options.Era != "" {
-		opts.Era = FieldStyle(options.Era)
-	}
-	if options.Year != "" {
-		opts.Year = NumericStyle(options.Year)
-	}
-	if options.Month != "" {
-		opts.Month = MonthStyle(options.Month)
-	}
-	if options.Day != "" {
-		opts.Day = NumericStyle(options.Day)
-	}
-	if options.DayPeriod != "" {
-		opts.DayPeriod = FieldStyle(options.DayPeriod)
-	}
-	if options.Hour != "" {
-		opts.Hour = NumericStyle(options.Hour)
-	}
-	if options.Minute != "" {
-		opts.Minute = NumericStyle(options.Minute)
-	}
-	if options.Second != "" {
-		opts.Second = NumericStyle(options.Second)
-	}
-	if options.HourCycle != "" {
-		opts.HourCycle = HourCycle(options.HourCycle)
-	}
-	if options.Hour12 != nil {
-		opts.Hour12 = options.Hour12
-	}
-	if options.DateStyle != "" {
-		opts.DateStyle = Style(options.DateStyle)
-	}
-	if options.TimeStyle != "" {
-		opts.TimeStyle = Style(options.TimeStyle)
-	}
-	if options.FractionalSecondDigits != nil {
-		opts.FractionalSecondDigits = options.FractionalSecondDigits
-	}
-	return opts
 }
 
 func conformanceDateTimeInput(t *testing.T, fixture conformance.Fixture) time.Time {

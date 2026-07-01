@@ -2,7 +2,6 @@ package locale
 
 import (
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -101,6 +100,25 @@ func TestParsePrivateUseKeepsUnicodeAliasTextOpaque(t *testing.T) {
 	}
 }
 
+func TestParseDoesNotRewriteUnicodeAliasesOutsideUnicodeExtension(t *testing.T) {
+	t.Parallel()
+
+	for _, in := range []string{"en-ca-gregorian", "en-ca-islamic-civil"} {
+		t.Run(in, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Parse(in)
+			if !errors.Is(err, intlerr.ErrInvalidValue) {
+				t.Fatalf("Parse(%q) error = %v, want intlerr.ErrInvalidValue", in, err)
+			}
+			detail := assertStructuredLocaleError(t, err, intlerr.InvalidValue)
+			if detail.Name != "languageTag" || detail.Value != in || detail.Expected != localeLanguageTagExpected {
+				t.Fatalf("Parse(%q) error detail = %+v, want languageTag/%q expected %q", in, detail, in, localeLanguageTagExpected)
+			}
+		})
+	}
+}
+
 func TestLocaleMaximizeAndMinimize(t *testing.T) {
 	t.Parallel()
 
@@ -132,18 +150,17 @@ func TestLocaleEqualUsesCanonicalForm(t *testing.T) {
 func TestLocaleNewAppliesAndValidatesOptions(t *testing.T) {
 	t.Parallel()
 
-	loc, err := New("en-US", Options{
-		Language:        "FR",
-		Script:          "latn",
-		Region:          "ca",
-		Variants:        []string{"emodeng"},
-		Calendar:        "gregorian",
-		Collation:       "phonebk",
-		HourCycle:       "H23",
-		CaseFirst:       "UPPER",
+	loc, err := New("en-US-emodeng", Options{
+		Language:        stringPtr("FR"),
+		Script:          stringPtr("latn"),
+		Region:          stringPtr("ca"),
+		Calendar:        stringPtr("gregorian"),
+		Collation:       stringPtr("phonebk"),
+		HourCycle:       stringPtr("H23"),
+		CaseFirst:       stringPtr("UPPER"),
 		Numeric:         boolPtr(false),
-		NumberingSystem: "ARAB",
-		FirstDayOfWeek:  "0",
+		NumberingSystem: stringPtr("ARAB"),
+		FirstDayOfWeek:  stringPtr("0"),
 	})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -153,15 +170,68 @@ func TestLocaleNewAppliesAndValidatesOptions(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name string
-		opts Options
+		name         string
+		opts         Options
+		wantName     string
+		wantValue    string
+		wantExpected string
 	}{
-		{name: "duplicate variant", opts: Options{Variants: []string{"posix", "POSIX"}}},
-		{name: "invalid script", opts: Options{Script: "1"}},
-		{name: "invalid calendar", opts: Options{Calendar: "bad!"}},
-		{name: "invalid hour cycle", opts: Options{HourCycle: "h99"}},
-		{name: "invalid case first", opts: Options{CaseFirst: "middle"}},
-		{name: "invalid first day", opts: Options{FirstDayOfWeek: "8"}},
+		{
+			name:         "invalid language",
+			opts:         Options{Language: stringPtr("abcd")},
+			wantName:     "language",
+			wantValue:    "abcd",
+			wantExpected: "a well-formed BCP 47 language subtag",
+		},
+		{
+			name:         "invalid script",
+			opts:         Options{Script: stringPtr("1")},
+			wantName:     "script",
+			wantValue:    "1",
+			wantExpected: "a well-formed BCP 47 script subtag",
+		},
+		{
+			name:         "invalid region",
+			opts:         Options{Region: stringPtr("abcd")},
+			wantName:     "region",
+			wantValue:    "abcd",
+			wantExpected: "a well-formed BCP 47 region subtag",
+		},
+		{
+			name:         "invalid calendar",
+			opts:         Options{Calendar: stringPtr("bad!")},
+			wantName:     "calendar",
+			wantValue:    "bad!",
+			wantExpected: "a well-formed Unicode locale type",
+		},
+		{
+			name:         "invalid numbering system",
+			opts:         Options{NumberingSystem: stringPtr("bad!")},
+			wantName:     "numberingSystem",
+			wantValue:    "bad!",
+			wantExpected: "a well-formed Unicode locale type",
+		},
+		{
+			name:         "invalid hour cycle",
+			opts:         Options{HourCycle: stringPtr("h99")},
+			wantName:     "hourCycle",
+			wantValue:    "h99",
+			wantExpected: `one of "h11", "h12", "h23", "h24"`,
+		},
+		{
+			name:         "invalid case first",
+			opts:         Options{CaseFirst: stringPtr("middle")},
+			wantName:     "caseFirst",
+			wantValue:    "middle",
+			wantExpected: `one of "upper", "lower", "false"`,
+		},
+		{
+			name:         "invalid first day",
+			opts:         Options{FirstDayOfWeek: stringPtr("8")},
+			wantName:     "firstDayOfWeek",
+			wantValue:    "8",
+			wantExpected: "a weekday name or number from 0 through 7",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -170,8 +240,23 @@ func TestLocaleNewAppliesAndValidatesOptions(t *testing.T) {
 			if !errors.Is(err, intlerr.ErrInvalidOption) {
 				t.Fatalf("New(%s) error = %v, want intlerr.ErrInvalidOption", tc.name, err)
 			}
-			assertStructuredLocaleError(t, err, intlerr.InvalidOption)
+			detail := assertStructuredLocaleError(t, err, intlerr.InvalidOption)
+			if detail.Name != tc.wantName || detail.Value != tc.wantValue || detail.Expected != tc.wantExpected {
+				t.Fatalf("New(%s) error detail = %+v, want name=%q value=%q expected=%q", tc.name, detail, tc.wantName, tc.wantValue, tc.wantExpected)
+			}
 		})
+	}
+}
+
+func TestLocaleNewInvalidExtensionOptionPreservesNormalizerCause(t *testing.T) {
+	t.Parallel()
+
+	_, err := New("en", Options{Calendar: stringPtr("bad!")})
+	if !errors.Is(err, intlerr.ErrInvalidOption) {
+		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
+	}
+	if !errors.Is(err, errInvalidLocaleOptionValue) {
+		t.Fatalf("New() error = %v, want errInvalidLocaleOptionValue cause", err)
 	}
 }
 
@@ -225,19 +310,22 @@ func TestLocaleTextInfoAndUnmarshalText(t *testing.T) {
 func TestParseInvalidLocale(t *testing.T) {
 	t.Parallel()
 
-	for _, in := range []string{"", "xx-INVALID", "x-private"} {
+	for _, in := range []string{"", "xx-INVALID", "x-private", "\u212A\u212A", "en-u-ca-\u212Aarab"} {
 		t.Run(in, func(t *testing.T) {
 			t.Parallel()
 			_, err := Parse(in)
 			if !errors.Is(err, intlerr.ErrInvalidValue) {
 				t.Fatalf("Parse(%q) err = %v, want errors.Is(intlerr.ErrInvalidValue)", in, err)
 			}
-			assertStructuredLocaleError(t, err, intlerr.InvalidValue)
+			detail := assertStructuredLocaleError(t, err, intlerr.InvalidValue)
+			if detail.Name != "languageTag" || detail.Value != in || detail.Expected != localeLanguageTagExpected {
+				t.Fatalf("Parse(%q) error detail = %+v, want languageTag/%q expected %q", in, detail, in, localeLanguageTagExpected)
+			}
 		})
 	}
 }
 
-func assertStructuredLocaleError(t *testing.T, err error, kind intlerr.ErrorKind) {
+func assertStructuredLocaleError(t *testing.T, err error, kind intlerr.ErrorKind) *intlerr.Error {
 	t.Helper()
 
 	detail, ok := errors.AsType[*intlerr.Error](err)
@@ -250,10 +338,7 @@ func assertStructuredLocaleError(t *testing.T, err error, kind intlerr.ErrorKind
 	if detail.Owner != "locale" {
 		t.Fatalf("error owner = %q, want locale", detail.Owner)
 	}
-	text := err.Error()
-	if !strings.Contains(text, "expected ") || !strings.Contains(text, "; got ") {
-		t.Fatalf("error text = %q, want expected/got guidance", text)
-	}
+	return detail
 }
 
 func TestParseLocaleForTestHelper(t *testing.T) {

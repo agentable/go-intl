@@ -28,32 +28,30 @@ package numberformat
 type NumberFormat struct{ /* Immutable; contains resolved + apd.Context copy + plural handle */ }
 
 type Style string
-type Currency string
-type Unit string
 type Notation string
 
 type Options struct {
-    Style                Style
-    Currency             Currency
-    CurrencyDisplay      CurrencyDisplay
-    CurrencySign         CurrencySign
-    Unit                 Unit
-    UnitDisplay          UnitDisplay
+    Style                *string
+    Currency             *string
+    CurrencyDisplay      *string
+    CurrencySign         *string
+    Unit                 *string
+    UnitDisplay          *string
     MinimumIntegerDigits *int
     MinimumFractionDigits *int
     MaximumFractionDigits *int
     MinimumSignificantDigits *int
     MaximumSignificantDigits *int
     RoundingIncrement    *int
-    RoundingPriority     RoundingPriority
-    RoundingMode         RoundingMode
-    TrailingZeroDisplay  TrailingZeroDisplay
-    Notation             Notation
-    CompactDisplay       CompactDisplay
-    UseGrouping          UseGrouping
-    SignDisplay          SignDisplay
-    LocaleMatcher        LocaleMatcher
-    NumberingSystem      string
+    RoundingPriority     *string
+    RoundingMode         *string
+    TrailingZeroDisplay  *string
+    Notation             *string
+    CompactDisplay       *string
+    UseGrouping          *string
+    SignDisplay          *string
+    LocaleMatcher        *string
+    NumberingSystem      *string
 }
 
 func New(locales locale.List, opts Options) (*NumberFormat, error)
@@ -68,8 +66,8 @@ func Decimal(s string) (Value, error)
 
 func (f *NumberFormat) Format(v Value) string
 func (f *NumberFormat) FormatToParts(v Value) []Part
-func (f *NumberFormat) FormatRange(start, end Value) string
-func (f *NumberFormat) FormatRangeToParts(start, end Value) []RangePart
+func (f *NumberFormat) FormatRange(start, end Value) (string, error)
+func (f *NumberFormat) FormatRangeToParts(start, end Value) ([]RangePart, error)
 
 func (f *NumberFormat) ResolvedOptions() ResolvedOptions
 ```
@@ -91,12 +89,12 @@ func (f *NumberFormat) ResolvedOptions() ResolvedOptions
 
 ### 1.2 Typed Options(Close §8 Q2)
 
-**DECISION**: Active scope public APIs **MUST** take a single typed `Options` value. `numberformat.New(mustLocaleList("en-US"), numberformat.Options{Currency: numberformat.Currency("USD"), MaximumFractionDigits: gointl.Int(2)})`.
+**DECISION**: Active scope public APIs **MUST** take a single typed `Options` value. `numberformat.New(mustLocaleList("en-US"), numberformat.Options{Currency: gointl.String("USD"), MaximumFractionDigits: gointl.Int(2)})`.
 
 > **Why**:
-> 1. The correct value should be discoverable at the IDE and compiler level. `CurrencyStyle`, `CompactNotation`, `HalfEvenRoundingMode` are better suited as ten-year public APIs than bare strings.
+> 1. The correct value should be discoverable at the IDE and compiler level. `CurrencyStyle`, `CompactNotation`, and `HalfEvenRoundingMode` remain the ten-year vocabulary, and callers pass them through presence-aware `gointl.String(...)` so explicit empty values are still validated instead of disappearing as zero values.
 > 2. `Options` is a common value, which can be inspected comparatively, bridged serializably, and cache key can be stably generated; functional option closure cannot do these.
-> 3. The scalar field can be omitted and a pointer is used to express presence, so `MinimumFractionDigits: gointl.Int(0)`, `MinimumIntegerDigits: gointl.Int(1)`, `RoundingIncrement: gointl.Int(1)` can be distinguished from unset.
+> 3. Scalar fields whose zero value is meaningful or whose explicit empty value must still be validated use pointers to express presence, so `Style: gointl.String(numberformat.CurrencyStyle)`, `LocaleMatcher: gointl.String(numberformat.LookupLocaleMatcher)`, `Currency: gointl.String("USD")`, `Unit: gointl.String("meter")`, `MinimumFractionDigits: gointl.Int(0)`, `MinimumIntegerDigits: gointl.Int(1)`, `RoundingMode: gointl.String(numberformat.HalfEvenRoundingMode)`, `RoundingIncrement: gointl.Int(1)`, and `NumberingSystem: gointl.String("latn")` can be distinguished from unset.
 >
 > **Rejected**:
 > - **Functional Options**: Hidden state, not serializable, not statically discoverable, and let the cache key depend on the closure execution result.
@@ -106,9 +104,9 @@ func (f *NumberFormat) ResolvedOptions() ResolvedOptions
 **MUST** Rules:
 
 1. The `Options` field name **MUST** correspond to the Go form of the ECMA-402 §15.4.1 option name.
-2. Enumerated fields **MUST** use named types and constants in the package; callers are prohibited from passing bare strings to select core enumerations.
-3. The constructor owns string normalization and validation for typed option fields. `Options.Currency` accepts the typed `Currency` value and is normalized to uppercase during construction, matching native `Intl.NumberFormat`; `Options.Unit` accepts the typed `Unit` value and **MUST NOT** normalize case. ECMA-402 unit identifiers are exact canonical lowercase strings; `"METER"` must be rejected like native `Intl.NumberFormat`.
-4. `MinimumIntegerDigits`, fraction digits, significant digits, `RoundingIncrement` **MUST** use the `*int` field to express the explicitly set state; the constructor must copy pointee into the internal config and must not save the caller pointer.
+2. Enumerated string option fields **MUST** use package named types and constants as vocabulary, but the public `Options` fields are `*string` so nil means omitted and `gointl.String("")` remains an explicit invalid value.
+3. The constructor owns string normalization and validation for identifier option fields. `Options.Currency` uses `*string`, is normalized to uppercase during construction, and validates any explicit value even when `Style != CurrencyStyle`; `Options.Unit` uses `*string`, validates any explicit value, and **MUST NOT** normalize case. ECMA-402 unit identifiers are exact canonical lowercase strings; `"METER"` must be rejected like native `Intl.NumberFormat`.
+4. String and scalar input options **MUST** use pointer fields to express the explicitly set state: `Style`, `LocaleMatcher`, `NumberingSystem`, `Currency`, `CurrencyDisplay`, `CurrencySign`, `Unit`, `UnitDisplay`, `Notation`, `CompactDisplay`, `UseGrouping`, `SignDisplay`, `RoundingMode`, `RoundingPriority`, `TrailingZeroDisplay`, all digit integer fields, and `RoundingIncrement`; the constructor must copy pointees into the internal config and must not save caller pointers.
 5. `Options{}` The zero value **MUST** be equivalent to the ECMA-402 default option.
 6. `New` accepts a `Options` value; multiple options merge is not an ECMA-402 behavior, nor is it an exposed Go API shape.
 7. The verification is concentrated on `New`.
@@ -118,8 +116,8 @@ func (f *NumberFormat) ResolvedOptions() ResolvedOptions
 ```go
 nf, err := numberformat.New(mustLocaleList("zh-Hant-TW"),
     numberformat.Options{
-        Notation:       numberformat.CompactNotation,
-        CompactDisplay: numberformat.ShortCompactDisplay,
+        Notation:       gointl.String(numberformat.CompactNotation),
+        CompactDisplay: gointl.String(numberformat.ShortCompactDisplay),
     })
 // nf.Format(numberformat.Int(98765)) == "99,000"
 ```
@@ -127,8 +125,8 @@ nf, err := numberformat.New(mustLocaleList("zh-Hant-TW"),
 ```go
 nf, _ := numberformat.New(mustLocaleList("en-US"),
     numberformat.Options{
-        Style:    numberformat.CurrencyStyle,
-        Currency: numberformat.Currency("USD"),
+        Style:    gointl.String(numberformat.CurrencyStyle),
+        Currency: gointl.String("USD"),
     })
 // nf.Format(numberformat.Float(1234.5)) == "$1,234.50"
 ```
@@ -137,9 +135,9 @@ nf, _ := numberformat.New(mustLocaleList("en-US"),
 
 **MUST** Rules:
 
-1. All options taken from the union of ECMA-402 string literals (`style` / `notation` / `compactDisplay` / `currencyDisplay` / `currencySign` / `unitDisplay` / `signDisplay` / `useGrouping` / `roundingPriority` / `roundingMode` / `trailingZeroDisplay` / `localeMatcher`) **MUST** be carried in a named type, the underlying kind remains `string`, and the serialization form is consistent with the JS resolvedOptions string.
-2. `numberingSystem` is still `string`, because it is a Unicode extension type, not a small enumeration.
-3. `Currency` and `Unit` are direct typed ECMA-402 option values. Currency case normalization and unit validation belong to `New`; unit lowercase fallback must not be done in the constructor.
+1. Enum-like options taken from the union of ECMA-402 string literals (`style` / `notation` / `compactDisplay` / `currencyDisplay` / `currencySign` / `unitDisplay` / `signDisplay` / `useGrouping` / `roundingPriority` / `roundingMode` / `trailingZeroDisplay`) **MUST** have package named types and constants as vocabulary, while constructor option fields use `*string`; nil means omitted and `gointl.String("")` is invalid.
+2. `numberingSystem` uses `*string`, because it is a Unicode extension type whose omitted/default state and explicit empty value are distinct.
+3. `Currency` and `Unit` are direct ECMA-402 identifier option values carried as `*string`. Currency case normalization and unit validation belong to `New`; unit lowercase fallback must not be done in the constructor.
 4. The `false` value of `useGrouping` is expressed by `UseGroupingFalse` on the Go side, and the underlying layer is still serialized as `"false"`.
 5. Verification **MUST** be completed centrally in `New`. Failure to wrap `ErrInvalidOption` and display the value passed in by the user.
 
@@ -152,11 +150,11 @@ nf, _ := numberformat.New(mustLocaleList("en-US"),
 The public API inside `New` must retain the observable semantics of `formatjs/packages/ecma402-abstract/NumberFormat/InitializeNumberFormat.ts`, but the Go side directly consumes typed `Options` without going through `GetOption(map[string]any)`:
 
 ```text
-1. localeMatcher       := typed Options.LocaleMatcher, default best-fit
-2. numberingSystem := typed Options.NumberingSystem, check Unicode type=numbers
+1. localeMatcher       := typed `*Options.LocaleMatcher`, where nil means omitted/default best-fit and `gointl.String("")` is invalid
+2. numberingSystem := typed `*Options.NumberingSystem`, where nil means omitted and `gointl.String("")` is an invalid explicit Unicode type
 3. resolvedLocale      := ResolveLocale(availableLocales,requestedLocales,localeMatcher,relevantExt={"nu"},...)
-4. SetNumberFormatUnitOptions(nf, opts)            // style + currency/{...}/unit/{...}
-5. notation            := typed Options.Notation, default standard
+4. SetNumberFormatUnitOptions(nf, opts)            // style + presence-aware currency/{...}/unit/{...}
+5. notation            := typed `*Options.Notation`, where nil means default standard and `gointl.String("")` is invalid
 6. mnfdDefault, mxfdDefault is determined by style:
     decimal       => 0,3
     percent       => 0,0
@@ -164,9 +162,9 @@ The public API inside `New` must retain the observable semantics of `formatjs/pa
     unit          => 0,3
 Compact and scientific/engineering are adjusted in SetNumberFormatDigitOptions
 7. SetNumberFormatDigitOptions(nf, opts, mnfdDefault, mxfdDefault, notation)
-8. compactDisplay := typed Options.CompactDisplay, only notation=compact takes effect
-9. useGrouping := normalize to always|auto|min2|false
-10. signDisplay        := auto|always|exceptZero|negative|never
+8. compactDisplay := typed `*Options.CompactDisplay`, where nil means default short and `gointl.String("")` is invalid
+9. useGrouping := typed `*Options.UseGrouping`, where nil means default auto or compact min2 and `gointl.String("")` is invalid
+10. signDisplay        := typed `*Options.SignDisplay`, where nil means default auto and `gointl.String("")` is invalid
 ```
 
 > **Why**: The order of steps is the observable behavior of the ECMA-402 algorithm (different steps produce different error messages); changing the order will destroy byte equality.
@@ -249,11 +247,11 @@ type ResolvedOptions struct {
     Locale                       locale.Locale
     NumberingSystem              string
     Style                        Style          // "decimal" | "percent" | "currency" | "unit"
-    Currency                     string         // style=currency
-    CurrencyDisplay              CurrencyDisplay
-    CurrencySign                 CurrencySign
-    Unit                         string
-    UnitDisplay                  UnitDisplay
+    Currency                     *string        // nil unless style=currency
+    CurrencyDisplay              *CurrencyDisplay
+    CurrencySign                 *CurrencySign
+    Unit                         *string        // nil unless style=unit
+    UnitDisplay                  *UnitDisplay
 MinimumIntegerDigits int // Always present
 MinimumFractionDigits *int // nil when roundingType == "significantDigits"
 MaximumFractionDigits *int // Same as above
@@ -261,7 +259,7 @@ MinimumSignificantDigits *int // nil when roundingType == "fractionDigits"
 MaximumSignificantDigits *int // Same as above
     UseGrouping                  UseGrouping    // "always" | "auto" | "min2" | "false"
     Notation                     Notation       // "standard" | "scientific" | "engineering" | "compact"
-    CompactDisplay               CompactDisplay // "short" | "long"
+    CompactDisplay               *CompactDisplay // nil unless notation=compact
     SignDisplay                  SignDisplay
     RoundingIncrement            int
     RoundingMode                 RoundingMode
@@ -274,9 +272,10 @@ MaximumSignificantDigits *int // Same as above
 
 1. The field order **MUST** be consistent with the ECMA-402 §15.4.5 spec order (to facilitate field-by-field alignment for conformance testing).
 2. `MinimumFractionDigits` / `MaximumFractionDigits` / `MinimumSignificantDigits` / `MaximumSignificantDigits` **MUST** be expressed in `*int`, `nil` means that the attribute is not rendered in `resolvedOptions()`. Hidden rules: `roundingType=="significantDigits"` → frac pair `nil`;`roundingType=="fractionDigits"` → sig pair `nil`;`roundingType=="morePrecision" | "lessPrecision"` → both pairs are presented. The zero value `0` always means "set to 0" and no longer conflicts with "not rendered".
-3. The `Locale` field **MUST** be the parsing result after `New`’s internal `ResolveLocale` (including the `-u-nu-...` extension), which may be different from the input `loc`.
-4. **MUST** return value type (non-pointer) to ensure that the caller cannot modify the internal state of the formatter.
-5. JSON field names and `omitempty` behavior **MUST** comply with [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Intl.NumberFormat](./73-json-records.md#intlnumberformat). ECMA-402 Must-occur properties must not use `omitempty`; branch properties use `*T + omitempty` or value `omitempty` to express JavaScript property absence.
+3. `Currency`, `CurrencyDisplay`, `CurrencySign`, `Unit`, `UnitDisplay`, and `CompactDisplay` **MUST** be pointer fields with `omitempty`; `nil` means ECMA-402 did not create that resolved-options property. A valid-but-irrelevant input such as `Options{Currency: gointl.String("USD")}` with decimal style is validated at construction but omitted from `ResolvedOptions`.
+4. The `Locale` field **MUST** be the parsing result after `New`’s internal `ResolveLocale` (including the `-u-nu-...` extension), which may be different from the input `loc`.
+5. **MUST** return value type (non-pointer) and clone every pointer-backed scalar so that the caller cannot modify the internal state of the formatter.
+6. JSON field names and `omitempty` behavior **MUST** comply with [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Intl.NumberFormat](./73-json-records.md#intlnumberformat). ECMA-402 Must-occur properties must not use `omitempty`; NumberFormat branch properties use `*T + omitempty` to express JavaScript property absence.
 
 > **Why**: ECMA-402 `resolvedOptions()` is an observable surface stipulated in the specification. Missing fields or wrong order are considered failures by the conformance test.
 
@@ -351,10 +350,11 @@ MaximumSignificantDigits *int // Same as above
 1. `FormatRange(a, b)` **MUST** implement ECMA-402 §15.5.7 `FormatNumericRange`: First format both ends separately, and then call `CollapseNumberRange` to merge the same prefix/suffix.
 2. `CollapseNumberRange` **MUST** consume the `NumberFormatPart{Type, Value}` sequence, and the equality is determined one by one; the criterion for equality is the **per-package field** (`Type` and `Value` are both equal). **BANNED** The abstract generic `CollapseRange[T]` is shared with DateTimeFormat.
 3. Both ends of `Decimal` comparison **MUST** pass [SPEC 21 §Decimal.Cmp](./21-number-math.md#decimal-cmp); **FORBIDDEN** to pass `float64` conversion.
-4. Range source **MUST** be limited to ECMA-402 three values: `"startRange" | "shared" | "endRange"`;`approximatelySign` is a part type, not a source.
-5. `FormatRange` / `FormatRangeToParts` **MUST** use limited `Value` endpoints; non-limited endpoints output empty strings or nil parts, and must not panic.
-6. `a > b` **must not** be locally normalized, transposed or added `~`; formatted in the order of input parameters and collapse range parts.
-7. When `FormatNumeric(a) == FormatNumeric(b)`, output shared `approximatelySign` part + shared digital parts (for example, when the maximum fraction digits is 0, `1.1–1.2` outputs `~1`).
+4. The shared range literal **MUST** come from the constructor-resolved CLDR number symbols `rangeSign`; formatter code must not hard-code the English en dash. When the start range already carries a sign part, the literal may insert spacing around the locale range sign to match native ICU readability.
+5. Range source **MUST** be limited to ECMA-402 three values: `"startRange" | "shared" | "endRange"`;`approximatelySign` is a part type, not a source.
+6. `FormatRange` / `FormatRangeToParts` **MUST** return `ErrInvalidValue` for `NaN` endpoints instead of signaling errors with empty strings or nil parts. Positive and negative infinity remain valid ECMA-402 mathematical values and must format through the normal parts pipeline.
+7. `a > b` **MUST NOT** be locally normalized, transposed, rejected, or added `~`; numeric ranges are formatted in input order and then collapsed.
+8. When `FormatNumeric(a) == FormatNumeric(b)`, output shared `approximatelySign` part + shared digital parts (for example, when the maximum fraction digits is 0, `1.1–1.2` outputs `~1`).
 
 > **Why**: NumberFormatPart and DateTimeFormatPart have different fields (`unit | currency | percentSign | exponentInteger` vs `era | year | month | ...`). Although the collapse algorithm has the same structure (removing suffixes), it works on different part fields; Generated references are also implemented separately.
 >
@@ -399,7 +399,7 @@ MaximumSignificantDigits *int // Same as above
 
 ```go
 // Error form example (signature)
-err := ecma402.InvalidOptionError("numberformat", "currency", code, loc.String(), gointl.ErrInvalidOption)
+err := ecma402.InvalidOptionErrorExpected("numberformat", "currency", code, loc.String(), "a well-formed ISO 4217 currency code")
 ```
 
 ---
@@ -445,9 +445,9 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - [ ] `numberformat.Decimal("abc")` returns `ErrInvalidValue`.
 - [ ] `ResolvedOptions().MinimumFractionDigits` when `Options{MinimumSignificantDigits: gointl.Int(2)}` is passed in alone `== nil`(roundingType=="significantDigits" hides frac); symmetrically, `Options{MaximumFractionDigits: gointl.Int(2)}` when passed in alone is `MinimumSignificantDigits == nil`. Pointer types are unambiguous between the two states.
 - [ ] `roundingPriority = "morePrecision" | "lessPrecision"` is observable when the fraction and significant digit options are passed in at the same time, and is not treated as an unsupported option.
-- [ ] `Options{CurrencySign: AccountingCurrencySign}` negative USD output `($12.00)` for `en-US`.
-- [ ] `Options{CompactDisplay: LongCompactDisplay}` outputs `1.5 thousand` for `en` `1500` + `MaximumFractionDigits: gointl.Int(1)`.
-- [ ] compact plural contract use case: `numberformat.New(mustLocaleList("pl-PL"), numberformat.Options{Notation: numberformat.CompactNotation}).Format(numberformat.Int(1500))` is consistent with `generated-reference` output under `pl-PL` (plural category `few` suffix).
+- [ ] `Options{CurrencySign: gointl.String(AccountingCurrencySign)}` negative USD output `($12.00)` for `en-US`.
+- [ ] `Options{CompactDisplay: gointl.String(LongCompactDisplay)}` outputs `1.5 thousand` for `en` `1500` + `MaximumFractionDigits: gointl.Int(1)`.
+- [ ] compact plural contract use case: `numberformat.New(mustLocaleList("pl-PL"), numberformat.Options{Notation: gointl.String(numberformat.CompactNotation)}).Format(numberformat.Int(1500))` is consistent with `generated-reference` output under `pl-PL` (plural category `few` suffix).
 - [ ] The sequence of options pipeline steps passes the `internal/ecma402/numberformat.TestInitializeNumberFormat_StepOrder` test (a trace is generated at each step, aligned with the Generated reference call sequence).
 - [ ] `BenchmarkNumberFormat_Decimal_Cached` and `BenchmarkNumberFormat_New` appear in non-blocking `task bench` telemetry.
 - [ ] Benchmark reports label NumberFormat as a per-surface package, not root facade cost.

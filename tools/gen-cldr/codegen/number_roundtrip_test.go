@@ -1,13 +1,9 @@
 package codegen
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/cldr/number"
-	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
 )
 
@@ -25,24 +21,8 @@ import (
 func TestNumberRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := filepath.Clean("../../..")
-	cldrDir := filepath.Join(repoRoot, "tools", "gen-cldr", ".cldr-json", "node_modules")
-	if _, err := os.Stat(cldrDir); err != nil {
-		t.Skipf("pinned cldr-json checkout absent (%v); run task data:fetch", err)
-	}
-
-	versions, err := cldr.ReadVersionFile(filepath.Join(repoRoot, "internal", "cldr", "VERSION"))
-	if err != nil {
-		t.Fatalf("read VERSION: %v", err)
-	}
-	profile := readUnitTestProfile(t, filepath.Join(repoRoot, "tools", "locale-profile.json"))
-
-	source, err := cldr.LoadAll(context.Background(), cldrDir, versions, profile)
-	if err != nil {
-		t.Fatalf("load cldr-json: %v", err)
-	}
-
-	data := extract.ExtractNumbers(source.Numbers, profile)
+	input := loadRoundTripSource(t)
+	data := extract.ExtractNumbers(input.source.Numbers, input.profile)
 
 	for localeTag, numbers := range data {
 		loc := resolveNumberLocale(t, localeTag)
@@ -93,16 +73,9 @@ func TestNumberRoundTrip(t *testing.T) {
 
 	// Supported locales narrow index: the encoder wrote exactly the locales with
 	// number data, in sorted-locale order.
-	wantTags := numberSupportedLocaleTags(data)
+	wantTags := sortedLocaleKeys(data)
 	gotTags := number.SupportedLocales()
-	if len(gotTags) != len(wantTags) {
-		t.Fatalf("SupportedLocales len = %d, want %d", len(gotTags), len(wantTags))
-	}
-	for i := range wantTags {
-		if gotTags[i] != wantTags[i] {
-			t.Errorf("SupportedLocales[%d] = %q, want %q", i, gotTags[i], wantTags[i])
-		}
-	}
+	assertStringSliceEqual(t, "SupportedLocales", gotTags, wantTags)
 }
 
 // resolveNumberLocale resolves a tag to the number-domain handle the accessors

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/agentable/go-intl/tools/conformance"
 )
 
 type witness struct {
@@ -47,40 +50,22 @@ type witness struct {
 }
 
 type fixture struct {
-	ID                 string          `json:"id"`
-	Source             string          `json:"source"`
-	Locale             string          `json:"locale"`
-	Feature            string          `json:"feature,omitempty"`
-	Options            map[string]any  `json:"options"`
-	Input              any             `json:"input"`
-	Expected           *string         `json:"expected,omitempty"`
-	ExpectedOK         *bool           `json:"expectedOk,omitempty"`
-	ExpectedLocales    []string        `json:"expectedLocales,omitempty"`
-	ExpectedParts      []fixturePart   `json:"expectedParts,omitempty"`
-	ExpectedRange      *string         `json:"expectedRange,omitempty"`
-	ExpectedRangeParts []rangePart     `json:"expectedRangeParts,omitempty"`
-	ExpectedComparison *int            `json:"expectedComparison,omitempty"`
-	ExpectedResolved   any             `json:"expectedResolvedOptions,omitempty"`
-	ExpectedSegments   []segmentRecord `json:"expectedSegments,omitempty"`
-	ErrorCode          string          `json:"errorCode,omitempty"`
-}
-
-type fixturePart struct {
-	Type  string `json:"type"`
-	Value string `json:"value"`
-	Unit  string `json:"unit,omitempty"`
-}
-
-type rangePart struct {
-	Type   string `json:"type"`
-	Value  string `json:"value"`
-	Source string `json:"source"`
-}
-
-type segmentRecord struct {
-	Segment       string `json:"segment"`
-	CodeUnitIndex int    `json:"codeUnitIndex"`
-	IsWordLike    *bool  `json:"isWordLike,omitempty"`
+	ID                 string                      `json:"id"`
+	Source             string                      `json:"source"`
+	Locale             string                      `json:"locale"`
+	Feature            string                      `json:"feature,omitempty"`
+	Options            map[string]any              `json:"options"`
+	Input              any                         `json:"input"`
+	Expected           *string                     `json:"expected,omitempty"`
+	ExpectedOK         *bool                       `json:"expectedOk,omitempty"`
+	ExpectedLocales    []string                    `json:"expectedLocales,omitempty"`
+	ExpectedParts      []conformance.Part          `json:"expectedParts,omitempty"`
+	ExpectedRange      *string                     `json:"expectedRange,omitempty"`
+	ExpectedRangeParts []conformance.RangePart     `json:"expectedRangeParts,omitempty"`
+	ExpectedComparison *int                        `json:"expectedComparison,omitempty"`
+	ExpectedResolved   any                         `json:"expectedResolvedOptions,omitempty"`
+	ExpectedSegments   []conformance.SegmentRecord `json:"expectedSegments,omitempty"`
+	ErrorCode          string                      `json:"errorCode,omitempty"`
 }
 
 type nodeSupportedValues struct {
@@ -120,12 +105,12 @@ func run(args []string, stdout io.Writer) error {
 }
 
 func runNode(nodePath string) ([]byte, error) {
-	cmd := exec.Command(nodePath, "-e", nodeWitnessScript)
+	cmd := exec.CommandContext(context.Background(), nodePath, "-e", nodeWitnessScript)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("run node witness %q: %v: %s", nodePath, err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("run node witness %q: %w: %s", nodePath, err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.Bytes(), nil
 }
@@ -140,13 +125,19 @@ for (const key of ['node', 'v8', 'icu', 'cldr', 'tz', 'unicode']) {
 
 const nodeMajor = process.versions.node.split('.')[0];
 const nodeVersion = process.version;
+const nodeFixtureIDPrefix = 'node-v' + nodeMajor;
+const nodeSourcePrefix = 'node:' + nodeVersion;
+
+function sourceRoot(surface) {
+  return nodeSourcePrefix + ':' + surface;
+}
 
 function source(surface, topic) {
-  return 'node:' + nodeVersion + ':' + surface + ':' + topic;
+  return sourceRoot(surface) + ':' + topic;
 }
 
 function id(surface, topic) {
-  return surface + '-node-v' + nodeMajor + '-' + topic;
+  return surface + '-' + nodeFixtureIDPrefix + '-' + topic;
 }
 
 function numberFormatFixture(topic, locale, options, input) {
@@ -164,14 +155,7 @@ function numberFormatFixture(topic, locale, options, input) {
 
 function numberFormatSmokeFixture(topic, locale, options, input) {
   const format = new Intl.NumberFormat(locale, options);
-  return {
-    id: id('numberformat', topic),
-    source: 'node:' + nodeVersion + ':numberformat',
-    locale,
-    options,
-    input,
-    expected: format.format(input),
-  };
+  return expectedRootFixture('numberformat', topic, locale, options, input, format.format(input));
 }
 
 function numberFormatEdgeFixture(topic, locale, options, input) {
@@ -224,7 +208,7 @@ function localeFixture(topic, sourceTopic, feature, input) {
   }
   return {
     id: id('locale', topic),
-    source: sourceTopic ? source('locale', sourceTopic) : 'node:' + nodeVersion + ':locale',
+    source: sourceTopic ? source('locale', sourceTopic) : sourceRoot('locale'),
     locale: input,
     feature,
     options: {},
@@ -256,14 +240,7 @@ function localeInfoFixture(topic, feature, input) {
 
 function dateTimeFormatSmokeFixture(topic, locale, options, input) {
   const format = new Intl.DateTimeFormat(locale, options);
-  return {
-    id: id('datetimeformat', topic),
-    source: 'node:' + nodeVersion + ':datetimeformat',
-    locale,
-    options,
-    input,
-    expected: format.format(new Date(input)),
-  };
+  return expectedRootFixture('datetimeformat', topic, locale, options, input, format.format(new Date(input)));
 }
 
 function dateTimeFormatPartsFixture(topic, sourceTopic, feature, locale, options, input) {
@@ -319,14 +296,7 @@ function durationFormatFixture(topic, locale, options, input) {
 
 function durationFormatSmokeFixture(topic, locale, options, input) {
   const format = new Intl.DurationFormat(locale, options);
-  return {
-    id: id('durationformat', topic),
-    source: 'node:' + nodeVersion + ':durationformat',
-    locale,
-    options,
-    input,
-    expected: format.format(input),
-  };
+  return expectedRootFixture('durationformat', topic, locale, options, input, format.format(input));
 }
 
 function durationFormatErrorFixture(topic, locale, options, input) {
@@ -335,14 +305,7 @@ function durationFormatErrorFixture(topic, locale, options, input) {
 
 function listFormatSmokeFixture(topic, locale, options, input) {
   const format = new Intl.ListFormat(locale, options);
-  return {
-    id: id('listformat', topic),
-    source: 'node:' + nodeVersion + ':listformat',
-    locale,
-    options,
-    input,
-    expected: format.format(input),
-  };
+  return expectedRootFixture('listformat', topic, locale, options, input, format.format(input));
 }
 
 function listFormatErrorFixture(topic, locale, options, input) {
@@ -351,14 +314,7 @@ function listFormatErrorFixture(topic, locale, options, input) {
 
 function relativeTimeFormatSmokeFixture(topic, locale, options, input) {
   const format = new Intl.RelativeTimeFormat(locale, options);
-  return {
-    id: id('relativetimeformat', topic),
-    source: 'node:' + nodeVersion + ':relativetimeformat',
-    locale,
-    options,
-    input,
-    expected: format.format(input.value, input.unit),
-  };
+  return expectedRootFixture('relativetimeformat', topic, locale, options, input, format.format(input.value, input.unit));
 }
 
 function relativeTimeFormatErrorFixture(topic, locale, options, input) {
@@ -369,7 +325,7 @@ function pluralRulesSmokeFixture(topic, locale, options, input) {
   const rules = new Intl.PluralRules(locale, options);
   return {
     id: id('pluralrules', topic),
-    source: 'node:' + nodeVersion + ':pluralrules',
+    source: sourceRoot('pluralrules'),
     locale,
     feature: 'select',
     options,
@@ -387,7 +343,7 @@ function displayNamesSmokeFixture(topic, locale, options, input) {
   const value = names.of(input);
   return {
     id: id('displaynames', topic),
-    source: 'node:' + nodeVersion + ':displaynames',
+    source: sourceRoot('displaynames'),
     locale,
     options,
     input,
@@ -415,7 +371,7 @@ function collatorFixture(topic, sourceTopic, locale, options, input, includeReso
   const collator = new Intl.Collator(locale, options);
   const fixture = {
     id: id('collator', topic),
-    source: sourceTopic ? source('collator', sourceTopic) : 'node:' + nodeVersion + ':collator',
+    source: sourceTopic ? source('collator', sourceTopic) : sourceRoot('collator'),
     locale,
     options,
     input,
@@ -448,7 +404,7 @@ function segmenterFixture(topic, sourceTopic, locale, options, input) {
   const segmenter = new Intl.Segmenter(locale, options);
   return {
     id: id('segmenter', topic),
-    source: sourceTopic ? source('segmenter', sourceTopic) : 'node:' + nodeVersion + ':segmenter',
+    source: sourceTopic ? source('segmenter', sourceTopic) : sourceRoot('segmenter'),
     locale,
     options,
     input,
@@ -474,6 +430,17 @@ function constructorErrorFixture(surface, topic, locale, options, input, constru
     };
   }
   throw new Error('expected Intl.' + surface + ' to reject ' + topic);
+}
+
+function expectedRootFixture(surface, topic, locale, options, input, expected) {
+  return {
+    id: id(surface, topic),
+    source: sourceRoot(surface),
+    locale,
+    options,
+    input,
+    expected,
+  };
 }
 
 const supportedValues = {};
@@ -626,7 +593,7 @@ const witness = {
     segmenterFixture('zh-hant-word-tailored-contract', 'tailored-locale-contract', 'zh-Hant', {granularity: 'word'}, '中文測試'),
   ],
   supportedValues: {
-    source: 'node:' + nodeVersion + ':intl:supportedValuesOf',
+    source: source('intl', 'supportedValuesOf'),
     versions: selectedVersions,
     values: supportedValues,
   },

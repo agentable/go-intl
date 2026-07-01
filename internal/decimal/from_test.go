@@ -11,15 +11,7 @@ func TestNew(t *testing.T) {
 	t.Parallel()
 
 	d := New(false, big.NewInt(12345), -2)
-	if d.Form() != Finite {
-		t.Fatalf("Form() = %v, want %v", d.Form(), Finite)
-	}
-	if d.Coeff() != "12345" {
-		t.Fatalf("Coeff() = %q, want %q", d.Coeff(), "12345")
-	}
-	if d.Exponent() != -2 {
-		t.Fatalf("Exponent() = %d, want -2", d.Exponent())
-	}
+	assertDecimalForm(t, d, Finite)
 	if d.String() != "123.45" {
 		t.Fatalf("String() = %q, want %q", d.String(), "123.45")
 	}
@@ -70,6 +62,58 @@ func TestFromInt64(t *testing.T) {
 	}
 }
 
+func TestFromUint64(t *testing.T) {
+	t.Parallel()
+
+	got := FromUint64(math.MaxUint64)
+	if got.String() != "18446744073709551615" {
+		t.Fatalf("String() = %q, want %q", got.String(), "18446744073709551615")
+	}
+	if got.Sign() != 1 {
+		t.Fatalf("Sign() = %d, want 1", got.Sign())
+	}
+}
+
+func TestFromBigInt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		in       *big.Int
+		want     string
+		negative bool
+	}{
+		{name: "nil", want: "0"},
+		{name: "positive", in: big.NewInt(42), want: "42"},
+		{name: "negative", in: big.NewInt(-42), want: "-42", negative: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := FromBigInt(tc.in)
+			if got.String() != tc.want {
+				t.Fatalf("String() = %q, want %q", got.String(), tc.want)
+			}
+			if got.Negative() != tc.negative {
+				t.Fatalf("Negative() = %v, want %v", got.Negative(), tc.negative)
+			}
+		})
+	}
+}
+
+func TestFromBigIntCopiesInput(t *testing.T) {
+	t.Parallel()
+
+	in := big.NewInt(42)
+	got := FromBigInt(in)
+	in.SetInt64(7)
+
+	if got.String() != "42" {
+		t.Fatalf("String() after caller mutation = %q, want 42", got.String())
+	}
+}
+
 func TestFromFloat64(t *testing.T) {
 	t.Parallel()
 
@@ -96,9 +140,7 @@ func TestFromFloat64(t *testing.T) {
 			if got.String() != tc.want {
 				t.Fatalf("String() = %q, want %q", got.String(), tc.want)
 			}
-			if got.Form() != tc.form {
-				t.Fatalf("Form() = %v, want %v", got.Form(), tc.form)
-			}
+			assertDecimalForm(t, got, tc.form)
 			if got.Negative() != tc.negative {
 				t.Fatalf("Negative() = %v, want %v", got.Negative(), tc.negative)
 			}
@@ -135,9 +177,7 @@ func TestParseString(t *testing.T) {
 			if got.String() != tc.want {
 				t.Fatalf("String() = %q, want %q", got.String(), tc.want)
 			}
-			if got.Form() != tc.form {
-				t.Fatalf("Form() = %v, want %v", got.Form(), tc.form)
-			}
+			assertDecimalForm(t, got, tc.form)
 			if got.Negative() != tc.negative {
 				t.Fatalf("Negative() = %v, want %v", got.Negative(), tc.negative)
 			}

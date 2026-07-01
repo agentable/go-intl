@@ -5,8 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agentable/go-intl/internal/intlerr"
+	"github.com/agentable/go-intl/internal/ecma402"
 	"github.com/agentable/go-intl/listformat"
+	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/numberformat"
 )
 
@@ -29,66 +30,93 @@ type Part struct {
 	Unit  Unit     `json:"unit,omitempty"`
 }
 
+type durationValues [unitCount]int64
+
+func durationValuesOf(duration Duration) durationValues {
+	return durationValues{
+		yearsIndex:        duration.Years,
+		monthsIndex:       duration.Months,
+		weeksIndex:        duration.Weeks,
+		daysIndex:         duration.Days,
+		hoursIndex:        duration.Hours,
+		minutesIndex:      duration.Minutes,
+		secondsIndex:      duration.Seconds,
+		millisecondsIndex: duration.Milliseconds,
+		microsecondsIndex: duration.Microseconds,
+		nanosecondsIndex:  duration.Nanoseconds,
+	}
+}
+
 func (f *DurationFormat) Format(duration Duration) (string, error) {
-	parts, err := f.FormatToParts(duration)
+	values := durationValuesOf(duration)
+	loc := f.resolved.Locale
+	sign, err := validateDuration(values, loc)
 	if err != nil {
 		return "", err
 	}
-	return joinParts(parts), nil
+	groups, err := partitionDurationFormatText(values, f, sign, loc)
+	if err != nil {
+		return "", err
+	}
+	return f.listFormatter.Format(groups), nil
 }
 
 func (f *DurationFormat) FormatToParts(duration Duration) ([]Part, error) {
-	if err := validateDuration(duration); err != nil {
-		return nil, err
-	}
-	groups, err := f.partitionDurationFormatPattern(duration)
+	values := durationValuesOf(duration)
+	loc := f.resolved.Locale
+	sign, err := validateDuration(values, loc)
 	if err != nil {
 		return nil, err
 	}
-	return f.listFormatParts(groups)
+	groups, err := partitionDurationFormatPattern(values, f, sign, loc)
+	if err != nil {
+		return nil, err
+	}
+	return durationListFormatParts(f.listFormatter, groups), nil
 }
 
-func (f *DurationFormat) partitionDurationFormatPattern(duration Duration) ([][]Part, error) {
-	result := make([][]Part, 0, len(durationUnitSpecs))
-	signDisplayed := true
-	sign := durationSign(duration)
-	for _, spec := range durationUnitSpecs {
+func partitionDurationFormatText(values durationValues, f *DurationFormat, sign int, loc locale.Locale) ([]string, error) {
+	result := make([]string, 0, len(durationUnitSpecs))
+	signAvailable := true
+	for _, spec := range durationUnitSpecs[:] {
 		opt := f.unitOptions[spec.index]
-		value := durationValue(duration, spec.index)
 		switch opt.style {
 		case NumericUnitStyle, TwoDigitUnitStyle:
-			parts, err := f.formatNumericUnits(duration, spec.index, sign, signDisplayed)
+			text, err := formatDurationNumericUnitsText(values, f, spec.index, sign, signAvailable, loc)
 			if err != nil {
 				return nil, err
 			}
-			if len(parts) > 0 {
-				result = append(result, parts)
+			if text != "" {
+				result = append(result, text)
 			}
 			return result, nil
 		case LongUnitStyle, ShortUnitStyle, NarrowUnitStyle:
-			fractional := f.nextUnitFractional(spec.index)
-			unitVisible := opt.display == AlwaysDisplay || value != 0 || fractional
-			if !unitVisible {
+			value := values[spec.index]
+			fractional := durationNextUnitFractional(f.unitOptions, spec)
+			if !durationUnitShown(value, opt.display) && !fractional {
 				continue
 			}
 
-			showSign := sign < 0 && signDisplayed
-			valueString := int64ValueString(value, showSign)
-			formatters := f.formatters.unit[spec.index]
-			switch {
-			case fractional:
-				valueString = f.fractionalValueString(duration, spec.index, showSign)
-				formatters = f.formatters.unitFraction[spec.index]
-			case !signDisplayed:
-				valueString = uint64ValueString(absInt64(value), false)
+			formatters := f.unitFormatters[spec.index]
+			if fractional {
+				formatters = f.unitFractionFormatters[spec.index]
 			}
-			value, err := numberformat.Decimal(valueString)
-			if err != nil {
-				return nil, invalidValue(spec.unit, valueString)
+			showNegativeSign := sign < 0 && signAvailable
+
+			var text string
+			if fractional {
+				valueString := durationFractionalValueString(values, spec.index, showNegativeSign)
+				var err error
+				text, err = formatDurationDecimalNumberText(formatters, spec.unit, valueString, signAvailable, loc)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				numberValue := durationIntegerNumberValue(value, showNegativeSign)
+				text = durationNumberFormatter(formatters, signAvailable).Format(numberValue)
 			}
-			numberParts := formatters.formatter(signDisplayed).FormatToParts(value)
-			result = append(result, durationNumberParts(spec.formatUnit, numberParts))
-			signDisplayed = false
+			result = append(result, text)
+			signAvailable = false
 			if fractional {
 				return result, nil
 			}
@@ -99,136 +127,252 @@ func (f *DurationFormat) partitionDurationFormatPattern(duration Duration) ([][]
 	return result, nil
 }
 
-func (f *DurationFormat) formatNumericUnits(duration Duration, first unitIndex, sign int, signDisplayed bool) ([]Part, error) {
-	hoursValue := duration.Hours
-	minutesValue := duration.Minutes
+func partitionDurationFormatPattern(values durationValues, f *DurationFormat, sign int, loc locale.Locale) ([][]Part, error) {
+	result := make([][]Part, 0, len(durationUnitSpecs))
+	signAvailable := true
+	for _, spec := range durationUnitSpecs[:] {
+		opt := f.unitOptions[spec.index]
+		switch opt.style {
+		case NumericUnitStyle, TwoDigitUnitStyle:
+			parts, err := formatDurationNumericUnits(values, f, spec.index, sign, signAvailable, loc)
+			if err != nil {
+				return nil, err
+			}
+			if len(parts) > 0 {
+				result = append(result, parts)
+			}
+			return result, nil
+		case LongUnitStyle, ShortUnitStyle, NarrowUnitStyle:
+			value := values[spec.index]
+			fractional := durationNextUnitFractional(f.unitOptions, spec)
+			if !durationUnitShown(value, opt.display) && !fractional {
+				continue
+			}
 
-	hoursFormatted := first == hoursIndex && (hoursValue != 0 || f.unitOptions[hoursIndex].display == AlwaysDisplay)
-	secondsFormatted := duration.Seconds != 0 ||
-		duration.Milliseconds != 0 ||
-		duration.Microseconds != 0 ||
-		duration.Nanoseconds != 0 ||
-		f.unitOptions[secondsIndex].display == AlwaysDisplay
-	minutesAllowed := first == hoursIndex || first == minutesIndex
-	minutesRequired := minutesValue != 0 || f.unitOptions[minutesIndex].display == AlwaysDisplay
-	minutesFormatted := minutesAllowed &&
-		((hoursFormatted && secondsFormatted) || minutesRequired)
+			formatters := f.unitFormatters[spec.index]
+			if fractional {
+				formatters = f.unitFractionFormatters[spec.index]
+			}
+			showNegativeSign := sign < 0 && signAvailable
+
+			if fractional {
+				valueString := durationFractionalValueString(values, spec.index, showNegativeSign)
+				parts, err := formatDurationDecimalNumberParts(formatters, spec.formatUnit, spec.unit, valueString, signAvailable, loc)
+				if err != nil {
+					return nil, err
+				}
+				result = append(result, parts)
+			} else {
+				parts := formatDurationNumberParts(formatters, spec.formatUnit, durationIntegerNumberValue(value, showNegativeSign), signAvailable)
+				result = append(result, parts)
+			}
+			signAvailable = false
+			if fractional {
+				return result, nil
+			}
+		case fractionalUnitStyle:
+			continue
+		}
+	}
+	return result, nil
+}
+
+func formatDurationNumericUnitsText(values durationValues, f *DurationFormat, first unitIndex, sign int, signAvailable bool, loc locale.Locale) (string, error) {
+	layout := durationNumericLayoutFor(values, f.unitOptions, first)
+	if layout.count == 0 {
+		return "", nil
+	}
+
+	var b strings.Builder
+	for i := range layout.count {
+		index := layout.units[i]
+		if i > 0 {
+			b.WriteString(f.separator)
+		}
+
+		if index != secondsIndex {
+			numericValue := durationIntegerNumberValue(values[index], sign < 0 && signAvailable)
+			b.WriteString(durationNumberFormatter(f.numericFormatters[index], signAvailable).Format(numericValue))
+			signAvailable = false
+			continue
+		}
+		secondsValue := durationFractionalValueString(values, secondsIndex, sign < 0 && signAvailable)
+		text, err := formatDurationDecimalNumberText(f.secondsNumericFractionFormatter, string(Second), secondsValue, signAvailable, loc)
+		if err != nil {
+			return "", err
+		}
+		b.WriteString(text)
+		signAvailable = false
+	}
+	return b.String(), nil
+}
+
+func formatDurationNumericUnits(values durationValues, f *DurationFormat, first unitIndex, sign int, signAvailable bool, loc locale.Locale) ([]Part, error) {
+	layout := durationNumericLayoutFor(values, f.unitOptions, first)
 
 	var out []Part
-	if hoursFormatted {
-		value := int64ValueString(hoursValue, sign < 0 && signDisplayed)
-		parts, err := f.formatNumericPart(hoursIndex, Hour, value, signDisplayed)
+	for i := range layout.count {
+		index := layout.units[i]
+		if i > 0 {
+			out = append(out, Part{Type: PartLiteral, Value: f.separator})
+		}
+
+		if index != secondsIndex {
+			spec := durationUnitSpecs[index]
+			numericValue := durationIntegerNumberValue(values[index], sign < 0 && signAvailable)
+			parts := formatDurationNumberParts(f.numericFormatters[index], spec.formatUnit, numericValue, signAvailable)
+			out = append(out, parts...)
+			signAvailable = false
+			continue
+		}
+		secondsValue := durationFractionalValueString(values, secondsIndex, sign < 0 && signAvailable)
+		parts, err := formatDurationDecimalNumberParts(f.secondsNumericFractionFormatter, Second, string(Second), secondsValue, signAvailable, loc)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, parts...)
-		signDisplayed = false
+		signAvailable = false
+	}
+	return out, nil
+}
+
+type durationNumericLayout struct {
+	units [3]unitIndex
+	count int
+}
+
+func (l *durationNumericLayout) add(index unitIndex) {
+	l.units[l.count] = index
+	l.count++
+}
+
+func durationNumericLayoutFor(values durationValues, unitOptions [unitCount]resolvedUnitConfig, first unitIndex) durationNumericLayout {
+	hoursValue := values[hoursIndex]
+	minutesValue := values[minutesIndex]
+	hoursFormatted := first == hoursIndex && durationUnitShown(hoursValue, unitOptions[hoursIndex].display)
+	secondsFormatted := durationUnitShown(values[secondsIndex], unitOptions[secondsIndex].display) ||
+		durationHasSubsecondValue(values)
+	minutesAllowed := first == hoursIndex || first == minutesIndex
+	minutesRequired := durationUnitShown(minutesValue, unitOptions[minutesIndex].display)
+	minutesFormatted := minutesAllowed &&
+		((hoursFormatted && secondsFormatted) || minutesRequired)
+	var layout durationNumericLayout
+	if hoursFormatted {
+		layout.add(hoursIndex)
 	}
 	if minutesFormatted {
-		if hoursFormatted {
-			out = append(out, Part{Type: PartLiteral, Value: f.separator})
-		}
-		value := int64ValueString(minutesValue, sign < 0 && signDisplayed)
-		parts, err := f.formatNumericPart(minutesIndex, Minute, value, signDisplayed)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, parts...)
-		signDisplayed = false
+		layout.add(minutesIndex)
 	}
 	if secondsFormatted {
-		if minutesFormatted {
-			out = append(out, Part{Type: PartLiteral, Value: f.separator})
+		layout.add(secondsIndex)
+	}
+	return layout
+}
+
+func durationHasSubsecondValue(values durationValues) bool {
+	for _, spec := range durationUnitSpecs[:] {
+		if !spec.fractional {
+			continue
 		}
-		secondsValue := f.fractionalValueString(duration, secondsIndex, sign < 0 && signDisplayed)
-		parts, err := f.formatNumericPart(secondsIndex, Second, secondsValue, signDisplayed)
-		if err != nil {
-			return nil, err
+		if values[spec.index] != 0 {
+			return true
 		}
-		out = append(out, parts...)
-	}
-	return out, nil
-}
-
-func (f *DurationFormat) formatNumericPart(index unitIndex, unit Unit, value string, signDisplayed bool) ([]Part, error) {
-	formatters := f.formatters.numeric[index]
-	if !signDisplayed {
-		value = strings.TrimPrefix(value, "-")
-	}
-	if index == secondsIndex {
-		formatters = f.formatters.numericFraction[index]
-	}
-	numericValue, err := numberformat.Decimal(value)
-	if err != nil {
-		return nil, invalidValue(string(unit), value)
-	}
-	parts := formatters.formatter(signDisplayed).FormatToParts(numericValue)
-	return durationNumberParts(unit, parts), nil
-}
-
-func (f *DurationFormat) listFormatParts(groups [][]Part) ([]Part, error) {
-	if len(groups) == 0 {
-		return nil, nil
-	}
-	elements := make([]string, len(groups))
-	partCount := 0
-	for i, group := range groups {
-		elements[i] = joinParts(group)
-		partCount += len(group)
-	}
-	listParts := f.formatters.list.FormatToParts(elements)
-	literalCount := len(listParts) - len(groups)
-	out := make([]Part, 0, partCount+literalCount)
-	groupIndex := 0
-	for _, part := range listParts {
-		switch part.Type {
-		case listformat.PartElement:
-			out = append(out, groups[groupIndex]...)
-			groupIndex++
-		case listformat.PartLiteral:
-			out = append(out, Part{Type: PartLiteral, Value: part.Value})
-		}
-	}
-	return out, nil
-}
-
-func (f *DurationFormat) nextUnitFractional(index unitIndex) bool {
-	return durationNextUnitFractional(f.unitOptions, index)
-}
-
-func durationNextUnitFractional(unitOptions [unitCount]resolvedUnitConfig, index unitIndex) bool {
-	switch index {
-	case secondsIndex:
-		return unitOptions[millisecondsIndex].style == fractionalUnitStyle
-	case millisecondsIndex:
-		return unitOptions[microsecondsIndex].style == fractionalUnitStyle
-	case microsecondsIndex:
-		return unitOptions[nanosecondsIndex].style == fractionalUnitStyle
-	case yearsIndex, monthsIndex, weeksIndex, daysIndex, hoursIndex, minutesIndex, nanosecondsIndex, unitCount:
 	}
 	return false
 }
 
-func (f *DurationFormat) fractionalValueString(duration Duration, index unitIndex, negative bool) string {
-	switch index {
-	case secondsIndex:
-		return decimalValueString(duration.Seconds, negative, 9, []fractionalPart{
-			{value: duration.Milliseconds, denominator: 1_000},
-			{value: duration.Microseconds, denominator: 1_000_000},
-			{value: duration.Nanoseconds, denominator: 1_000_000_000},
-		})
-	case millisecondsIndex:
-		return decimalValueString(duration.Milliseconds, negative, 6, []fractionalPart{
-			{value: duration.Microseconds, denominator: 1_000},
-			{value: duration.Nanoseconds, denominator: 1_000_000},
-		})
-	case microsecondsIndex:
-		return decimalValueString(duration.Microseconds, negative, 3, []fractionalPart{
-			{value: duration.Nanoseconds, denominator: 1_000},
-		})
-	case yearsIndex, monthsIndex, weeksIndex, daysIndex, hoursIndex, minutesIndex, nanosecondsIndex, unitCount:
+func durationUnitShown(value int64, display Display) bool {
+	return display == AlwaysDisplay || value != 0
+}
+
+func formatDurationNumberParts(formatters durationNumberFormatters, unit Unit, value numberformat.Value, signVisible bool) []Part {
+	parts := durationNumberFormatter(formatters, signVisible).FormatToParts(value)
+	return durationNumberParts(unit, parts)
+}
+
+func formatDurationDecimalNumberParts(formatters durationNumberFormatters, unit Unit, errorName, value string, signVisible bool, loc locale.Locale) ([]Part, error) {
+	numericValue, err := durationDecimalNumberValue(errorName, value, signVisible, loc)
+	if err != nil {
+		return nil, err
 	}
-	return int64ValueString(durationValue(duration, index), negative)
+	return formatDurationNumberParts(formatters, unit, numericValue, signVisible), nil
+}
+
+func formatDurationDecimalNumberText(formatters durationNumberFormatters, errorName, value string, signVisible bool, loc locale.Locale) (string, error) {
+	numericValue, err := durationDecimalNumberValue(errorName, value, signVisible, loc)
+	if err != nil {
+		return "", err
+	}
+	return durationNumberFormatter(formatters, signVisible).Format(numericValue), nil
+}
+
+func durationNumberFormatter(formatters durationNumberFormatters, signVisible bool) *numberformat.NumberFormat {
+	if signVisible {
+		return formatters.signVisible
+	}
+	return formatters.signHidden
+}
+
+func durationDecimalNumberValue(errorName, value string, signVisible bool, loc locale.Locale) (numberformat.Value, error) {
+	if !signVisible {
+		value = strings.TrimPrefix(value, "-")
+	}
+	numericValue, err := numberformat.Decimal(value)
+	if err != nil {
+		return numberformat.Value{}, invalidDurationUnitValue(errorName, value, loc)
+	}
+	return numericValue, nil
+}
+
+func durationListFormatParts(formatter *listformat.ListFormat, groups [][]Part) []Part {
+	if len(groups) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(groups))
+	partCount := 0
+	for _, group := range groups {
+		partCount += len(group)
+	}
+	listParts := formatter.FormatToParts(placeholders)
+	literalCount := len(listParts) - len(groups)
+	out := make([]Part, partCount+literalCount)
+	outIndex := 0
+	groupIndex := 0
+	for _, part := range listParts {
+		switch part.Type {
+		case listformat.PartElement:
+			outIndex += copy(out[outIndex:], groups[groupIndex])
+			groupIndex++
+		case listformat.PartLiteral:
+			out[outIndex] = Part{Type: PartLiteral, Value: part.Value}
+			outIndex++
+		}
+	}
+	return out
+}
+
+func durationNextUnitFractional(unitOptions [unitCount]resolvedUnitConfig, spec durationUnitSpec) bool {
+	return spec.hasFractionalChild && unitOptions[spec.fractionalChild].style == fractionalUnitStyle
+}
+
+func durationFractionalValueString(values durationValues, index unitIndex, showNegativeSign bool) string {
+	spec := durationUnitSpecs[index]
+	if !spec.hasFractionalChild || spec.nanosecondsPerUnit == 0 {
+		return uint64ValueString(ecma402.Int64Magnitude(values[index]), showNegativeSign)
+	}
+	var parts [3]fractionalPart
+	base := spec.nanosecondsPerUnit
+	partCount := 0
+	for spec.hasFractionalChild {
+		child := durationUnitSpecs[spec.fractionalChild]
+		parts[partCount] = fractionalPart{
+			value:       values[child.index],
+			denominator: base / child.nanosecondsPerUnit,
+		}
+		partCount++
+		spec = child
+	}
+	return decimalValueString(values[index], showNegativeSign, fractionalDigitWidth(base), parts[:partCount])
 }
 
 type fractionalPart struct {
@@ -236,12 +380,20 @@ type fractionalPart struct {
 	denominator int64
 }
 
-func decimalValueString(whole int64, negative bool, width int, parts []fractionalPart) string {
+func fractionalDigitWidth(nanosecondsPerUnit int64) int {
+	width := 0
+	for scale := nanosecondsPerUnit; scale > nanosecondsPerNanosecond; scale /= 10 {
+		width++
+	}
+	return width
+}
+
+func decimalValueString(whole int64, showNegativeSign bool, width int, parts []fractionalPart) string {
 	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(width)), nil)
-	total := new(big.Int).SetUint64(absInt64(whole))
+	total := new(big.Int).SetUint64(ecma402.Int64Magnitude(whole))
 	total.Mul(total, scale)
 	for _, part := range parts {
-		term := new(big.Int).SetUint64(absInt64(part.value))
+		term := new(big.Int).SetUint64(ecma402.Int64Magnitude(part.value))
 		term.Mul(term, scale)
 		term.Div(term, big.NewInt(part.denominator))
 		total.Add(total, term)
@@ -255,7 +407,7 @@ func decimalValueString(whole int64, negative bool, width int, parts []fractiona
 	if fraction.Sign() != 0 {
 		value += "." + leftPadString(fraction.String(), width)
 	}
-	if negative {
+	if showNegativeSign {
 		return "-" + value
 	}
 	return value
@@ -276,135 +428,88 @@ func durationNumberParts(unit Unit, parts []numberformat.Part) []Part {
 	return out
 }
 
-func joinParts(parts []Part) string {
-	valueLen := 0
-	for _, part := range parts {
-		valueLen += len(part.Value)
-	}
-	var b strings.Builder
-	b.Grow(valueLen)
-	for _, part := range parts {
-		b.WriteString(part.Value)
-	}
-	return b.String()
-}
-
-func durationValue(duration Duration, index unitIndex) int64 {
-	switch index {
-	case yearsIndex:
-		return duration.Years
-	case monthsIndex:
-		return duration.Months
-	case weeksIndex:
-		return duration.Weeks
-	case daysIndex:
-		return duration.Days
-	case hoursIndex:
-		return duration.Hours
-	case minutesIndex:
-		return duration.Minutes
-	case secondsIndex:
-		return duration.Seconds
-	case millisecondsIndex:
-		return duration.Milliseconds
-	case microsecondsIndex:
-		return duration.Microseconds
-	case nanosecondsIndex:
-		return duration.Nanoseconds
-	case unitCount:
-	}
-	return 0
-}
-
-func durationSign(duration Duration) int {
-	for _, spec := range durationUnitSpecs {
-		value := durationValue(duration, spec.index)
-		if value < 0 {
-			return -1
-		}
-		if value > 0 {
-			return 1
-		}
-	}
-	return 0
-}
-
-func validateDuration(duration Duration) error {
+func validateDuration(values durationValues, loc locale.Locale) (int, error) {
 	sign := 0
-	for _, spec := range durationUnitSpecs {
-		value := durationValue(duration, spec.index)
+	for _, spec := range durationUnitSpecs[:] {
+		value := values[spec.index]
 		switch {
 		case value < 0:
 			if sign > 0 {
-				return invalidValue("duration", "mixed signs")
+				return 0, invalidValue("duration", "mixed signs", expectedDurationMixedSigns, loc)
 			}
 			sign = -1
 		case value > 0:
 			if sign < 0 {
-				return invalidValue("duration", "mixed signs")
+				return 0, invalidValue("duration", "mixed signs", expectedDurationMixedSigns, loc)
 			}
 			sign = 1
 		}
 	}
-	for _, tc := range []struct {
-		name  string
-		value int64
-	}{
-		{name: "years", value: duration.Years},
-		{name: "months", value: duration.Months},
-		{name: "weeks", value: duration.Weeks},
-	} {
-		if absInt64(tc.value) >= 1<<32 {
-			return invalidValue(tc.name, strconv.FormatInt(tc.value, 10))
+	for _, spec := range durationUnitSpecs[:] {
+		if spec.maxAbsExclusive == 0 {
+			continue
+		}
+		value := values[spec.index]
+		if ecma402.Int64Magnitude(value) >= spec.maxAbsExclusive {
+			return 0, invalidValue(spec.unit, strconv.FormatInt(value, 10), expectedDurationCalendarUnitValue, loc)
 		}
 	}
-	if normalizedSecondsOutOfRange(duration) {
-		return invalidValue("duration", "normalized seconds")
+	if normalizedSecondsOutOfRange(values) {
+		return 0, invalidValue("duration", "normalized seconds", expectedDurationNormalizedSeconds, loc)
 	}
-	return nil
+	return sign, nil
 }
 
-func normalizedSecondsOutOfRange(duration Duration) bool {
+func normalizedSecondsOutOfRange(values durationValues) bool {
 	total := big.NewInt(0)
 	addScaled := func(value int64, scale int64) {
 		term := big.NewInt(value)
 		term.Mul(term, big.NewInt(scale))
 		total.Add(total, term)
 	}
-	addScaled(duration.Days, 86_400_000_000_000)
-	addScaled(duration.Hours, 3_600_000_000_000)
-	addScaled(duration.Minutes, 60_000_000_000)
-	addScaled(duration.Seconds, 1_000_000_000)
-	addScaled(duration.Milliseconds, 1_000_000)
-	addScaled(duration.Microseconds, 1_000)
-	addScaled(duration.Nanoseconds, 1)
+	for _, spec := range durationUnitSpecs[:] {
+		if spec.nanosecondsPerUnit == 0 {
+			continue
+		}
+		addScaled(values[spec.index], spec.nanosecondsPerUnit)
+	}
 	limit := new(big.Int).Lsh(big.NewInt(1_000_000_000), 53)
 	return new(big.Int).Abs(total).Cmp(limit) >= 0
 }
 
-func int64ValueString(value int64, negative bool) string {
-	return uint64ValueString(absInt64(value), negative)
-}
-
-func uint64ValueString(value uint64, negative bool) string {
+func uint64ValueString(value uint64, showNegativeSign bool) string {
 	out := strconv.FormatUint(value, 10)
-	if negative {
+	if showNegativeSign {
 		return "-" + out
 	}
 	return out
 }
 
-func absInt64(value int64) uint64 {
-	const minInt64 = -1 << 63
-	if value >= 0 {
-		return uint64(value)
+func durationIntegerNumberValue(value int64, showNegativeSign bool) numberformat.Value {
+	if !showNegativeSign {
+		return numberformat.Uint(ecma402.Int64Magnitude(value))
 	}
-	if value == minInt64 {
-		return 1 << 63
+	if value == 0 {
+		out, _ := numberformat.Decimal("-0")
+		return out
 	}
-	return uint64(-value)
+	if value < 0 {
+		return numberformat.Int(value)
+	}
+	return numberformat.Int(-value)
 }
 
-func invalidValue(name, value string) error {
-	return intlerr.New(intlerr.InvalidValue, "durationformat", name, value, "", intlerr.ErrInvalidValue)
+const (
+	expectedDurationMixedSigns        = "all non-zero duration fields to have the same sign"
+	expectedDurationNormalizedSeconds = "normalized day and smaller fields below 1e9 * 2^53 nanoseconds"
+	expectedDurationCalendarUnitValue = "an absolute value less than 2^32"
+	expectedDurationUnitValue         = "a valid duration unit value"
+)
+
+func invalidDurationUnitValue(name, value string, loc locale.Locale) error {
+	return invalidValue(name, value, expectedDurationUnitValue, loc)
+}
+
+func invalidValue(name, value, expected string, loc locale.Locale) error {
+	return ecma402.InvalidValueErrorExpected(durationFormatOwner, name, value, loc.String(), expected, nil)
 }

@@ -7,33 +7,62 @@ import (
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/ecma402"
+	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
+	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
+	"github.com/agentable/go-intl/internal/numbering"
 )
 
-func (f *NumberFormat) formatCompactAppend(parts []Part, d decimal.Decimal) ([]Part, decimal.Decimal) {
-	symbols := f.symbols()
-	scaled, entry := f.resolveCompactPattern(d)
-	result := f.formatFiniteResult(scaled)
+func formatCompactAppend(parts []Part, d decimal.Decimal, state *decimalFormatState) ([]Part, decimal.Decimal) {
+	symbols := state.symbols
+	resolved := state.resolved
+	signDisplay := resolved.SignDisplay
+	grouping := state.grouping
+	digitOptions := state.digitOptions
+	cardinalRule := state.cardinalRule
+	compact := state.compact
+	scaled, entry := resolveCompactPattern(d, digitOptions, compact)
+	result := ecma402nf.FormatNumericToString(scaled, digitOptions)
 	formatted := result.Formatted
-	pattern := f.compactPatternForFormatted(entry, formatted)
-	if f.useGrouping(formatted) {
-		formatted = groupDecimal(formatted, f.grouping)
+	pattern := compactPatternForFormatted(entry, formatted, cardinalRule)
+	if shouldUseGrouping(resolved.UseGrouping, formatted) {
+		formatted = groupDecimal(formatted, grouping)
 	}
 	parts = appendDecimalParts(parts, formatted, symbols)
-	parts = f.applySignDisplay(parts, d.Negative())
+	parts = applySignDisplay(parts, d.Negative(), signDisplay, symbols)
 	return pattern.append(parts), result.Rounded
 }
 
-func (f *NumberFormat) resolveCompactPattern(d decimal.Decimal) (decimal.Decimal, compactPatternEntry) {
+func formatCompactText(d decimal.Decimal, state *decimalFormatState) (string, decimal.Decimal) {
+	symbols := state.symbols
+	resolved := state.resolved
+	signDisplay := resolved.SignDisplay
+	grouping := state.grouping
+	digitOptions := state.digitOptions
+	cardinalRule := state.cardinalRule
+	compact := state.compact
+	scaled, entry := resolveCompactPattern(d, digitOptions, compact)
+	result := ecma402nf.FormatNumericToString(scaled, digitOptions)
+	formatted := result.Formatted
+	pattern := compactPatternForFormatted(entry, formatted, cardinalRule)
+	if shouldUseGrouping(resolved.UseGrouping, formatted) {
+		formatted = groupDecimal(formatted, grouping)
+	}
+	text := localizeFormattedNumberText(formatted, symbols, resolved.NumberingSystem)
+	text = applySignDisplayText(text, formatted, d.Negative(), signDisplay, symbols)
+	return pattern.formatText(text), result.Rounded
+}
+
+func resolveCompactPattern(d decimal.Decimal, digitOptions ecma402nf.DigitOptions, compact compactPatternSet) (decimal.Decimal, compactPatternEntry) {
 	magnitude, err := decimal.Log10Floor(decimal.Abs(d))
 	if err != nil || magnitude < minCompactExponent {
 		return d, compactPatternEntry{}
 	}
-	entry, ok := f.compact.patternForMagnitude(int(magnitude))
+	entry, ok := compact.patternForMagnitude(int(magnitude))
 	if !ok {
 		return d, compactPatternEntry{}
 	}
 	scaled := decimal.Scale10(d, -int32(entry.exponent)) // #nosec G115 -- compact exponents are small generated data keys.
-	result := f.formatFiniteResult(scaled)
+	result := ecma402nf.FormatNumericToString(scaled, digitOptions)
 	rounded := decimal.Abs(result.Rounded)
 	if rounded.IsZero() {
 		return scaled, entry
@@ -45,91 +74,102 @@ func (f *NumberFormat) resolveCompactPattern(d decimal.Decimal) (decimal.Decimal
 	if int(roundedMagnitude) == int(magnitude)-entry.exponent {
 		return scaled, entry
 	}
-	next, ok := f.compact.patternForMagnitude(int(magnitude) + 1)
+	next, ok := compact.patternForMagnitude(int(magnitude) + 1)
 	if !ok {
 		return scaled, entry
 	}
 	return decimal.Scale10(d, -int32(next.exponent)), next // #nosec G115 -- compact exponents are small generated data keys.
 }
 
-func (f *NumberFormat) compactPatternForFormatted(entry compactPatternEntry, formatted string) compactAffixPattern {
-	if !entry.other.set {
+func compactPatternForFormatted(entry compactPatternEntry, formatted string, cardinalRule pluralRuleFunc) compactAffixPattern {
+	if !entry.patterns[ecma402pr.Other].set {
 		return compactAffixPattern{}
 	}
-	plural := f.pluralCategoryWithExponent(strings.TrimPrefix(formatted, "-"), entry.exponent)
-	return entry.pattern(plural)
+	category := pluralCategoryWithExponent(cardinalRule, strings.TrimPrefix(formatted, "-"), entry.exponent)
+	return entry.pattern(category)
 }
 
-func (f *NumberFormat) roundedForRange(d decimal.Decimal) (decimal.Decimal, bool) {
+func roundedForRange(d decimal.Decimal, style Style, notation Notation, digitOptions ecma402nf.DigitOptions, compact compactPatternSet) (decimal.Decimal, bool) {
 	if !d.IsFinite() {
 		return decimal.Decimal{}, false
 	}
-	if f.resolved.Style == "percent" {
+	if style == PercentStyle {
 		d = decimal.MulInt(d, 100)
 	}
-	switch f.resolved.Notation {
+	switch notation {
 	case CompactNotation:
-		d, _ = f.resolveCompactPattern(d)
+		d, _ = resolveCompactPattern(d, digitOptions, compact)
 	case ScientificNotation, EngineeringNotation:
-		exponent, ok := f.scientificExponent(d)
+		exponent, ok := ecma402nf.ScientificExponent(d, notation == EngineeringNotation)
 		if !ok {
 			return decimal.Decimal{}, false
 		}
 		d = decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent came from decimal.Log10Floor int32.
 	case StandardNotation:
 	}
-	return f.formatFiniteResult(d).Rounded, true
+	return ecma402nf.FormatNumericToString(d, digitOptions).Rounded, true
 }
 
-func (f *NumberFormat) formatScientificAppend(parts []Part, d decimal.Decimal) ([]Part, decimal.Decimal) {
-	symbols := f.symbols()
-	exponent, ok := f.scientificExponent(d)
+func formatScientificAppend(parts []Part, d decimal.Decimal, notation Notation, state *decimalFormatState) ([]Part, decimal.Decimal) {
+	symbols := state.symbols
+	resolved := state.resolved
+	signDisplay := resolved.SignDisplay
+	grouping := state.grouping
+	digitOptions := state.digitOptions
+	exponent, ok := ecma402nf.ScientificExponent(d, notation == EngineeringNotation)
 	if !ok {
 		return append(parts, Part{Type: PartNaN, Value: symbols.NaN}), decimal.NaNValue
 	}
 	scaled := decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent came from decimal.Log10Floor int32.
-	result := f.formatFiniteResult(scaled)
+	result := ecma402nf.FormatNumericToString(scaled, digitOptions)
 	formatted := result.Formatted
-	if f.useGrouping(formatted) {
-		formatted = groupDecimal(formatted, f.grouping)
+	if shouldUseGrouping(resolved.UseGrouping, formatted) {
+		formatted = groupDecimal(formatted, grouping)
 	}
 	parts = appendDecimalParts(parts, formatted, symbols)
-	parts = f.applySignDisplay(parts, d.Negative())
+	parts = applySignDisplay(parts, d.Negative(), signDisplay, symbols)
 	parts = append(parts, Part{Type: PartExponentSeparator, Value: symbols.Exponential})
 	if exponent < 0 {
 		parts = append(parts, Part{Type: PartExponentMinusSign, Value: symbols.Minus})
 		exponent = -exponent
 	}
 	exponentInteger := strconv.Itoa(exponent)
-	if f.localizeDigits {
-		exponentInteger = ecma402.LocalizeDigits(exponentInteger, f.numberingSystem)
-	}
 	parts = append(parts, Part{Type: PartExponentInteger, Value: exponentInteger})
 	return parts, result.Rounded
 }
 
-func (f *NumberFormat) scientificExponent(d decimal.Decimal) (int, bool) {
-	abs := decimal.Abs(d)
-	if abs.IsZero() {
-		return 0, true
+func formatScientificText(d decimal.Decimal, notation Notation, state *decimalFormatState) (string, decimal.Decimal) {
+	symbols := state.symbols
+	resolved := state.resolved
+	signDisplay := resolved.SignDisplay
+	grouping := state.grouping
+	digitOptions := state.digitOptions
+	exponent, ok := ecma402nf.ScientificExponent(d, notation == EngineeringNotation)
+	if !ok {
+		return symbols.NaN, decimal.NaNValue
 	}
-	magnitude, err := decimal.Log10Floor(abs)
-	if err != nil {
-		return 0, false
+	scaled := decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent came from decimal.Log10Floor int32.
+	result := ecma402nf.FormatNumericToString(scaled, digitOptions)
+	formatted := result.Formatted
+	if shouldUseGrouping(resolved.UseGrouping, formatted) {
+		formatted = groupDecimal(formatted, grouping)
 	}
-	exponent := int(magnitude)
-	if f.resolved.Notation == "engineering" {
-		exponent -= positiveMod(exponent, 3)
+	text := localizeFormattedNumberText(formatted, symbols, resolved.NumberingSystem)
+	text = applySignDisplayText(text, formatted, d.Negative(), signDisplay, symbols)
+	text += symbols.Exponential
+	if exponent < 0 {
+		text += symbols.Minus
+		exponent = -exponent
 	}
-	return exponent, true
+	text += localizeExponentText(strconv.Itoa(exponent), resolved.NumberingSystem)
+	return text, result.Rounded
 }
 
-func positiveMod(n, mod int) int {
-	out := n % mod
-	if out < 0 {
-		out += mod
+func localizeExponentText(text, numberingSystem string) string {
+	if numberingSystem == "" || numberingSystem == numbering.DefaultNumberingSystem {
+		return text
 	}
-	return out
+	return ecma402.LocalizeDigits(text, numberingSystem)
 }
 
 const (
@@ -142,31 +182,30 @@ type compactPatternSet struct {
 }
 
 type compactPatternEntry struct {
-	magnitude, exponent              int
-	zero, one, two, few, many, other compactAffixPattern
+	magnitude, exponent int
+	patterns            [numberPluralCategoryCount]compactAffixPattern
 }
 
 func compactPatternsForNumberFormat(loc cldrnumber.Locale, opts ResolvedOptions) compactPatternSet {
 	if opts.Notation != CompactNotation {
 		return compactPatternSet{}
 	}
-	display := string(opts.CompactDisplay)
+	display := string(ecma402.ResolvedScalarValue(opts.CompactDisplay))
 	entries := make([]compactPatternEntry, 0, maxCompactExponent-minCompactExponent+1)
-	for exp := maxCompactExponent; exp >= minCompactExponent; exp-- {
-		other := loc.CompactPattern(opts.NumberingSystem, display, exp, "other")
+	for exponent := maxCompactExponent; exponent >= minCompactExponent; exponent-- {
+		other := loc.CompactPattern(opts.NumberingSystem, display, exponent, "other")
 		if other == "" {
 			continue
 		}
-		entries = append(entries, compactPatternEntry{
-			magnitude: exp,
-			exponent:  compactExponentForPattern(exp, other),
-			zero:      compileCompactAffixPattern(loc.CompactPattern(opts.NumberingSystem, display, exp, "zero")),
-			one:       compileCompactAffixPattern(loc.CompactPattern(opts.NumberingSystem, display, exp, "one")),
-			two:       compileCompactAffixPattern(loc.CompactPattern(opts.NumberingSystem, display, exp, "two")),
-			few:       compileCompactAffixPattern(loc.CompactPattern(opts.NumberingSystem, display, exp, "few")),
-			many:      compileCompactAffixPattern(loc.CompactPattern(opts.NumberingSystem, display, exp, "many")),
-			other:     compileCompactAffixPattern(other),
-		})
+		entry := compactPatternEntry{
+			magnitude: exponent,
+			exponent:  compactExponentForPattern(exponent, other),
+		}
+		for _, category := range numberPluralCategories {
+			entry.patterns[category] = compileCompactAffixPattern(loc.CompactPattern(opts.NumberingSystem, display, exponent, category.String()))
+		}
+		entry.patterns[ecma402pr.Other] = compileCompactAffixPattern(other)
+		entries = append(entries, entry)
 	}
 	return compactPatternSet{entries: entries}
 }
@@ -209,30 +248,13 @@ func compactPatternZeroCount(pattern string) int {
 	return count
 }
 
-func (p compactPatternEntry) pattern(plural string) compactAffixPattern {
-	switch plural {
-	case "zero":
-		if p.zero.set {
-			return p.zero
-		}
-	case "one":
-		if p.one.set {
-			return p.one
-		}
-	case "two":
-		if p.two.set {
-			return p.two
-		}
-	case "few":
-		if p.few.set {
-			return p.few
-		}
-	case "many":
-		if p.many.set {
-			return p.many
+func (p compactPatternEntry) pattern(plural ecma402pr.Category) compactAffixPattern {
+	if int(plural) < len(p.patterns) {
+		if pattern := p.patterns[plural]; pattern.set {
+			return pattern
 		}
 	}
-	return p.other
+	return p.patterns[ecma402pr.Other]
 }
 
 type compactAffixPattern struct {
@@ -257,14 +279,15 @@ func compileCompactAffixPattern(pattern string) compactAffixPattern {
 }
 
 func (p compactAffixPattern) append(parts []Part) []Part {
-	if !p.set || len(p.prefix)+len(p.suffix) == 0 {
+	if !p.set {
 		return parts
 	}
-	if len(p.prefix) == 0 {
-		return append(parts, p.suffix...)
+	return joinPatternParts(p.prefix, parts, p.suffix)
+}
+
+func (p compactAffixPattern) formatText(text string) string {
+	if !p.set || len(p.prefix)+len(p.suffix) == 0 {
+		return text
 	}
-	out := make([]Part, 0, len(p.prefix)+len(parts)+len(p.suffix))
-	out = append(out, p.prefix...)
-	out = append(out, parts...)
-	return append(out, p.suffix...)
+	return joinPatternText(p.prefix, text, p.suffix)
 }

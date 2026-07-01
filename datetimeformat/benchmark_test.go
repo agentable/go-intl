@@ -39,7 +39,9 @@ func BenchmarkDateTimeFormat_DateTimeRange_Cached(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = format.FormatRange(start, end)
+		if _, err := format.FormatRange(start, end); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -77,7 +79,7 @@ func benchmarkDateTimeFormat(b *testing.B) *DateTimeFormat {
 }
 
 func benchmarkDateOptions() Options {
-	return Options{Year: NumericFieldStyle, Month: ShortMonthStyle, Day: NumericFieldStyle}
+	return Options{Year: stringPtr(NumericFieldStyle), Month: stringPtr(ShortMonthStyle), Day: stringPtr(NumericFieldStyle)}
 }
 
 func benchmarkDate() time.Time {

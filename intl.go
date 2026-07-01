@@ -14,17 +14,47 @@ import (
 	"github.com/agentable/go-intl/segmenter"
 )
 
+// Locale is the root Intl.Locale constructor-property alias for locale.Locale.
 type Locale = locale.Locale
+
+// NumberFormat is the root Intl.NumberFormat constructor-property alias for
+// numberformat.NumberFormat.
 type NumberFormat = numberformat.NumberFormat
+
+// DateTimeFormat is the root Intl.DateTimeFormat constructor-property alias for
+// datetimeformat.DateTimeFormat.
 type DateTimeFormat = datetimeformat.DateTimeFormat
+
+// PluralRules is the root Intl.PluralRules constructor-property alias for
+// pluralrules.PluralRules.
 type PluralRules = pluralrules.PluralRules
+
+// ListFormat is the root Intl.ListFormat constructor-property alias for
+// listformat.ListFormat.
 type ListFormat = listformat.ListFormat
+
+// RelativeTimeFormat is the root Intl.RelativeTimeFormat constructor-property alias
+// for relativetimeformat.RelativeTimeFormat.
 type RelativeTimeFormat = relativetimeformat.RelativeTimeFormat
+
+// DurationFormat is the root Intl.DurationFormat constructor-property alias for
+// durationformat.DurationFormat.
 type DurationFormat = durationformat.DurationFormat
+
+// DisplayNames is the root Intl.DisplayNames constructor-property alias for
+// displaynames.DisplayNames.
 type DisplayNames = displaynames.DisplayNames
+
+// Collator is the root Intl.Collator constructor-property alias for collator.Collator.
 type Collator = collator.Collator
+
+// Segmenter is the root Intl.Segmenter constructor-property alias for segmenter.Segmenter.
 type Segmenter = segmenter.Segmenter
 
+// GetCanonicalLocales returns the Intl.getCanonicalLocales canonical locale list.
+//
+// It keeps the first occurrence of each canonical locale while preserving
+// request order. Raw locale string parsing stays with the locale package.
 func GetCanonicalLocales(locales locale.List) locale.List {
 	return ecma402.CanonicalLocaleList(locales)
 }

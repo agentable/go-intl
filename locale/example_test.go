@@ -17,9 +17,11 @@ func ExampleParse() {
 
 // ExampleNew_options demonstrates Intl.Locale constructor options from ECMA-402.
 func ExampleNew_options() {
+	region := "GB"
+	calendar := "gregory"
 	loc, err := locale.New("en", locale.Options{
-		Region:   "GB",
-		Calendar: "gregory",
+		Region:   &region,
+		Calendar: &calendar,
 	})
 	if err != nil {
 		panic(err)

@@ -1,18 +1,17 @@
 package conformance
 
 import (
-	"path/filepath"
 	"time"
 )
 
 func SkipReason(root, id string, now time.Time) (string, bool) {
-	divergenceIDs, err := loadDivergenceIDs(filepath.Join(root, "testdata", "divergences.md"))
+	divergenceIDs, err := loadDivergenceIDs(divergenceLedgerPath(root))
 	if err == nil {
 		if _, ok := divergenceIDs[id]; ok {
-			return "divergence listed in testdata/divergences.md", true
+			return "divergence listed in " + divergenceLedgerRelativePath(), true
 		}
 	}
-	xfails, err := loadXFails(filepath.Join(root, "testdata", "xfail.json"))
+	xfails, err := loadXFails(xfailPath(root))
 	if err != nil {
 		return "", false
 	}
@@ -20,7 +19,8 @@ func SkipReason(root, id string, now time.Time) (string, bool) {
 		if xfail.ID != id {
 			continue
 		}
-		if !xfail.active(now) {
+		expired, err := xfail.expired(now)
+		if err != nil || expired {
 			return "", false
 		}
 		return xfail.Reason, true

@@ -10,7 +10,7 @@ func TestResolveLocalDirRequiresCorePackages(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	for _, name := range RequiredPackages {
+	for _, name := range RequiredPackages() {
 		if err := os.MkdirAll(filepath.Join(dir, name), 0o777); err != nil {
 			t.Fatalf("mkdir %s: %v", name, err)
 		}
@@ -30,5 +30,20 @@ func TestResolveLocalDirRejectsMissingPackage(t *testing.T) {
 
 	if _, err := ResolveLocalDir(t.TempDir()); err == nil {
 		t.Fatal("ResolveLocalDir succeeded with no packages")
+	}
+}
+
+func TestRequiredPackagesReturnsSnapshot(t *testing.T) {
+	t.Parallel()
+
+	got := RequiredPackages()
+	if len(got) == 0 {
+		t.Fatal("RequiredPackages returned no packages")
+	}
+	wantFirst := got[0]
+	got[0] = "mutated"
+
+	if again := RequiredPackages(); again[0] != wantFirst {
+		t.Fatalf("RequiredPackages()[0] = %q, want %q", again[0], wantFirst)
 	}
 }

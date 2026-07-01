@@ -1,10 +1,13 @@
-// Hand-written accessor layer for the list domain. The query semantics mirror
-// the legacy root cldr list accessors exactly, so ListFormat output is
-// byte-for-byte unchanged.
+// Hand-written accessor layer for the list domain. It exposes list patterns and
+// the narrow supported-locale index over lazily decoded const blobs.
 
 package list
 
-import cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+import (
+	"slices"
+
+	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+)
 
 // Maximize forwards to the shared locale kernel so list maximizes tags
 // identically to every other domain.
@@ -19,9 +22,8 @@ func ResolveLocale(tag string) (Locale, bool) {
 }
 
 // Pattern returns the list pattern for a (locale, type, style) tuple. An empty
-// type defaults to "conjunction" and an empty style to "long", matching the
-// legacy accessor. An unknown tuple yields a zero ListPattern (empty fields),
-// the same value the legacy map indexing produced.
+// type defaults to "conjunction" and an empty style to "long". An unknown tuple
+// yields a zero ListPattern (empty fields).
 func Pattern(locale Locale, typ, style string) ListPattern {
 	if typ == "" {
 		typ = "conjunction"
@@ -30,7 +32,12 @@ func Pattern(locale Locale, typ, style string) ListPattern {
 		style = "long"
 	}
 	patternOnce.Do(loadPatterns)
-	data := patternsByLocale[locale][typ][style]
+	var data listPatternRefs
+	if byType := patternsByLocale[locale]; byType != nil {
+		if byStyle := byType[typ]; byStyle != nil {
+			data = byStyle[style]
+		}
+	}
 	return ListPattern{
 		Pair:   data.pair,
 		Start:  data.start,
@@ -44,7 +51,5 @@ func Pattern(locale Locale, typ, style string) ListPattern {
 // blob decode.
 func SupportedLocales() []string {
 	supportedOnce.Do(loadSupported)
-	tags := make([]string, len(supportedTags))
-	copy(tags, supportedTags)
-	return tags
+	return slices.Clone(supportedTags)
 }

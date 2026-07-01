@@ -15,15 +15,6 @@ type localTime struct {
 	Nanosecond int
 }
 
-func (f *DateTimeFormat) localTime(t time.Time) localTime {
-	switch f.resolved.Calendar {
-	case "gregory", "iso8601":
-		return gregoryLocalTime(t)
-	default:
-		return gregoryLocalTime(t)
-	}
-}
-
 func gregoryLocalTime(t time.Time) localTime {
 	year := t.Year()
 	era := "AD"
@@ -42,6 +33,13 @@ func gregoryLocalTime(t time.Time) localTime {
 		Second:     t.Second(),
 		Nanosecond: t.Nanosecond(),
 	}
+}
+
+func gregoryTimeInLocation(t time.Time, loc *time.Location) (time.Time, localTime) {
+	if loc != nil {
+		t = t.In(loc)
+	}
+	return t, gregoryLocalTime(t)
 }
 
 func (t localTime) displayYear() int {

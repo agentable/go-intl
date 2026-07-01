@@ -11,9 +11,9 @@ func BestFitMatcherWithMaximizer(requested, supported []string, defaultLocale st
 }
 
 type bestMatchResult struct {
-	matchedDesired   string
-	matchedSupported string
-	distance         int
+	matchedDesiredIndex int
+	matchedSupported    string
+	distance            int
 }
 
 func getFallbackCandidates(loc string) []string {

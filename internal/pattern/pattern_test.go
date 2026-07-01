@@ -81,6 +81,7 @@ func TestFormatIndexed(t *testing.T) {
 		{name: "preserves unknown placeholder", in: "{name} {0}", values: []string{"A"}, want: "{name} A"},
 		{name: "preserves out of range placeholder", in: "{0} {2}", values: []string{"A"}, want: "A {2}"},
 		{name: "preserves invalid pattern", in: "A {0", values: []string{"B"}, want: "A {0"},
+		{name: "preserves original text when later placeholder is invalid", in: "{0} A {1", values: []string{"B"}, want: "{0} A {1"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

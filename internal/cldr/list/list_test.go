@@ -1,74 +1,40 @@
 package list
 
 import (
-	"os"
-	"os/exec"
-	"strings"
 	"testing"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+	"github.com/agentable/go-intl/internal/testcontract"
+	"github.com/agentable/go-intl/internal/testprocess"
 )
 
 // narrowIndexSubprocessEnv gates the narrow-index Once assertion so it runs in a
 // freshly started process where no pattern decode has happened yet.
 const narrowIndexSubprocessEnv = "GO_INTL_LIST_NARROW_INDEX_SUBPROCESS"
 
+const missingLocale Locale = 65535
+
 // TestSupportedLocalesDoesNotDecodePatternBlob asserts the narrow-index rule:
 // SupportedLocales reads only the supported blob and must never trigger the
 // pattern blob decode.
 //
-// The assertion is order-sensitive: any other test in this binary that touches a
-// pattern lookup (for example the TestSmoke* tuple checks below) populates the
-// package-level pattern map, after which a same-binary assertion would see it
-// already decoded. Rather than depend on test order, this test re-executes the
-// test binary as a subprocess that runs only the inner assertion via -test.run,
-// so the assertion always observes a process that has decoded nothing. When
-// adding new pattern-touching tests, keep the assertion in this subprocess form;
-// do not move the Once check into a plain same-binary test, and do not rely on
-// running before other tests.
+// The assertion runs in a fresh process so other list-pattern tests cannot
+// populate the package-level Once state first.
 func TestSupportedLocalesDoesNotDecodePatternBlob(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv(narrowIndexSubprocessEnv) == "1" {
-		assertSupportedLocalesDoesNotDecodePatternBlob(t)
+	if !testprocess.RunInFreshProcess(t, narrowIndexSubprocessEnv) {
 		return
 	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=^TestSupportedLocalesDoesNotDecodePatternBlob$", "-test.v")
-	cmd.Env = append(os.Environ(), narrowIndexSubprocessEnv+"=1")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("narrow-index subprocess failed: %v\n%s", err, out)
-	}
-	if !strings.Contains(string(out), "PASS") {
-		t.Fatalf("narrow-index subprocess did not report PASS:\n%s", out)
-	}
-}
-
-func assertSupportedLocalesDoesNotDecodePatternBlob(t *testing.T) {
-	t.Helper()
-
-	tags := SupportedLocales()
-	if len(tags) == 0 {
-		t.Fatal("SupportedLocales returned no tags")
-	}
-	if patternsByLocale != nil {
-		t.Error("SupportedLocales decoded the list pattern blob; narrow index must not")
-	}
+	testcontract.AssertNarrowStringIndexDoesNotLoad(t, "SupportedLocales", SupportedLocales,
+		testcontract.LoadProbe{Name: "list pattern blob", Loaded: func() bool { return patternsByLocale != nil }},
+	)
 }
 
 func TestSupportedLocalesReturnsCopy(t *testing.T) {
 	t.Parallel()
 
-	a := SupportedLocales()
-	if len(a) == 0 {
-		t.Fatal("SupportedLocales returned no tags")
-	}
-	a[0] = "mutated"
-	b := SupportedLocales()
-	if b[0] == "mutated" {
-		t.Error("SupportedLocales returned a shared slice; callers can corrupt the cache")
-	}
+	testcontract.AssertStringSliceReturnsCopy(t, "SupportedLocales", SupportedLocales)
 }
 
 // TestSmokeKnownPatterns is a checkout-independent smoke test: it asserts a few
@@ -103,6 +69,32 @@ func TestSmokeKnownPatterns(t *testing.T) {
 	}
 }
 
+func TestPatternMissingTupleReturnsZero(t *testing.T) {
+	t.Parallel()
+
+	loc, ok := ResolveLocale("en")
+	if !ok {
+		t.Fatal(`ResolveLocale("en") = false, want true`)
+	}
+
+	for _, tc := range []struct {
+		name       string
+		loc        Locale
+		typ, style string
+	}{
+		{name: "missing locale", loc: missingLocale, typ: "conjunction", style: "long"},
+		{name: "missing type", loc: loc, typ: "missing", style: "long"},
+		{name: "missing style", loc: loc, typ: "conjunction", style: "missing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := Pattern(tc.loc, tc.typ, tc.style); got != (ListPattern{}) {
+				t.Fatalf("Pattern(%d, %q, %q) = %+v, want zero", tc.loc, tc.typ, tc.style, got)
+			}
+		})
+	}
+}
+
 // TestSmokeSupportedLocalesWithinProfile asserts every SupportedLocales tag is a
 // member of the kernel locale profile subset (the available-locale set the list
 // key packing indexes against). This mirrors the deleted root snapshot subset
@@ -110,18 +102,5 @@ func TestSmokeKnownPatterns(t *testing.T) {
 func TestSmokeSupportedLocalesWithinProfile(t *testing.T) {
 	t.Parallel()
 
-	profile := map[string]bool{}
-	for _, tag := range cldrlocale.AvailableLocales() {
-		profile[tag] = true
-	}
-
-	supported := SupportedLocales()
-	if len(supported) == 0 {
-		t.Fatal("SupportedLocales returned no tags")
-	}
-	for _, tag := range supported {
-		if !profile[tag] {
-			t.Errorf("SupportedLocales tag %q is not in the kernel locale profile", tag)
-		}
-	}
+	testcontract.AssertStringSliceSubset(t, "SupportedLocales", SupportedLocales(), "kernel locale profile", cldrlocale.AvailableLocales())
 }

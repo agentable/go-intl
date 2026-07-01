@@ -2,12 +2,10 @@ package durationformat
 
 import (
 	"encoding/json"
-	"errors"
-	"reflect"
 	"testing"
 
-	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -24,10 +22,9 @@ func TestDurationFormatConformance(t *testing.T) {
 			t.Parallel()
 			loc := intltest.Locale(t, fixture.Locale)
 			format, err := New(locale.List{loc}, conformanceDurationOptions(t, fixture))
-			if fixture.ErrorCode != "" {
-				if !errors.Is(err, conformanceDurationError(t, fixture.ErrorCode)) {
-					t.Fatalf("New(%q) error = %v, want %q", fixture.Locale, err, fixture.ErrorCode)
-				}
+			if testcontract.AssertErrorCode(t, "New("+fixture.Locale+")", err, fixture.ErrorCode, func(code string) error {
+				return conformanceDurationError(t, code)
+			}) {
 				return
 			}
 			if err != nil {
@@ -51,7 +48,7 @@ func TestDurationFormatConformance(t *testing.T) {
 				if err != nil {
 					t.Fatalf("FormatToParts(%v) error = %v", input, err)
 				}
-				assertDurationParts(t, got, fixture.ExpectedParts)
+				testcontract.AssertParts(t, "FormatToParts", got, fixture.ExpectedParts, conformanceDurationPart)
 				return
 			}
 			if fixture.Expected == nil {
@@ -71,51 +68,52 @@ func conformanceDurationOptions(t *testing.T, fixture conformance.Fixture) Optio
 	for key, value := range raw {
 		switch key {
 		case "localeMatcher":
-			opts.LocaleMatcher = LocaleMatcher(value.(string))
+			opts.LocaleMatcher = stringPtr(value.(string))
 		case "numberingSystem":
-			opts.NumberingSystem = value.(string)
+			numberingSystem := value.(string)
+			opts.NumberingSystem = &numberingSystem
 		case "style":
-			opts.Style = Style(value.(string))
+			opts.Style = stringPtr(value.(string))
 		case "years":
-			opts.Years = UnitStyle(value.(string))
+			opts.Years = stringPtr(value.(string))
 		case "yearsDisplay":
-			opts.YearsDisplay = Display(value.(string))
+			opts.YearsDisplay = stringPtr(value.(string))
 		case "months":
-			opts.Months = UnitStyle(value.(string))
+			opts.Months = stringPtr(value.(string))
 		case "monthsDisplay":
-			opts.MonthsDisplay = Display(value.(string))
+			opts.MonthsDisplay = stringPtr(value.(string))
 		case "weeks":
-			opts.Weeks = UnitStyle(value.(string))
+			opts.Weeks = stringPtr(value.(string))
 		case "weeksDisplay":
-			opts.WeeksDisplay = Display(value.(string))
+			opts.WeeksDisplay = stringPtr(value.(string))
 		case "days":
-			opts.Days = UnitStyle(value.(string))
+			opts.Days = stringPtr(value.(string))
 		case "daysDisplay":
-			opts.DaysDisplay = Display(value.(string))
+			opts.DaysDisplay = stringPtr(value.(string))
 		case "hours":
-			opts.Hours = UnitStyle(value.(string))
+			opts.Hours = stringPtr(value.(string))
 		case "hoursDisplay":
-			opts.HoursDisplay = Display(value.(string))
+			opts.HoursDisplay = stringPtr(value.(string))
 		case "minutes":
-			opts.Minutes = UnitStyle(value.(string))
+			opts.Minutes = stringPtr(value.(string))
 		case "minutesDisplay":
-			opts.MinutesDisplay = Display(value.(string))
+			opts.MinutesDisplay = stringPtr(value.(string))
 		case "seconds":
-			opts.Seconds = UnitStyle(value.(string))
+			opts.Seconds = stringPtr(value.(string))
 		case "secondsDisplay":
-			opts.SecondsDisplay = Display(value.(string))
+			opts.SecondsDisplay = stringPtr(value.(string))
 		case "milliseconds":
-			opts.Milliseconds = UnitStyle(value.(string))
+			opts.Milliseconds = stringPtr(value.(string))
 		case "millisecondsDisplay":
-			opts.MillisecondsDisplay = Display(value.(string))
+			opts.MillisecondsDisplay = stringPtr(value.(string))
 		case "microseconds":
-			opts.Microseconds = UnitStyle(value.(string))
+			opts.Microseconds = stringPtr(value.(string))
 		case "microsecondsDisplay":
-			opts.MicrosecondsDisplay = Display(value.(string))
+			opts.MicrosecondsDisplay = stringPtr(value.(string))
 		case "nanoseconds":
-			opts.Nanoseconds = UnitStyle(value.(string))
+			opts.Nanoseconds = stringPtr(value.(string))
 		case "nanosecondsDisplay":
-			opts.NanosecondsDisplay = Display(value.(string))
+			opts.NanosecondsDisplay = stringPtr(value.(string))
 		case "fractionalDigits":
 			opts.FractionalDigits = new(int(value.(float64)))
 		default:
@@ -128,13 +126,7 @@ func conformanceDurationOptions(t *testing.T, fixture conformance.Fixture) Optio
 func conformanceDurationError(t *testing.T, code string) error {
 	t.Helper()
 
-	switch code {
-	case "invalid_option", "invalid-option":
-		return intlerr.ErrInvalidOption
-	default:
-		t.Fatalf("unsupported durationformat errorCode %q", code)
-		return nil
-	}
+	return testcontract.IntlErrorCode(t, "durationformat", code, "invalid_option", "invalid-option")
 }
 
 func conformanceDurationInput(t *testing.T, fixture conformance.Fixture) Duration {
@@ -157,87 +149,36 @@ func conformanceDurationInput(t *testing.T, fixture conformance.Fixture) Duratio
 	}
 }
 
-func assertDurationParts(t *testing.T, got []Part, want []conformance.Part) {
-	t.Helper()
-	converted := make([]Part, len(want))
-	for i, part := range want {
-		converted[i] = Part{Type: PartType(part.Type), Value: part.Value, Unit: Unit(part.Unit)}
-	}
-	if !reflect.DeepEqual(got, converted) {
-		t.Fatalf("FormatToParts() = %#v, want %#v", got, converted)
-	}
+func conformanceDurationPart(part Part) conformance.Part {
+	return conformance.Part{Type: string(part.Type), Value: part.Value, Unit: string(part.Unit)}
 }
 
 func assertDurationResolvedOptions(t *testing.T, fixture conformance.Fixture, got ResolvedOptions) {
 	t.Helper()
 
-	var want map[string]json.RawMessage
-	if err := json.Unmarshal(fixture.ExpectedResolved, &want); err != nil {
-		t.Fatal(err)
-	}
-	assertDurationResolvedString(t, want, "locale", got.Locale.String())
-	assertDurationResolvedString(t, want, "numberingSystem", got.NumberingSystem)
-	assertDurationResolvedString(t, want, "style", string(got.Style))
-	assertDurationResolvedString(t, want, "years", string(got.Years))
-	assertDurationResolvedString(t, want, "yearsDisplay", string(got.YearsDisplay))
-	assertDurationResolvedString(t, want, "months", string(got.Months))
-	assertDurationResolvedString(t, want, "monthsDisplay", string(got.MonthsDisplay))
-	assertDurationResolvedString(t, want, "weeks", string(got.Weeks))
-	assertDurationResolvedString(t, want, "weeksDisplay", string(got.WeeksDisplay))
-	assertDurationResolvedString(t, want, "days", string(got.Days))
-	assertDurationResolvedString(t, want, "daysDisplay", string(got.DaysDisplay))
-	assertDurationResolvedString(t, want, "hours", string(got.Hours))
-	assertDurationResolvedString(t, want, "hoursDisplay", string(got.HoursDisplay))
-	assertDurationResolvedString(t, want, "minutes", string(got.Minutes))
-	assertDurationResolvedString(t, want, "minutesDisplay", string(got.MinutesDisplay))
-	assertDurationResolvedString(t, want, "seconds", string(got.Seconds))
-	assertDurationResolvedString(t, want, "secondsDisplay", string(got.SecondsDisplay))
-	assertDurationResolvedString(t, want, "milliseconds", string(got.Milliseconds))
-	assertDurationResolvedString(t, want, "millisecondsDisplay", string(got.MillisecondsDisplay))
-	assertDurationResolvedString(t, want, "microseconds", string(got.Microseconds))
-	assertDurationResolvedString(t, want, "microsecondsDisplay", string(got.MicrosecondsDisplay))
-	assertDurationResolvedString(t, want, "nanoseconds", string(got.Nanoseconds))
-	assertDurationResolvedString(t, want, "nanosecondsDisplay", string(got.NanosecondsDisplay))
-	assertDurationResolvedOptionalInt(t, want, "fractionalDigits", got.FractionalDigits)
-}
-
-func assertDurationResolvedString(t *testing.T, values map[string]json.RawMessage, name, got string) {
-	t.Helper()
-
-	raw, ok := values[name]
-	if !ok {
-		return
-	}
-	var want string
-	if err := json.Unmarshal(raw, &want); err != nil {
-		t.Fatalf("expectedResolvedOptions.%s = %s: %v", name, raw, err)
-	}
-	if got != want {
-		t.Fatalf("ResolvedOptions().%s = %q, want %q", name, got, want)
-	}
-}
-
-func assertDurationResolvedOptionalInt(t *testing.T, values map[string]json.RawMessage, name string, got *int) {
-	t.Helper()
-
-	raw, ok := values[name]
-	if !ok {
-		return
-	}
-	if string(raw) == "null" {
-		if got != nil {
-			t.Fatalf("ResolvedOptions().%s = %d, want omitted", name, *got)
-		}
-		return
-	}
-	var want int
-	if err := json.Unmarshal(raw, &want); err != nil {
-		t.Fatalf("expectedResolvedOptions.%s = %s: %v", name, raw, err)
-	}
-	if got == nil {
-		t.Fatalf("ResolvedOptions().%s omitted, want %d", name, want)
-	}
-	if *got != want {
-		t.Fatalf("ResolvedOptions().%s = %d, want %d", name, *got, want)
-	}
+	want := testcontract.ExpectedResolvedOptions(t, fixture)
+	testcontract.AssertResolvedString(t, want, "locale", got.Locale.String())
+	testcontract.AssertResolvedString(t, want, "numberingSystem", got.NumberingSystem)
+	testcontract.AssertResolvedString(t, want, "style", string(got.Style))
+	testcontract.AssertResolvedString(t, want, "years", string(got.Years))
+	testcontract.AssertResolvedString(t, want, "yearsDisplay", string(got.YearsDisplay))
+	testcontract.AssertResolvedString(t, want, "months", string(got.Months))
+	testcontract.AssertResolvedString(t, want, "monthsDisplay", string(got.MonthsDisplay))
+	testcontract.AssertResolvedString(t, want, "weeks", string(got.Weeks))
+	testcontract.AssertResolvedString(t, want, "weeksDisplay", string(got.WeeksDisplay))
+	testcontract.AssertResolvedString(t, want, "days", string(got.Days))
+	testcontract.AssertResolvedString(t, want, "daysDisplay", string(got.DaysDisplay))
+	testcontract.AssertResolvedString(t, want, "hours", string(got.Hours))
+	testcontract.AssertResolvedString(t, want, "hoursDisplay", string(got.HoursDisplay))
+	testcontract.AssertResolvedString(t, want, "minutes", string(got.Minutes))
+	testcontract.AssertResolvedString(t, want, "minutesDisplay", string(got.MinutesDisplay))
+	testcontract.AssertResolvedString(t, want, "seconds", string(got.Seconds))
+	testcontract.AssertResolvedString(t, want, "secondsDisplay", string(got.SecondsDisplay))
+	testcontract.AssertResolvedString(t, want, "milliseconds", string(got.Milliseconds))
+	testcontract.AssertResolvedString(t, want, "millisecondsDisplay", string(got.MillisecondsDisplay))
+	testcontract.AssertResolvedString(t, want, "microseconds", string(got.Microseconds))
+	testcontract.AssertResolvedString(t, want, "microsecondsDisplay", string(got.MicrosecondsDisplay))
+	testcontract.AssertResolvedString(t, want, "nanoseconds", string(got.Nanoseconds))
+	testcontract.AssertResolvedString(t, want, "nanosecondsDisplay", string(got.NanosecondsDisplay))
+	testcontract.AssertResolvedOptionalInt(t, want, "fractionalDigits", got.FractionalDigits)
 }

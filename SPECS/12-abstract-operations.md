@@ -64,7 +64,7 @@ Surviving algorithms keep spec or reference names when that name remains honest:
 | sanctioned unit syntax | `IsSanctionedSimpleUnitIdentifier` / `IsWellFormedUnitIdentifier` |
 | mathematical value conversion | `ToIntlMathematicalValue`, `ParseDecimalInput`, `ParseFiniteDecimalInput`, `RequireFiniteDecimalInput` |
 | constructor locale negotiation | `ResolveConstructorLocale` typed wrapper around locale-list, matcher, default-locale, and relevant-extension processing |
-| option resolution | `options.One`, `LocaleMatcherAlgorithm`, `LocaleMatcherOption`, `SupportedLocalesOf`, `InvalidStringOption`, `InvalidIntegerOption`, `GetOption`-family helpers or typed equivalents that preserve ECMA-402 semantics |
+| option resolution | `options.One`, `LocaleMatcherAlgorithm`, `LocaleMatcherOption` / `LocaleMatcherOptionInput`, `SupportedLocalesOf`, `InvalidStringOption`, `InvalidIntegerOption`, Unicode type option validators, `GetOption`-family helpers or typed equivalents that preserve ECMA-402 semantics |
 | digit rounding and padding stage | `numberformat.FormatNumericToString` |
 | date skeleton parsing | `datetimeformat.ParseSkeleton`-family internals |
 | plural operand construction | `pluralrules.Operands`-family internals |
@@ -92,18 +92,22 @@ The abstract layer should provide reusable option and syntax helpers when they e
 - `ErrInvalidOption`
 - `options.One`
 - `LocaleMatcherAlgorithm`
-- `LocaleMatcherOption`
+- `LocaleMatcherOption` / `LocaleMatcherOptionInput`
 - `ResolveConstructorLocale`
 - `SupportedLocalesOf`
 - `InvalidStringOption`
 - `InvalidIntegerOption`
 - `GetOption` / typed option-selection equivalent
 - `GetNumberOption` / typed numeric range equivalent
+- `IsWellFormedUnicodeType`
+- `ValidateUnicodeTypeOption` / `ValidateUnicodeTypeOptionInput`
 - `IsWellFormedCurrencyCode`
 - `IsWellFormedUnitIdentifier`
 - `numberformat.FormatNumericToString`
 
 It must not reintroduce a generic `map[string]any` option pipeline unless a production path needs JavaScript-value coercion. Typed Go `Options` can feed the same abstract rules without using dynamic maps.
+
+When a public Go option needs to preserve ECMA-402's omitted-versus-present distinction, the constructor should use a pointer field, copy the pointed-to value into private config during construction, and then feed the private string or scalar into the shared validators. `nil` means the option was omitted; an explicit pointer to `""` is a caller-provided value and must be validated as such. Shared static-method helpers such as `SupportedLocalesOf` accept the pointer-backed option directly so formatter packages do not duplicate present-bit extraction.
 
 `ResolveConstructorLocale` is the only shared constructor-locale wrapper. It may combine `RequestedLocaleStrings`, `LocaleMatcherAlgorithm`, `DefaultLocale`, and `internal/localematcher.ResolveLocale`, then parse the resolved locale into a Go `locale.Locale`. It must not own formatter data fallback, formatter-specific relevant-extension defaults, unsupported-option errors, CLDR accessor selection, pattern selection, digit resolution, time-zone handling, or embedded formatter construction.
 
@@ -131,10 +135,10 @@ var (
 )
 ```
 
-Errors must wrap the sentinel and include the option name, value, owner, and locale where available. Shared validation paths use `OptionError`, `InvalidOptionError`, and `UnsupportedOptionError` so callers can keep using `errors.Is` for root sentinels and `errors.AsType` for structured context:
+Errors must wrap the sentinel and include the option name, value, owner, locale, and expected-value guidance where available. When an option error translates a lower-level dependency, data, or embedded-formatter failure, the structured error must also preserve that cause so `errors.Is` can still reach it. Shared validation paths use `OptionError`, `InvalidOptionErrorExpected`, `UnsupportedOptionErrorExpected`, and the string/integer option helpers so callers can keep using `errors.Is` for root sentinels and `errors.AsType` for structured context:
 
 ```go
-return ecma402.InvalidOptionError("numberformat", "currency", code, loc.String(), ecma402.ErrInvalidOption)
+return ecma402.InvalidOptionErrorExpected("numberformat", "currency", code, loc.String(), "a well-formed ISO 4217 currency code", err)
 ```
 
 `OptionError` is an alias for the internal implementation of the public root `gointl.Error` type. The public error-detail bridge is:
@@ -168,14 +172,15 @@ Required behavior:
 1. `errors.Is(err, gointl.ErrInvalidOption)` and the other root category sentinels remain the stable branch points for caller code.
 2. `detail, ok := errors.AsType[*gointl.Error](err)` exposes machine-readable context for host bindings, config UIs, and API adapters.
 3. `ErrUnsupportedOption`, `ErrUnsupportedLocale`, and `ErrUnsupportedBackend` must also match `errors.ErrUnsupported`.
-4. `Owner` is the owning Intl package or root namespace name, such as `numberformat`, `datetimeformat`, `displaynames`, or `intl`.
-5. `Name` is the rejected option, argument, key, code, or field name.
-6. `Value` is the rejected value after public-boundary normalization.
-7. `Locale` is empty unless the failure depends on a resolved or requested locale.
-8. `Expected` is optional human guidance; when empty, `Error()` derives generic guidance from `Kind` and `Name`.
-9. The string returned by `Error()` is for humans only; tests and consumers must not branch on it.
-10. Public error text must use the three-part teaching shape: the failing owner/name/value/locale, `expected ...`, and `got ...`.
-11. Public error text must not expose ECMA-402 abstract operation names such as `GetOption`, `PartitionPattern`, `ResolveLocale`, `FormatNumericToString`, or `ToIntlMathematicalValue`.
+4. `errors.Is(err, underlying)` must keep working when a structured error maps an internal dependency, data, or embedded-formatter failure to a public Intl category.
+5. `Owner` is the owning Intl package or root namespace name, such as `numberformat`, `datetimeformat`, `displaynames`, or `intl`.
+6. `Name` is the rejected option, argument, key, code, or field name.
+7. `Value` is the rejected value after public-boundary normalization.
+8. `Locale` is empty unless the failure depends on a resolved or requested locale.
+9. `Expected` is optional human guidance; when empty, `Error()` derives generic guidance from `Kind` and `Name`.
+10. The string returned by `Error()` is for humans only; tests and consumers must not branch on it.
+11. Public error text must use the three-part teaching shape: the failing owner/name/value/locale, `expected ...`, and `got ...`.
+12. Public error text must not expose ECMA-402 abstract operation names such as `GetOption`, `PartitionPattern`, `ResolveLocale`, `FormatNumericToString`, or `ToIntlMathematicalValue`.
 
 Formatter-owned runtime failures that are not constructor options, such as malformed decimal strings, invalid relative-time units, invalid display-name codes, or invalid duration records, construct the same structured error and wrap the matching root category sentinel.
 

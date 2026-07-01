@@ -32,7 +32,10 @@ func TestDateTimeFormatPatternLiteralEdges(t *testing.T) {
 	}
 
 	hour12 := false
-	format := DateTimeFormat{resolved: ResolvedOptions{Hour12: &hour12, NumberingSystem: "latn"}}
+	format := DateTimeFormat{
+		resolved:   ResolvedOptions{Hour12: &hour12, NumberingSystem: "latn"},
+		uses24Hour: true,
+	}
 	got := format.formatPattern("H a", gregoryLocalTime(time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC)))
 	want := []Part{{Type: PartHour, Value: "9"}}
 	if !reflect.DeepEqual(got, want) {
@@ -45,18 +48,18 @@ func TestDateTimeFormatPatternLiteralEdges(t *testing.T) {
 	}
 }
 
-func TestDateTimeFormatUsesStandardDateTimePatternWhenAtPatternMissing(t *testing.T) {
+func TestDateTimeStylePatternFallsBackToStandardPattern(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: MediumDateTimeStyle, TimeStyle: ShortDateTimeStyle, Hour12: boolPtr(false)})
-	if err != nil {
-		t.Fatalf("New(dateStyle+timeStyle) error = %v", err)
+	gregorian := cldrdate.Gregorian{
+		DateTimeAtFormats: [4]string{"at-full"},
+		DateTimeFormats:   [4]string{"standard-full", "standard-long", "standard-medium", "standard-short"},
 	}
-	format.gregorian.DateTimeAtFormats = [4]string{}
-	format.pattern = format.selectPattern()
-	got := format.Format(time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC))
-	if got != "May 8, 2026, 09:07" {
-		t.Fatalf("Format() with standard datetime fallback = %q, want May 8, 2026, 09:07", got)
+	if got := dateTimeStylePattern(gregorian, FullDateTimeStyle); got != "at-full" {
+		t.Fatalf("dateTimeStylePattern(full) = %q, want at-full", got)
+	}
+	if got := dateTimeStylePattern(gregorian, MediumDateTimeStyle); got != "standard-medium" {
+		t.Fatalf("dateTimeStylePattern(medium fallback) = %q, want standard-medium", got)
 	}
 }
 
@@ -64,11 +67,11 @@ func TestDateTimeFormatShortComponentDateTimePattern(t *testing.T) {
 	t.Parallel()
 
 	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{
-		Year:   TwoDigitFieldStyle,
-		Month:  NumericMonthStyle,
-		Day:    NumericFieldStyle,
-		Hour:   NumericFieldStyle,
-		Minute: TwoDigitFieldStyle,
+		Year:   stringPtr(TwoDigitFieldStyle),
+		Month:  stringPtr(NumericMonthStyle),
+		Day:    stringPtr(NumericFieldStyle),
+		Hour:   stringPtr(NumericFieldStyle),
+		Minute: stringPtr(TwoDigitFieldStyle),
 		Hour12: boolPtr(true),
 	})
 	if err != nil {
@@ -119,8 +122,8 @@ func TestDateTimeFormatIntervalAndTimeZoneHelpers(t *testing.T) {
 		{style: ecma402dtf.TimeZoneNameLongGeneric, want: "vvvv"},
 		{style: ecma402dtf.TimeZoneName("unknown"), want: "z"},
 	} {
-		if got := timeZonePatternField(tc.style); got != tc.want {
-			t.Fatalf("timeZonePatternField(%q) = %q, want %q", tc.style, got, tc.want)
+		if got := ecma402dtf.TimeZonePatternField(tc.style); got != tc.want {
+			t.Fatalf("TimeZonePatternField(%q) = %q, want %q", tc.style, got, tc.want)
 		}
 	}
 
@@ -156,25 +159,29 @@ func TestDateTimeFormatSmallFormattingHelpers(t *testing.T) {
 		t.Fatalf("fractionalSecondValue(width>9) = %q, want 123456789", got)
 	}
 
-	format := DateTimeFormat{resolved: ResolvedOptions{NumberingSystem: "latn"}}
+	format := DateTimeFormat{
+		resolved: ResolvedOptions{NumberingSystem: "latn"},
+	}
 	format.gregorian.DayPeriods.AM.Abbr = "AM"
 	morning := gregoryLocalTime(time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC))
 	afternoon := gregoryLocalTime(time.Date(2026, time.May, 8, 13, 0, 0, 0, time.UTC))
-	if got := format.dayPeriodPatternName(5, morning); got != "AM" {
+	gregorianData := &format.gregorian
+	if got := dayPeriodPatternName(gregorianData, 5, morning); got != "AM" {
 		t.Fatalf("dayPeriodPatternName(narrow fallback) = %q, want AM", got)
 	}
-	if got := format.dayPeriodPatternName(4, afternoon); got != "PM" {
+	if got := dayPeriodPatternName(gregorianData, 4, afternoon); got != "PM" {
 		t.Fatalf("dayPeriodPatternName(pm default fallback) = %q, want PM", got)
 	}
-	if got := format.flexibleDayPeriodPatternName(4, morning); got != "AM" {
+	if got := flexibleDayPeriodPatternName(format.cldrLoc, gregorianData, 4, morning); got != "AM" {
 		t.Fatalf("flexibleDayPeriodPatternName(fallback) = %q, want AM", got)
 	}
 
-	datePart := format.datePatternPart('Q', 2, morning)
+	numberingSystem := format.resolved.NumberingSystem
+	datePart := datePatternPart('Q', 2, morning, gregorianData, numberingSystem)
 	if datePart.Type != PartLiteral || datePart.Value != "QQ" {
 		t.Fatalf("datePatternPart(unknown) = %#v, want literal QQ", datePart)
 	}
-	timePart, ok := format.timePatternPart('?', 2, morning)
+	timePart, ok := format.timePatternPart('?', 2, morning, numberingSystem, format.uses24Hour, format.cldrLoc, gregorianData)
 	if !ok || timePart.Type != PartLiteral || timePart.Value != "??" {
 		t.Fatalf("timePatternPart(unknown) = %#v, %v; want literal ??", timePart, ok)
 	}
@@ -185,7 +192,9 @@ func TestDateTimeFormatFallbackRangeParts(t *testing.T) {
 
 	start := []Part{{Type: PartHour, Value: "9"}}
 	end := []Part{{Type: PartHour, Value: "10"}}
-	format := DateTimeFormat{gregorian: cldrdate.Gregorian{IntervalFallback: "{1} <- {0}"}}
+	format := DateTimeFormat{
+		fallbackRangePattern: partitionRangeFallbackPattern("{1} <- {0}"),
+	}
 	got := format.fallbackRangeParts(start, end)
 	want := []RangePart{
 		{Type: PartHour, Value: "10", Source: SourceEndRange},
@@ -196,7 +205,7 @@ func TestDateTimeFormatFallbackRangeParts(t *testing.T) {
 		t.Fatalf("fallbackRangeParts(custom) = %#v, want %#v", got, want)
 	}
 
-	format.gregorian.IntervalFallback = ""
+	format = DateTimeFormat{}
 	got = format.fallbackRangeParts(start, end)
 	if joined := joinRangeParts(got); joined != "9 – 10" {
 		t.Fatalf("fallbackRangeParts(default) = %q, want 9 – 10", joined)

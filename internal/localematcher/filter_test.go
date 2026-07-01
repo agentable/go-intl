@@ -1,6 +1,7 @@
 package localematcher
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/intltest"
@@ -18,11 +19,11 @@ func TestFilterLocales(t *testing.T) {
 		want      []string
 	}{
 		{
-			name:      "lookup preserves canonical requested locales",
+			name:      "lookup preserves matched requested locales",
 			supported: []string{"en", "fr", "zh-Hant"},
 			requested: []locale.Locale{intltest.Locale(t, "en-US-u-ca-gregory"), intltest.Locale(t, "en-US-u-ca-gregory"), intltest.Locale(t, "fr-FR"), intltest.Locale(t, "zh-Hant-TW"), intltest.Locale(t, "de")},
 			matcher:   AlgorithmLookup,
-			want:      []string{"en-US-u-ca-gregory", "fr-FR", "zh-Hant-TW"},
+			want:      []string{"en-US-u-ca-gregory", "en-US-u-ca-gregory", "fr-FR", "zh-Hant-TW"},
 		},
 		{
 			name:      "best fit preserves requested locale",
@@ -51,22 +52,17 @@ func TestFilterLocales(t *testing.T) {
 			t.Parallel()
 
 			got := FilterLocales(tc.supported, tc.requested, tc.matcher)
-			if len(got) != len(tc.want) {
-				t.Fatalf("FilterLocales() = %v, want %v", localesToStrings(got), tc.want)
-			}
-			for i := range tc.want {
-				if got[i].String() != tc.want[i] {
-					t.Fatalf("FilterLocales() = %v, want %v", localesToStrings(got), tc.want)
-				}
+			if got := localesToStrings(got); !slices.Equal(got, tc.want) {
+				t.Fatalf("FilterLocales() = %v, want %v", got, tc.want)
 			}
 		})
 	}
 }
 
 func localesToStrings(locales []locale.Locale) []string {
-	out := make([]string, 0, len(locales))
-	for _, loc := range locales {
-		out = append(out, loc.String())
+	out := make([]string, len(locales))
+	for i, loc := range locales {
+		out[i] = loc.String()
 	}
 	return out
 }

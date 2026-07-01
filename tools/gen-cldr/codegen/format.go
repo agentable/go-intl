@@ -21,8 +21,8 @@ func FormatFile(src []byte) ([]byte, error) {
 	if bytes.HasPrefix(formatted, []byte(generatedHeader)) {
 		return formatted, nil
 	}
-	out := make([]byte, 0, len(generatedHeader)+len(formatted)+1)
-	out = append(out, generatedHeader...)
-	out = append(out, formatted...)
+	out := make([]byte, len(generatedHeader)+len(formatted))
+	copy(out, generatedHeader)
+	copy(out[len(generatedHeader):], formatted)
 	return out, nil
 }

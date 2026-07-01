@@ -1,6 +1,9 @@
 package durationformat
 
-import "github.com/agentable/go-intl/locale"
+import (
+	"github.com/agentable/go-intl/internal/ecma402"
+	"github.com/agentable/go-intl/locale"
+)
 
 type LocaleMatcher string
 type Style string
@@ -59,62 +62,94 @@ const (
 const fractionalUnitStyle UnitStyle = "fractional"
 
 type ResolvedOptions struct {
-	// Locale is the resolved locale. Mirrors Intl.DurationFormat resolved option "locale".
-	Locale locale.Locale `json:"locale"`
-	// NumberingSystem is the resolved numbering system. Mirrors Intl.DurationFormat resolved option "numberingSystem".
-	NumberingSystem string `json:"numberingSystem"`
-	// Style is the resolved overall style. Mirrors Intl.DurationFormat resolved option "style".
-	Style Style `json:"style"`
-	// Years is the resolved years unit style. Mirrors Intl.DurationFormat resolved option "years".
-	Years UnitStyle `json:"years"`
-	// YearsDisplay is the resolved years display. Mirrors Intl.DurationFormat resolved option "yearsDisplay".
-	YearsDisplay Display `json:"yearsDisplay"`
-	// Months is the resolved months unit style. Mirrors Intl.DurationFormat resolved option "months".
-	Months UnitStyle `json:"months"`
-	// MonthsDisplay is the resolved months display. Mirrors Intl.DurationFormat resolved option "monthsDisplay".
-	MonthsDisplay Display `json:"monthsDisplay"`
-	// Weeks is the resolved weeks unit style. Mirrors Intl.DurationFormat resolved option "weeks".
-	Weeks UnitStyle `json:"weeks"`
-	// WeeksDisplay is the resolved weeks display. Mirrors Intl.DurationFormat resolved option "weeksDisplay".
-	WeeksDisplay Display `json:"weeksDisplay"`
-	// Days is the resolved days unit style. Mirrors Intl.DurationFormat resolved option "days".
-	Days UnitStyle `json:"days"`
-	// DaysDisplay is the resolved days display. Mirrors Intl.DurationFormat resolved option "daysDisplay".
-	DaysDisplay Display `json:"daysDisplay"`
-	// Hours is the resolved hours unit style. Mirrors Intl.DurationFormat resolved option "hours".
-	Hours UnitStyle `json:"hours"`
-	// HoursDisplay is the resolved hours display. Mirrors Intl.DurationFormat resolved option "hoursDisplay".
-	HoursDisplay Display `json:"hoursDisplay"`
-	// Minutes is the resolved minutes unit style. Mirrors Intl.DurationFormat resolved option "minutes".
-	Minutes UnitStyle `json:"minutes"`
-	// MinutesDisplay is the resolved minutes display. Mirrors Intl.DurationFormat resolved option "minutesDisplay".
-	MinutesDisplay Display `json:"minutesDisplay"`
-	// Seconds is the resolved seconds unit style. Mirrors Intl.DurationFormat resolved option "seconds".
-	Seconds UnitStyle `json:"seconds"`
-	// SecondsDisplay is the resolved seconds display. Mirrors Intl.DurationFormat resolved option "secondsDisplay".
-	SecondsDisplay Display `json:"secondsDisplay"`
-	// Milliseconds is the resolved milliseconds unit style. Mirrors Intl.DurationFormat resolved option "milliseconds".
-	Milliseconds UnitStyle `json:"milliseconds"`
-	// MillisecondsDisplay is the resolved milliseconds display. Mirrors Intl.DurationFormat resolved option "millisecondsDisplay".
-	MillisecondsDisplay Display `json:"millisecondsDisplay"`
-	// Microseconds is the resolved microseconds unit style. Mirrors Intl.DurationFormat resolved option "microseconds".
-	Microseconds UnitStyle `json:"microseconds"`
-	// MicrosecondsDisplay is the resolved microseconds display. Mirrors Intl.DurationFormat resolved option "microsecondsDisplay".
-	MicrosecondsDisplay Display `json:"microsecondsDisplay"`
-	// Nanoseconds is the resolved nanoseconds unit style. Mirrors Intl.DurationFormat resolved option "nanoseconds".
-	Nanoseconds UnitStyle `json:"nanoseconds"`
-	// NanosecondsDisplay is the resolved nanoseconds display. Mirrors Intl.DurationFormat resolved option "nanosecondsDisplay".
-	NanosecondsDisplay Display `json:"nanosecondsDisplay"`
-	// FractionalDigits is the resolved fractional digit count. Mirrors Intl.DurationFormat resolved option "fractionalDigits".
+	Locale              locale.Locale `json:"locale"`
+	NumberingSystem     string        `json:"numberingSystem"`
+	Style               Style         `json:"style"`
+	Years               UnitStyle     `json:"years"`
+	YearsDisplay        Display       `json:"yearsDisplay"`
+	Months              UnitStyle     `json:"months"`
+	MonthsDisplay       Display       `json:"monthsDisplay"`
+	Weeks               UnitStyle     `json:"weeks"`
+	WeeksDisplay        Display       `json:"weeksDisplay"`
+	Days                UnitStyle     `json:"days"`
+	DaysDisplay         Display       `json:"daysDisplay"`
+	Hours               UnitStyle     `json:"hours"`
+	HoursDisplay        Display       `json:"hoursDisplay"`
+	Minutes             UnitStyle     `json:"minutes"`
+	MinutesDisplay      Display       `json:"minutesDisplay"`
+	Seconds             UnitStyle     `json:"seconds"`
+	SecondsDisplay      Display       `json:"secondsDisplay"`
+	Milliseconds        UnitStyle     `json:"milliseconds"`
+	MillisecondsDisplay Display       `json:"millisecondsDisplay"`
+	Microseconds        UnitStyle     `json:"microseconds"`
+	MicrosecondsDisplay Display       `json:"microsecondsDisplay"`
+	Nanoseconds         UnitStyle     `json:"nanoseconds"`
+	NanosecondsDisplay  Display       `json:"nanosecondsDisplay"`
 	// Nil when ECMA-402 omits fractionalDigits because the option was absent.
 	FractionalDigits *int `json:"fractionalDigits,omitempty"`
 }
 
 func (f *DurationFormat) ResolvedOptions() ResolvedOptions {
 	resolved := f.resolved
-	if resolved.FractionalDigits != nil {
-		fractionalDigits := *resolved.FractionalDigits
-		resolved.FractionalDigits = &fractionalDigits
+	resolved.FractionalDigits = ecma402.CloneResolvedScalar(resolved.FractionalDigits)
+	return resolved
+}
+
+func resolvedOptionsForDurationFormat(loc locale.Locale, numberingSystem string, cfg config, unitOptions [unitCount]resolvedUnitConfig) ResolvedOptions {
+	resolved := ResolvedOptions{
+		Locale:          loc,
+		NumberingSystem: numberingSystem,
+		Style:           Style(cfg.style),
+	}
+	for _, spec := range durationUnitSpecs[:] {
+		resolved.setUnitOption(spec.index, unitOptions[spec.index])
+	}
+	if cfg.hasFractionalDigits {
+		resolved.FractionalDigits = ecma402.ResolvedScalar(cfg.fractionalDigits)
 	}
 	return resolved
+}
+
+func (resolved *ResolvedOptions) setUnitOption(index unitIndex, opt resolvedUnitConfig) {
+	style := publicUnitStyle(opt.style)
+	switch index {
+	case yearsIndex:
+		resolved.Years = style
+		resolved.YearsDisplay = opt.display
+	case monthsIndex:
+		resolved.Months = style
+		resolved.MonthsDisplay = opt.display
+	case weeksIndex:
+		resolved.Weeks = style
+		resolved.WeeksDisplay = opt.display
+	case daysIndex:
+		resolved.Days = style
+		resolved.DaysDisplay = opt.display
+	case hoursIndex:
+		resolved.Hours = style
+		resolved.HoursDisplay = opt.display
+	case minutesIndex:
+		resolved.Minutes = style
+		resolved.MinutesDisplay = opt.display
+	case secondsIndex:
+		resolved.Seconds = style
+		resolved.SecondsDisplay = opt.display
+	case millisecondsIndex:
+		resolved.Milliseconds = style
+		resolved.MillisecondsDisplay = opt.display
+	case microsecondsIndex:
+		resolved.Microseconds = style
+		resolved.MicrosecondsDisplay = opt.display
+	case nanosecondsIndex:
+		resolved.Nanoseconds = style
+		resolved.NanosecondsDisplay = opt.display
+	case unitCount:
+	}
+}
+
+func publicUnitStyle(style UnitStyle) UnitStyle {
+	if style == fractionalUnitStyle {
+		return NumericUnitStyle
+	}
+	return style
 }

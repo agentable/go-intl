@@ -18,7 +18,6 @@ func writeRuntimeCLDRFixtures(t *testing.T, root string) {
 	t.Helper()
 	writeBaseCLDRFixture(t, root)
 	writeNumberCLDRFixture(t, root)
-	writeMatchingCLDRFixture(t, root)
 	writeDateCLDRFixture(t, root)
 	writeTimeZoneCLDRFixture(t, root)
 	writeUnitCLDRFixture(t, root)
@@ -69,14 +68,6 @@ func TestRunGeneratesLocalesAndLikelySubtags(t *testing.T) {
 	reconstructed := readGeneratedStringTable(t, filepath.Join(out, "locale", "data.go"))
 	if !containsAll(reconstructed, "und", "en", "zh-Hans") {
 		t.Fatalf("locale/data.go _data missing expected locale tags:\n%s", payload)
-	}
-
-	collations, err := os.ReadFile(filepath.Join(out, "locale", "collations.go"))
-	if err != nil {
-		t.Fatalf("read locale/collations.go: %v", err)
-	}
-	if !containsAll(string(collations), "package cldrlocale", `"compat"`, `"emoji"`, `"phonebk"`) || strings.Contains(string(collations), `"big5han"`) || strings.Contains(string(collations), `"search"`) || strings.Contains(string(collations), `"standard"`) {
-		t.Fatalf("locale/collations.go did not contain supported canonical collations only:\n%s", collations)
 	}
 
 	// The manifest is owned by the locale kernel now.
@@ -185,7 +176,7 @@ func TestRunAcceptsNestedAvailableLocales(t *testing.T) {
 
 func writeBaseCLDRFixture(t *testing.T, root string) {
 	t.Helper()
-	for _, name := range cldr.RequiredPackages {
+	for _, name := range cldr.RequiredPackages() {
 		if err := os.MkdirAll(filepath.Join(root, name), 0o777); err != nil {
 			t.Fatalf("mkdir %s: %v", name, err)
 		}
@@ -205,14 +196,6 @@ func writeBaseCLDRFixture(t *testing.T, root string) {
 	}
 	if err := os.WriteFile(filepath.Join(supp, "likelySubtags.json"), []byte(likely), 0o666); err != nil {
 		t.Fatalf("write likelySubtags: %v", err)
-	}
-	bcp47 := filepath.Join(root, "cldr-bcp47", "bcp47")
-	if err := os.MkdirAll(bcp47, 0o777); err != nil {
-		t.Fatalf("mkdir bcp47: %v", err)
-	}
-	collations := `{"keyword":{"u":{"co":{"_description":"Collation type key","big5han":{"_deprecated":true},"compat":{},"ducet":{},"emoji":{},"eor":{},"phonebk":{"_alias":"phonebook"},"search":{},"standard":{}}}}}`
-	if err := os.WriteFile(filepath.Join(bcp47, "collation.json"), []byte(collations), 0o666); err != nil {
-		t.Fatalf("write collation.json: %v", err)
 	}
 }
 

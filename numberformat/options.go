@@ -1,222 +1,195 @@
 package numberformat
 
 import (
-	"strings"
-
 	"github.com/agentable/go-intl/internal/ecma402"
 	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
-	"github.com/agentable/go-intl/internal/intlerr"
-	"github.com/agentable/go-intl/locale"
 )
 
+const numberFormatOwner = "numberformat"
+
 type Options struct {
-	Style                    Style
-	Currency                 Currency
-	CurrencyDisplay          CurrencyDisplay
-	CurrencySign             CurrencySign
-	Unit                     Unit
-	UnitDisplay              UnitDisplay
+	Style                    *string
+	Currency                 *string
+	CurrencyDisplay          *string
+	CurrencySign             *string
+	Unit                     *string
+	UnitDisplay              *string
 	MinimumIntegerDigits     *int
 	MinimumFractionDigits    *int
 	MaximumFractionDigits    *int
 	MinimumSignificantDigits *int
 	MaximumSignificantDigits *int
 	RoundingIncrement        *int
-	RoundingPriority         RoundingPriority
-	RoundingMode             RoundingMode
-	TrailingZeroDisplay      TrailingZeroDisplay
-	Notation                 Notation
-	CompactDisplay           CompactDisplay
-	UseGrouping              UseGrouping
-	SignDisplay              SignDisplay
-	LocaleMatcher            LocaleMatcher
-	NumberingSystem          string
+	RoundingPriority         *string
+	RoundingMode             *string
+	TrailingZeroDisplay      *string
+	Notation                 *string
+	CompactDisplay           *string
+	UseGrouping              *string
+	SignDisplay              *string
+	LocaleMatcher            *string
+	NumberingSystem          *string
 }
 
 type config struct {
-	style               string
-	currency            string
-	currencyDisplay     string
-	currencySign        string
-	unit                string
-	unitDisplay         string
-	minIntDigits        int
-	minFracDigits       int
-	maxFracDigits       int
-	hasMinFracDigits    bool
-	hasMaxFracDigits    bool
-	minSigDigits        int
-	maxSigDigits        int
-	hasMinSigDigits     bool
-	hasMaxSigDigits     bool
-	roundingPriority    string
-	roundingIncrement   int
-	roundingMode        string
-	roundingType        ecma402nf.RoundingType
-	trailingZeroDisplay string
-	notation            string
-	compactDisplay      string
-	useGrouping         string
-	signDisplay         string
-	localeMatcher       string
-	numberingSystem     string
+	style              string
+	currency           string
+	currencySet        bool
+	currencyDisplay    string
+	currencySign       string
+	unit               string
+	unitSet            bool
+	unitDisplay        string
+	digits             ecma402nf.DigitOptionConfig
+	notation           string
+	compactDisplay     string
+	useGrouping        string
+	signDisplay        string
+	localeMatcher      string
+	localeMatcherSet   bool
+	numberingSystem    string
+	numberingSystemSet bool
 }
 
 func defaultConfig() config {
 	return config{
-		style:               string(DecimalStyle),
-		currencyDisplay:     string(CurrencyDisplaySymbol),
-		currencySign:        string(StandardCurrencySign),
-		unitDisplay:         string(ShortUnitDisplay),
-		minIntDigits:        1,
-		minFracDigits:       0,
-		maxFracDigits:       3,
-		roundingPriority:    string(AutoRoundingPriority),
-		roundingIncrement:   1,
-		roundingMode:        string(HalfExpandRoundingMode),
-		trailingZeroDisplay: string(AutoTrailingZeroDisplay),
-		notation:            string(StandardNotation),
-		compactDisplay:      string(ShortCompactDisplay),
-		useGrouping:         string(UseGroupingAuto),
-		signDisplay:         string(AutoSignDisplay),
-		localeMatcher:       string(BestFitLocaleMatcher),
+		style:           string(DecimalStyle),
+		currencyDisplay: string(CurrencyDisplaySymbol),
+		currencySign:    string(StandardCurrencySign),
+		unitDisplay:     string(ShortUnitDisplay),
+		digits:          ecma402nf.DefaultDigitOptionConfig(),
+		notation:        string(StandardNotation),
+		compactDisplay:  string(ShortCompactDisplay),
+		useGrouping:     string(UseGroupingAuto),
+		signDisplay:     string(AutoSignDisplay),
+		localeMatcher:   string(BestFitLocaleMatcher),
 	}
 }
 
 func applyOptions(cfg *config, opts Options) {
-	if opts.Style != "" {
-		cfg.style = string(opts.Style)
-	}
-	if opts.Currency != "" {
-		cfg.currency = strings.ToUpper(string(opts.Currency))
-	}
-	if opts.CurrencyDisplay != "" {
-		cfg.currencyDisplay = string(opts.CurrencyDisplay)
-	}
-	if opts.CurrencySign != "" {
-		cfg.currencySign = string(opts.CurrencySign)
-	}
-	if opts.Unit != "" {
-		cfg.unit = string(opts.Unit)
-	}
-	if opts.UnitDisplay != "" {
-		cfg.unitDisplay = string(opts.UnitDisplay)
-	}
-	if opts.MinimumIntegerDigits != nil {
-		cfg.minIntDigits = *opts.MinimumIntegerDigits
-	}
-	if opts.MinimumFractionDigits != nil {
-		cfg.minFracDigits = *opts.MinimumFractionDigits
-		cfg.hasMinFracDigits = true
-	}
-	if opts.MaximumFractionDigits != nil {
-		cfg.maxFracDigits = *opts.MaximumFractionDigits
-		cfg.hasMaxFracDigits = true
-	}
-	if opts.MinimumSignificantDigits != nil {
-		cfg.minSigDigits = *opts.MinimumSignificantDigits
-		cfg.hasMinSigDigits = true
-	}
-	if opts.MaximumSignificantDigits != nil {
-		cfg.maxSigDigits = *opts.MaximumSignificantDigits
-		cfg.hasMaxSigDigits = true
-	}
-	if opts.RoundingIncrement != nil {
-		cfg.roundingIncrement = *opts.RoundingIncrement
-	}
-	if opts.RoundingPriority != "" {
-		cfg.roundingPriority = string(opts.RoundingPriority)
-	}
-	if opts.RoundingMode != "" {
-		cfg.roundingMode = string(opts.RoundingMode)
-	}
-	if opts.TrailingZeroDisplay != "" {
-		cfg.trailingZeroDisplay = string(opts.TrailingZeroDisplay)
-	}
-	if opts.Notation != "" {
-		cfg.notation = string(opts.Notation)
-	}
-	if opts.CompactDisplay != "" {
-		cfg.compactDisplay = string(opts.CompactDisplay)
-	}
-	if opts.UseGrouping != "" {
-		cfg.useGrouping = string(opts.UseGrouping)
-	}
-	if opts.SignDisplay != "" {
-		cfg.signDisplay = string(opts.SignDisplay)
-	}
-	if opts.LocaleMatcher != "" {
-		cfg.localeMatcher = string(opts.LocaleMatcher)
-	}
-	if opts.NumberingSystem != "" {
-		cfg.numberingSystem = opts.NumberingSystem
-	}
+	ecma402.ApplyOption(&cfg.style, opts.Style)
+	ecma402.ApplyCurrencyCodeOptionInput(&cfg.currency, &cfg.currencySet, opts.Currency)
+	ecma402.ApplyOption(&cfg.currencyDisplay, opts.CurrencyDisplay)
+	ecma402.ApplyOption(&cfg.currencySign, opts.CurrencySign)
+	ecma402.ApplyOptionInput(&cfg.unit, &cfg.unitSet, opts.Unit)
+	ecma402.ApplyOption(&cfg.unitDisplay, opts.UnitDisplay)
+	cfg.digits.ApplyOverrides(ecma402nf.DigitOptionOverrides{
+		MinimumIntegerDigits:     opts.MinimumIntegerDigits,
+		MinimumFractionDigits:    opts.MinimumFractionDigits,
+		MaximumFractionDigits:    opts.MaximumFractionDigits,
+		MinimumSignificantDigits: opts.MinimumSignificantDigits,
+		MaximumSignificantDigits: opts.MaximumSignificantDigits,
+		RoundingIncrement:        opts.RoundingIncrement,
+		RoundingPriority:         opts.RoundingPriority,
+		RoundingMode:             opts.RoundingMode,
+		TrailingZeroDisplay:      opts.TrailingZeroDisplay,
+	})
+	ecma402.ApplyOption(&cfg.notation, opts.Notation)
+	ecma402.ApplyOption(&cfg.compactDisplay, opts.CompactDisplay)
+	ecma402.ApplyOption(&cfg.useGrouping, opts.UseGrouping)
+	ecma402.ApplyOption(&cfg.signDisplay, opts.SignDisplay)
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOptionInput(&cfg.numberingSystem, &cfg.numberingSystemSet, opts.NumberingSystem)
 }
 
-func (c config) validate(loc locale.Locale) error {
-	checks := []ecma402.StringOption{
-		ecma402.RequiredStringOption("style", c.style, "decimal", "percent", "currency", "unit"),
-		ecma402.RequiredStringOption("notation", c.notation, "standard", "scientific", "engineering", "compact"),
-		ecma402.RequiredStringOption("compactDisplay", c.compactDisplay, "short", "long"),
-		ecma402.RequiredStringOption("currencyDisplay", c.currencyDisplay, "code", "symbol", "narrowSymbol", "name"),
-		ecma402.RequiredStringOption("currencySign", c.currencySign, "standard", "accounting"),
-		ecma402.RequiredStringOption("unitDisplay", c.unitDisplay, "short", "narrow", "long"),
-		ecma402.RequiredStringOption("signDisplay", c.signDisplay, "auto", "always", "exceptZero", "negative", "never"),
-		ecma402.RequiredStringOption("useGrouping", c.useGrouping, "min2", "auto", "always", "false"),
-		ecma402.LocaleMatcherOption(c.localeMatcher),
+func (c config) validate(locName string) error {
+	if err := ecma402.ValidateStringOptions(
+		numberFormatOwner,
+		locName,
+		styleOption(c.style),
+		ecma402nf.NotationOption(c.notation),
+		ecma402nf.CompactDisplayOption(c.compactDisplay),
+		currencyDisplayOption(c.currencyDisplay),
+		currencySignOption(c.currencySign),
+		unitDisplayOption(c.unitDisplay),
+		signDisplayOption(c.signDisplay),
+		useGroupingOption(c.useGrouping),
+		ecma402.LocaleMatcherOptionInput(c.localeMatcher, c.localeMatcherSet),
+	); err != nil {
+		return err
 	}
-	if check, ok := ecma402.InvalidStringOption(checks...); ok {
-		return invalidOption(check.Name, check.Value, loc)
+	if err := ecma402.ValidateUnicodeTypeOptionInput(numberFormatOwner, "numberingSystem", c.numberingSystem, locName, c.numberingSystemSet); err != nil {
+		return err
 	}
-	if c.numberingSystem != "" && !ecma402.IsWellFormedUnicodeType(c.numberingSystem) {
-		return invalidOption("numberingSystem", c.numberingSystem, loc)
+	if c.currencySet && !ecma402.IsWellFormedCurrencyCode(c.currency) {
+		return ecma402.InvalidCurrencyCodeOptionError(numberFormatOwner, "currency", c.currency, locName)
 	}
-	if c.style == "currency" && c.currency == "" {
-		return invalidOption("currency", c.currency, loc)
+	if c.style == string(CurrencyStyle) && !c.currencySet {
+		return missingStyleOptionError("currency", `a currency code when style is "currency"`, locName)
 	}
-	if c.currency != "" && !ecma402.IsWellFormedCurrencyCode(c.currency) {
-		return invalidOption("currency", c.currency, loc)
+	if c.unitSet && !ecma402.IsWellFormedUnitIdentifier(c.unit) {
+		return ecma402.InvalidUnitIdentifierOptionError(numberFormatOwner, "unit", c.unit, locName)
 	}
-	if c.style == "unit" && c.unit == "" {
-		return invalidOption("unit", c.unit, loc)
-	}
-	if c.unit != "" && !ecma402.IsWellFormedUnitIdentifier(c.unit) {
-		return invalidOption("unit", c.unit, loc)
+	if c.style == string(UnitStyle) && !c.unitSet {
+		return missingStyleOptionError("unit", `a sanctioned unit identifier when style is "unit"`, locName)
 	}
 	return nil
 }
 
-func (c config) digitOptionInput() ecma402nf.DigitOptionInput {
-	return ecma402nf.DigitOptionInput{
-		MinimumIntegerDigits:        c.minIntDigits,
-		MinimumFractionDigits:       c.minFracDigits,
-		MaximumFractionDigits:       c.maxFracDigits,
-		MinimumSignificantDigits:    c.minSigDigits,
-		MaximumSignificantDigits:    c.maxSigDigits,
-		RoundingIncrement:           c.roundingIncrement,
-		RoundingMode:                c.roundingMode,
-		RoundingPriority:            c.roundingPriority,
-		TrailingZeroDisplay:         c.trailingZeroDisplay,
-		HasMinimumFractionDigits:    c.hasMinFracDigits,
-		HasMaximumFractionDigits:    c.hasMaxFracDigits,
-		HasMinimumSignificantDigits: c.hasMinSigDigits,
-		HasMaximumSignificantDigits: c.hasMaxSigDigits,
-	}
+func styleOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption(
+		"style",
+		value,
+		string(DecimalStyle),
+		string(PercentStyle),
+		string(CurrencyStyle),
+		string(UnitStyle),
+	)
 }
 
-func (c *config) applyResolvedDigits(digits ecma402nf.ResolvedDigitOptions) {
-	c.minIntDigits = digits.MinimumIntegerDigits
-	c.minFracDigits = digits.MinimumFractionDigits
-	c.maxFracDigits = digits.MaximumFractionDigits
-	c.minSigDigits = digits.MinimumSignificantDigits
-	c.maxSigDigits = digits.MaximumSignificantDigits
-	c.roundingIncrement = digits.RoundingIncrement
-	c.roundingMode = digits.RoundingMode
-	c.roundingPriority = digits.RoundingPriority
-	c.trailingZeroDisplay = digits.TrailingZeroDisplay
-	c.roundingType = digits.RoundingType
+func currencyDisplayOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption(
+		"currencyDisplay",
+		value,
+		string(CurrencyDisplayCode),
+		string(CurrencyDisplaySymbol),
+		string(CurrencyDisplayNarrowSymbol),
+		string(CurrencyDisplayName),
+	)
 }
 
-func invalidOption(name, value string, loc locale.Locale) error {
-	return ecma402.InvalidOptionError("numberformat", name, value, loc.Tag().String(), intlerr.ErrInvalidOption)
+func currencySignOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption(
+		"currencySign",
+		value,
+		string(StandardCurrencySign),
+		string(AccountingCurrencySign),
+	)
+}
+
+func unitDisplayOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption(
+		"unitDisplay",
+		value,
+		string(ShortUnitDisplay),
+		string(NarrowUnitDisplay),
+		string(LongUnitDisplay),
+	)
+}
+
+func signDisplayOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption(
+		"signDisplay",
+		value,
+		string(AutoSignDisplay),
+		string(AlwaysSignDisplay),
+		string(ExceptZeroSignDisplay),
+		string(NegativeSignDisplay),
+		string(NeverSignDisplay),
+	)
+}
+
+func useGroupingOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption(
+		"useGrouping",
+		value,
+		string(UseGroupingMin2),
+		string(UseGroupingAuto),
+		string(UseGroupingAlways),
+		string(UseGroupingFalse),
+	)
+}
+
+func missingStyleOptionError(name, expected, loc string) error {
+	return ecma402.InvalidOptionErrorExpected(numberFormatOwner, name, "", loc, expected, nil)
 }

@@ -1,7 +1,6 @@
 package codegen
 
 import (
-	"bytes"
 	"fmt"
 	"maps"
 	"slices"
@@ -10,95 +9,81 @@ import (
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
 )
 
+const (
+	unitPatternLocaleShift = 16
+	unitPatternUnitShift   = 8
+	unitPatternWidthShift  = 4
+
+	unitPatternUnitIDMax    = 1<<8 - 1
+	unitPatternLocaleTagMax = 1 << 16
+	unitPatternLocaleIDMax  = unitPatternLocaleTagMax - 1
+)
+
 // encodeUnits renders the const-only payload for the unit domain. It emits a
 // private _data string table plus three independent blobs, each prefixed by its
 // record count:
 //
-//   - _unitPatternBlob:   sorted (loc<<16|unit<<8|width<<4|plural) delta keys
-//     paired with pattern StringRefs.
-//   - _compoundUnitBlob:  sorted (loc<<4|width) delta keys paired with pattern
-//     StringRefs.
+//   - _unitPatternBlob:   sorted packed unit-pattern delta keys paired with
+//     pattern StringRefs.
+//   - _compoundUnitBlob:  sorted packed compound-unit delta keys paired with
+//     pattern StringRefs.
 //   - _unitNameBlob:      the sorted unit-name table (id = index+1), so the
 //     decoder can rebuild the name->id map the pattern key packing needs.
 //   - _unitSupportedBlob: the unit-supported locale tags in sorted-locale order,
 //     a narrow index so SupportedLocales never decodes the pattern blobs.
 //
-// The keys are emitted in the exact ascending order the pattern rows already
-// arrive in, so the delta stream is monotonic by construction and the runtime
-// binary search sees the same order as the legacy literal table.
+// The delta primitive sorts rows by their packed keys, so the runtime binary
+// search follows the payload order without row builders owning wire-order
+// knowledge.
 func encodeUnits(input RuntimeInput, table *StringTable) ([]byte, error) {
 	data := input.Units
 	localeIndex := localeIndexMap(input.Locales)
-	unitIDs := unitPatternIDs(data)
+	locales := sortedLocaleKeys(data)
+	unitNames := sortedUnitPatternNames(data)
+	unitIDs := unitPatternIDs(unitNames)
 
-	// Field-width guards. The unit pattern key packs four fields into a uint32:
-	// loc<<16 | unit<<8 | width<<4 | plural. unit occupies the 8-bit slot, so a
-	// name id above 255 would collide into the width field; loc occupies the
-	// upper 16 bits, so an index above 65535 would overflow the uint32 key (and
-	// the runtime Locale is a uint16, so it cannot represent such an index). The
-	// width and plural ordinals are bounded to 1..3 and 1..6 by their respective
-	// ordinal switches, which panic on any unexpected value.
-	if n := len(sortedUnitPatternNames(data)); n > 255 {
-		panic(fmt.Sprintf("unit name id table has %d entries; the 8-bit unit field in the pattern key holds at most 255", n))
+	// Field-width guards. The unit pattern key packs loc, unit id, width, and
+	// plural into a uint32. The runtime Locale is also uint16, so the generated
+	// locale registry cannot exceed the locale slot even before key packing.
+	if n := len(unitNames); n > unitPatternUnitIDMax {
+		return nil, fmt.Errorf("unit name ID table has %d entries; the 8-bit unit field in the pattern key holds at most %d", n, unitPatternUnitIDMax)
 	}
-	if n := len(input.Locales.Tags); n > 65535 {
-		panic(fmt.Sprintf("locale table has %d tags; the 16-bit locale field in the unit pattern key holds at most 65535", n))
+	if n := len(input.Locales.Tags); n > unitPatternLocaleTagMax {
+		return nil, fmt.Errorf("locale table has %d tags; the 16-bit locale field in the unit pattern key holds at most %d", n, unitPatternLocaleTagMax)
 	}
 
 	var patterns blobEncoder
 	patternRows := unitPatternRows(data)
-	patterns.appendUvarint(uint64(len(patternRows)))
-	for _, row := range patternRows {
-		key := unitPatternKeyValue(mustLocaleIndex(localeIndex, row.locale), unitIDs[row.unit], row.width, row.plural)
-		patterns.appendDelta(key)
+	if err := appendUint32DeltaSlice(&patterns, patternRows, func(row unitPatternRow) (uint32, error) {
+		return unitPatternKeyValue(localeIndex, unitIDs, row)
+	}, func(row unitPatternRow) {
 		patterns.appendStringRef(table.Add(row.pattern))
+	}); err != nil {
+		return nil, err
 	}
 
 	var compound blobEncoder
 	compoundRows := compoundUnitPatternRows(data)
-	compound.appendUvarint(uint64(len(compoundRows)))
-	for _, row := range compoundRows {
-		key := compoundUnitKeyValue(mustLocaleIndex(localeIndex, row.locale), row.width)
-		compound.appendDelta(key)
+	if err := appendUint32DeltaSlice(&compound, compoundRows, func(row compoundUnitPatternRow) (uint32, error) {
+		return compoundUnitKeyValue(localeIndex, row)
+	}, func(row compoundUnitPatternRow) {
 		compound.appendStringRef(table.Add(row.pattern))
+	}); err != nil {
+		return nil, err
 	}
 
 	var names blobEncoder
-	sortedNames := sortedUnitPatternNames(data)
-	names.appendUvarint(uint64(len(sortedNames)))
-	for _, name := range sortedNames {
-		names.appendStringRef(table.Add(name))
-	}
+	names.appendStringRefSlice(unitNames, table)
 
 	var supported blobEncoder
-	supportedTags := unitSupportedLocaleTags(data)
-	supported.appendUvarint(uint64(len(supportedTags)))
-	for _, tag := range supportedTags {
-		supported.appendStringRef(table.Add(tag))
-	}
+	supported.appendStringRefSlice(locales, table)
 
-	var b bytes.Buffer
-	b.WriteString("package unit\n\n")
-	if err := table.EmitDataConst(&b, "_data"); err != nil {
-		return nil, err
-	}
-	b.WriteString("\n")
-	if err := emitStringConst(&b, "_unitPatternBlob", string(patterns.bytes())); err != nil {
-		return nil, err
-	}
-	b.WriteString("\n")
-	if err := emitStringConst(&b, "_compoundUnitBlob", string(compound.bytes())); err != nil {
-		return nil, err
-	}
-	b.WriteString("\n")
-	if err := emitStringConst(&b, "_unitNameBlob", string(names.bytes())); err != nil {
-		return nil, err
-	}
-	b.WriteString("\n")
-	if err := emitStringConst(&b, "_unitSupportedBlob", string(supported.bytes())); err != nil {
-		return nil, err
-	}
-	return FormatFile(b.Bytes())
+	return renderPayloadFile("unit", table,
+		payloadBlob{"_unitPatternBlob", patterns.bytes()},
+		payloadBlob{"_compoundUnitBlob", compound.bytes()},
+		payloadBlob{"_unitNameBlob", names.bytes()},
+		payloadBlob{"_unitSupportedBlob", supported.bytes()},
+	)
 }
 
 // localeIndexMap mirrors the runtime localeIndex: every available locale tag
@@ -113,67 +98,56 @@ func localeIndexMap(locales extract.Locales) map[string]uint64 {
 	return idx
 }
 
-// mustLocaleIndex resolves a data locale against the kernel tag set. A locale
-// present in domain data but absent from the kernel registry would silently
-// collide onto index 0 ("und") and overwrite its rows; fail loudly at
-// generation time instead.
-func mustLocaleIndex(idx map[string]uint64, locale string) uint64 {
-	i, ok := idx[locale]
-	if !ok {
-		panic("locale " + locale + " missing from kernel locale registry")
-	}
-	return i
-}
-
 // unitPatternKeyValue packs a unit pattern key identically to the runtime
-// makeUnitPatternKey: loc<<16 | unit<<8 | width<<4 | plural.
-func unitPatternKeyValue(loc uint64, unitID int, width, plural string) uint64 {
-	return loc<<16 | uint64(unitID)<<8 | unitWidthOrdinal(width)<<4 | unitPluralOrdinal(plural)
+// makeUnitPatternKey.
+func unitPatternKeyValue(localeIndex map[string]uint64, unitIDs map[string]int, row unitPatternRow) (uint32, error) {
+	loc, err := localeIndexValue(localeIndex, row.locale)
+	if err != nil {
+		return 0, err
+	}
+	unitID, ok := unitIDs[row.unit]
+	if !ok {
+		return 0, fmt.Errorf("unit %q missing from unit ID table", row.unit)
+	}
+	width, ok := unitWidthOrdinal(row.width)
+	if !ok {
+		return 0, fmt.Errorf("unknown unit width %q", row.width)
+	}
+	plural, ok := unitPluralOrdinal(row.plural)
+	if !ok {
+		return 0, fmt.Errorf("unknown unit plural %q", row.plural)
+	}
+	return uint32(loc<<unitPatternLocaleShift | uint64(unitID)<<unitPatternUnitShift | width<<unitPatternWidthShift | plural), nil
 }
 
 // compoundUnitKeyValue packs a compound key identically to the runtime
-// makeCompoundUnitPatternKey: loc<<4 | width.
-func compoundUnitKeyValue(loc uint64, width string) uint64 {
-	return loc<<4 | unitWidthOrdinal(width)
-}
-
-func unitWidthOrdinal(width string) uint64 {
-	switch width {
-	case "long":
-		return 1
-	case "narrow":
-		return 2
-	case "short":
-		return 3
-	default:
-		panic("unknown unit width " + width)
+// makeCompoundUnitPatternKey.
+func compoundUnitKeyValue(localeIndex map[string]uint64, row compoundUnitPatternRow) (uint32, error) {
+	loc, err := localeIndexValue(localeIndex, row.locale)
+	if err != nil {
+		return 0, err
 	}
-}
-
-func unitPluralOrdinal(plural string) uint64 {
-	switch plural {
-	case "few":
-		return 1
-	case "many":
-		return 2
-	case "one":
-		return 3
-	case "other":
-		return 4
-	case "two":
-		return 5
-	case "zero":
-		return 6
-	default:
-		panic("unknown unit plural " + plural)
+	width, ok := unitWidthOrdinal(row.width)
+	if !ok {
+		return 0, fmt.Errorf("unknown unit width %q", row.width)
 	}
+	return uint32(loc<<unitPatternWidthShift | width), nil
 }
 
-// unitSupportedLocaleTags returns the unit-supported locale tags in
-// sorted-locale order, matching the legacy unitSupportedLocaleTags runtime
-// accessor (which walked unitLocales in the same order).
-func unitSupportedLocaleTags(data extract.Units) []string {
-	return sortedLocaleKeys(data)
+func unitWidthOrdinal(width string) (uint64, bool) {
+	return ordinalIn(unitWidthOrder[:], width)
+}
+
+func unitPluralOrdinal(plural string) (uint64, bool) {
+	return ordinalIn(unitPluralOrder[:], plural)
+}
+
+func ordinalIn(values []string, value string) (uint64, bool) {
+	idx := slices.Index(values, value)
+	if idx < 0 {
+		return 0, false
+	}
+	return uint64(idx + 1), true
 }
 
 type unitPatternRow struct {
@@ -200,9 +174,9 @@ func sortedUnitPatternNames(data extract.Units) []string {
 	return slices.Sorted(maps.Keys(seen))
 }
 
-func unitPatternIDs(data extract.Units) map[string]int {
+func unitPatternIDs(names []string) map[string]int {
 	ids := map[string]int{}
-	for i, unit := range sortedUnitPatternNames(data) {
+	for i, unit := range names {
 		ids[unit] = i + 1
 	}
 	return ids
@@ -213,13 +187,13 @@ func unitPatternRows(data extract.Units) []unitPatternRow {
 	for _, locale := range sortedLocaleKeys(data) {
 		for _, unit := range slices.Sorted(maps.Keys(data[locale])) {
 			unitData := data[locale][unit]
-			for _, width := range unitWidthOrder {
+			for _, width := range unitWidthOrder[:] {
 				widthPatterns := unitData.Patterns[width]
 				if len(widthPatterns) == 0 {
 					continue
 				}
 				patterns := widthPatterns[unit]
-				for _, plural := range unitPluralOrder {
+				for _, plural := range unitPluralOrder[:] {
 					if pattern := patterns[plural]; pattern != "" {
 						rows = append(rows, unitPatternRow{locale: locale, unit: unit, width: width, plural: plural, pattern: pattern})
 					}
@@ -234,7 +208,7 @@ func compoundUnitPatternRows(data extract.Units) []compoundUnitPatternRow {
 	var rows []compoundUnitPatternRow
 	for _, locale := range sortedLocaleKeys(data) {
 		compounds := compoundPatternsForLocale(data[locale])
-		for _, width := range unitWidthOrder {
+		for _, width := range unitWidthOrder[:] {
 			if pattern := compounds[width]; pattern != "" {
 				rows = append(rows, compoundUnitPatternRow{locale: locale, width: width, pattern: pattern})
 			}
@@ -246,7 +220,7 @@ func compoundUnitPatternRows(data extract.Units) []compoundUnitPatternRow {
 func compoundPatternsForLocale(units cldr.Units) map[string]string {
 	out := map[string]string{}
 	for _, unit := range slices.Sorted(maps.Keys(units)) {
-		for _, width := range unitWidthOrder {
+		for _, width := range unitWidthOrder[:] {
 			if out[width] == "" {
 				out[width] = units[unit].Compound[width]
 			}
@@ -255,6 +229,6 @@ func compoundPatternsForLocale(units cldr.Units) map[string]string {
 	return out
 }
 
-var unitWidthOrder = []string{"long", "narrow", "short"}
+var unitWidthOrder = [...]string{"long", "narrow", "short"}
 
-var unitPluralOrder = []string{"few", "many", "one", "other", "two", "zero"}
+var unitPluralOrder = [...]string{"few", "many", "one", "other", "two", "zero"}

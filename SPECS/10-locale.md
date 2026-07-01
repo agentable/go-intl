@@ -96,13 +96,16 @@ func FromTag(tag language.Tag, opts Options) (Locale, error)
 func ParseList(tags ...string) (List, error)
 
 type Options struct {
-    Calendar        string
-    Collation       string
-    HourCycle       string
-    CaseFirst       string
+    Language        *string
+    Script          *string
+    Region          *string
+    Calendar        *string
+    Collation       *string
+    HourCycle       *string
+    CaseFirst       *string
     Numeric         *bool
-    NumberingSystem string
-    FirstDayOfWeek  string
+    NumberingSystem *string
+    FirstDayOfWeek  *string
 }
 ```
 
@@ -111,6 +114,14 @@ type Options struct {
 `FromTag(l.Tag()).Tag() == l.Tag()`. Other `x/text` types, including
 `display.Tags`, `collate.Collator`, `transform.Transformer`, `message.Printer`
 etc., can only be left as implementation details within unexported fields, unexported functions or internal packages.
+BCP 47 language, script, region, and variant subtag shape checks live in
+`internal/localeid`; constructor options, locale parsing, and internal code
+canonicalization must not grow parallel grammar copies. Locale info methods that
+interpret Unicode subdivision values (`rg` / `sd` region prefixes), locale
+matching available-locale aliases, and CLDR accessors that interpret script or
+region subtags (`DateLocaleData` hour-cycle lookup and DisplayNames
+language-region composition) also reuse `internal/localeid` rather than carrying
+package-local ASCII/length grammar.
 
 Calling example:
 
@@ -119,7 +130,7 @@ loc, err := locale.Parse("en-US-u-hc-h23-ca-buddhist")
 fmt.Println(loc.HourCycle())   // "h23"
 fmt.Println(loc.Calendar())    // "buddhist"
 
-loc2, err := locale.New("ja", locale.Options{Calendar: "japanese"})
+loc2, err := locale.New("ja", locale.Options{Calendar: gointl.String("japanese")})
 fmt.Println(loc2.String())   // "ja-u-ca-japanese"
 ```
 
@@ -153,13 +164,14 @@ fmt.Println(loc2.String())   // "ja-u-ca-japanese"
 
 | Field | Validation Rules |
 |------|---------|
-| `Calendar` | When not empty: must match BCP 47 type sub-tag syntax (2–8 characters alphanumeric); **does not** verify whether it exists in CLDR (formatter layer is responsible) |
-| `Collation` | When not empty: Same as above |
-| `HourCycle` | When not empty: required ∈ {`"h11"`, `"h12"`, `"h23"`, `"h24"`} |
-| `CaseFirst` | When not empty: must ∈ {`"upper"`, `"lower"`, `"false"`} |
-| `Numeric` | bool, no verification |
-| `NumberingSystem` | When not empty: BCP 47 type subtag syntax |
-| `FirstDayOfWeek` | When not empty: must ∈ {`"mon"`, `"tue"`, `"wed"`, `"thu"`, `"fri"`, `"sat"`, `"sun"`, `"0"`, `"1"`, `"2"`, `"3"`, `"4"`, `"5"`, `"6"`, `"7"`};Numbers normalized to ECMA-402 `WeekdayToUValue` |
+| `Language` / `Script` / `Region` | When the pointer is non-nil: the explicit string must be non-empty and form a valid BCP 47 language identifier with the retained subtags |
+| `Calendar` | When the pointer is non-nil: the explicit string must be non-empty and match BCP 47 type sub-tag syntax (2–8 characters alphanumeric); **does not** verify whether it exists in CLDR (formatter layer is responsible) |
+| `Collation` | When the pointer is non-nil: same as above |
+| `HourCycle` | When the pointer is non-nil: required ∈ {`"h11"`, `"h12"`, `"h23"`, `"h24"`} |
+| `CaseFirst` | When the pointer is non-nil: must ∈ {`"upper"`, `"lower"`, `"false"`} |
+| `Numeric` | `nil` means omitted; non-nil `true` writes `-u-kn`; non-nil `false` writes `-u-kn-false` |
+| `NumberingSystem` | When the pointer is non-nil: the explicit string must be non-empty and match BCP 47 type subtag syntax |
+| `FirstDayOfWeek` | When the pointer is non-nil: the explicit string must be non-empty and ∈ {`"mon"`, `"tue"`, `"wed"`, `"thu"`, `"fri"`, `"sat"`, `"sun"`, `"0"`, `"1"`, `"2"`, `"3"`, `"4"`, `"5"`, `"6"`, `"7"`}; numbers normalize to ECMA-402 `WeekdayToUValue` |
 
 Verification failure returns an error matching the root error category. Parsing failed to match `gointl.ErrInvalidValue`; constructor option failed to match `gointl.ErrInvalidOption`.
 
@@ -186,8 +198,8 @@ func (l Locale) String() string
 1. **subtag order**:`language[-script][-region][-variants...]` (given by `language.Tag.String()`).
 2. **`-u-` extended keys in dictionary order**: `ca` < `co` < `fw` < `hc` < `kf` < `kn` < `nu`.
 3. **`-u-` extended value lowercase** (`Calendar="GREGORY"` output `-u-ca-gregory`).
-4. **Empty fields are not output** (`Calendar=""` does not write `-u-ca-`).
-5. **Numeric=true outputs `-u-kn`** (no value table true, consistent with spec); Numeric=false does not output (default value is omitted).
+4. **Empty internal extension fields are not output**; constructor option pointers with explicit `""` are rejected before `String()` canonicalization.
+5. **Numeric=true outputs `-u-kn`** (no value table true, consistent with spec); explicit Numeric=false outputs `-u-kn-false`; omitted Numeric does not output.
 6. **CaseFirst=`"false"` outputs `-u-kf-false`** (literal legal value).
 7. **Calendar / NumberingSystem / Collation alias normalization** (`gregorian` → `gregory`, `islamic-civil` → `islamicc`).
 8. **Duplicate Unicode extension keys are first-wins**, matching ECMA-402 `UnicodeExtensionComponents` and native engine behavior (`en-u-ca-buddhist-ca-gregory` canonicalizes to `en-u-ca-buddhist`).
@@ -201,8 +213,8 @@ Example:
 | `Parse("en-US-u-hc-h23")` | `"en-US-u-hc-h23"` |
 | `Parse("en-us-U-Ca-Gregorian-Hc-H23")` | `"en-US-u-ca-gregory-hc-h23"` |
 | `Parse("en-US-u-kn")` | `"en-US-u-kn"` |
-| `Parse("en-US-u-kn-false")` | `"en-US"` (default value omitted) |
-| `New("ja", Options{Calendar: "japanese", HourCycle: "h23"})` | `"ja-u-ca-japanese-hc-h23"` |
+| `Parse("en-US-u-kn-false")` | `"en-US-u-kn-false"` |
+| `New("ja", Options{Calendar: gointl.String("japanese"), HourCycle: gointl.String("h23")})` | `"ja-u-ca-japanese-hc-h23"` |
 
 ### 3.3 `MarshalText` / `UnmarshalText`
 
@@ -440,13 +452,16 @@ Sorting **should** be in lexicographic order `Locale.String()`; callers use `sli
 ```go
 // locale/locale.go (signature)
 type Options struct {
-    Calendar        string
-    Collation       string
-    HourCycle       string
-    CaseFirst       string
+    Language        *string
+    Script          *string
+    Region          *string
+    Calendar        *string
+    Collation       *string
+    HourCycle       *string
+    CaseFirst       *string
     Numeric         *bool
-    NumberingSystem string
-    FirstDayOfWeek  string
+    NumberingSystem *string
+    FirstDayOfWeek  *string
 }
 ```
 
@@ -454,12 +469,18 @@ Call example:
 
 ```go
 loc, err := locale.New("en", locale.Options{
-    Calendar:        "gregory",
-    HourCycle:       "h23",
+    Calendar:        gointl.String("gregory"),
+    HourCycle:       gointl.String("h23"),
     Numeric:         gointl.Bool(true),
-    NumberingSystem: "latn",
+    NumberingSystem: gointl.String("latn"),
 })
 ```
+
+`nil` string option pointers mean the property was omitted. A non-nil pointer to `""` means the caller explicitly supplied an empty string and must be rejected with an invalid-option error, matching `Intl.Locale` option presence semantics.
+
+Variants are not constructor options. They are part of the BCP 47 language tag:
+`locale.Parse("sl-rozaj")` and `locale.New("sl-rozaj", locale.Options{})`
+preserve them, and `Locale.Variants()` exposes them as a read-only view.
 
 ### 7.2 Verification timing
 
@@ -548,7 +569,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 ### Structure
 
 - [ ] `locale.Locale` expresses `Intl.Locale` read-only object using unexported `language.Tag` + extension state, consistent with §1.1 getter.
-- [ ] `Numeric()` getter returns `bool`;`Options.Numeric *bool` expresses the omitted vs explicit value of the constructor boundary.
+- [ ] `Numeric()` getter returns `bool`; `Options.Numeric *bool` expresses omitted vs explicit boolean constructor input, while string option pointers express omitted vs explicit string constructor input.
 
 ### Analysis
 
@@ -561,12 +582,13 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 - [ ] If parsing fails, an error with `errors.Is(err, gointl.ErrInvalidValue)` being true is returned.
 - [ ] Accepts spec aliases: `gregorian` → `gregory`, `islamic-civil` → `islamicc` (test coverage).
 - [ ] The 7 extended fields are spec checked during construction (§2.3 table).
+- [ ] Explicit empty string option values (`Calendar`, `Collation`, `HourCycle`, `CaseFirst`, `NumberingSystem`, `FirstDayOfWeek`, and language identifier overrides) return invalid-option errors instead of being treated as omitted.
 
 ### String round trip
 
 - [ ] `(Locale).String()` output canonical BCP 47:
 - `-u-` extended keys are in lexicographic order (`ca` < `co` < `fw` < `hc` < `kf` < `kn` < `nu`).
-- Empty fields are omitted; `Numeric=false` is not output; `Numeric=true` is output as `-u-kn`.
+- Empty internal fields are omitted; omitted `Numeric` is not output; explicit `Numeric=true` is output as `-u-kn`; explicit `Numeric=false` is output as `-u-kn-false`.
 - Alias normalization (`Calendar="GREGORIAN"` outputs `-u-ca-gregory`).
 - [ ] `Parse(loc.String()).Equal(loc) == true`(round-trip).
 - [ ] `MarshalText` / `UnmarshalText` implements `encoding.TextMarshaler` / `TextUnmarshaler`.

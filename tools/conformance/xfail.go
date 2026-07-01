@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -23,8 +22,17 @@ type xfail struct {
 	TrackingIssue string `json:"tracking_issue"`
 }
 
+type xfailField string
+
+const (
+	xfailFieldID            xfailField = "id"
+	xfailFieldReason        xfailField = "reason"
+	xfailFieldExpiresAt     xfailField = "expires_at"
+	xfailFieldTrackingIssue xfailField = "tracking_issue"
+)
+
 func validateXFailFile(root string, fixtures []Fixture, now time.Time) error {
-	path := filepath.Join(root, "testdata", "xfail.json")
+	path := xfailPath(root)
 	entries, err := loadXFails(path)
 	if err != nil {
 		return err
@@ -36,53 +44,49 @@ func validateXFailEntries(path string, fixtures []Fixture, entries []xfail, now 
 	if len(entries) == 0 {
 		return nil
 	}
-	fixtureIDs := make(map[string]struct{}, len(fixtures))
-	for _, fixture := range fixtures {
-		fixtureIDs[fixture.ID] = struct{}{}
-	}
+	fixtureIndex := fixturesByID(fixtures)
 	seen := map[string]struct{}{}
 	for _, entry := range entries {
 		if entry.ID == "" {
-			return fmt.Errorf("%s: missing required field %q: %w", path, "id", errMissingXFailField)
+			return fmt.Errorf("%s: missing required field %q: %w", path, xfailFieldID, errMissingXFailField)
 		}
 		if _, ok := seen[entry.ID]; ok {
 			return fmt.Errorf("%s: duplicate fixture %q: %w", path, entry.ID, errDuplicateXFailID)
 		}
 		seen[entry.ID] = struct{}{}
-		if _, ok := fixtureIDs[entry.ID]; !ok {
+		if _, ok := fixtureIndex[entry.ID]; !ok {
 			return fmt.Errorf("%s: fixture %q does not match any fixture: %w", path, entry.ID, errUnknownXFailID)
 		}
 		if field := missingXFailField(entry); field != "" {
 			return fmt.Errorf("%s: fixture %q missing required field %q: %w", path, entry.ID, field, errMissingXFailField)
 		}
-		expiresAt, err := entry.expiresAt()
+		expired, err := entry.expired(now)
 		if err != nil {
-			return fmt.Errorf("%s: fixture %q invalid expires_at %q: %w", path, entry.ID, entry.ExpiresAt, err)
+			return fmt.Errorf("%s: fixture %q invalid %s %q: %w", path, entry.ID, xfailFieldExpiresAt, entry.ExpiresAt, err)
 		}
-		if !expiresAt.After(now) {
+		if expired {
 			return fmt.Errorf("%s: fixture %q expired on %s: %w", path, entry.ID, entry.ExpiresAt, errExpiredXFail)
 		}
 	}
 	return nil
 }
 
-func (x xfail) active(now time.Time) bool {
-	expiresAt, err := x.expiresAt()
-	return err == nil && expiresAt.After(now)
+func (x xfail) expired(now time.Time) (bool, error) {
+	expiresAt, err := time.Parse(time.DateOnly, x.ExpiresAt)
+	if err != nil {
+		return false, err
+	}
+	return !expiresAt.After(now), nil
 }
 
-func (x xfail) expiresAt() (time.Time, error) {
-	return time.Parse(time.DateOnly, x.ExpiresAt)
-}
-
-func missingXFailField(entry xfail) string {
+func missingXFailField(entry xfail) xfailField {
 	switch {
 	case entry.Reason == "":
-		return "reason"
+		return xfailFieldReason
 	case entry.ExpiresAt == "":
-		return "expires_at"
+		return xfailFieldExpiresAt
 	case entry.TrackingIssue == "":
-		return "tracking_issue"
+		return xfailFieldTrackingIssue
 	default:
 		return ""
 	}

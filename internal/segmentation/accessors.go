@@ -10,10 +10,10 @@ import "slices"
 // SupportedLocales returns locale tags whose active word/sentence boundaries do
 // not require dictionary or locale-specific tailoring beyond UAX #29 defaults.
 func SupportedLocales() []string {
-	return slices.Clone(supportedLocales)
+	return slices.Clone(supportedLocales[:])
 }
 
-var supportedLocales = []string{
+var supportedLocales = [...]string{
 	"ar",
 	"de",
 	"en",

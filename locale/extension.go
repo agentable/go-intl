@@ -12,23 +12,23 @@ func (l *Locale) readExtensions(ext localeid.UnicodeExtension) error {
 	l.ext.attributes = ext.Attributes()
 	keywords := ext.Keywords()
 	l.ext.keywords = unknownUnicodeKeywords(keywords)
-	if l.ext.calendar, err = normalizeUnicodeType(unicodeTypeForKey(ext, "ca")); err != nil {
-		return invalidLocaleValue("calendar", unicodeTypeForKey(ext, "ca"), nil)
+	if l.ext.calendar, err = normalizeUnicodeExtension(ext, "ca", "calendar", normalizeUnicodeType); err != nil {
+		return err
 	}
-	if l.ext.collation, err = normalizeUnicodeType(unicodeTypeForKey(ext, "co")); err != nil {
-		return invalidLocaleValue("collation", unicodeTypeForKey(ext, "co"), nil)
+	if l.ext.collation, err = normalizeUnicodeExtension(ext, "co", "collation", normalizeUnicodeType); err != nil {
+		return err
 	}
-	if l.ext.numberingSystem, err = normalizeUnicodeType(unicodeTypeForKey(ext, "nu")); err != nil {
-		return invalidLocaleValue("numberingSystem", unicodeTypeForKey(ext, "nu"), nil)
+	if l.ext.numberingSystem, err = normalizeUnicodeExtension(ext, "nu", "numberingSystem", normalizeUnicodeType); err != nil {
+		return err
 	}
-	if l.ext.hourCycle, err = normalizeHourCycle(unicodeTypeForKey(ext, "hc")); err != nil {
-		return invalidLocaleValue("hourCycle", unicodeTypeForKey(ext, "hc"), nil)
+	if l.ext.hourCycle, err = normalizeUnicodeExtension(ext, "hc", "hourCycle", normalizeHourCycle); err != nil {
+		return err
 	}
-	if l.ext.caseFirst, err = normalizeCaseFirst(unicodeTypeForKey(ext, "kf")); err != nil {
-		return invalidLocaleValue("caseFirst", unicodeTypeForKey(ext, "kf"), nil)
+	if l.ext.caseFirst, err = normalizeUnicodeExtension(ext, "kf", "caseFirst", normalizeCaseFirst); err != nil {
+		return err
 	}
-	if l.ext.firstDayOfWeek, err = normalizeFirstDayOfWeek(unicodeTypeForKey(ext, "fw")); err != nil {
-		return invalidLocaleValue("firstDayOfWeek", unicodeTypeForKey(ext, "fw"), nil)
+	if l.ext.firstDayOfWeek, err = normalizeUnicodeExtension(ext, "fw", "firstDayOfWeek", normalizeFirstDayOfWeek); err != nil {
+		return err
 	}
 	numeric, hasNumeric := ext.TypeForKey("kn")
 	if hasNumeric {
@@ -36,6 +36,15 @@ func (l *Locale) readExtensions(ext localeid.UnicodeExtension) error {
 		l.ext.numeric, l.ext.numericValue = normalizeNumeric(numeric)
 	}
 	return nil
+}
+
+func normalizeUnicodeExtension(ext localeid.UnicodeExtension, key, name string, normalize func(string) (string, error)) (string, error) {
+	value, _ := ext.TypeForKey(key)
+	normalized, err := normalize(value)
+	if err != nil {
+		return "", invalidLocaleValue(name, value, nil)
+	}
+	return normalized, nil
 }
 
 func (e extensions) empty() bool {
@@ -50,45 +59,50 @@ func (e extensions) empty() bool {
 		len(e.keywords) == 0
 }
 
-func unicodeTypeForKey(ext localeid.UnicodeExtension, key string) string {
-	value, _ := ext.TypeForKey(key)
-	return value
-}
-
 func (l Locale) unicodeExtensionKeywords() []localeid.UnicodeKeyword {
 	keywords := make(map[string]string, len(l.ext.keywords)+7)
-	appendKeyValue := func(key, value string) {
-		if value != "" {
-			keywords[key] = value
-		}
-	}
-	appendKeyValue("ca", l.ext.calendar)
-	appendKeyValue("co", l.ext.collation)
-	appendKeyValue("fw", l.ext.firstDayOfWeek)
-	appendKeyValue("hc", l.ext.hourCycle)
-	appendKeyValue("kf", l.ext.caseFirst)
-	if l.ext.numericSet {
-		switch {
-		case l.ext.numeric:
-			keywords["kn"] = ""
-		case l.ext.numericValue != "":
-			keywords["kn"] = l.ext.numericValue
-		default:
-			keywords["kn"] = "false"
-		}
-	}
-	appendKeyValue("nu", l.ext.numberingSystem)
 	maps.Copy(keywords, l.ext.keywords)
-	keys := make([]string, 0, len(keywords))
-	for key := range keywords {
-		keys = append(keys, key)
+	setUnicodeKeyword(keywords, "ca", l.ext.calendar)
+	setUnicodeKeyword(keywords, "co", l.ext.collation)
+	setUnicodeKeyword(keywords, "fw", l.ext.firstDayOfWeek)
+	setUnicodeKeyword(keywords, "hc", l.ext.hourCycle)
+	setUnicodeKeyword(keywords, "kf", l.ext.caseFirst)
+	if l.ext.numericSet {
+		keywords["kn"] = l.ext.numericKeyword()
 	}
-	slices.Sort(keys)
-	out := make([]localeid.UnicodeKeyword, 0, len(keys))
-	for _, key := range keys {
-		out = append(out, localeid.UnicodeKeyword{Key: key, Value: keywords[key]})
+	setUnicodeKeyword(keywords, "nu", l.ext.numberingSystem)
+	keys := slices.Sorted(maps.Keys(keywords))
+	out := make([]localeid.UnicodeKeyword, len(keys))
+	for i, key := range keys {
+		out[i] = localeid.UnicodeKeyword{Key: key, Value: keywords[key]}
 	}
 	return out
+}
+
+func setUnicodeKeyword(keywords map[string]string, key, value string) {
+	if value != "" {
+		keywords[key] = value
+	}
+}
+
+func (e extensions) numericKeyword() string {
+	if e.numeric {
+		return ""
+	}
+	if e.numericValue != "" {
+		return e.numericValue
+	}
+	return "false"
+}
+
+func (e *extensions) setNumericOption(value bool) {
+	e.numericSet = true
+	e.numeric = value
+	if value {
+		e.numericValue = ""
+		return
+	}
+	e.numericValue = "false"
 }
 
 func unknownUnicodeKeywords(keywords []localeid.UnicodeKeyword) map[string]string {
@@ -99,7 +113,7 @@ func unknownUnicodeKeywords(keywords []localeid.UnicodeKeyword) map[string]strin
 			continue
 		}
 		if unknown == nil {
-			unknown = map[string]string{}
+			unknown = make(map[string]string, len(keywords))
 		}
 		value := keyword.Value
 		if value == "true" {

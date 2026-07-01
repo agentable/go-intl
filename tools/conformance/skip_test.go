@@ -1,12 +1,11 @@
 package conformance
 
 import (
+	"encoding/json"
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestValidateFixtureRootsUsesXFailExpiry(t *testing.T) {
@@ -16,18 +15,13 @@ func TestValidateFixtureRootsUsesXFailExpiry(t *testing.T) {
 	writeConformanceFixtureFile(t, root, `[
 		{"id":"nf-basic","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"}
 	]`)
-	if err := os.WriteFile(filepath.Join(root, "testdata", "xfail.json"), []byte(`[
+	writeXFailFile(t, root, `[
 		{"id":"nf-basic","reason":"pending implementation","expires_at":"2000-01-01","tracking_issue":"SPEC-70"}
-	]`), 0o666); err != nil {
-		t.Fatal(err)
-	}
+	]`)
 
-	err := ValidateFixtureRoots([]string{root}, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC))
-	if err == nil {
-		t.Fatal("ValidateFixtureRoots succeeded, want expired xfail error")
-	}
-	if !strings.Contains(err.Error(), "expired") || !strings.Contains(err.Error(), "nf-basic") {
-		t.Fatalf("ValidateFixtureRoots error = %v, want expired xfail ID", err)
+	err := ValidateFixtureRoots([]string{root}, conformanceAuditNow())
+	if !errors.Is(err, errExpiredXFail) {
+		t.Fatalf("ValidateFixtureRoots() error = %v, want expired xfail", err)
 	}
 }
 
@@ -38,22 +32,18 @@ func TestValidateFixtureRootsRejectsUnknownOrDuplicateXFail(t *testing.T) {
 	writeConformanceFixtureFile(t, root, `[
 		{"id":"nf-basic","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"}
 	]`)
-	if err := os.WriteFile(filepath.Join(root, "testdata", "xfail.json"), []byte(`[
+	writeXFailFile(t, root, `[
 		{"id":"nf-missing","reason":"pending implementation","expires_at":"2999-01-01","tracking_issue":"SPEC-70"}
-	]`), 0o666); err != nil {
-		t.Fatal(err)
-	}
-	if err := ValidateFixtureRoots([]string{root}, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC)); !errors.Is(err, errUnknownXFailID) {
+	]`)
+	if err := ValidateFixtureRoots([]string{root}, conformanceAuditNow()); !errors.Is(err, errUnknownXFailID) {
 		t.Fatalf("ValidateFixtureRoots() error = %v, want unknown xfail id", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(root, "testdata", "xfail.json"), []byte(`[
+	writeXFailFile(t, root, `[
 		{"id":"nf-basic","reason":"pending implementation","expires_at":"2999-01-01","tracking_issue":"SPEC-70"},
 		{"id":"nf-basic","reason":"pending implementation","expires_at":"2999-01-01","tracking_issue":"SPEC-70"}
-	]`), 0o666); err != nil {
-		t.Fatal(err)
-	}
-	if err := ValidateFixtureRoots([]string{root}, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC)); !errors.Is(err, errDuplicateXFailID) {
+	]`)
+	if err := ValidateFixtureRoots([]string{root}, conformanceAuditNow()); !errors.Is(err, errDuplicateXFailID) {
 		t.Fatalf("ValidateFixtureRoots() error = %v, want duplicate xfail id", err)
 	}
 }
@@ -99,10 +89,8 @@ func TestValidateFixtureRootsRejectsMalformedXFail(t *testing.T) {
 			writeConformanceFixtureFile(t, root, `[
 				{"id":"nf-basic","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"}
 			]`)
-			if err := os.WriteFile(filepath.Join(root, "testdata", "xfail.json"), []byte(tc.data), 0o666); err != nil {
-				t.Fatal(err)
-			}
-			err := ValidateFixtureRoots([]string{root}, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC))
+			writeXFailFile(t, root, tc.data)
+			err := ValidateFixtureRoots([]string{root}, conformanceAuditNow())
 			if tc.want != nil {
 				if !errors.Is(err, tc.want) {
 					t.Fatalf("ValidateFixtureRoots() error = %v, want %v", err, tc.want)
@@ -124,12 +112,9 @@ func TestValidateFixtureRootsRejectsInvalidDateTimeInput(t *testing.T) {
 		{"id":"dtf-invalid","source":"manual","locale":"en-US","options":{},"input":"not-a-date","expected":"May 8, 2026"}
 	]`)
 
-	err := ValidateFixtureRoots([]string{root}, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC))
-	if err == nil {
-		t.Fatal("ValidateFixtureRoots succeeded, want invalid datetime input error")
-	}
-	if !strings.Contains(err.Error(), "dtf-invalid") || !strings.Contains(err.Error(), "ISO-8601") {
-		t.Fatalf("ValidateFixtureRoots error = %v, want fixture ID and ISO-8601 guidance", err)
+	err := ValidateFixtureRoots([]string{root}, conformanceAuditNow())
+	if !errors.Is(err, errInvalidDateTimeInput) {
+		t.Fatalf("ValidateFixtureRoots() error = %v, want invalid datetime input", err)
 	}
 }
 
@@ -141,7 +126,7 @@ func TestValidateFixtureRootsRejectsInvalidDateTimeRangeInput(t *testing.T) {
 		{"id":"dtf-invalid-range","source":"manual","locale":"en-US","options":{},"input":{"start":"2026-05-08T12:00:00Z","end":"not-a-date"},"expectedRange":"May 8 - 10, 2026"}
 	]`)
 
-	err := ValidateFixtureRoots([]string{root}, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC))
+	err := ValidateFixtureRoots([]string{root}, conformanceAuditNow())
 	if !errors.Is(err, errInvalidDateTimeInput) {
 		t.Fatalf("ValidateFixtureRoots() error = %v, want invalid datetime input", err)
 	}
@@ -155,7 +140,7 @@ func TestValidateFixtureRootsAcceptsValidDateTimeRangeInput(t *testing.T) {
 		{"id":"dtf-range","source":"manual","locale":"en-US","options":{},"input":{"start":"2026-05-08T12:00:00Z","end":"2026-05-10T12:00:00Z"},"expectedRange":"May 8 - 10, 2026"}
 	]`)
 
-	if err := ValidateFixtureRoots([]string{root}, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC)); err != nil {
+	if err := ValidateFixtureRoots([]string{root}, conformanceAuditNow()); err != nil {
 		t.Fatalf("ValidateFixtureRoots(valid datetime range) error = %v, want nil", err)
 	}
 }
@@ -169,7 +154,7 @@ func TestValidateFixtureRootsRejectsDuplicateFixtureID(t *testing.T) {
 		{"id":"duplicate","source":"manual","locale":"en-US","options":{},"input":2,"expected":"2"}
 	]`)
 
-	err := ValidateFixtureRoots([]string{root}, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC))
+	err := ValidateFixtureRoots([]string{root}, conformanceAuditNow())
 	if !errors.Is(err, errDuplicateFixtureID) {
 		t.Fatalf("ValidateFixtureRoots(duplicate IDs) error = %v, want duplicate fixture id", err)
 	}
@@ -295,6 +280,119 @@ func TestLoadFixturesAcceptsErrorFixtureFile(t *testing.T) {
 	}
 }
 
+func TestLoadFixturesAcceptsSourceDirectoryOwnership(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		rel  string
+		data string
+	}{
+		{
+			name: "manual source in manual directory",
+			rel:  "manual/basic.json",
+			data: `[{"id":"numberformat-manual-basic","source":"manual:numberformat","locale":"en-US","options":{},"input":1,"expected":"1"}]`,
+		},
+		{
+			name: "formatjs source in formatjs directory",
+			rel:  "formatjs/basic.json",
+			data: `[{"id":"numberformat-formatjs-basic","source":"formatjs:packages/intl-numberformat/tests/basic.test.ts","locale":"en-US","options":{},"input":1,"expected":"1"}]`,
+		},
+		{
+			name: "node source in exact node version directory",
+			rel:  "node-v26/basic.json",
+			data: `[{"id":"numberformat-node-v26-basic","source":"node:v26.0.0:numberformat","locale":"en-US","options":{},"input":1,"expected":"1"}]`,
+		},
+		{
+			name: "node source in legacy node directory",
+			rel:  "node/basic.json",
+			data: `[{"id":"numberformat-node-basic","source":"node:v26.0.0:numberformat","locale":"en-US","options":{},"input":1,"expected":"1"}]`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeCoverageFixtureFile(t, root, tc.rel, tc.data)
+			fixtures, err := LoadFixtures(root)
+			if err != nil {
+				t.Fatalf("LoadFixtures() error = %v, want nil", err)
+			}
+			if len(fixtures) != 1 {
+				t.Fatalf("LoadFixtures() returned %d fixtures, want 1", len(fixtures))
+			}
+		})
+	}
+}
+
+func TestFixtureSourceKindOfClassifiesFixtureSources(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		source string
+		want   fixtureSourceKind
+	}{
+		{name: "manual root", source: "manual", want: fixtureSourceManual},
+		{name: "manual scoped", source: "manual:numberformat", want: fixtureSourceManual},
+		{name: "formatjs", source: "formatjs:packages/intl-numberformat/tests/basic.test.ts", want: fixtureSourceFormatJS},
+		{name: "node colon source", source: "node:v26.0.0:numberformat", want: fixtureSourceNode},
+		{name: "node dotted source", source: "node:v26.0.0.datetimeformat:edge", want: fixtureSourceNode},
+		{name: "unknown prefix", source: "native:numberformat", want: fixtureSourceUnknown},
+		{name: "empty source", source: "", want: fixtureSourceUnknown},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := fixtureSourceKindOf(tc.source); got != tc.want {
+				t.Fatalf("fixtureSourceKindOf(%q) = %q, want %q", tc.source, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFixtureHasNativeExpectationRecognizesObservableFields(t *testing.T) {
+	t.Parallel()
+
+	text := "ok"
+	ok := true
+	comparison := 0
+	byteIndex := 0
+	wordLike := true
+
+	tests := []struct {
+		name    string
+		fixture Fixture
+		want    bool
+	}{
+		{name: "empty fixture"},
+		{name: "expected output", fixture: Fixture{Expected: &text}, want: true},
+		{name: "expected ok", fixture: Fixture{ExpectedOK: &ok}, want: true},
+		{name: "expected locales", fixture: Fixture{ExpectedLocales: []string{"en"}}, want: true},
+		{name: "expected parts", fixture: Fixture{ExpectedParts: []Part{{Type: "integer", Value: "1"}}}, want: true},
+		{name: "expected range", fixture: Fixture{ExpectedRange: &text}, want: true},
+		{name: "expected range parts", fixture: Fixture{ExpectedRangeParts: []RangePart{{Type: "integer", Value: "1", Source: "shared"}}}, want: true},
+		{name: "expected comparison", fixture: Fixture{ExpectedComparison: &comparison}, want: true},
+		{name: "expected resolved options", fixture: Fixture{ExpectedResolved: json.RawMessage(`{"locale":"en"}`)}, want: true},
+		{name: "expected segments", fixture: Fixture{ExpectedSegments: []SegmentRecord{{Segment: "a", CodeUnitIndex: 0, ByteIndex: &byteIndex, IsWordLike: &wordLike}}}, want: true},
+		{name: "error code", fixture: Fixture{ErrorCode: "RangeError"}, want: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := fixtureHasNativeExpectation(tc.fixture); got != tc.want {
+				t.Fatalf("fixtureHasNativeExpectation() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestLoadFixturesReturnsEmptyForMissingConformanceDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -321,18 +419,14 @@ func TestXFailLoaderHandlesMissingInvalidAndValidFiles(t *testing.T) {
 	}
 
 	path := filepath.Join(root, "xfail.json")
-	if err := os.WriteFile(path, []byte(`{`), 0o666); err != nil {
-		t.Fatal(err)
-	}
+	writeXFailFileAt(t, path, `{`)
 	if _, err := loadXFails(path); err == nil {
 		t.Fatal("loadXFails(invalid) error = nil, want error")
 	}
 
-	if err := os.WriteFile(path, []byte(`[
+	writeXFailFileAt(t, path, `[
 		{"id":"nf-basic","reason":"pending implementation","expires_at":"2999-01-01","tracking_issue":"SPEC-70"}
-	]`), 0o666); err != nil {
-		t.Fatal(err)
-	}
+	]`)
 	entries, err = loadXFails(path)
 	if err != nil {
 		t.Fatalf("loadXFails(valid) error = %v, want nil", err)
@@ -346,23 +440,16 @@ func TestSkipReasonReportsDivergenceOrUnexpiredXFail(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "testdata"), 0o777); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "testdata", "divergences.md"), []byte("id: diverged\nsource: manual:test\nowner: conformance\nreason: upstream output differs\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n"), 0o666); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "testdata", "xfail.json"), []byte(`[
+	writeDivergenceFile(t, root, "id: diverged\nsource: manual:test\nowner: conformance\nreason: upstream output differs\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeXFailFile(t, root, `[
 		{"id":"xfail","reason":"pending implementation","expires_at":"2999-01-01","tracking_issue":"SPEC-70"}
-	]`), 0o666); err != nil {
-		t.Fatal(err)
-	}
+	]`)
 
-	divergenceReason, ok := SkipReason(root, "diverged", time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC))
+	divergenceReason, ok := SkipReason(root, "diverged", conformanceAuditNow())
 	if !ok || !strings.Contains(divergenceReason, "divergence") {
 		t.Fatalf("SkipReason(diverged) = %q, %v; want divergence skip", divergenceReason, ok)
 	}
-	xfailReason, ok := SkipReason(root, "xfail", time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC))
+	xfailReason, ok := SkipReason(root, "xfail", conformanceAuditNow())
 	if !ok || !strings.Contains(xfailReason, "pending implementation") {
 		t.Fatalf("SkipReason(xfail) = %q, %v; want xfail skip", xfailReason, ok)
 	}
@@ -376,11 +463,9 @@ func TestRunFixturesSkipsXFailAndRunsCases(t *testing.T) {
 		{"id":"run","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"},
 		{"id":"xfail","source":"manual","locale":"en-US","options":{},"input":2,"expected":"2"}
 	]`)
-	if err := os.WriteFile(filepath.Join(root, "testdata", "xfail.json"), []byte(`[
+	writeXFailFile(t, root, `[
 		{"id":"xfail","reason":"pending implementation","expires_at":"2999-01-01","tracking_issue":"SPEC-70"}
-	]`), 0o666); err != nil {
-		t.Fatal(err)
-	}
+	]`)
 
 	runIDs := map[string]bool{}
 	t.Cleanup(func() {
@@ -396,11 +481,18 @@ func TestRunFixturesSkipsXFailAndRunsCases(t *testing.T) {
 func writeConformanceFixtureFile(t *testing.T, root, data string) {
 	t.Helper()
 
-	path := filepath.Join(root, "testdata", "conformance", "manual", "basic.json")
-	if err := os.MkdirAll(filepath.Dir(path), 0o777); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(data), 0o666); err != nil {
-		t.Fatal(err)
-	}
+	writeCoverageFixtureFile(t, root, "manual/basic.json", data)
+}
+
+func writeXFailFile(t *testing.T, root, data string) {
+	t.Helper()
+
+	path := filepath.Join(root, "testdata", "xfail.json")
+	writeXFailFileAt(t, path, data)
+}
+
+func writeXFailFileAt(t *testing.T, path, data string) {
+	t.Helper()
+
+	writeConformanceTestFile(t, path, data)
 }

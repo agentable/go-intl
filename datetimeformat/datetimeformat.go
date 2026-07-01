@@ -1,13 +1,9 @@
 package datetimeformat
 
 import (
-	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
-
-	"github.com/agentable/go-intl/internal/intlerr"
 
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
@@ -18,14 +14,16 @@ import (
 )
 
 type DateTimeFormat struct {
-	resolved      ResolvedOptions
-	cldrLoc       cldrdate.Locale
-	gregorian     cldrdate.Gregorian
-	patterns      *patternData
-	location      *time.Location
-	formatMatcher FormatMatcher
-	pattern       selectedPattern
+	resolved             ResolvedOptions
+	cldrLoc              cldrdate.Locale
+	gregorian            cldrdate.Gregorian
+	location             *time.Location
+	uses24Hour           bool
+	pattern              selectedPattern
+	fallbackRangePattern ecma402.Pattern
 }
+
+const timeZoneExpected = "a supported IANA time-zone name or UTC offset identifier"
 
 var dateLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
 	return localematcher.NewMatcher(cldrdate.SupportedLocales(), cldrlocale.Maximize)
@@ -33,19 +31,17 @@ var dateLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
 
 func New(locales locale.List, opts Options) (*DateTimeFormat, error) {
 	validationLocale := ecma402.ValidationLocale(locales)
+	validationLocaleName := validationLocale.String()
 	cfg := defaultConfig()
 	applyOptions(&cfg, opts)
-	if err := cfg.validate(validationLocale); err != nil {
-		return nil, err
-	}
-	if err := validateRequestedCalendars(locales); err != nil {
+	if err := cfg.validate(validationLocaleName); err != nil {
 		return nil, err
 	}
 	cfg = withDefaultDateFields(cfg)
 
 	resolution := resolveLocale(locales, validationLocale, cfg)
 	calendar := resolution.calendar
-	timeZone, location, err := resolveTimeZone(validationLocale, cfg)
+	timeZone, location, err := resolveTimeZone(validationLocaleName, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -54,29 +50,43 @@ func New(locales locale.List, opts Options) (*DateTimeFormat, error) {
 	patterns := patternDataFor(cldrLoc, gregorian)
 	numberingSystem := resolution.numberingSystem
 
-	format := &DateTimeFormat{cldrLoc: cldrLoc, gregorian: gregorian, patterns: patterns, formatMatcher: FormatMatcher(cfg.formatMatcher), resolved: ResolvedOptions{
-		Locale:                 resolution.locale,
-		Calendar:               calendar,
-		NumberingSystem:        numberingSystem,
-		TimeZone:               timeZone,
-		HourCycle:              hourCycle,
-		Hour12:                 hour12,
-		Weekday:                FieldStyle(cfg.weekday),
-		Era:                    FieldStyle(cfg.era),
-		Year:                   NumericStyle(cfg.year),
-		Month:                  MonthStyle(cfg.month),
-		Day:                    NumericStyle(cfg.day),
-		DayPeriod:              FieldStyle(cfg.dayPeriod),
-		Hour:                   NumericStyle(cfg.hour),
-		Minute:                 NumericStyle(cfg.minute),
-		Second:                 NumericStyle(cfg.second),
-		FractionalSecondDigits: cfg.fractionalSecondDigits,
-		TimeZoneName:           TimeZoneName(cfg.timeZoneName),
-		DateStyle:              Style(cfg.dateStyle),
-		TimeStyle:              Style(cfg.timeStyle),
-	}, location: location}
-	format.pattern = format.selectPattern()
-	return format, nil
+	resolved := ResolvedOptions{
+		Locale:          resolution.locale,
+		Calendar:        calendar,
+		NumberingSystem: numberingSystem,
+		TimeZone:        timeZone,
+		HourCycle:       resolvedStringOption[HourCycle](string(hourCycle)),
+		Hour12:          hour12,
+		Weekday:         resolvedStringOption[FieldStyle](cfg.weekday),
+		Era:             resolvedStringOption[FieldStyle](cfg.era),
+		Year:            resolvedStringOption[NumericStyle](cfg.year),
+		Month:           resolvedStringOption[MonthStyle](cfg.month),
+		Day:             resolvedStringOption[NumericStyle](cfg.day),
+		DayPeriod:       resolvedStringOption[FieldStyle](cfg.dayPeriod),
+		Hour:            resolvedStringOption[NumericStyle](cfg.hour),
+		Minute:          resolvedStringOption[NumericStyle](cfg.minute),
+		Second:          resolvedStringOption[NumericStyle](cfg.second),
+		TimeZoneName:    resolvedStringOption[TimeZoneName](cfg.timeZoneName),
+		DateStyle:       resolvedStringOption[Style](cfg.dateStyle),
+		TimeStyle:       resolvedStringOption[Style](cfg.timeStyle),
+	}
+	if cfg.hasFractionalSecondDigits {
+		resolved.FractionalSecondDigits = ecma402.ResolvedScalar(cfg.fractionalSecondDigits)
+	}
+
+	uses24Hour := resolvedUses24HourTime(resolved)
+	pattern := selectPattern(patterns, FormatMatcher(cfg.formatMatcher), resolved, uses24Hour, gregorian)
+	return &DateTimeFormat{
+		resolved:   resolved,
+		cldrLoc:    cldrLoc,
+		gregorian:  gregorian,
+		location:   location,
+		uses24Hour: uses24Hour,
+		pattern:    pattern,
+		fallbackRangePattern: partitionRangeFallbackPattern(
+			gregorian.IntervalFallback,
+		),
+	}, nil
 }
 
 type localeResolution struct {
@@ -88,11 +98,10 @@ type localeResolution struct {
 }
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) localeResolution {
-	defaultLocale := ecma402.DefaultLocale()
-	options := []localematcher.Option{
-		{Key: "ca", Value: cfg.calendar},
-		{Key: "hc", Value: cfg.hourCycle},
-		{Key: "nu", Value: cfg.numberingSystem},
+	options := []ecma402.UnicodeExtensionOption{
+		{Key: ecma402.UnicodeExtensionKeyCalendar, Value: cfg.calendar},
+		{Key: ecma402.UnicodeExtensionKeyHourCycle, Value: cfg.hourCycle},
+		{Key: ecma402.UnicodeExtensionKeyNumberingSystem, Value: cfg.numberingSystem},
 	}
 	if cfg.hasHour12 {
 		if cfg.hour12 {
@@ -106,57 +115,64 @@ func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) loca
 		Fallback:              fallback,
 		LocaleMatcher:         cfg.localeMatcher,
 		Matcher:               dateLocaleMatcher(),
-		RelevantExtensionKeys: []string{"ca", "hc", "nu"},
+		RelevantExtensionKeys: []ecma402.UnicodeExtensionKey{ecma402.UnicodeExtensionKeyCalendar, ecma402.UnicodeExtensionKeyHourCycle, ecma402.UnicodeExtensionKeyNumberingSystem},
 		OptionValues:          options,
 		LocaleData:            dateLocaleData{},
 	})
-	cldrLoc, ok := cldrdate.ResolveLocale(resolution.DataLocale)
-	if !ok {
-		cldrLoc, _ = cldrdate.ResolveLocale(defaultLocale)
+	cldrLoc := ecma402.ResolveDataLocale(resolution, cldrdate.ResolveLocale)
+	calendar := resolution.Extensions[ecma402.UnicodeExtensionKeyCalendar]
+	if calendar == "" {
+		calendar = "gregory"
+	}
+	numberingSystem := resolution.Extensions[ecma402.UnicodeExtensionKeyNumberingSystem]
+	if numberingSystem == "" {
+		numberingSystem = cldrLoc.DefaultNumberingSystem()
 	}
 	return localeResolution{
 		locale:          resolution.Locale,
 		cldrLoc:         cldrLoc,
-		calendar:        defaultString(resolution.Extensions["ca"], "gregory"),
-		numberingSystem: defaultString(resolution.Extensions["nu"], cldrLoc.DefaultNumberingSystem()),
-		hourCycle:       resolution.Extensions["hc"],
+		calendar:        calendar,
+		numberingSystem: numberingSystem,
+		hourCycle:       resolution.Extensions[ecma402.UnicodeExtensionKeyHourCycle],
 	}
 }
 
-func resolveTimeZone(loc locale.Locale, cfg config) (string, *time.Location, error) {
-	if cfg.timeZone == "" {
+func resolveTimeZone(locName string, cfg config) (string, *time.Location, error) {
+	if !cfg.timeZoneSet {
 		timeZone, location := tz.Default()
 		return timeZone, location, nil
 	}
+	if cfg.timeZone == "" {
+		return "", nil, unsupportedTimeZone(cfg.timeZone, locName, nil)
+	}
 	location, err := tz.Resolve(cfg.timeZone)
 	if err != nil {
-		return "", nil, unsupportedTimeZone(cfg.timeZone, loc)
+		return "", nil, unsupportedTimeZone(cfg.timeZone, locName, err)
 	}
-	timeZone := cfg.timeZone
-	if strings.HasPrefix(timeZone, "+") || strings.HasPrefix(timeZone, "-") {
-		timeZone, err = tz.CanonicalOffsetString(timeZone)
-		if err != nil {
-			return "", nil, unsupportedTimeZone(cfg.timeZone, loc)
-		}
-		return timeZone, location, nil
-	}
-	return tz.CanonicalLink(timeZone), location, nil
+	timeZone := location.String()
+	return timeZone, location, nil
 }
 
-func unsupportedTimeZone(value string, loc locale.Locale) error {
-	return ecma402.UnsupportedOptionError("datetimeformat", "timeZone", value, loc.String(), intlerr.ErrUnsupportedOption)
+func unsupportedTimeZone(value, locName string, err error) error {
+	return ecma402.UnsupportedOptionErrorExpected(dateTimeFormatOwner, "timeZone", value, locName, timeZoneExpected, err)
 }
 
 func resolveHourCycle(cfg config, resolvedHourCycle string) (HourCycle, *bool) {
 	if cfg.hour == "" && cfg.timeStyle == "" {
 		return "", nil
 	}
-	hourCycle := HourCycle(defaultString(resolvedHourCycle, string(H23HourCycle)))
-	hour12 := cfg.hour12
-	if !cfg.hasHour12 {
+	if resolvedHourCycle == "" {
+		resolvedHourCycle = string(H23HourCycle)
+	}
+	hourCycle := HourCycle(resolvedHourCycle)
+	switch hourCycle {
+	case H11HourCycle, H12HourCycle:
+		return hourCycle, ecma402.ResolvedScalar(true)
+	case H23HourCycle, H24HourCycle:
+		return hourCycle, ecma402.ResolvedScalar(false)
+	default:
 		return hourCycle, nil
 	}
-	return hourCycle, &hour12
 }
 
 func resolveDateData(cldrLoc cldrdate.Locale, cfg config) (cldrdate.Locale, cldrdate.Gregorian) {
@@ -166,32 +182,9 @@ func resolveDateData(cldrLoc cldrdate.Locale, cfg config) (cldrdate.Locale, cldr
 	return cldrLoc, gregorianDataFor(cldrLoc)
 }
 
-func defaultString(value, fallback string) string {
-	if value != "" {
-		return value
-	}
-	return fallback
-}
-
-func validateRequestedCalendars(locales locale.List) error {
-	for _, loc := range ecma402.CanonicalLocaleList(locales) {
-		if calendar := loc.Calendar(); calendar != "" && !isSupportedCalendar(calendar) {
-			return unsupportedCalendar(calendar, loc)
-		}
-	}
-	return nil
-}
-
-func isSupportedCalendar(calendar string) bool {
-	return slices.Contains(cldrdate.SupportedCalendars(), calendar)
-}
-
 func (f *DateTimeFormat) Format(t time.Time) string {
-	t = t.Round(0)
-	if f.location != nil {
-		t = t.In(f.location)
-	}
-	return string(f.appendDateTime(nil, f.localTime(t)))
+	_, local := gregoryTimeInLocation(t.Round(0), f.location)
+	return string(f.pattern.appendTo(f, nil, local))
 }
 
 func withDefaultDateFields(c config) config {

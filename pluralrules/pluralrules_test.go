@@ -6,11 +6,13 @@ import (
 	"sync"
 	"testing"
 
+	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
 	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 	"github.com/agentable/go-intl/internal/intlerr"
 
 	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -69,7 +71,7 @@ func TestPluralRulesSelectCardinal(t *testing.T) {
 func TestPluralRulesSelectOrdinal(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: Ordinal})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: stringPtr(Ordinal)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +96,7 @@ func TestPluralRulesSelectOrdinal(t *testing.T) {
 func TestPluralRulesSelectUsesExactLargeOperands(t *testing.T) {
 	t.Parallel()
 
-	ordinal, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: Ordinal})
+	ordinal, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: stringPtr(Ordinal)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,8 +161,8 @@ func TestPluralRulesNotationAffectsOperands(t *testing.T) {
 		name string
 		opts Options
 	}{
-		{name: "scientific", opts: Options{Notation: ScientificNotation}},
-		{name: "engineering", opts: Options{Notation: EngineeringNotation}},
+		{name: "scientific", opts: Options{Notation: stringPtr(ScientificNotation)}},
+		{name: "engineering", opts: Options{Notation: stringPtr(EngineeringNotation)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -183,6 +185,56 @@ func TestPluralRulesNotationAffectsOperands(t *testing.T) {
 	}
 }
 
+func TestResolveDecimalUsesExplicitConstructorState(t *testing.T) {
+	t.Parallel()
+
+	d, err := decimal.ParseString("12345678")
+	if err != nil {
+		t.Fatal(err)
+	}
+	digitOptions := ecma402nf.DigitOptions{
+		MinimumIntegerDigits:  1,
+		MaximumFractionDigits: 3,
+		RoundingIncrement:     1,
+		RoundingMode:          "halfExpand",
+		RoundingPriority:      "auto",
+		TrailingZeroDisplay:   "auto",
+	}
+	tests := []struct {
+		name          string
+		notation      Notation
+		wantFormatted string
+		wantExponent  int
+	}{
+		{name: "standard", notation: StandardNotation, wantFormatted: "12345678"},
+		{name: "scientific", notation: ScientificNotation, wantFormatted: "1.235", wantExponent: 7},
+		{name: "engineering", notation: EngineeringNotation, wantFormatted: "12.346", wantExponent: 6},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotOps ecma402pr.OperandsRecord
+			formatted, rounded, category := resolveDecimal(d, tc.notation, digitOptions, func(ops ecma402pr.OperandsRecord) ecma402pr.Category {
+				gotOps = ops
+				return ecma402pr.Many
+			})
+			if formatted != tc.wantFormatted {
+				t.Fatalf("resolveDecimal formatted = %q, want %q", formatted, tc.wantFormatted)
+			}
+			if rounded.String() != tc.wantFormatted {
+				t.Fatalf("resolveDecimal rounded = %s, want %s", rounded.String(), tc.wantFormatted)
+			}
+			if category != Many {
+				t.Fatalf("resolveDecimal category = %s, want %s", category, Many)
+			}
+			if gotOps.C != tc.wantExponent || gotOps.E != tc.wantExponent {
+				t.Fatalf("resolveDecimal operands exponent = c:%d e:%d, want %d", gotOps.C, gotOps.E, tc.wantExponent)
+			}
+		})
+	}
+}
+
 func TestPluralRulesUnsignedTypedBridges(t *testing.T) {
 	t.Parallel()
 
@@ -197,7 +249,7 @@ func TestPluralRulesUnsignedTypedBridges(t *testing.T) {
 	if got := mustCategory(rules.Select(Uint(2))); got != Other {
 		t.Fatalf("SelectUint64(2) = %s, want %s", got, Other)
 	}
-	ordinal, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: Ordinal})
+	ordinal, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: stringPtr(Ordinal)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,22 +273,38 @@ func TestPluralRulesTypedSelectErrors(t *testing.T) {
 	}
 	if _, err := rules.Select(Float(math.NaN())); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
 		t.Fatalf("SelectFloat64(NaN) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
+	} else {
+		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "value", "NaN", "en")
+		testcontract.AssertErrorExpected(t, err, "a finite numeric value")
 	}
 	if _, err := Decimal("not-a-number"); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
 		t.Fatalf("Decimal(invalid) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
+	} else {
+		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "decimal", "not-a-number", "")
+		testcontract.AssertErrorExpected(t, err, "a finite numeric value")
+	}
+	if _, err := rules.SelectRange(Float(math.Inf(-1)), Float(1)); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
+		t.Fatalf("SelectRangeFloat64(-infinite, 1) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
+	} else {
+		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "start", "-Infinity", "en")
 	}
 	if _, err := rules.SelectRange(Float(1), Float(math.Inf(1))); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
 		t.Fatalf("SelectRangeFloat64(infinite) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
+	} else {
+		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "end", "Infinity", "en")
 	}
 	if _, err := Decimal("NaN"); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
 		t.Fatalf("Decimal(NaN) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
+	} else {
+		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "decimal", "NaN", "")
+		testcontract.AssertErrorExpected(t, err, "a finite numeric value")
 	}
 }
 
 func TestPluralRulesInvalidType(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: Type(99)})
+	_, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: stringPtr(Type("bad"))})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -245,7 +313,7 @@ func TestPluralRulesInvalidType(t *testing.T) {
 func TestPluralRulesConcurrentSelect(t *testing.T) {
 	t.Parallel()
 
-	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: Ordinal})
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: stringPtr(Ordinal)})
 	if err != nil {
 		t.Fatal(err)
 	}

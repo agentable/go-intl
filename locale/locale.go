@@ -31,7 +31,7 @@ type extensions struct {
 }
 
 func Parse(s string) (Locale, error) {
-	lower := strings.ToLower(s)
+	lower := localeid.LowercaseUnicodeLocaleID(s)
 	if s == "" || strings.Contains(s, "_") || strings.HasPrefix(lower, "x-") {
 		return Locale{}, invalidLocaleValue("languageTag", s, nil)
 	}
@@ -61,7 +61,9 @@ func New(tag string, opts Options) (Locale, error) {
 	if err := applyLanguageOptions(&loc, opts); err != nil {
 		return Locale{}, err
 	}
-	applyOptions(&loc, opts)
+	if err := applyOptions(&loc, opts); err != nil {
+		return Locale{}, err
+	}
 	if err := loc.validate(); err != nil {
 		return Locale{}, err
 	}
@@ -133,17 +135,17 @@ func (l Locale) FirstDayOfWeek() string {
 }
 
 func (l Locale) Language() string {
-	lang, _, _ := tagParts(l.tag)
+	lang, _, _ := localeid.Parts(l.tag)
 	return lang
 }
 
 func (l Locale) Script() string {
-	_, script, _ := tagParts(l.tag)
+	_, script, _ := localeid.Parts(l.tag)
 	return script
 }
 
 func (l Locale) Region() string {
-	_, _, region := tagParts(l.tag)
+	_, _, region := localeid.Parts(l.tag)
 	return region
 }
 
@@ -152,12 +154,12 @@ func (l Locale) Variants() []string {
 	if len(parts) <= 1 {
 		return nil
 	}
-	_, script, region := tagParts(l.tag)
+	_, script, region := localeid.Parts(l.tag)
 	idx := 1
-	if script != "" && idx < len(parts) && strings.EqualFold(parts[idx], script) {
+	if script != "" && idx < len(parts) && parts[idx] == script {
 		idx++
 	}
-	if region != "" && idx < len(parts) && strings.EqualFold(parts[idx], region) {
+	if region != "" && idx < len(parts) && parts[idx] == region {
 		idx++
 	}
 	return slices.Clone(parts[idx:])

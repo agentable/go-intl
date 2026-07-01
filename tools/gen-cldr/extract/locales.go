@@ -7,26 +7,23 @@ import (
 	"slices"
 )
 
+const undefinedLocale = "und"
+
 type Locales struct {
 	Tags []string
 }
 
-func ExtractLocales(available, allowlist []string) Locales {
-	allowed := make(map[string]bool, len(allowlist)+1)
-	allowed["und"] = true
-	for _, tag := range allowlist {
-		allowed[tag] = true
-	}
-	seen := make(map[string]bool, len(available)+1)
-	seen["und"] = true
+func ExtractLocales(available []string) Locales {
+	seen := make(map[string]bool, len(available))
 	for _, tag := range available {
-		if allowed[tag] {
-			seen[tag] = true
+		if tag == "" || tag == undefinedLocale {
+			continue
 		}
+		seen[tag] = true
 	}
-	tags := slices.Sorted(maps.Keys(seen))
-	if i := slices.Index(tags, "und"); i > 0 {
-		tags = slices.Insert(slices.Delete(tags, i, i+1), 0, "und")
-	}
+	sorted := slices.Sorted(maps.Keys(seen))
+	tags := make([]string, len(sorted)+1)
+	tags[0] = undefinedLocale
+	copy(tags[1:], sorted)
 	return Locales{Tags: tags}
 }

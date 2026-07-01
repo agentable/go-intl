@@ -46,9 +46,9 @@ const (
 )
 
 type Options struct {
-    LocaleMatcher LocaleMatcher
-    Type          Type
-    Style         Style
+    LocaleMatcher *string
+    Type          *string
+    Style         *string
 }
 
 type ResolvedOptions struct {
@@ -75,11 +75,12 @@ MUST rules:
 
 1. `New` accepts one `Options` value. `New(locales, Options{})` matches JavaScript `new Intl.ListFormat(locales, {})` or omitted options.
 2. `Options{}` defaults to `type="conjunction"` and `style="long"`.
-3. `ListFormat` is immutable after construction. All methods on `*ListFormat` must be safe for concurrent callers.
-4. `ResolvedOptions` returns a value snapshot.
-5. `Format` and `FormatToParts` accept `[]string`. JavaScript's non-string iterable error path is represented by Go's static type boundary, not by accepting `[]any`.
-6. `SupportedLocalesOf` belongs to `listformat`, not the root package.
-7. JSON field names and `omitempty` behavior follow [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors).
+3. String options are presence-aware: `nil` means omitted, while a non-nil pointer is an explicit option value. Explicit empty strings are invalid option values instead of silently selecting defaults.
+4. `ListFormat` is immutable after construction. All methods on `*ListFormat` must be safe for concurrent callers.
+5. `ResolvedOptions` returns a value snapshot.
+6. `Format` and `FormatToParts` accept `[]string`. JavaScript's non-string iterable error path is represented by Go's static type boundary, not by accepting `[]any`.
+7. `SupportedLocalesOf` belongs to `listformat`, not the root package.
+8. JSON field names and `omitempty` behavior follow [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors).
 
 > **Why**: `Intl.ListFormat.prototype.format` accepts an iterable and then rejects non-string elements at runtime. Go can encode the same boundary as `[]string`, avoiding `any` without changing observable list formatting semantics.
 >
@@ -94,10 +95,10 @@ MUST rules:
 Pipeline:
 
 1. Validate at most one options object.
-2. Read `localeMatcher`, default `best fit`, allowed `lookup | best fit`.
+2. Read `localeMatcher`, default `best fit`, allowed `lookup | best fit`; `nil` means omitted and `gointl.String("")` is invalid.
 3. Resolve locale against `internal/cldr/list.SupportedLocales()` with no relevant Unicode extension keys.
-4. Read `type`, default `conjunction`, allowed `conjunction | disjunction | unit`.
-5. Read `style`, default `long`, allowed `long | short | narrow`.
+4. Read `type`, default `conjunction`, allowed `conjunction | disjunction | unit`; `nil` means omitted and `gointl.String("")` is invalid.
+5. Read `style`, default `long`, allowed `long | short | narrow`; `nil` means omitted and `gointl.String("")` is invalid.
 6. Load the selected CLDR template set for resolved data locale, type, and style.
 
 MUST rules:
@@ -143,7 +144,7 @@ Mapping:
 MUST rules:
 
 1. Generated list supported locales must be derived from actual list pattern payload maps.
-2. Each generated template string must contain `{0}` and `{1}` exactly once.
+2. Each generated template string must be a syntactically valid placeholder pattern and contain `{0}` and `{1}` exactly once.
 3. Runtime formatting must never read CLDR JSON files.
 4. Accessors must go through `internal/cldr/list`; public `listformat` code must not read generated package variables directly.
 5. If a CLDR locale lacks a short or narrow variant, generation may fall back to the corresponding long variant only if this fallback is documented in a divergence or generator test.
@@ -182,7 +183,7 @@ MUST rules:
 1. Use `internal/cldr/list.SupportedLocales()` as the supported set.
 2. Call `localematcher.FilterLocalesWithMaximizer`.
 3. Accept one `Options` value; `Options{}` represents omitted static-method options.
-4. Read only `LocaleMatcher`; ignore formatting options for this static method.
+4. Read only `LocaleMatcher`; ignore formatting options for this static method. `nil` means omitted and an explicit empty string is invalid.
 5. Invalid locale matcher returns `ErrInvalidOption`.
 
 ---

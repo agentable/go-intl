@@ -26,22 +26,22 @@ type Matcher struct {
 func NewMatcher(supported []string, maximizer Maximizer) *Matcher {
 	available := availableLocalesFor(supported)
 	m := &Matcher{
-		supported:             make([]string, 0, len(available)),
-		noExtension:           make([]string, 0, len(available)),
-		maximized:             make([]string, 0, len(available)),
-		derived:               make([]bool, 0, len(available)),
+		supported:             make([]string, len(available)),
+		noExtension:           make([]string, len(available)),
+		maximized:             make([]string, len(available)),
+		derived:               make([]bool, len(available)),
 		exact:                 make(map[string]string, len(available)),
 		dataLocaleByAvailable: make(map[string]string, len(available)),
 		maximizedByLocale:     make(map[string]string, len(available)),
 		maximizer:             normalizeMaximizer(maximizer),
 	}
-	for _, loc := range available {
+	for i, loc := range available {
 		noExtensionLocale, _ := removeUnicodeExtension(loc.locale)
 		maximizedLocale := m.maximizer(noExtensionLocale)
-		m.supported = append(m.supported, loc.locale)
-		m.noExtension = append(m.noExtension, noExtensionLocale)
-		m.maximized = append(m.maximized, maximizedLocale)
-		m.derived = append(m.derived, loc.derived)
+		m.supported[i] = loc.locale
+		m.noExtension[i] = noExtensionLocale
+		m.maximized[i] = maximizedLocale
+		m.derived[i] = loc.derived
 		m.exact[noExtensionLocale] = loc.locale
 		m.dataLocaleByAvailable[loc.locale] = loc.dataLocale
 		m.maximizedByLocale[noExtensionLocale] = maximizedLocale
@@ -67,7 +67,7 @@ func (m *Matcher) lookup(requested []string, defaultLocale string) Result {
 			return Result{Locale: availableLocale, DataLocale: m.dataLocale(availableLocale), Extension: extension}
 		}
 	}
-	return Result{Locale: defaultLocale, DataLocale: defaultLocale}
+	return m.defaultResult(defaultLocale)
 }
 
 func (m *Matcher) bestAvailableLocale(locale string) string {
@@ -85,42 +85,47 @@ func (m *Matcher) bestAvailableLocale(locale string) string {
 }
 
 func (m *Matcher) bestFit(requested []string, defaultLocale string) Result {
-	var requestedExtensions map[string]string
-	var small [4]string
+	var smallRequested [4]string
+	var smallExtensions [4]string
 	var noExtensionRequested []string
-	if len(requested) <= len(small) {
-		noExtensionRequested = small[:len(requested)]
+	var requestedExtensions []string
+	if len(requested) <= len(smallRequested) {
+		noExtensionRequested = smallRequested[:len(requested)]
+		requestedExtensions = smallExtensions[:len(requested)]
 	} else {
 		noExtensionRequested = make([]string, len(requested))
+		requestedExtensions = make([]string, len(requested))
 	}
 	for i, loc := range requested {
 		noExtensionLocale, extension := removeUnicodeExtension(loc)
 		noExtensionRequested[i] = noExtensionLocale
-		if extension != "" {
-			if requestedExtensions == nil {
-				requestedExtensions = map[string]string{}
-			}
-			requestedExtensions[noExtensionLocale] = extension
-		}
+		requestedExtensions[i] = extension
 	}
 	result := m.findBestMatch(noExtensionRequested, DefaultMatchingThreshold)
 	if result.matchedSupported == "" {
-		return Result{Locale: defaultLocale, DataLocale: defaultLocale}
+		return m.defaultResult(defaultLocale)
 	}
 	noExtensionLocale, supportedExtension := removeUnicodeExtension(result.matchedSupported)
 	extension := supportedExtension
-	if requestedExtension := requestedExtensions[result.matchedDesired]; requestedExtension != "" {
+	if requestedExtension := requestedExtensions[result.matchedDesiredIndex]; requestedExtension != "" {
 		extension = requestedExtension
 	}
 	return Result{Locale: noExtensionLocale, DataLocale: m.dataLocale(noExtensionLocale), Extension: extension, Distance: result.distance}
 }
 
 func (m *Matcher) findBestMatch(requested []string, threshold int) bestMatchResult {
-	result := findBestMatchExact(requested, m.exact)
-	if result.matchedSupported != "" && result.distance == 0 {
-		return result
+	result := bestMatchResult{}
+	lowestDistance := math.MaxInt
+	for i, desired := range requested {
+		if original, ok := m.exact[desired]; ok {
+			result = bestMatchResult{matchedDesiredIndex: i, matchedSupported: original, distance: i * 40}
+			if result.distance == 0 {
+				return result
+			}
+			lowestDistance = result.distance
+			break
+		}
 	}
-	lowestDistance := resultDistance(result)
 
 	for i, desired := range requested {
 		maximized := m.maximize(desired)
@@ -141,7 +146,7 @@ func (m *Matcher) findBestMatch(requested []string, threshold int) bestMatchResu
 			}
 			if distance < lowestDistance {
 				lowestDistance = distance
-				result = bestMatchResult{matchedDesired: desired, matchedSupported: original, distance: distance}
+				result = bestMatchResult{matchedDesiredIndex: i, matchedSupported: original, distance: distance}
 			}
 			break
 		}
@@ -160,7 +165,7 @@ func (m *Matcher) findBestMatch(requested []string, threshold int) bestMatchResu
 			}
 			if distance < lowestDistance {
 				lowestDistance = distance
-				result = bestMatchResult{matchedDesired: desired, matchedSupported: supportedLocale, distance: distance}
+				result = bestMatchResult{matchedDesiredIndex: i, matchedSupported: supportedLocale, distance: distance}
 			}
 		}
 	}
@@ -189,6 +194,10 @@ func (m *Matcher) dataLocale(availableLocale string) string {
 	return availableLocale
 }
 
+func (m *Matcher) defaultResult(defaultLocale string) Result {
+	return Result{Locale: defaultLocale, DataLocale: m.dataLocale(defaultLocale)}
+}
+
 func cachedMatchingDistance(desired, supported, maximizedDesired, maximizedSupported string) int {
 	key := [4]string{desired, supported, maximizedDesired, maximizedSupported}
 	if v, ok := distanceCache.Load(key); ok {
@@ -197,29 +206,4 @@ func cachedMatchingDistance(desired, supported, maximizedDesired, maximizedSuppo
 	distance := matchingDistance(desired, supported, maximizedDesired, maximizedSupported)
 	distanceCache.Store(key, distance)
 	return distance
-}
-
-func findBestMatchExact(requested []string, exact map[string]string) bestMatchResult {
-	lowestDistance := math.MaxInt
-	result := bestMatchResult{}
-	for i, desired := range requested {
-		if original, ok := exact[desired]; ok {
-			distance := i * 40
-			if distance < lowestDistance {
-				lowestDistance = distance
-				result = bestMatchResult{matchedDesired: desired, matchedSupported: original, distance: distance}
-			}
-			if i == 0 {
-				return result
-			}
-		}
-	}
-	return result
-}
-
-func resultDistance(result bestMatchResult) int {
-	if result.matchedSupported == "" {
-		return math.MaxInt
-	}
-	return result.distance
 }

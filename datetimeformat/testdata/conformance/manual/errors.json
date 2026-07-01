@@ -10,22 +10,24 @@
     "errorCode": "invalid_option"
   },
   {
-    "id": "datetimeformat-manual-unsupported-calendar-option",
+    "id": "datetimeformat-manual-empty-calendar",
     "source": "manual",
     "locale": "en-US",
     "options": {
-      "calendar": "buddhist"
+      "calendar": ""
     },
     "input": "2026-05-08T12:00:00Z",
-    "errorCode": "unsupported_option"
+    "errorCode": "invalid_option"
   },
   {
-    "id": "datetimeformat-manual-unsupported-calendar-extension",
+    "id": "datetimeformat-manual-empty-numbering-system",
     "source": "manual",
-    "locale": "en-US-u-ca-buddhist",
-    "options": {},
+    "locale": "en-US",
+    "options": {
+      "numberingSystem": ""
+    },
     "input": "2026-05-08T12:00:00Z",
-    "errorCode": "unsupported_option"
+    "errorCode": "invalid_option"
   },
   {
     "id": "datetimeformat-manual-unsupported-iana-time-zone",
@@ -33,6 +35,16 @@
     "locale": "en-US",
     "options": {
       "timeZone": "Mars/Olympus"
+    },
+    "input": "2026-05-08T12:00:00Z",
+    "errorCode": "unsupported_option"
+  },
+  {
+    "id": "datetimeformat-manual-empty-time-zone",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "timeZone": ""
     },
     "input": "2026-05-08T12:00:00Z",
     "errorCode": "unsupported_option"

@@ -4,7 +4,6 @@
   "private": true,
   "description": "Pinned CLDR JSON source used by tools/gen-cldr. Versions must match internal/cldr/VERSION. Not published.",
   "dependencies": {
-    "cldr-bcp47": "48.1.0",
     "cldr-core": "48.1.0",
     "cldr-dates-full": "48.1.0",
     "cldr-localenames-full": "48.1.0",

@@ -8,6 +8,7 @@ import (
 	"github.com/agentable/go-intl/internal/intlerr"
 
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -16,16 +17,15 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 	t.Parallel()
 
 	conformance.RunFixtures(t, ".", func(t *testing.T, fixture conformance.Fixture) {
-		if fixture.Feature == "supportedLocalesOf" {
+		if fixture.IsSupportedLocalesOf() {
 			runSupportedLocalesFixture(t, fixture)
 			return
 		}
 
 		format, err := New(locale.List{intltest.Locale(t, fixture.Locale)}, conformanceCollatorOptions(t, fixture))
-		if fixture.ErrorCode != "" {
-			if !errors.Is(err, conformanceCollatorError(t, fixture.ErrorCode)) {
-				t.Fatalf("New() error = %v, want %q", err, fixture.ErrorCode)
-			}
+		if testcontract.AssertErrorCode(t, "New()", err, fixture.ErrorCode, func(code string) error {
+			return conformanceCollatorError(t, code)
+		}) {
 			return
 		}
 		if err != nil {
@@ -50,123 +50,72 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 	})
 }
 
+func TestConformanceCollatorOptionsPreserveExplicitEmptyString(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(intltest.LocaleList(t, "en"), conformanceCollatorOptions(t, conformance.Fixture{
+		Options: json.RawMessage(`{"usage":""}`),
+	}))
+	if !errors.Is(err, intlerr.ErrInvalidOption) {
+		t.Fatalf("New() error = %v, want %v", err, intlerr.ErrInvalidOption)
+	}
+	testcontract.AssertOptionError(t, err, "collator", intlerr.InvalidOption, "usage", "", "en")
+	testcontract.AssertOptionExpected(t, err, `one of "sort", "search"`)
+}
+
 func runSupportedLocalesFixture(t *testing.T, fixture conformance.Fixture) {
 	t.Helper()
 
-	var tags []string
-	if err := json.Unmarshal(fixture.Input, &tags); err != nil {
-		t.Fatal(err)
-	}
-	got, err := SupportedLocalesOf(intltest.LocaleList(t, tags...), conformanceCollatorOptions(t, fixture))
-	if fixture.ErrorCode != "" {
-		if !errors.Is(err, conformanceCollatorError(t, fixture.ErrorCode)) {
-			t.Fatalf("SupportedLocalesOf() error = %v, want %q", err, fixture.ErrorCode)
-		}
-		return
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != len(fixture.ExpectedLocales) {
-		t.Fatalf("SupportedLocalesOf(%v) = %v, want %v", tags, got.Strings(), fixture.ExpectedLocales)
-	}
-	for i, want := range fixture.ExpectedLocales {
-		if got[i].String() != want {
-			t.Fatalf("SupportedLocalesOf(%v)[%d] = %q, want %q", tags, i, got[i].String(), want)
-		}
-	}
+	testcontract.AssertSupportedLocalesOfFixture(t, fixture, intltest.LocaleListJSON, func(locales locale.List) (locale.List, error) {
+		return SupportedLocalesOf(locales, conformanceCollatorOptions(t, fixture))
+	}, func(code string) error {
+		return conformanceCollatorError(t, code)
+	})
 }
 
 func assertCollatorResolvedOptions(t *testing.T, fixture conformance.Fixture, got ResolvedOptions) {
 	t.Helper()
 
-	var want struct {
-		Locale            *string      `json:"locale"`
-		Usage             *Usage       `json:"usage"`
-		Sensitivity       *Sensitivity `json:"sensitivity"`
-		IgnorePunctuation *bool        `json:"ignorePunctuation"`
-		Collation         *string      `json:"collation"`
-		Numeric           *bool        `json:"numeric"`
-		CaseFirst         *CaseFirst   `json:"caseFirst"`
-	}
-	if err := json.Unmarshal(fixture.ExpectedResolved, &want); err != nil {
-		t.Fatal(err)
-	}
-	if want.Locale != nil && got.Locale.String() != *want.Locale {
-		t.Fatalf("ResolvedOptions().Locale = %q, want %q", got.Locale.String(), *want.Locale)
-	}
-	if want.Usage != nil && got.Usage != *want.Usage {
-		t.Fatalf("ResolvedOptions().Usage = %q, want %q", got.Usage, *want.Usage)
-	}
-	if want.Sensitivity != nil && got.Sensitivity != *want.Sensitivity {
-		t.Fatalf("ResolvedOptions().Sensitivity = %q, want %q", got.Sensitivity, *want.Sensitivity)
-	}
-	if want.IgnorePunctuation != nil && got.IgnorePunctuation != *want.IgnorePunctuation {
-		t.Fatalf("ResolvedOptions().IgnorePunctuation = %t, want %t", got.IgnorePunctuation, *want.IgnorePunctuation)
-	}
-	if want.Collation != nil && got.Collation != *want.Collation {
-		t.Fatalf("ResolvedOptions().Collation = %q, want %q", got.Collation, *want.Collation)
-	}
-	if want.Numeric != nil && got.Numeric != *want.Numeric {
-		t.Fatalf("ResolvedOptions().Numeric = %t, want %t", got.Numeric, *want.Numeric)
-	}
-	if want.CaseFirst != nil && got.CaseFirst != *want.CaseFirst {
-		t.Fatalf("ResolvedOptions().CaseFirst = %q, want %q", got.CaseFirst, *want.CaseFirst)
-	}
+	want := testcontract.ExpectedResolvedOptions(t, fixture)
+	testcontract.AssertResolvedString(t, want, "locale", got.Locale.String())
+	testcontract.AssertResolvedString(t, want, "usage", string(got.Usage))
+	testcontract.AssertResolvedString(t, want, "sensitivity", string(got.Sensitivity))
+	testcontract.AssertResolvedBool(t, want, "ignorePunctuation", got.IgnorePunctuation)
+	testcontract.AssertResolvedString(t, want, "collation", got.Collation)
+	testcontract.AssertResolvedBool(t, want, "numeric", got.Numeric)
+	testcontract.AssertResolvedString(t, want, "caseFirst", string(got.CaseFirst))
 }
 
 func conformanceCollatorOptions(t *testing.T, fixture conformance.Fixture) Options {
 	t.Helper()
 
 	var options struct {
-		LocaleMatcher     string `json:"localeMatcher"`
-		Usage             string `json:"usage"`
-		Sensitivity       string `json:"sensitivity"`
-		CaseFirst         string `json:"caseFirst"`
-		Numeric           *bool  `json:"numeric"`
-		IgnorePunctuation *bool  `json:"ignorePunctuation"`
-		Collation         string `json:"collation"`
+		LocaleMatcher     *string `json:"localeMatcher"`
+		Usage             *string `json:"usage"`
+		Sensitivity       *string `json:"sensitivity"`
+		CaseFirst         *string `json:"caseFirst"`
+		Numeric           *bool   `json:"numeric"`
+		IgnorePunctuation *bool   `json:"ignorePunctuation"`
+		Collation         *string `json:"collation"`
 	}
 	if err := json.Unmarshal(fixture.Options, &options); err != nil {
 		t.Fatal(err)
 	}
-	var opts Options
-	if options.LocaleMatcher != "" {
-		opts.LocaleMatcher = LocaleMatcher(options.LocaleMatcher)
+	return Options{
+		LocaleMatcher:     options.LocaleMatcher,
+		Usage:             options.Usage,
+		Sensitivity:       options.Sensitivity,
+		CaseFirst:         options.CaseFirst,
+		Numeric:           options.Numeric,
+		IgnorePunctuation: options.IgnorePunctuation,
+		Collation:         options.Collation,
 	}
-	if options.Usage != "" {
-		opts.Usage = Usage(options.Usage)
-	}
-	if options.Sensitivity != "" {
-		opts.Sensitivity = Sensitivity(options.Sensitivity)
-	}
-	if options.CaseFirst != "" {
-		opts.CaseFirst = CaseFirst(options.CaseFirst)
-	}
-	if options.Numeric != nil {
-		opts.Numeric = options.Numeric
-	}
-	if options.IgnorePunctuation != nil {
-		opts.IgnorePunctuation = options.IgnorePunctuation
-	}
-	if options.Collation != "" {
-		opts.Collation = options.Collation
-	}
-	return opts
 }
 
 func conformanceCollatorError(t *testing.T, code string) error {
 	t.Helper()
 
-	switch code {
-	case "invalidOption":
-		return intlerr.ErrInvalidOption
-	case "unsupportedOption":
-		return intlerr.ErrUnsupportedOption
-	default:
-		t.Fatalf("unsupported collator error code %q", code)
-		return nil
-	}
+	return testcontract.IntlErrorCode(t, "collator", code, "invalidOption", "unsupportedOption")
 }
 
 func compareSign(n int) int {

@@ -28,9 +28,9 @@ func TestMessageformatIntegrationContract_PublicConsumerPattern(t *testing.T) {
 		t.Fatal("numberformat produced empty output")
 	}
 	dtf, err := datetimeformat.New(locales, datetimeformat.Options{
-		Year:  datetimeformat.NumericFieldStyle,
-		Month: datetimeformat.ShortMonthStyle,
-		Day:   datetimeformat.NumericFieldStyle,
+		Year:  String(string(datetimeformat.NumericFieldStyle)),
+		Month: String(string(datetimeformat.ShortMonthStyle)),
+		Day:   String(string(datetimeformat.NumericFieldStyle)),
 	})
 	if err != nil {
 		t.Fatal(err)

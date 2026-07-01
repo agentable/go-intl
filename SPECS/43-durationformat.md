@@ -35,29 +35,29 @@ type Unit string
 type PartType string
 
 type Options struct {
-    LocaleMatcher       LocaleMatcher
-    NumberingSystem     string
-    Style               Style
-    Years               UnitStyle
-    YearsDisplay        Display
-    Months              UnitStyle
-    MonthsDisplay       Display
-    Weeks               UnitStyle
-    WeeksDisplay        Display
-    Days                UnitStyle
-    DaysDisplay         Display
-    Hours               UnitStyle
-    HoursDisplay        Display
-    Minutes             UnitStyle
-    MinutesDisplay      Display
-    Seconds             UnitStyle
-    SecondsDisplay      Display
-    Milliseconds        UnitStyle
-    MillisecondsDisplay Display
-    Microseconds        UnitStyle
-    MicrosecondsDisplay Display
-    Nanoseconds         UnitStyle
-    NanosecondsDisplay  Display
+    LocaleMatcher       *string
+    NumberingSystem     *string
+    Style               *string
+    Years               *string
+    YearsDisplay        *string
+    Months              *string
+    MonthsDisplay       *string
+    Weeks               *string
+    WeeksDisplay        *string
+    Days                *string
+    DaysDisplay         *string
+    Hours               *string
+    HoursDisplay        *string
+    Minutes             *string
+    MinutesDisplay      *string
+    Seconds             *string
+    SecondsDisplay      *string
+    Milliseconds        *string
+    MillisecondsDisplay *string
+    Microseconds        *string
+    MicrosecondsDisplay *string
+    Nanoseconds         *string
+    NanosecondsDisplay  *string
     FractionalDigits    *int
 }
 
@@ -110,7 +110,7 @@ func (f *DurationFormat) FormatToParts(duration Duration) ([]Part, error)
 MUST rules:
 
 1. `New` accepts one `Options` value. `New(locales, Options{})` matches JavaScript `new Intl.DurationFormat(locales, {})` or omitted options.
-2. `Options{}` defaults to `style="short"`.
+2. `Options{}` defaults to `style="short"`; explicit empty `style` is invalid.
 3. `DurationFormat` is immutable after construction. All methods on `*DurationFormat` must be safe for concurrent callers.
 4. `ResolvedOptions` returns a value snapshot and uses ECMA-402 option names and values.
 5. Go uses a typed `Duration` struct instead of accepting `any` or parsing Temporal strings. Zero-valued `Duration{}` is a valid typed bridge and formats to the result implied by resolved display defaults.
@@ -124,18 +124,18 @@ MUST rules:
 Pipeline:
 
 1. Validate at most one options object.
-2. Read `localeMatcher`, default `best fit`, allowed `lookup | best fit`.
+2. Read `localeMatcher`, default `best fit`, allowed `lookup | best fit`; `nil` means omitted and `gointl.String("")` is invalid.
 3. Validate optional `numberingSystem` as a Unicode numbering-system identifier.
 4. Resolve locale against the DurationFormat supported set with relevant extension key `nu`.
-5. Read `style`, default `short`, allowed `long | short | narrow | digital`.
-6. Resolve unit options for years through nanoseconds using ECMA-402 `GetDurationUnitOptions`.
+5. Read `style`, default `short`, allowed `long | short | narrow | digital`; `nil` means omitted and `gointl.String("")` is invalid.
+6. Resolve unit options for years through nanoseconds using ECMA-402 `GetDurationUnitOptions`; each unit style and unit display option is a presence-aware `*string`, where `nil` means omitted/default and `gointl.String("")` is invalid.
 7. Read `fractionalDigits`, allowed integer 0 through 9, default omitted.
 8. Load the locale's numeric time separator from CLDR number symbols, falling back to `":"` if the payload is empty.
 9. Materialize the embedded `NumberFormat` and `ListFormat` instances implied by the resolved options, including sign-hidden variants and fractional numeric variants, so cached formatting does not repeat locale negotiation, option validation, or CLDR data lookup.
 
 MUST rules:
 
-1. Invalid `localeMatcher`, `numberingSystem`, `style`, unit style, unit display, or `fractionalDigits` returns an error wrapping `ErrInvalidOption`.
+1. Invalid `localeMatcher`, `numberingSystem`, `style`, unit style, unit display, or `fractionalDigits` returns an error wrapping `ErrInvalidOption`; explicit empty `style`, unit style, or unit display is invalid rather than treated as omitted.
 2. `numberingSystem` option must override the `nu` locale extension during locale resolution.
 3. `style="digital"` must select numeric hour/minute/second defaults and short date-unit defaults according to ECMA-402.
 4. `fractionalDigits` must distinguish omitted from explicit zero; `FractionalDigits: gointl.Int(0)` is an explicit option, and constructors copy the pointee value.
@@ -205,7 +205,7 @@ MUST rules:
 1. Use the intersection of generated unit, number, list, and plural supported locale sets. Do not derive from `tools/locale-profile.json` or from one payload family alone.
 2. Call `localematcher.FilterLocalesWithMaximizer`.
 3. Accept one `Options` value; `Options{}` represents omitted static-method options.
-4. Read only `LocaleMatcher`; invalid values return `ErrInvalidOption`.
+4. Read only `LocaleMatcher`; invalid values, including an explicit empty string, return `ErrInvalidOption`.
 
 ---
 

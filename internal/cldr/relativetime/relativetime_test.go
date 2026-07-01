@@ -1,12 +1,11 @@
 package relativetime
 
 import (
-	"os"
-	"os/exec"
-	"strings"
 	"testing"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+	"github.com/agentable/go-intl/internal/testcontract"
+	"github.com/agentable/go-intl/internal/testprocess"
 )
 
 // narrowIndexSubprocessEnv gates the narrow-index Once assertion so it runs in a
@@ -17,55 +16,69 @@ const narrowIndexSubprocessEnv = "GO_INTL_RELATIVETIME_NARROW_INDEX_SUBPROCESS"
 // SupportedLocales reads only the supported blob and must never trigger the
 // field blob decode.
 //
-// The assertion is order-sensitive: any other test in this binary that touches a
-// field lookup (for example the smoke checks below) populates the field map,
-// after which a same-binary assertion would see it already decoded. Rather than
-// depend on test order, this test re-executes the test binary as a subprocess
-// that runs only the inner assertion via -test.run, so the assertion always
-// observes a process that has decoded nothing. When adding new field-touching
-// tests, keep the assertion in this subprocess form.
+// The assertion runs in a fresh process so other relative-time tests cannot
+// populate the package-level Once state first.
 func TestSupportedLocalesDoesNotDecodeFieldBlob(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv(narrowIndexSubprocessEnv) == "1" {
-		assertSupportedLocalesDoesNotDecodeFieldBlob(t)
+	if !testprocess.RunInFreshProcess(t, narrowIndexSubprocessEnv) {
 		return
 	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=^TestSupportedLocalesDoesNotDecodeFieldBlob$", "-test.v")
-	cmd.Env = append(os.Environ(), narrowIndexSubprocessEnv+"=1")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("narrow-index subprocess failed: %v\n%s", err, out)
-	}
-	if !strings.Contains(string(out), "PASS") {
-		t.Fatalf("narrow-index subprocess did not report PASS:\n%s", out)
-	}
-}
-
-func assertSupportedLocalesDoesNotDecodeFieldBlob(t *testing.T) {
-	t.Helper()
-
-	tags := SupportedLocales()
-	if len(tags) == 0 {
-		t.Fatal("SupportedLocales returned no tags")
-	}
-	if fieldsByLocale != nil {
-		t.Error("SupportedLocales decoded the relative-time field blob; narrow index must not")
-	}
+	testcontract.AssertNarrowStringIndexDoesNotLoad(t, "SupportedLocales", SupportedLocales,
+		testcontract.LoadProbe{Name: "relative-time field blob", Loaded: func() bool { return fieldsByLocale != nil }},
+	)
 }
 
 func TestSupportedLocalesReturnsCopy(t *testing.T) {
 	t.Parallel()
 
-	a := SupportedLocales()
-	if len(a) == 0 {
-		t.Fatal("SupportedLocales returned no tags")
+	testcontract.AssertStringSliceReturnsCopy(t, "SupportedLocales", SupportedLocales)
+}
+
+func TestFieldsForReturnsDeepCopy(t *testing.T) {
+	t.Parallel()
+
+	loc, ok := cldrlocale.ResolveLocale("en")
+	if !ok {
+		t.Fatal(`ResolveLocale("en") = false, want true`)
 	}
-	a[0] = "mutated"
-	b := SupportedLocales()
-	if b[0] == "mutated" {
-		t.Error("SupportedLocales returned a shared slice; callers can corrupt the cache")
+	fields := FieldsFor(loc)
+	dayLong := fields["day"]["long"]
+	monthLong := fields["month"]["long"]
+	if dayLong.Future == nil || dayLong.Past == nil || dayLong.Relative == nil || monthLong.Future == nil {
+		t.Fatal("FieldsFor(en) missing expected day/month long fields")
+	}
+	wantFuture := dayLong.Future["other"]
+	wantPast := dayLong.Past["one"]
+	wantRelative := dayLong.Relative["0"]
+	wantMonthFuture := monthLong.Future["other"]
+
+	dayLong.Future["other"] = "mutated future"
+	dayLong.Past["one"] = "mutated past"
+	dayLong.Relative["0"] = "mutated relative"
+	fields["day"]["long"] = RelativeTimeField{}
+	delete(fields, "month")
+
+	again := FieldsFor(loc)
+	if got := again["day"]["long"].Future["other"]; got != wantFuture {
+		t.Errorf("FieldsFor(en).day.long.Future[other] = %q, want %q", got, wantFuture)
+	}
+	if got := again["day"]["long"].Past["one"]; got != wantPast {
+		t.Errorf("FieldsFor(en).day.long.Past[one] = %q, want %q", got, wantPast)
+	}
+	if got := again["day"]["long"].Relative["0"]; got != wantRelative {
+		t.Errorf("FieldsFor(en).day.long.Relative[0] = %q, want %q", got, wantRelative)
+	}
+	if got := again["month"]["long"].Future["other"]; got != wantMonthFuture {
+		t.Errorf("FieldsFor(en).month.long.Future[other] = %q, want %q", got, wantMonthFuture)
+	}
+}
+
+func TestFieldsForMissingLocaleReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	if got := FieldsFor(Locale(65535)); got != nil {
+		t.Errorf("FieldsFor(missing) = %v, want nil", got)
 	}
 }
 
@@ -106,18 +119,5 @@ func TestSmokeKnownFields(t *testing.T) {
 func TestSmokeSupportedLocalesWithinProfile(t *testing.T) {
 	t.Parallel()
 
-	profile := map[string]bool{}
-	for _, tag := range cldrlocale.AvailableLocales() {
-		profile[tag] = true
-	}
-
-	supported := SupportedLocales()
-	if len(supported) == 0 {
-		t.Fatal("SupportedLocales returned no tags")
-	}
-	for _, tag := range supported {
-		if !profile[tag] {
-			t.Errorf("SupportedLocales tag %q is not in the kernel locale profile", tag)
-		}
-	}
+	testcontract.AssertStringSliceSubset(t, "SupportedLocales", SupportedLocales(), "kernel locale profile", cldrlocale.AvailableLocales())
 }

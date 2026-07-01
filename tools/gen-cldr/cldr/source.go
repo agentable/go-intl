@@ -4,21 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 )
 
+const undefinedLocale = "und"
+
 type Source struct {
 	Root              string
-	Versions          Versions
 	Available         []string
 	LikelySubtags     map[string]string
 	Numbers           map[string]Numbers
 	Currencies        map[string]Currencies
 	CurrencyFractions map[string]CurrencyFraction
-	Collations        []string
-	LanguageMatching  LanguageMatching
-	Regions           map[string][]string
 	Dates             map[string]Dates
 	Preference        PreferenceData
 	Metazones         Metazones
@@ -62,18 +59,6 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 	if err != nil {
 		return nil, err
 	}
-	collations, err := loadCollations(resolved)
-	if err != nil {
-		return nil, err
-	}
-	matching, err := loadLanguageMatching(resolved)
-	if err != nil {
-		return nil, err
-	}
-	regions, err := loadRegions(resolved)
-	if err != nil {
-		return nil, err
-	}
 	dates, err := loadDates(resolved, available)
 	if err != nil {
 		return nil, err
@@ -102,14 +87,28 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 	if err != nil {
 		return nil, err
 	}
-	return &Source{Root: resolved, Versions: versions, Available: available, LikelySubtags: likely, Numbers: numbers, Currencies: currencies, CurrencyFractions: fractions, Collations: collations, LanguageMatching: matching, Regions: regions, Dates: dates, Preference: preference, Metazones: metazones, Units: units, ListPatterns: listPatterns, RelativeTime: relativeTime, DisplayNames: displayNames}, nil
+	return &Source{
+		Root:              resolved,
+		Available:         available,
+		LikelySubtags:     likely,
+		Numbers:           numbers,
+		Currencies:        currencies,
+		CurrencyFractions: fractions,
+		Dates:             dates,
+		Preference:        preference,
+		Metazones:         metazones,
+		Units:             units,
+		ListPatterns:      listPatterns,
+		RelativeTime:      relativeTime,
+		DisplayNames:      displayNames,
+	}, nil
 }
 
 type availableLocaleList []string
 
 func (l *availableLocaleList) UnmarshalJSON(data []byte) error {
 	var flat []string
-	if err := json.Unmarshal(data, &flat); err == nil {
+	if err := json.Unmarshal(data, &flat); err == nil && flat != nil {
 		*l = flat
 		return nil
 	}
@@ -119,28 +118,45 @@ func (l *availableLocaleList) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &nested); err != nil {
 		return err
 	}
+	if nested.Modern == nil {
+		return fmt.Errorf("expected locale array or nested modern list")
+	}
 	*l = nested.Modern
 	return nil
 }
 
 func filterAvailableLocales(available, allowlist []string) []string {
-	allowed := make(map[string]bool, len(allowlist))
-	for _, locale := range allowlist {
-		allowed[locale] = true
-	}
-	out := []string{"und"}
-	for _, locale := range available {
-		if allowed[locale] {
-			out = append(out, locale)
+	filter := len(allowlist) > 0
+	var allowed map[string]bool
+	if filter {
+		allowed = make(map[string]bool, len(allowlist))
+		for _, locale := range allowlist {
+			if locale == "" || locale == undefinedLocale {
+				continue
+			}
+			allowed[locale] = true
 		}
+	}
+	seen := map[string]bool{undefinedLocale: true}
+	out := []string{undefinedLocale}
+	for _, locale := range available {
+		if locale == "" || locale == undefinedLocale || seen[locale] {
+			continue
+		}
+		if filter && !allowed[locale] {
+			continue
+		}
+		out = append(out, locale)
+		seen[locale] = true
 	}
 	return out
 }
 
 func loadAvailableLocales(root string) ([]string, error) {
-	raw, err := os.ReadFile(filepath.Join(root, "cldr-core", "availableLocales.json"))
+	path := filepath.Join(root, "cldr-core", "availableLocales.json")
+	raw, err := readRequiredFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read availableLocales.json: %w", err)
+		return nil, err
 	}
 	var doc struct {
 		AvailableLocales struct {
@@ -154,13 +170,17 @@ func loadAvailableLocales(root string) ([]string, error) {
 	if len(doc.AvailableLocales.Modern) > 0 {
 		return []string(doc.AvailableLocales.Modern), nil
 	}
-	return []string(doc.AvailableLocales.Full), nil
+	if len(doc.AvailableLocales.Full) > 0 {
+		return []string(doc.AvailableLocales.Full), nil
+	}
+	return nil, fmt.Errorf("expected availableLocales modern or full locale list")
 }
 
 func loadLikelySubtags(root string) (map[string]string, error) {
-	raw, err := os.ReadFile(filepath.Join(root, "cldr-core", "supplemental", "likelySubtags.json"))
+	path := filepath.Join(root, "cldr-core", "supplemental", "likelySubtags.json")
+	raw, err := readRequiredFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read likelySubtags.json: %w", err)
+		return nil, err
 	}
 	var doc struct {
 		Supplemental struct {
@@ -169,6 +189,9 @@ func loadLikelySubtags(root string) (map[string]string, error) {
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("parse likelySubtags.json: %w", err)
+	}
+	if len(doc.Supplemental.LikelySubtags) == 0 {
+		return nil, fmt.Errorf("expected supplemental likelySubtags map")
 	}
 	return doc.Supplemental.LikelySubtags, nil
 }

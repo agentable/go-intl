@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,14 +11,14 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/agentable/go-intl/tools/internal/localeprofile"
 )
 
 const outputDir = ".tmp/sizecheck"
 
 var (
-	errMissingDataVersion    = errors.New("missing cldr/icu/tzdata pin")
-	errMultipleProfileValues = errors.New("multiple JSON values")
-	errEmptyLocaleProfile    = errors.New("empty locale profile")
+	errMissingDataVersion = errors.New("missing cldr/icu/tzdata pin")
 )
 
 type binaryCase struct {
@@ -120,8 +118,8 @@ func runWithDependencies(ctx context.Context, dir string, opts runOptions, deps 
 		return err
 	}
 
-	results := make([]result, 0, len(deps.cases))
-	for _, tc := range deps.cases {
+	results := make([]result, len(deps.cases))
+	for i, tc := range deps.cases {
 		pkgDir, err := writeCase(caseDir, tc)
 		if err != nil {
 			return err
@@ -130,7 +128,7 @@ func runWithDependencies(ctx context.Context, dir string, opts runOptions, deps 
 		if err != nil {
 			return err
 		}
-		results = append(results, result)
+		results[i] = result
 	}
 	if _, err := fmt.Fprint(deps.stdout, formatResults(profile, results)); err != nil {
 		return err
@@ -236,23 +234,9 @@ func readVersionFile(path string) (dataProfile, error) {
 }
 
 func readLocaleProfileCount(path string) (int, error) {
-	data, err := os.ReadFile(path)
+	profile, err := localeprofile.Read(path)
 	if err != nil {
-		return 0, fmt.Errorf("read locale profile %s: %w", path, err)
-	}
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	var profile struct {
-		Locales []string `json:"locales"`
-	}
-	if err := dec.Decode(&profile); err != nil {
-		return 0, fmt.Errorf("parse locale profile %s: %w", path, err)
-	}
-	if err := dec.Decode(&struct{}{}); err != io.EOF {
-		return 0, fmt.Errorf("parse locale profile %s: %w", path, errMultipleProfileValues)
-	}
-	if len(profile.Locales) == 0 {
-		return 0, fmt.Errorf("parse locale profile %s: %w", path, errEmptyLocaleProfile)
+		return 0, err
 	}
 	return len(profile.Locales), nil
 }

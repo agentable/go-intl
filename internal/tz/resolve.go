@@ -1,7 +1,6 @@
 package tz
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -22,31 +21,34 @@ type ZoneInfo struct {
 var locationCache sync.Map
 
 func Resolve(name string) (*time.Location, error) {
-	if name != "" && (name[0] == '+' || name[0] == '-') {
-		offsetMs, err := ParseOffsetString(name)
+	if isOffsetName(name) {
+		offsetMs, canonical, err := parseFixedOffset(name)
 		if err != nil {
 			return nil, err
 		}
-		canonical, err := CanonicalOffsetString(name)
-		if err != nil {
-			return nil, err
-		}
-		if v, ok := locationCache.Load(canonical); ok {
-			return v.(*time.Location), nil
-		}
-		loc := time.FixedZone(canonical, int(offsetMs/1000))
-		actual, _ := locationCache.LoadOrStore(canonical, loc)
-		return actual.(*time.Location), nil
+		return cachedLocation(canonical, func() (*time.Location, error) {
+			return time.FixedZone(canonical, int(offsetMs/1000)), nil
+		})
 	}
 	canonical := CanonicalLink(name)
-	if v, ok := locationCache.Load(canonical); ok {
+	return cachedLocation(canonical, func() (*time.Location, error) {
+		loc, err := time.LoadLocation(canonical)
+		if err != nil {
+			return nil, unsupportedTimeZone(name)
+		}
+		return loc, nil
+	})
+}
+
+func cachedLocation(name string, load func() (*time.Location, error)) (*time.Location, error) {
+	if v, ok := locationCache.Load(name); ok {
 		return v.(*time.Location), nil
 	}
-	loc, err := time.LoadLocation(canonical)
+	loc, err := load()
 	if err != nil {
-		return nil, fmt.Errorf("tz: unsupported time zone %q: %w", name, ErrUnsupportedTimeZone)
+		return nil, err
 	}
-	actual, _ := locationCache.LoadOrStore(canonical, loc)
+	actual, _ := locationCache.LoadOrStore(name, loc)
 	return actual.(*time.Location), nil
 }
 

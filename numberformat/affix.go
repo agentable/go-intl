@@ -7,26 +7,37 @@ import (
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	cldrunit "github.com/agentable/go-intl/internal/cldr/unit"
+	"github.com/agentable/go-intl/internal/ecma402"
 	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 )
 
-func (f *NumberFormat) applyCurrencyPattern(parts []Part, pluralFormatted string) []Part {
-	if f.resolved.CurrencyDisplay != CurrencyDisplayName {
-		return f.applyCurrencyPatternForPlural(parts, "other")
+func applyCurrencyPattern(parts []Part, pluralFormatted string, cardinalRule pluralRuleFunc, resolved ResolvedOptions, currencyLoc cldrcurrency.Locale, currency currencyPatternSet) []Part {
+	if ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) != CurrencyDisplayName {
+		return applyCurrencyPatternForPlural(parts, "other", resolved, currencyLoc, currency)
 	}
-	return f.applyCurrencyPatternForPlural(parts, f.pluralCategory(strings.TrimPrefix(pluralFormatted, "-")))
+	return applyCurrencyPatternForPlural(parts, pluralCategory(cardinalRule, strings.TrimPrefix(pluralFormatted, "-")).String(), resolved, currencyLoc, currency)
 }
 
-func (f *NumberFormat) applyCurrencyPatternForPlural(parts []Part, plural string) []Part {
-	if f.resolved.CurrencyDisplay == CurrencyDisplayName {
+func applyCurrencyPatternText(text, pluralFormatted string, cardinalRule pluralRuleFunc, resolved ResolvedOptions, currencyLoc cldrcurrency.Locale, currency currencyPatternSet, symbols cldrnumber.NumberSymbols) string {
+	if ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) != CurrencyDisplayName {
+		return applyCurrencyPatternForPluralText(text, "other", resolved, currencyLoc, currency, symbols)
+	}
+	return applyCurrencyPatternForPluralText(text, pluralCategory(cardinalRule, strings.TrimPrefix(pluralFormatted, "-")).String(), resolved, currencyLoc, currency, symbols)
+}
+
+func applyCurrencyPatternForPlural(parts []Part, plural string, resolved ResolvedOptions, currencyLoc cldrcurrency.Locale, currency currencyPatternSet) []Part {
+	if ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) == CurrencyDisplayName {
 		sign, unsigned := splitLeadingSign(parts)
-		name := f.currencyDisplay(plural)
-		out := interpolateUnitPattern("{0} {1}", unsigned, Part{Type: PartCurrency, Value: name})
-		if sign.Type == PartMinusSign && f.resolved.CurrencySign == AccountingCurrencySign {
-			wrapped := make([]Part, 0, len(out)+2)
-			wrapped = append(wrapped, Part{Type: PartLiteral, Value: "("})
-			wrapped = append(wrapped, out...)
-			wrapped = append(wrapped, Part{Type: PartLiteral, Value: ")"})
+		name := currencyDisplayForNumberFormat(currencyLoc, resolved, plural)
+		out := make([]Part, len(unsigned)+2)
+		copy(out, unsigned)
+		out[len(unsigned)] = Part{Type: PartLiteral, Value: " "}
+		out[len(unsigned)+1] = Part{Type: PartCurrency, Value: name}
+		if sign.Type == PartMinusSign && ecma402.ResolvedScalarValue(resolved.CurrencySign) == AccountingCurrencySign {
+			wrapped := make([]Part, len(out)+2)
+			wrapped[0] = Part{Type: PartLiteral, Value: "("}
+			copy(wrapped[1:], out)
+			wrapped[len(wrapped)-1] = Part{Type: PartLiteral, Value: ")"}
 			return wrapped
 		}
 		if sign.Type != "" {
@@ -35,7 +46,7 @@ func (f *NumberFormat) applyCurrencyPatternForPlural(parts []Part, plural string
 		return out
 	}
 	sign, unsigned := splitLeadingSign(parts)
-	pattern, consumedSign := f.currency.pattern(sign)
+	pattern, consumedSign := currency.pattern(sign.Type == PartMinusSign)
 	out := pattern.append(unsigned)
 	if sign.Type != "" && !consumedSign {
 		return prependPart(sign, out)
@@ -43,21 +54,39 @@ func (f *NumberFormat) applyCurrencyPatternForPlural(parts []Part, plural string
 	return out
 }
 
-func (f *NumberFormat) applyUnitPattern(parts []Part, pluralFormatted string) []Part {
-	return f.applyUnitPatternForPlural(parts, f.pluralCategory(pluralFormatted))
+func applyCurrencyPatternForPluralText(text, plural string, resolved ResolvedOptions, currencyLoc cldrcurrency.Locale, currency currencyPatternSet, symbols cldrnumber.NumberSymbols) string {
+	if ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) == CurrencyDisplayName {
+		sign, unsigned := splitLeadingSignText(text, symbols)
+		name := currencyDisplayForNumberFormat(currencyLoc, resolved, plural)
+		out := unsigned + " " + name
+		if sign == PartMinusSign && ecma402.ResolvedScalarValue(resolved.CurrencySign) == AccountingCurrencySign {
+			return "(" + out + ")"
+		}
+		if sign != "" {
+			return signValue(sign, symbols) + out
+		}
+		return out
+	}
+	sign, unsigned := splitLeadingSignText(text, symbols)
+	pattern, consumedSign := currency.pattern(sign == PartMinusSign)
+	out := pattern.formatText(unsigned)
+	if sign != "" && !consumedSign {
+		return signValue(sign, symbols) + out
+	}
+	return out
 }
 
-func (f *NumberFormat) applyUnitPatternForPlural(parts []Part, plural string) []Part {
-	return f.unit.pattern(plural).append(parts)
+func applyUnitPatternForPlural(parts []Part, plural ecma402pr.Category, unit unitPatternSet) []Part {
+	return unit.pattern(plural).append(parts)
 }
 
-func (f *NumberFormat) currencyDisplay(plural string) string {
-	return currencyDisplayForNumberFormat(f.currencyLoc, f.resolved, plural)
+func applyUnitPatternForPluralText(text string, plural ecma402pr.Category, unit unitPatternSet) string {
+	return unit.pattern(plural).formatText(text)
 }
 
 func currencyDisplayForNumberFormat(loc cldrcurrency.Locale, opts ResolvedOptions, plural string) string {
-	code := opts.Currency
-	switch opts.CurrencyDisplay {
+	code := ecma402.ResolvedScalarValue(opts.Currency)
+	switch ecma402.ResolvedScalarValue(opts.CurrencyDisplay) {
 	case CurrencyDisplayCode:
 		return code
 	case CurrencyDisplayName:
@@ -65,11 +94,11 @@ func currencyDisplayForNumberFormat(loc cldrcurrency.Locale, opts ResolvedOption
 			return name
 		}
 	case CurrencyDisplayNarrowSymbol:
-		if symbol := cldrcurrency.Symbol(loc, code, "narrow"); symbol != "" {
+		if symbol := cldrcurrency.NarrowSymbol(loc, code); symbol != "" {
 			return symbol
 		}
 	case CurrencyDisplaySymbol:
-		if symbol := cldrcurrency.Symbol(loc, code, "symbol"); symbol != "" {
+		if symbol := cldrcurrency.Symbol(loc, code); symbol != "" {
 			return symbol
 		}
 	default:
@@ -77,8 +106,8 @@ func currencyDisplayForNumberFormat(loc cldrcurrency.Locale, opts ResolvedOption
 	return code
 }
 
-func (f *NumberFormat) pluralCategory(formatted string) string {
-	return f.pluralCategoryWithExponent(formatted, 0)
+func pluralCategory(cardinalRule pluralRuleFunc, formatted string) ecma402pr.Category {
+	return pluralCategoryWithExponent(cardinalRule, formatted, 0)
 }
 
 func pluralNumberString(formatted string) string {
@@ -93,9 +122,20 @@ func pluralNumberString(formatted string) string {
 	return joinDecimalParts(integer, fraction)
 }
 
-func (f *NumberFormat) pluralCategoryWithExponent(formatted string, exponent int) string {
+func pluralCategoryWithExponent(cardinalRule pluralRuleFunc, formatted string, exponent int) ecma402pr.Category {
 	ops := ecma402pr.GetOperands(formatted, exponent)
-	return f.cardinalRule(ops).String()
+	return cardinalRule(ops)
+}
+
+const numberPluralCategoryCount = int(ecma402pr.Other) + 1
+
+var numberPluralCategories = [...]ecma402pr.Category{
+	ecma402pr.Zero,
+	ecma402pr.One,
+	ecma402pr.Two,
+	ecma402pr.Few,
+	ecma402pr.Many,
+	ecma402pr.Other,
 }
 
 type currencyPatternSet struct {
@@ -105,13 +145,10 @@ type currencyPatternSet struct {
 }
 
 func currencyPatternsForNumberFormat(loc cldrnumber.Locale, currencyLoc cldrcurrency.Locale, opts ResolvedOptions) currencyPatternSet {
-	if opts.Style != CurrencyStyle || opts.CurrencyDisplay == CurrencyDisplayName {
+	if opts.Style != CurrencyStyle || ecma402.ResolvedScalarValue(opts.CurrencyDisplay) == CurrencyDisplayName {
 		return currencyPatternSet{}
 	}
-	pattern := loc.CurrencyPattern(opts.NumberingSystem, string(opts.CurrencySign))
-	if pattern == "" {
-		pattern = "¤#,##0.00"
-	}
+	pattern := loc.CurrencyPattern(opts.NumberingSystem, string(ecma402.ResolvedScalarValue(opts.CurrencySign)))
 	positive, negative, hasNegative := strings.Cut(pattern, ";")
 	affix := Part{Type: PartCurrency, Value: currencyDisplayForNumberFormat(currencyLoc, opts, "other")}
 	set := currencyPatternSet{positive: compileNumberAffixPattern(positive, affix)}
@@ -122,8 +159,8 @@ func currencyPatternsForNumberFormat(loc cldrnumber.Locale, currencyLoc cldrcurr
 	return set
 }
 
-func (p currencyPatternSet) pattern(sign Part) (numberAffixPattern, bool) {
-	if sign.Type == PartMinusSign && p.hasNegative {
+func (p currencyPatternSet) pattern(negative bool) (numberAffixPattern, bool) {
+	if negative && p.hasNegative {
 		return p.negative, true
 	}
 	return p.positive, false
@@ -146,10 +183,11 @@ func compileNumberAffixPattern(pattern string, affix Part) numberAffixPattern {
 }
 
 func (p numberAffixPattern) append(parts []Part) []Part {
-	out := make([]Part, 0, len(p.prefix)+len(parts)+len(p.suffix))
-	out = append(out, p.prefix...)
-	out = append(out, parts...)
-	return append(out, p.suffix...)
+	return joinPatternParts(p.prefix, parts, p.suffix)
+}
+
+func (p numberAffixPattern) formatText(text string) string {
+	return joinPatternText(p.prefix, text, p.suffix)
 }
 
 func compileCurrencyLiteralParts(s string, affix Part) []Part {
@@ -173,34 +211,27 @@ func compileCurrencyLiteralParts(s string, affix Part) []Part {
 	return parts
 }
 
-type unitPatternSet struct {
-	zero, one, two, few, many, other simpleUnitPattern
-}
+type unitPatternSet [numberPluralCategoryCount]simpleUnitPattern
 
 func unitPatternsForNumberFormat(loc cldrlocale.Locale, opts ResolvedOptions) unitPatternSet {
 	if opts.Style != UnitStyle {
 		return unitPatternSet{}
 	}
-	width := string(opts.UnitDisplay)
-	other := cldrunit.UnitPattern(loc, opts.Unit, width, "other")
+	unit := ecma402.ResolvedScalarValue(opts.Unit)
+	width := string(ecma402.ResolvedScalarValue(opts.UnitDisplay))
+	other := cldrunit.UnitPattern(loc, unit, width, "other")
 	if other == "" {
-		other = defaultUnitPattern(opts.Unit)
+		other = defaultUnitPattern(unit)
 	}
-	compile := func(plural string) simpleUnitPattern {
-		pattern := cldrunit.UnitPattern(loc, opts.Unit, width, plural)
+	var out unitPatternSet
+	for _, category := range numberPluralCategories {
+		pattern := cldrunit.UnitPattern(loc, unit, width, category.String())
 		if pattern == "" {
 			pattern = other
 		}
-		return compileSimpleUnitPattern(pattern)
+		out[category] = compileSimpleUnitPattern(pattern)
 	}
-	return unitPatternSet{
-		zero:  compile("zero"),
-		one:   compile("one"),
-		two:   compile("two"),
-		few:   compile("few"),
-		many:  compile("many"),
-		other: compile("other"),
-	}
+	return out
 }
 
 func defaultUnitPattern(unit string) string {
@@ -211,21 +242,11 @@ func defaultUnitPattern(unit string) string {
 	return b.String()
 }
 
-func (p unitPatternSet) pattern(plural string) simpleUnitPattern {
-	switch plural {
-	case "zero":
-		return p.zero
-	case "one":
-		return p.one
-	case "two":
-		return p.two
-	case "few":
-		return p.few
-	case "many":
-		return p.many
-	default:
-		return p.other
+func (p unitPatternSet) pattern(plural ecma402pr.Category) simpleUnitPattern {
+	if int(plural) < len(p) {
+		return p[plural]
 	}
+	return p[ecma402pr.Other]
 }
 
 type simpleUnitPattern struct {
@@ -244,20 +265,17 @@ func compileSimpleUnitPattern(pattern string) simpleUnitPattern {
 		}
 	}
 	return simpleUnitPattern{
-		prefix: compilePatternTextParts(before, PartUnit),
-		suffix: compilePatternTextParts(after, PartUnit),
+		prefix: appendPatternTextParts(nil, before, PartUnit),
+		suffix: appendPatternTextParts(nil, after, PartUnit),
 	}
 }
 
 func (p simpleUnitPattern) append(parts []Part) []Part {
-	out := make([]Part, 0, len(p.prefix)+len(parts)+len(p.suffix))
-	out = append(out, p.prefix...)
-	out = append(out, parts...)
-	return append(out, p.suffix...)
+	return joinPatternParts(p.prefix, parts, p.suffix)
 }
 
-func compilePatternTextParts(text string, typ PartType) []Part {
-	return appendPatternTextParts(nil, text, typ)
+func (p simpleUnitPattern) formatText(text string) string {
+	return joinPatternText(p.prefix, text, p.suffix)
 }
 
 func splitLeadingSign(parts []Part) (Part, []Part) {
@@ -270,33 +288,18 @@ func splitLeadingSign(parts []Part) (Part, []Part) {
 	return parts[0], parts[1:]
 }
 
-func interpolateUnitPattern(pattern string, parts []Part, unit Part) []Part {
-	out := make([]Part, 0, len(parts)+strings.Count(pattern, "{")+1)
-	for pattern != "" {
-		if rest, ok := strings.CutPrefix(pattern, "{0}"); ok {
-			out = append(out, parts...)
-			pattern = rest
-			continue
+func splitLeadingSignText(text string, symbols cldrnumber.NumberSymbols) (PartType, string) {
+	if symbols.Minus != "" {
+		if rest, ok := strings.CutPrefix(text, symbols.Minus); ok {
+			return PartMinusSign, rest
 		}
-		if rest, ok := strings.CutPrefix(pattern, "{1}"); ok {
-			out = append(out, unit)
-			pattern = rest
-			continue
-		}
-		idx := strings.Index(pattern, "{")
-		if idx < 0 {
-			out = append(out, Part{Type: PartLiteral, Value: pattern})
-			break
-		}
-		if idx > 0 {
-			out = append(out, Part{Type: PartLiteral, Value: pattern[:idx]})
-			pattern = pattern[idx:]
-			continue
-		}
-		out = append(out, Part{Type: PartLiteral, Value: pattern[:1]})
-		pattern = pattern[1:]
 	}
-	return out
+	if symbols.Plus != "" {
+		if rest, ok := strings.CutPrefix(text, symbols.Plus); ok {
+			return PartPlusSign, rest
+		}
+	}
+	return "", text
 }
 
 func appendPatternTextParts(parts []Part, text string, typ PartType) []Part {
@@ -317,6 +320,44 @@ func appendPatternTextParts(parts []Part, text string, typ PartType) []Part {
 		text = text[idx:]
 	}
 	return parts
+}
+
+func joinPatternText(prefix []Part, text string, suffix []Part) string {
+	if len(prefix)+len(suffix) == 0 {
+		return text
+	}
+	size := len(text) + partsTextSize(prefix) + partsTextSize(suffix)
+	var b strings.Builder
+	b.Grow(size)
+	writePartsText(&b, prefix)
+	b.WriteString(text)
+	writePartsText(&b, suffix)
+	return b.String()
+}
+
+func joinPatternParts(prefix, parts, suffix []Part) []Part {
+	if len(prefix)+len(suffix) == 0 {
+		return parts
+	}
+	out := make([]Part, len(prefix)+len(parts)+len(suffix))
+	n := copy(out, prefix)
+	n += copy(out[n:], parts)
+	copy(out[n:], suffix)
+	return out
+}
+
+func partsTextSize(parts []Part) int {
+	size := 0
+	for _, part := range parts {
+		size += len(part.Value)
+	}
+	return size
+}
+
+func writePartsText(b *strings.Builder, parts []Part) {
+	for _, part := range parts {
+		b.WriteString(part.Value)
+	}
 }
 
 func numberPatternBounds(pattern string) (int, int) {

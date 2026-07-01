@@ -64,6 +64,45 @@ func TestResolveLocaleUsesCompiledMatcher(t *testing.T) {
 	}
 }
 
+func TestResolveLocaleBestFitKeepsExtensionFromMatchedRequest(t *testing.T) {
+	t.Parallel()
+
+	matcher := NewMatcher([]string{"zh-Hant", "en"}, func(tag string) string {
+		switch tag {
+		case "zh-TW", "zh-Hant":
+			return "zh-Hant-TW"
+		default:
+			return tag
+		}
+	})
+	got := ResolveLocale(ResolveOptions{
+		Algorithm:             AlgorithmBestFit,
+		Matcher:               matcher,
+		Requested:             []string{"zh-TW-u-ca-buddhist", "zh-TW-u-ca-gregory"},
+		DefaultLocale:         "en",
+		RelevantExtensionKeys: []string{"ca"},
+		LocaleData: testLocaleData{
+			"zh-Hant": {"ca": []string{"gregory", "buddhist"}},
+		},
+	})
+	if got.Locale != "zh-Hant-u-ca-buddhist" || got.DataLocale != "zh-Hant" {
+		t.Fatalf("ResolveLocale() = %#v, want zh-Hant-u-ca-buddhist / zh-Hant", got)
+	}
+	if got.Extensions["ca"] != "buddhist" {
+		t.Fatalf("ResolveLocale().Extensions[ca] = %q, want buddhist", got.Extensions["ca"])
+	}
+}
+
+func TestMatcherBestFitExactMatchKeepsFirstMatchedRequest(t *testing.T) {
+	t.Parallel()
+
+	matcher := NewMatcher([]string{"en", "fr"}, nil)
+	got := matcher.Match([]string{"ban", "en-u-nu-thai", "fr-u-nu-latn"}, "de", AlgorithmBestFit)
+	if got.Locale != "en" || got.Extension != "-u-nu-thai" || got.Distance != 40 {
+		t.Fatalf(`Matcher.Match(best fit exact) = %#v, want locale "en", extension "-u-nu-thai", distance 40`, got)
+	}
+}
+
 func TestMatcherMapsDerivedAvailableLocaleToDataLocale(t *testing.T) {
 	t.Parallel()
 
@@ -83,5 +122,47 @@ func TestMatcherMapsDerivedAvailableLocaleToDataLocale(t *testing.T) {
 	got = matcher.Match([]string{"zh-HK"}, "en", AlgorithmBestFit)
 	if got.Locale != "zh-HK" || got.DataLocale != "zh-Hant-HK" {
 		t.Fatalf("Matcher.Match(best fit) = %#v, want locale zh-HK data zh-Hant-HK", got)
+	}
+}
+
+func TestMatcherMapsDefaultFallbackToDataLocale(t *testing.T) {
+	t.Parallel()
+
+	matcher := NewMatcher([]string{"en-US"}, nil)
+	got := matcher.Match([]string{"ban"}, "en", AlgorithmLookup)
+	if got.Locale != "en" || got.DataLocale != "en-US" {
+		t.Fatalf("Matcher.Match(lookup fallback) = %#v, want locale en data en-US", got)
+	}
+
+	got = matcher.Match([]string{"ban"}, "en", AlgorithmBestFit)
+	if got.Locale != "en" || got.DataLocale != "en-US" {
+		t.Fatalf("Matcher.Match(best fit fallback) = %#v, want locale en data en-US", got)
+	}
+}
+
+func TestLanguageRegionAliasUsesLocaleSubtagGrammar(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		loc  string
+		want string
+		ok   bool
+	}{
+		{name: "alpha region", loc: "zh-Hant-HK", want: "zh-HK", ok: true},
+		{name: "numeric region", loc: "es-Latn-419", want: "es-419", ok: true},
+		{name: "following subtags", loc: "en-Latn-US-posix", want: "en-US-posix", ok: true},
+		{name: "invalid script", loc: "en-123-US"},
+		{name: "invalid region", loc: "en-Latn-12x"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := languageRegionAlias(tc.loc)
+			if got != tc.want || ok != tc.ok {
+				t.Fatalf("languageRegionAlias(%q) = %q, %v; want %q, %v", tc.loc, got, ok, tc.want, tc.ok)
+			}
+		})
 	}
 }

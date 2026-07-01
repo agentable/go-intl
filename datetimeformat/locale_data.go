@@ -1,6 +1,7 @@
 package datetimeformat
 
 import (
+	"slices"
 	"sync"
 
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
@@ -8,14 +9,19 @@ import (
 
 type dateLocaleData struct{}
 
+type dateLocaleDataCacheKey struct {
+	locale string
+	key    string
+}
+
 var dateLocaleDataCache sync.Map
 
 func (dateLocaleData) For(locale, key string) []string {
-	cacheKey := [2]string{locale, key}
+	cacheKey := dateLocaleDataCacheKey{locale: locale, key: key}
 	if data, ok := dateLocaleDataCache.Load(cacheKey); ok {
-		return data.([]string)
+		return slices.Clone(data.([]string))
 	}
 	data := cldrdate.DateLocaleData{}.For(locale, key)
 	actual, _ := dateLocaleDataCache.LoadOrStore(cacheKey, data)
-	return actual.([]string)
+	return slices.Clone(actual.([]string))
 }

@@ -1,15 +1,17 @@
 package gointl_test
 
 import (
+	"errors"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
 	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/collator"
 	"github.com/agentable/go-intl/datetimeformat"
+	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/numberformat"
 	"github.com/agentable/go-intl/pluralrules"
@@ -28,12 +30,11 @@ type consumerProfile struct {
 			Want   string `json:"want"`
 		} `json:"numberFormat"`
 		DateTimeFormat struct {
-			Locale        string `json:"locale"`
-			TimeZone      string `json:"timeZone"`
-			Start         string `json:"start"`
-			End           string `json:"end"`
-			StartContains string `json:"startContains"`
-			EndContains   string `json:"endContains"`
+			Locale    string `json:"locale"`
+			TimeZone  string `json:"timeZone"`
+			Start     string `json:"start"`
+			End       string `json:"end"`
+			ErrorCode string `json:"errorCode"`
 		} `json:"dateTimeFormat"`
 		PluralRules struct {
 			Locale string `json:"locale"`
@@ -168,7 +169,10 @@ func assertConsumerReversedRanges(t *testing.T, profile consumerProfile) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got := format.FormatRange(start, end)
+		got, err := format.FormatRange(start, end)
+		if err != nil {
+			t.Fatalf("FormatRange(%q, %q) error = %v", fixture.Start, fixture.End, err)
+		}
 		if got != fixture.Want {
 			t.Fatalf("FormatRange(%q, %q) = %q, want %q", fixture.Start, fixture.End, got, fixture.Want)
 		}
@@ -179,20 +183,31 @@ func assertConsumerReversedRanges(t *testing.T, profile consumerProfile) {
 
 		fixture := profile.ReversedRanges.DateTimeFormat
 		format, err := datetimeformat.New(intltest.LocaleList(t, fixture.Locale), datetimeformat.Options{
-			TimeZone: fixture.TimeZone,
-			Year:     datetimeformat.NumericFieldStyle,
-			Month:    datetimeformat.NumericMonthStyle,
-			Day:      datetimeformat.NumericFieldStyle,
+			TimeZone: gointl.String(fixture.TimeZone),
+			Year:     gointl.String(string(datetimeformat.NumericFieldStyle)),
+			Month:    gointl.String(string(datetimeformat.NumericMonthStyle)),
+			Day:      gointl.String(string(datetimeformat.NumericFieldStyle)),
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		start := intltest.MustParseTime(t, time.RFC3339, fixture.Start)
 		end := intltest.MustParseTime(t, time.RFC3339, fixture.End)
-		got := format.FormatRange(start, end)
-		if !strings.Contains(got, fixture.StartContains) || !strings.Contains(got, fixture.EndContains) ||
-			strings.Index(got, fixture.StartContains) > strings.Index(got, fixture.EndContains) {
-			t.Fatalf("FormatRange(%s, %s) = %q, want %q before %q", fixture.Start, fixture.End, got, fixture.StartContains, fixture.EndContains)
+		got, err := format.FormatRange(start, end)
+		if fixture.ErrorCode == "invalid_value" {
+			if !errors.Is(err, intlerr.ErrInvalidValue) {
+				t.Fatalf("FormatRange(%s, %s) = %q, error %v, want intlerr.ErrInvalidValue", fixture.Start, fixture.End, got, err)
+			}
+			if got != "" {
+				t.Fatalf("FormatRange(%s, %s) = %q with error %v, want empty output", fixture.Start, fixture.End, got, err)
+			}
+			wantValue := "start=2026-06-01T00:00:00Z end=2026-05-01T00:00:00Z"
+			testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "datetimeformat", "range", wantValue, format.ResolvedOptions().Locale.String())
+			testcontract.AssertErrorExpected(t, err, "start date less than or equal to end date")
+			return
+		}
+		if err != nil {
+			t.Fatalf("FormatRange(%s, %s) error = %v", fixture.Start, fixture.End, err)
 		}
 	})
 

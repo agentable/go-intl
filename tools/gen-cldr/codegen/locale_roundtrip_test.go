@@ -1,13 +1,9 @@
 package codegen
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
-	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
 )
 
@@ -23,27 +19,11 @@ import (
 func TestLocaleKernelRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := filepath.Clean("../../..")
-	cldrDir := filepath.Join(repoRoot, "tools", "gen-cldr", ".cldr-json", "node_modules")
-	if _, err := os.Stat(cldrDir); err != nil {
-		t.Skipf("pinned cldr-json checkout absent (%v); run task data:fetch", err)
-	}
-
-	versions, err := cldr.ReadVersionFile(filepath.Join(repoRoot, "internal", "cldr", "VERSION"))
-	if err != nil {
-		t.Fatalf("read VERSION: %v", err)
-	}
-	profile := readUnitTestProfile(t, filepath.Join(repoRoot, "tools", "locale-profile.json"))
-
-	source, err := cldr.LoadAll(context.Background(), cldrDir, versions, profile)
-	if err != nil {
-		t.Fatalf("load cldr-json: %v", err)
-	}
-
-	locales := extract.ExtractLocales(source.Available, profile)
-	likely := extract.ExtractLikelySubtags(source.LikelySubtags)
-	numbers := extract.ExtractNumbers(source.Numbers, profile)
-	preferences := extract.ExtractPreference(source.Preference)
+	input := loadRoundTripSource(t)
+	locales := extract.ExtractLocales(input.source.Available)
+	likely := extract.ExtractLikelySubtags(input.source.LikelySubtags)
+	numbers := extract.ExtractNumbers(input.source.Numbers, input.profile)
+	preferences := input.source.Preference
 
 	// Locale registry: index assignment and available tags.
 	for i, tag := range locales.Tags {
@@ -57,14 +37,7 @@ func TestLocaleKernelRoundTrip(t *testing.T) {
 		}
 	}
 	gotTags := cldrlocale.AvailableLocales()
-	if len(gotTags) != len(locales.Tags) {
-		t.Fatalf("AvailableLocales len = %d, want %d", len(gotTags), len(locales.Tags))
-	}
-	for i := range locales.Tags {
-		if gotTags[i] != locales.Tags[i] {
-			t.Errorf("AvailableLocales[%d] = %q, want %q", i, gotTags[i], locales.Tags[i])
-		}
-	}
+	assertStringSliceEqual(t, "AvailableLocales", gotTags, locales.Tags)
 
 	// Likely-subtags maximize rows.
 	for key, triple := range likely.Maximize {
@@ -111,18 +84,14 @@ func TestLocaleKernelRoundTrip(t *testing.T) {
 	// Preference rows.
 	for region, values := range preferences.HourCycle {
 		got := cldrlocale.HourCyclePreference(region)
-		if !equalStrings(got, values) {
-			t.Errorf("HourCyclePreference(%q) = %v, want %v", region, got, values)
-		}
+		checkStringSliceEqual(t, "HourCyclePreference("+region+")", got, values)
 		if !cldrlocale.HasHourCyclePreference(region) {
 			t.Errorf("HasHourCyclePreference(%q) = false, want true", region)
 		}
 	}
 	for region, values := range preferences.Calendar {
 		got := cldrlocale.CalendarPreference(region)
-		if !equalStrings(got, values) {
-			t.Errorf("CalendarPreference(%q) = %v, want %v", region, got, values)
-		}
+		checkStringSliceEqual(t, "CalendarPreference("+region+")", got, values)
 		if !cldrlocale.HasCalendarPreference(region) {
 			t.Errorf("HasCalendarPreference(%q) = false, want true", region)
 		}
@@ -143,6 +112,47 @@ func TestLocaleKernelRoundTrip(t *testing.T) {
 			t.Errorf("HasWeekPreference(%q) = false, want true", region)
 		}
 	}
+}
+
+func TestLocaleNumberingOverrideLocales(t *testing.T) {
+	t.Parallel()
+
+	numbers := extract.Numbers{
+		"ar":  {DefaultNumberingSystem: "arabext"},
+		"en":  {DefaultNumberingSystem: "latn"},
+		"fr":  {DefaultNumberingSystem: "arab"},
+		"und": {},
+	}
+	got := localeNumberingOverrideLocales(numbers)
+	want := []string{"ar", "fr"}
+	assertStringSliceEqual(t, "localeNumberingOverrideLocales()", got, want)
+}
+
+func TestEncodeLocaleKernelReturnsErrorsForMissingNumberingLocale(t *testing.T) {
+	t.Parallel()
+
+	input := RuntimeInput{
+		Locales: extract.Locales{Tags: []string{"und", "en"}},
+		Numbers: extract.Numbers{
+			"fr": {DefaultNumberingSystem: "arab"},
+		},
+	}
+	_, err := encodeLocaleKernel(input, NewStringTable())
+	assertErrorContains(t, "encodeLocaleKernel()", err, `locale "fr" missing from kernel locale registry`)
+}
+
+func TestSubtagTripleHelpers(t *testing.T) {
+	t.Parallel()
+
+	triple := extract.SubtagTriple{Lang: "en", Script: "Latn", Region: "US"}
+	if got, want := subtagTripleKey(triple), "en-Latn-US"; got != want {
+		t.Fatalf("subtagTripleKey(%#v) = %q, want %q", triple, got, want)
+	}
+
+	table := NewStringTable()
+	var e blobEncoder
+	appendSubtagTriple(&e, table, triple)
+	assertBytesEqual(t, "appendSubtagTriple() bytes", e.bytes(), []byte{0, 2, 2, 4, 6, 2})
 }
 
 func splitTriple(key string) (language, script, region string) {
@@ -170,16 +180,4 @@ func splitDash(s string) []string {
 	}
 	out = append(out, s[start:])
 	return out
-}
-
-func equalStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

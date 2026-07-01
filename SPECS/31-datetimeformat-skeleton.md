@@ -92,8 +92,7 @@ The character table source **MUST** be an LDML TR35 Date Field Symbol Table. `DA
 3. `parseDateTimeSkeleton(skeleton string, hour12 *bool, hourCycle string, ...) Formats` **MUST** return the `Formats{...}` structure (corresponding to ECMA-402 §13.1.2):
    ```go
    type Formats struct {
-Pattern string // Parsed pattern string (including literal quotes)
-Pattern12 string // 12-bit version (if available)
+Pattern string // selected active pattern string (including literal quotes)
 Skeleton string // original skeleton
        Era                   FieldStyle
        Year                  NumericStyle
@@ -109,6 +108,7 @@ Skeleton string // original skeleton
        TimeZoneName          TimeZoneName
    }
    ```
+   `go-intl` does not retain a dormant `Pattern12` slot in the skeleton candidate. ECMA-402 and FormatJS model an optional 12-hour pattern record; this implementation stores the selected active `Pattern` plus `HourCycle`, and carries no field unless runtime code consumes it.
 
 > **Why**: The LDML character table is the consistent point across ICU/CLDR implementations; Generated reference has completed authoritative transplantation on the TS side, and mechanical translation on the Go side can ensure byte equality.
 >

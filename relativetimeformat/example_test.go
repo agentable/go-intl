@@ -3,6 +3,7 @@ package relativetimeformat_test
 import (
 	"fmt"
 
+	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/relativetimeformat"
 )
@@ -27,7 +28,7 @@ func Example() {
 // Example_options demonstrates Intl.RelativeTimeFormat constructor options from ECMA-402.
 func Example_options() {
 	format, err := relativetimeformat.New(mustLocaleList("en-US"), relativetimeformat.Options{
-		Numeric: relativetimeformat.NumericAuto,
+		Numeric: gointl.String(relativetimeformat.NumericAuto),
 	})
 	if err != nil {
 		panic(err)

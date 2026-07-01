@@ -36,18 +36,24 @@ func TestLocaleMatcherAlgorithm(t *testing.T) {
 	}
 }
 
-func TestLocaleMatcherOption(t *testing.T) {
+func TestLocaleMatcherOptionInput(t *testing.T) {
 	t.Parallel()
 
-	check := LocaleMatcherOption("fast")
+	check := LocaleMatcherOptionInput("fast", true)
 	if check.Name != "localeMatcher" {
-		t.Fatalf("LocaleMatcherOption().Name = %q, want localeMatcher", check.Name)
+		t.Fatalf("LocaleMatcherOptionInput().Name = %q, want localeMatcher", check.Name)
 	}
 	if invalid, ok := InvalidStringOption(check); !ok || invalid.Name != "localeMatcher" || invalid.Value != "fast" {
-		t.Fatalf("InvalidStringOption(LocaleMatcherOption) = %+v, %t; want invalid localeMatcher fast", invalid, ok)
+		t.Fatalf("InvalidStringOption(LocaleMatcherOptionInput) = %+v, %t; want invalid localeMatcher fast", invalid, ok)
 	}
-	if _, ok := InvalidStringOption(LocaleMatcherOption("lookup")); ok {
-		t.Fatal("InvalidStringOption(LocaleMatcherOption(lookup)) ok = true, want false")
+	if _, ok := InvalidStringOption(LocaleMatcherOptionInput("", false)); ok {
+		t.Fatal("InvalidStringOption(LocaleMatcherOptionInput(empty omitted)) ok = true, want false")
+	}
+	if invalid, ok := InvalidStringOption(LocaleMatcherOptionInput("", true)); !ok || invalid.Name != "localeMatcher" || invalid.Value != "" {
+		t.Fatalf("InvalidStringOption(LocaleMatcherOptionInput(empty present)) = %+v, %t; want invalid localeMatcher empty", invalid, ok)
+	}
+	if _, ok := InvalidStringOption(LocaleMatcherOptionInput("lookup", true)); ok {
+		t.Fatal("InvalidStringOption(LocaleMatcherOptionInput(lookup present)) ok = true, want false")
 	}
 }
 
@@ -72,10 +78,10 @@ func TestResolveConstructorLocaleAppliesMatcherAndRelevantExtensions(t *testing.
 		Fallback:              fallback,
 		LocaleMatcher:         "lookup",
 		Matcher:               matcher,
-		RelevantExtensionKeys: []string{"nu"},
-		OptionValues:          []localematcher.Option{{Key: "nu", Value: "latn"}},
+		RelevantExtensionKeys: []UnicodeExtensionKey{UnicodeExtensionKeyNumberingSystem},
+		OptionValues:          []UnicodeExtensionOption{{Key: UnicodeExtensionKeyNumberingSystem, Value: "latn"}},
 		LocaleData: constructorLocaleData{
-			"th": {"nu": []string{"thai", "latn"}},
+			"th": {string(UnicodeExtensionKeyNumberingSystem): []string{"thai", "latn"}},
 		},
 	})
 
@@ -85,11 +91,8 @@ func TestResolveConstructorLocaleAppliesMatcherAndRelevantExtensions(t *testing.
 	if got.DataLocale != "th" {
 		t.Fatalf("ResolveConstructorLocale().DataLocale = %q, want th", got.DataLocale)
 	}
-	if got.Extension != "-u-nu-thai" {
-		t.Fatalf("ResolveConstructorLocale().Extension = %q, want -u-nu-thai", got.Extension)
-	}
-	if got.Extensions["nu"] != "latn" {
-		t.Fatalf("ResolveConstructorLocale().Extensions[nu] = %q, want latn", got.Extensions["nu"])
+	if got.Extensions[UnicodeExtensionKeyNumberingSystem] != "latn" {
+		t.Fatalf("ResolveConstructorLocale().Extensions[nu] = %q, want latn", got.Extensions[UnicodeExtensionKeyNumberingSystem])
 	}
 }
 
@@ -118,5 +121,57 @@ func TestResolveConstructorLocaleDispatchesLocaleMatcher(t *testing.T) {
 	})
 	if bestFit.Locale.String() != "zh-Hant" {
 		t.Fatalf("ResolveConstructorLocale(best fit).Locale = %q, want zh-Hant", bestFit.Locale.String())
+	}
+}
+
+func TestResolveConstructorLocaleFallsBackWhenResolvedLocaleCannotParse(t *testing.T) {
+	restore := OverrideDefaultLocaleForTest("bad_locale")
+	t.Cleanup(restore)
+
+	fallback := intltest.Locale(t, "en")
+	got := ResolveConstructorLocale(ConstructorLocaleOptions{
+		Fallback: fallback,
+	})
+
+	if got.Locale.String() != "en" {
+		t.Fatalf("ResolveConstructorLocale().Locale = %q, want fallback en", got.Locale.String())
+	}
+	if got.DataLocale != "bad_locale" {
+		t.Fatalf("ResolveConstructorLocale().DataLocale = %q, want bad_locale", got.DataLocale)
+	}
+}
+
+func TestResolveDataLocale(t *testing.T) {
+	restore := OverrideDefaultLocaleForTest("en")
+	t.Cleanup(restore)
+
+	resolve := func(tag string) (string, bool) {
+		switch tag {
+		case "fr":
+			return "data-fr", true
+		case "en":
+			return "data-en", true
+		default:
+			return "", false
+		}
+	}
+
+	if got := ResolveDataLocale(ConstructorLocaleResolution{DataLocale: "fr"}, resolve); got != "data-fr" {
+		t.Fatalf("ResolveDataLocale(fr) = %q, want data-fr", got)
+	}
+	if got := ResolveDataLocale(ConstructorLocaleResolution{DataLocale: "missing"}, resolve); got != "data-en" {
+		t.Fatalf("ResolveDataLocale(missing) = %q, want data-en", got)
+	}
+}
+
+func TestResolveDataLocaleTag(t *testing.T) {
+	restore := OverrideDefaultLocaleForTest("en")
+	t.Cleanup(restore)
+
+	if got := ResolveDataLocaleTag(ConstructorLocaleResolution{DataLocale: "fr"}); got != "fr" {
+		t.Fatalf("ResolveDataLocaleTag(fr) = %q, want fr", got)
+	}
+	if got := ResolveDataLocaleTag(ConstructorLocaleResolution{}); got != "en" {
+		t.Fatalf("ResolveDataLocaleTag(empty) = %q, want en", got)
 	}
 }

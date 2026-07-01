@@ -7,36 +7,21 @@ type List []Locale
 
 // ParseList parses locale identifiers into an ordered request list.
 func ParseList(tags ...string) (List, error) {
-	out := make(List, 0, len(tags))
-	for _, tag := range tags {
+	out := make(List, len(tags))
+	for i, tag := range tags {
 		loc, err := Parse(tag)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, loc)
+		out[i] = loc
 	}
 	return out, nil
 }
 
-func canonicalizeList(locales List) List {
-	seen := map[string]bool{}
-	out := make(List, 0, len(locales))
-	for _, loc := range locales {
-		key := loc.String()
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		out = append(out, loc)
-	}
-	return out
-}
-
-// Strings returns the canonical locale identifiers in request order.
+// Strings returns the canonical locale identifiers in list order.
 func (l List) Strings() []string {
-	canonical := canonicalizeList(l)
-	out := make([]string, len(canonical))
-	for i, loc := range canonical {
+	out := make([]string, len(l))
+	for i, loc := range l {
 		out[i] = loc.String()
 	}
 	return out

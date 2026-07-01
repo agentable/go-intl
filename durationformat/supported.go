@@ -1,10 +1,7 @@
 package durationformat
 
 import (
-	"slices"
 	"sync"
-
-	"github.com/agentable/go-intl/internal/intlerr"
 
 	cldrlist "github.com/agentable/go-intl/internal/cldr/list"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
@@ -16,18 +13,20 @@ import (
 )
 
 func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error) {
-	return ecma402.SupportedLocalesOf("durationformat", supportedLocales(), locales, string(opts.LocaleMatcher), cldrlocale.Maximize, intlerr.ErrInvalidOption)
+	return ecma402.SupportedLocalesOf(ecma402.SupportedLocalesOptions{
+		Owner:         durationFormatOwner,
+		Supported:     supportedLocales(),
+		Requested:     locales,
+		LocaleMatcher: opts.LocaleMatcher,
+		Maximizer:     cldrlocale.Maximize,
+	})
 }
 
 var supportedLocales = sync.OnceValue(func() []string {
-	lists := cldrlist.SupportedLocales()
-	plurals := cldrplural.SupportedLocales()
-	units := cldrunit.SupportedLocales()
-
-	out := slices.Clone(cldrnumber.SupportedLocales())
-	return slices.DeleteFunc(out, func(loc string) bool {
-		return !slices.Contains(lists, loc) ||
-			!slices.Contains(plurals, loc) ||
-			!slices.Contains(units, loc)
-	})
+	return cldrlocale.IntersectSupportedLocales(
+		cldrnumber.SupportedLocales(),
+		cldrlist.SupportedLocales(),
+		cldrplural.SupportedLocales(),
+		cldrunit.SupportedLocales(),
+	)
 })

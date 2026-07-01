@@ -1,6 +1,9 @@
 package datetimeformat
 
-import "github.com/agentable/go-intl/locale"
+import (
+	"github.com/agentable/go-intl/internal/ecma402"
+	"github.com/agentable/go-intl/locale"
+)
 
 // LocaleMatcher selects locale negotiation behavior. Mirrors Intl.DateTimeFormat option "localeMatcher".
 type LocaleMatcher string
@@ -113,66 +116,66 @@ type RangePart struct {
 }
 
 type ResolvedOptions struct {
-	// Locale is the resolved locale. Mirrors Intl.DateTimeFormat resolved option "locale".
-	Locale locale.Locale `json:"locale"`
-	// Calendar is the resolved calendar. Mirrors Intl.DateTimeFormat resolved option "calendar".
-	Calendar string `json:"calendar"`
-	// NumberingSystem is the resolved numbering system. Mirrors Intl.DateTimeFormat resolved option "numberingSystem".
-	NumberingSystem string `json:"numberingSystem"`
-	// TimeZone is the resolved time zone. Mirrors Intl.DateTimeFormat resolved option "timeZone".
-	TimeZone string `json:"timeZone"`
-	// HourCycle is the resolved hour cycle. Mirrors Intl.DateTimeFormat resolved option "hourCycle".
-	// Empty when ECMA-402 omits hour-cycle properties because no hour field is present.
-	HourCycle HourCycle `json:"hourCycle,omitempty"`
-	// Hour12 is the resolved 12-hour preference. Mirrors Intl.DateTimeFormat resolved option "hour12".
+	Locale          locale.Locale `json:"locale"`
+	Calendar        string        `json:"calendar"`
+	NumberingSystem string        `json:"numberingSystem"`
+	TimeZone        string        `json:"timeZone"`
+	// Nil when ECMA-402 omits hour-cycle properties because no hour field is present.
+	HourCycle *HourCycle `json:"hourCycle,omitempty"`
 	// Nil when ECMA-402 omits hour-cycle properties because no hour field is present.
 	Hour12 *bool `json:"hour12,omitempty"`
-	// Weekday is the resolved weekday style. Mirrors Intl.DateTimeFormat resolved option "weekday".
-	// Empty when the weekday component is absent.
-	Weekday FieldStyle `json:"weekday,omitempty"`
-	// Era is the resolved era style. Mirrors Intl.DateTimeFormat resolved option "era".
-	// Empty when the era component is absent.
-	Era FieldStyle `json:"era,omitempty"`
-	// Year is the resolved year style. Mirrors Intl.DateTimeFormat resolved option "year".
-	// Empty when the year component is absent.
-	Year NumericStyle `json:"year,omitempty"`
-	// Month is the resolved month style. Mirrors Intl.DateTimeFormat resolved option "month".
-	// Empty when the month component is absent.
-	Month MonthStyle `json:"month,omitempty"`
-	// Day is the resolved day style. Mirrors Intl.DateTimeFormat resolved option "day".
-	// Empty when the day component is absent.
-	Day NumericStyle `json:"day,omitempty"`
-	// DayPeriod is the resolved day-period style. Mirrors Intl.DateTimeFormat resolved option "dayPeriod".
-	// Empty when the day-period component is absent.
-	DayPeriod FieldStyle `json:"dayPeriod,omitempty"`
-	// Hour is the resolved hour style. Mirrors Intl.DateTimeFormat resolved option "hour".
-	// Empty when the hour component is absent.
-	Hour NumericStyle `json:"hour,omitempty"`
-	// Minute is the resolved minute style. Mirrors Intl.DateTimeFormat resolved option "minute".
-	// Empty when the minute component is absent.
-	Minute NumericStyle `json:"minute,omitempty"`
-	// Second is the resolved second style. Mirrors Intl.DateTimeFormat resolved option "second".
-	// Empty when the second component is absent.
-	Second NumericStyle `json:"second,omitempty"`
-	// FractionalSecondDigits is the resolved fractional second digit count. Mirrors Intl.DateTimeFormat resolved option "fractionalSecondDigits".
-	// Zero when the fractional-second component is absent.
-	FractionalSecondDigits int `json:"fractionalSecondDigits,omitempty"`
-	// TimeZoneName is the resolved time-zone name style. Mirrors Intl.DateTimeFormat resolved option "timeZoneName".
-	// Empty when the time-zone name component is absent.
-	TimeZoneName TimeZoneName `json:"timeZoneName,omitempty"`
-	// DateStyle is the resolved date style. Mirrors Intl.DateTimeFormat resolved option "dateStyle".
-	// Empty when dateStyle was not used.
-	DateStyle Style `json:"dateStyle,omitempty"`
-	// TimeStyle is the resolved time style. Mirrors Intl.DateTimeFormat resolved option "timeStyle".
-	// Empty when timeStyle was not used.
-	TimeStyle Style `json:"timeStyle,omitempty"`
+	// Nil when the weekday component is absent.
+	Weekday *FieldStyle `json:"weekday,omitempty"`
+	// Nil when the era component is absent.
+	Era *FieldStyle `json:"era,omitempty"`
+	// Nil when the year component is absent.
+	Year *NumericStyle `json:"year,omitempty"`
+	// Nil when the month component is absent.
+	Month *MonthStyle `json:"month,omitempty"`
+	// Nil when the day component is absent.
+	Day *NumericStyle `json:"day,omitempty"`
+	// Nil when the day-period component is absent.
+	DayPeriod *FieldStyle `json:"dayPeriod,omitempty"`
+	// Nil when the hour component is absent.
+	Hour *NumericStyle `json:"hour,omitempty"`
+	// Nil when the minute component is absent.
+	Minute *NumericStyle `json:"minute,omitempty"`
+	// Nil when the second component is absent.
+	Second *NumericStyle `json:"second,omitempty"`
+	// Nil when the fractional-second component is absent.
+	FractionalSecondDigits *int `json:"fractionalSecondDigits,omitempty"`
+	// Nil when the time-zone name component is absent.
+	TimeZoneName *TimeZoneName `json:"timeZoneName,omitempty"`
+	// Nil when dateStyle was not used.
+	DateStyle *Style `json:"dateStyle,omitempty"`
+	// Nil when timeStyle was not used.
+	TimeStyle *Style `json:"timeStyle,omitempty"`
 }
 
 func (f *DateTimeFormat) ResolvedOptions() ResolvedOptions {
 	resolved := f.resolved
-	if resolved.Hour12 != nil {
-		hour12 := *resolved.Hour12
-		resolved.Hour12 = &hour12
-	}
+	resolved.HourCycle = ecma402.CloneResolvedScalar(resolved.HourCycle)
+	resolved.Hour12 = ecma402.CloneResolvedScalar(resolved.Hour12)
+	resolved.Weekday = ecma402.CloneResolvedScalar(resolved.Weekday)
+	resolved.Era = ecma402.CloneResolvedScalar(resolved.Era)
+	resolved.Year = ecma402.CloneResolvedScalar(resolved.Year)
+	resolved.Month = ecma402.CloneResolvedScalar(resolved.Month)
+	resolved.Day = ecma402.CloneResolvedScalar(resolved.Day)
+	resolved.DayPeriod = ecma402.CloneResolvedScalar(resolved.DayPeriod)
+	resolved.Hour = ecma402.CloneResolvedScalar(resolved.Hour)
+	resolved.Minute = ecma402.CloneResolvedScalar(resolved.Minute)
+	resolved.Second = ecma402.CloneResolvedScalar(resolved.Second)
+	resolved.FractionalSecondDigits = ecma402.CloneResolvedScalar(resolved.FractionalSecondDigits)
+	resolved.TimeZoneName = ecma402.CloneResolvedScalar(resolved.TimeZoneName)
+	resolved.DateStyle = ecma402.CloneResolvedScalar(resolved.DateStyle)
+	resolved.TimeStyle = ecma402.CloneResolvedScalar(resolved.TimeStyle)
 	return resolved
+}
+
+func resolvedStringOption[T ~string](value string) *T {
+	if value == "" {
+		return nil
+	}
+	resolved := T(value)
+	return ecma402.ResolvedScalar(resolved)
 }

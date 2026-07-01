@@ -1,13 +1,11 @@
 package currency
 
 import (
-	"os"
-	"os/exec"
-	"slices"
-	"strings"
 	"testing"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+	"github.com/agentable/go-intl/internal/testcontract"
+	"github.com/agentable/go-intl/internal/testprocess"
 )
 
 // narrowIndexSubprocessEnv gates the narrow-index Once assertion so it runs in a
@@ -18,71 +16,30 @@ const narrowIndexSubprocessEnv = "GO_INTL_CURRENCY_NARROW_INDEX_SUBPROCESS"
 // SupportedCodes reads only the supported blob and must never trigger the
 // fraction or names blob decode.
 //
-// The assertion is order-sensitive: any other test in this binary that touches a
-// fraction or name lookup (for example the smoke checks below) populates the
-// corresponding map, after which a same-binary assertion would see it already
-// decoded. Rather than depend on test order, this test re-executes the test
-// binary as a subprocess that runs only the inner assertion via -test.run, so
-// the assertion always observes a process that has decoded nothing. When adding
-// new fraction/name-touching tests, keep the assertion in this subprocess form.
+// The assertion runs in a fresh process so other currency-data tests cannot
+// populate the package-level Once state first.
 func TestSupportedCodesDoesNotDecodeOtherBlobs(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv(narrowIndexSubprocessEnv) == "1" {
-		assertSupportedCodesDoesNotDecodeOtherBlobs(t)
+	if !testprocess.RunInFreshProcess(t, narrowIndexSubprocessEnv) {
 		return
 	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=^TestSupportedCodesDoesNotDecodeOtherBlobs$", "-test.v")
-	cmd.Env = append(os.Environ(), narrowIndexSubprocessEnv+"=1")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("narrow-index subprocess failed: %v\n%s", err, out)
-	}
-	if !strings.Contains(string(out), "PASS") {
-		t.Fatalf("narrow-index subprocess did not report PASS:\n%s", out)
-	}
-}
-
-func assertSupportedCodesDoesNotDecodeOtherBlobs(t *testing.T) {
-	t.Helper()
-
-	codes := SupportedCodes()
-	if len(codes) == 0 {
-		t.Fatal("SupportedCodes returned no codes")
-	}
-	if fractions != nil {
-		t.Error("SupportedCodes decoded the fraction blob; narrow index must not")
-	}
-	if byLocale != nil {
-		t.Error("SupportedCodes decoded the names blob; narrow index must not")
-	}
+	testcontract.AssertNarrowStringIndexDoesNotLoad(t, "SupportedCodes", SupportedCodes,
+		testcontract.LoadProbe{Name: "fraction blob", Loaded: func() bool { return fractions != nil }},
+		testcontract.LoadProbe{Name: "names blob", Loaded: func() bool { return byLocale != nil }},
+	)
 }
 
 func TestSupportedCodesReturnsCopy(t *testing.T) {
 	t.Parallel()
 
-	a := SupportedCodes()
-	if len(a) == 0 {
-		t.Fatal("SupportedCodes returned no codes")
-	}
-	a[0] = "mutated"
-	b := SupportedCodes()
-	if b[0] == "mutated" {
-		t.Error("SupportedCodes returned a shared slice; callers can corrupt the cache")
-	}
+	testcontract.AssertStringSliceReturnsCopy(t, "SupportedCodes", SupportedCodes)
 }
 
 func TestSupportedCodesSortedAndUnique(t *testing.T) {
 	t.Parallel()
 
-	codes := SupportedCodes()
-	if !slices.IsSorted(codes) {
-		t.Errorf("SupportedCodes = %v, want sorted", codes)
-	}
-	if compact := slices.Compact(slices.Clone(codes)); !slices.Equal(compact, codes) {
-		t.Errorf("SupportedCodes = %v, want unique", codes)
-	}
+	testcontract.AssertStringSliceSortedUnique(t, "SupportedCodes", SupportedCodes())
 }
 
 // TestSmokeKnownFractions is a checkout-independent smoke test: a few known ISO
@@ -118,7 +75,60 @@ func TestSmokeKnownNames(t *testing.T) {
 	if got, want := DisplayName(loc, "USD", "one"), "US dollar"; got != want {
 		t.Errorf("DisplayName(USD, one) = %q, want %q", got, want)
 	}
-	if got, want := Symbol(loc, "JPY", "narrow"), "¥"; got != want {
-		t.Errorf("Symbol(JPY, narrow) = %q, want %q", got, want)
+	other := DisplayName(loc, "USD", "other")
+	if other == "" {
+		t.Fatal("DisplayName(USD, other) = empty, want CLDR plural fallback anchor")
+	}
+	if got := DisplayName(loc, "USD", ""); got != other {
+		t.Errorf("DisplayName(USD, empty plural) = %q, want other form %q", got, other)
+	}
+	if got := DisplayName(loc, "USD", "unknown"); got != other {
+		t.Errorf("DisplayName(USD, unknown plural) = %q, want other form %q", got, other)
+	}
+	if got, want := CanonicalName(loc, "USD"), "US Dollar"; got != want {
+		t.Errorf("CanonicalName(USD) = %q, want %q", got, want)
+	}
+	if got, want := Symbol(loc, "USD"), "$"; got != want {
+		t.Errorf("Symbol(USD) = %q, want %q", got, want)
+	}
+	if got, want := NarrowSymbol(loc, "JPY"), "¥"; got != want {
+		t.Errorf("NarrowSymbol(JPY) = %q, want %q", got, want)
+	}
+	if got, want := NarrowSymbol(loc, "USD"), Symbol(loc, "USD"); got != want {
+		t.Errorf("NarrowSymbol(USD) = %q, want standard symbol %q", got, want)
+	}
+
+	assertMissingCurrencyNames(t, cldrlocale.Undefined, "USD")
+	assertMissingCurrencyNames(t, loc, "ZZZ")
+}
+
+func TestLocaleNamesMissingCodeReturnsZeroRecord(t *testing.T) {
+	t.Parallel()
+
+	loc, ok := cldrlocale.ResolveLocale("en-US")
+	if !ok {
+		t.Fatal(`ResolveLocale("en-US") = false, want true`)
+	}
+
+	names := localeNames(loc, "ZZZ")
+	if names.display != nil || names.canonical != "" || names.symbol != "" || names.narrow != "" {
+		t.Fatalf("localeNames(en-US, ZZZ) = %+v, want zero currencyNames", names)
+	}
+}
+
+func assertMissingCurrencyNames(t *testing.T, loc Locale, code string) {
+	t.Helper()
+
+	if got := DisplayName(loc, code, "other"); got != "" {
+		t.Errorf("DisplayName(%v, %s, other) = %q, want empty", loc, code, got)
+	}
+	if got := CanonicalName(loc, code); got != "" {
+		t.Errorf("CanonicalName(%v, %s) = %q, want empty", loc, code, got)
+	}
+	if got := Symbol(loc, code); got != "" {
+		t.Errorf("Symbol(%v, %s) = %q, want empty", loc, code, got)
+	}
+	if got := NarrowSymbol(loc, code); got != "" {
+		t.Errorf("NarrowSymbol(%v, %s) = %q, want empty", loc, code, got)
 	}
 }

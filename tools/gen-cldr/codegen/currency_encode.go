@@ -1,7 +1,6 @@
 package codegen
 
 import (
-	"bytes"
 	"maps"
 	"slices"
 
@@ -19,8 +18,8 @@ import (
 //   - _currencyNamesBlob:     per-locale display/canonical/symbol/narrow data.
 //     Locale indices are written as a sorted delta stream; each locale carries a
 //     sorted code map whose values are a display string-map plus the three
-//     scalar StringRefs. The decoder rebuilds the same
-//     map[Locale]map[string]currencyNames the legacy loadCurrencyData produced.
+//     scalar StringRefs. The decoder rebuilds the runtime
+//     map[Locale]map[string]currencyNames.
 //   - _currencySupportedBlob: the supported ISO 4217 codes in sorted order, a
 //     narrow index so SupportedCodes never decodes the fraction or names blobs.
 //
@@ -32,50 +31,35 @@ func encodeCurrencies(input RuntimeInput, table *StringTable) ([]byte, error) {
 	localeIndex := localeIndexMap(input.Locales)
 
 	var fractions blobEncoder
-	fractionCodes := slices.Sorted(maps.Keys(data.Fractions))
-	fractions.appendUvarint(uint64(len(fractionCodes)))
-	for _, code := range fractionCodes {
-		f := data.Fractions[code]
-		fractions.appendStringRef(table.Add(code))
-		fractions.appendUvarint(uint64(f.Digits))
-		fractions.appendUvarint(uint64(f.CashDigits))
-		fractions.appendUvarint(uint64(f.Rounding))
-	}
+	appendStringRefKeyMap(&fractions, data.Fractions, table, func(f cldr.CurrencyFraction) {
+		appendCurrencyFraction(&fractions, f)
+	})
 
 	var names blobEncoder
 	locales := sortedLocaleKeys(data.Currencies)
-	names.appendUvarint(uint64(len(locales)))
-	for _, locale := range locales {
-		names.appendDelta(mustLocaleIndex(localeIndex, locale))
+	if err := names.appendLocaleDeltaRecords(locales, localeIndex, func(locale string) {
 		encodeCurrencyNames(&names, data.Currencies[locale], table)
+	}); err != nil {
+		return nil, err
 	}
 
 	var supported blobEncoder
 	supportedCodes := supportedCurrencyValues(data)
-	supported.appendUvarint(uint64(len(supportedCodes)))
-	for _, code := range supportedCodes {
-		supported.appendStringRef(table.Add(code))
-	}
+	supported.appendStringRefSlice(supportedCodes, table)
 
-	var b bytes.Buffer
-	b.WriteString("package currency\n\n")
-	if err := table.EmitDataConst(&b, "_data"); err != nil {
-		return nil, err
-	}
-	for _, blob := range []struct {
-		name  string
-		bytes []byte
-	}{
-		{"_currencyFractionBlob", fractions.bytes()},
-		{"_currencyNamesBlob", names.bytes()},
-		{"_currencySupportedBlob", supported.bytes()},
-	} {
-		b.WriteString("\n")
-		if err := emitStringConst(&b, blob.name, string(blob.bytes)); err != nil {
-			return nil, err
-		}
-	}
-	return FormatFile(b.Bytes())
+	return renderPayloadFile("currency", table,
+		payloadBlob{"_currencyFractionBlob", fractions.bytes()},
+		payloadBlob{"_currencyNamesBlob", names.bytes()},
+		payloadBlob{"_currencySupportedBlob", supported.bytes()},
+	)
+}
+
+// appendCurrencyFraction owns the digits/cashDigits/rounding wire order for one
+// currency fraction row.
+func appendCurrencyFraction(e *blobEncoder, f cldr.CurrencyFraction) {
+	e.appendUvarint(uint64(f.Digits))
+	e.appendUvarint(uint64(f.CashDigits))
+	e.appendUvarint(uint64(f.Rounding))
 }
 
 // supportedCurrencyValues returns the supported ISO 4217 currency codes in
@@ -101,14 +85,16 @@ func supportedCurrencyValues(data extract.CurrencyData) []string {
 // symbol, and narrow scalars. The decoder reads the names back in this exact
 // order.
 func encodeCurrencyNames(e *blobEncoder, currencies cldr.Currencies, table *StringTable) {
-	codes := slices.Sorted(maps.Keys(currencies))
-	e.appendUvarint(uint64(len(codes)))
-	for _, code := range codes {
-		names := currencies[code]
-		e.appendStringRef(table.Add(code))
-		encodeStringMap(e, names.Display, table)
-		e.appendStringRef(table.Add(names.Canonical))
-		e.appendStringRef(table.Add(names.Symbol))
-		e.appendStringRef(table.Add(names.Narrow))
-	}
+	appendStringRefKeyMap(e, currencies, table, func(names cldr.CurrencyNames) {
+		appendCurrencyNames(e, names, table)
+	})
+}
+
+// appendCurrencyNames owns the display/canonical/symbol/narrow wire order for
+// one localized currency-name row.
+func appendCurrencyNames(e *blobEncoder, names cldr.CurrencyNames, table *StringTable) {
+	e.appendStringRefMap(names.Display, table)
+	e.appendStringRef(table.Add(names.Canonical))
+	e.appendStringRef(table.Add(names.Symbol))
+	e.appendStringRef(table.Add(names.Narrow))
 }

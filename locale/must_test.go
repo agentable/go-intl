@@ -7,11 +7,3 @@ func parseLocaleForTest(tag string) Locale {
 	}
 	return loc
 }
-
-func mustParseListForTest(tags ...string) List {
-	locales, err := ParseList(tags...)
-	if err != nil {
-		panic(err)
-	}
-	return locales
-}

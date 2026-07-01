@@ -25,7 +25,7 @@ func ToIntlMathematicalValue(value any) (Decimal, error) {
 	case int64:
 		return FromInt64(v), nil
 	case uint:
-		return New(false, new(big.Int).SetUint64(uint64(v)), 0), nil
+		return FromUint64(uint64(v)), nil
 	case uint8:
 		return FromInt64(int64(v)), nil
 	case uint16:
@@ -33,16 +33,13 @@ func ToIntlMathematicalValue(value any) (Decimal, error) {
 	case uint32:
 		return FromInt64(int64(v)), nil
 	case uint64:
-		return New(false, new(big.Int).SetUint64(v), 0), nil
+		return FromUint64(v), nil
 	case uintptr:
-		return New(false, new(big.Int).SetUint64(uint64(v)), 0), nil
+		return FromUint64(uint64(v)), nil
 	case *big.Int:
-		if v == nil {
-			return Zero, nil
-		}
-		return New(v.Sign() < 0, v, 0), nil
+		return FromBigInt(v), nil
 	case big.Int:
-		return New(v.Sign() < 0, &v, 0), nil
+		return FromBigInt(&v), nil
 	case float32:
 		return FromFloat64(float64(v)), nil
 	case float64:

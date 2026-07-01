@@ -1,8 +1,13 @@
-// Hand-written accessor layer for the unit domain. The query semantics mirror
-// the legacy root cldr unit accessors exactly, so formatter output is
-// byte-for-byte unchanged.
+// Hand-written accessor layer for the unit domain. It exposes unit patterns,
+// compound patterns, and the narrow supported-locale index over lazily decoded
+// const blobs.
 
 package unit
+
+import (
+	"cmp"
+	"slices"
+)
 
 // UnitPattern returns the pattern for a (locale, unit, width, plural) tuple, or
 // "" when the tuple is absent or any component is unrecognized.
@@ -15,8 +20,9 @@ func UnitPattern(loc Locale, unit, width, plural string) string {
 	}
 	key := makeUnitPatternKey(loc, unitID, widthID, pluralID)
 	unitPatternOnce.Do(loadUnitPatterns)
-	i := searchUnitPattern(unitPatterns, key)
-	if i < len(unitPatterns) && unitPatterns[i].key == key {
+	if i, ok := slices.BinarySearchFunc(unitPatterns, key, func(row unitPatternRecord, key uint32) int {
+		return cmp.Compare(row.key, key)
+	}); ok {
 		return unitPatterns[i].pattern
 	}
 	return ""
@@ -31,8 +37,9 @@ func CompoundUnitPattern(loc Locale, width string) string {
 	}
 	key := makeCompoundUnitPatternKey(loc, widthID)
 	compoundUnitOnce.Do(loadCompoundUnits)
-	i := searchCompoundUnitPattern(compoundUnitRows, key)
-	if i < len(compoundUnitRows) && compoundUnitRows[i].key == key {
+	if i, ok := slices.BinarySearchFunc(compoundUnitRows, key, func(row compoundUnitPatternRecord, key uint32) int {
+		return cmp.Compare(row.key, key)
+	}); ok {
 		return compoundUnitRows[i].pattern
 	}
 	return ""
@@ -43,9 +50,7 @@ func CompoundUnitPattern(loc Locale, width string) string {
 // or compound blob decode.
 func SupportedLocales() []string {
 	unitSupportedOnce.Do(loadUnitSupported)
-	tags := make([]string, len(unitSupportedTags))
-	copy(tags, unitSupportedTags)
-	return tags
+	return slices.Clone(unitSupportedTags)
 }
 
 func makeUnitPatternKey(loc Locale, unitID, width, plural uint32) uint32 {
@@ -60,7 +65,11 @@ func makeCompoundUnitPatternKey(loc Locale, width uint32) uint32 {
 // table is decoded with the pattern blob, so a lookup gates that decode.
 func unitNameID(unit string) uint32 {
 	unitPatternOnce.Do(loadUnitPatterns)
-	return unitNameIDs[unit]
+	id, ok := unitNameIDs[unit]
+	if !ok {
+		return 0
+	}
+	return id
 }
 
 func unitWidthID(width string) uint32 {
@@ -93,30 +102,4 @@ func unitPluralID(plural string) uint32 {
 	default:
 		return 0
 	}
-}
-
-func searchUnitPattern(rows []unitPatternRecord, key uint32) int {
-	low, high := 0, len(rows)
-	for low < high {
-		mid := int(uint(low+high) >> 1)
-		if rows[mid].key < key {
-			low = mid + 1
-		} else {
-			high = mid
-		}
-	}
-	return low
-}
-
-func searchCompoundUnitPattern(rows []compoundUnitPatternRecord, key uint32) int {
-	low, high := 0, len(rows)
-	for low < high {
-		mid := int(uint(low+high) >> 1)
-		if rows[mid].key < key {
-			low = mid + 1
-		} else {
-			high = mid
-		}
-	}
-	return low
 }

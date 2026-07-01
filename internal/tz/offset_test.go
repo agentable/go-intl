@@ -52,6 +52,13 @@ func TestParseOffsetStringRejectsInvalidOffsets(t *testing.T) {
 			if !errors.Is(err, errors.ErrUnsupported) {
 				t.Fatalf("ParseOffsetString(%q) error = %v, want errors.ErrUnsupported", in, err)
 			}
+			detail, ok := errors.AsType[unsupportedTimeZoneError](err)
+			if !ok {
+				t.Fatalf("ParseOffsetString(%q) error = %T, want unsupportedTimeZoneError", in, err)
+			}
+			if detail.reason != "invalid offset" || detail.name != in {
+				t.Fatalf("unsupportedTimeZoneError = %+v, want invalid offset %q", detail, in)
+			}
 		})
 	}
 }
@@ -114,5 +121,12 @@ func TestCanonicalOffsetStringRejectsInvalidOffset(t *testing.T) {
 	}
 	if !errors.Is(err, errors.ErrUnsupported) {
 		t.Fatalf("CanonicalOffsetString(+24:00) error = %v, want errors.ErrUnsupported", err)
+	}
+	detail, ok := errors.AsType[unsupportedTimeZoneError](err)
+	if !ok {
+		t.Fatalf("CanonicalOffsetString(+24:00) error = %T, want unsupportedTimeZoneError", err)
+	}
+	if detail.reason != "invalid offset" || detail.name != "+24:00" {
+		t.Fatalf("unsupportedTimeZoneError = %+v, want invalid offset +24:00", detail)
 	}
 }

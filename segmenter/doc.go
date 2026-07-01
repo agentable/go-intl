@@ -1,7 +1,8 @@
 // Package segmenter implements the ECMA-402 Intl.Segmenter constructor.
 //
 //	locales, _ := locale.ParseList("en-US")
-//	seg, _ := segmenter.New(locales, segmenter.Options{Granularity: segmenter.WordGranularity})
+//	granularity := string(segmenter.WordGranularity)
+//	seg, _ := segmenter.New(locales, segmenter.Options{Granularity: &granularity})
 //	segments := seg.Segment("Hello, world!")
 //	_ = segments
 //

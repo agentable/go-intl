@@ -10,14 +10,33 @@ import (
 func TestOptionsPointerValuesCopiedDuringConstruction(t *testing.T) {
 	t.Parallel()
 
+	usage := string(SortUsage)
+	sensitivity := string(AccentSensitivity)
+	caseFirst := string(FalseCaseFirst)
+	collation := "phonebk"
 	numeric := true
-	c, err := New(locale.List{intltest.Locale(t, "en")}, Options{Numeric: &numeric})
+	c, err := New(locale.List{intltest.Locale(t, "de")}, Options{
+		Usage:       &usage,
+		Sensitivity: &sensitivity,
+		CaseFirst:   &caseFirst,
+		Collation:   &collation,
+		Numeric:     &numeric,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	usage = "search"
+	sensitivity = "base"
+	caseFirst = "upper"
+	collation = "default"
 	numeric = false
 
-	if got := c.ResolvedOptions().Numeric; !got {
-		t.Fatal("ResolvedOptions().Numeric = false, want true")
+	got := c.ResolvedOptions()
+	if got.Usage != SortUsage ||
+		got.Sensitivity != AccentSensitivity ||
+		got.CaseFirst != FalseCaseFirst ||
+		got.Collation != "phonebk" ||
+		!got.Numeric {
+		t.Fatalf("ResolvedOptions() = %+v, want copied usage/sensitivity/caseFirst/collation/numeric values", got)
 	}
 }

@@ -43,6 +43,43 @@ const (
 	MatcherBestFit FormatMatcher = "best fit"
 )
 
+const (
+	monthPatternFields        = "ML"
+	weekdayPatternFields      = "Eec"
+	hourPatternFields         = "hHkK"
+	dayPeriodPatternFields    = "abB"
+	timeZoneNamePatternFields = "zZOvVxX"
+)
+
+var fieldWidthStyles = [...]FieldStyle{
+	FieldNumeric,
+	Field2Digit,
+	FieldShort,
+	FieldLong,
+	FieldNarrow,
+}
+
+// TimeZonePatternField maps an ECMA-402 timeZoneName option value to the LDML
+// pattern field used by skeleton adjustment and fallback pattern composition.
+func TimeZonePatternField(style TimeZoneName) string {
+	switch style {
+	case TimeZoneNameShort:
+		return "z"
+	case TimeZoneNameLong:
+		return "zzzz"
+	case TimeZoneNameShortOffset:
+		return "O"
+	case TimeZoneNameLongOffset:
+		return "OOOO"
+	case TimeZoneNameShortGeneric:
+		return "v"
+	case TimeZoneNameLongGeneric:
+		return "vvvv"
+	default:
+		return "z"
+	}
+}
+
 // Options describes requested date-time skeleton fields.
 type Options struct {
 	Weekday                FieldStyle
@@ -63,7 +100,6 @@ type Options struct {
 // Formats describes a parsed CLDR skeleton candidate.
 type Formats struct {
 	Pattern                string
-	Pattern12              string
 	Skeleton               string
 	PatternHasTimeZoneName bool
 	Era                    FieldStyle
@@ -84,16 +120,11 @@ type Formats struct {
 func Parse(skeleton string, pattern string, hour12 *bool, hourCycle HourCycle) Formats {
 	format := Formats{Skeleton: skeleton, Pattern: pattern, PatternHasTimeZoneName: patternHasTimeZoneName(pattern)}
 	for i := 0; i < len(skeleton); {
-		if skeleton[i] == '\'' {
-			i = skipQuotedLiteral(skeleton, i)
-			continue
+		run := nextPatternRun(skeleton, i)
+		if !run.quoted {
+			applySkeletonToken(&format, run.char, run.width)
 		}
-		j := i + 1
-		for j < len(skeleton) && skeleton[j] == skeleton[i] {
-			j++
-		}
-		applySkeletonToken(&format, skeleton[i], j-i)
-		i = j
+		i = run.end
 	}
 	if hourCycle != "" {
 		format.HourCycle = hourCycle
@@ -103,20 +134,31 @@ func Parse(skeleton string, pattern string, hour12 *bool, hourCycle HourCycle) F
 
 func patternHasTimeZoneName(pattern string) bool {
 	for i := 0; i < len(pattern); {
-		if pattern[i] == '\'' {
-			i = skipQuotedLiteral(pattern, i)
-			continue
-		}
-		if strings.IndexByte("zZOvVxX", pattern[i]) >= 0 {
+		run := nextPatternRun(pattern, i)
+		if !run.quoted && strings.IndexByte(timeZoneNamePatternFields, run.char) >= 0 {
 			return true
 		}
-		j := i + 1
-		for j < len(pattern) && pattern[j] == pattern[i] {
-			j++
-		}
-		i = j
+		i = run.end
 	}
 	return false
+}
+
+type patternRun struct {
+	char   byte
+	width  int
+	end    int
+	quoted bool
+}
+
+func nextPatternRun(s string, start int) patternRun {
+	if s[start] == '\'' {
+		return patternRun{end: skipQuotedLiteral(s, start), quoted: true}
+	}
+	end := start + 1
+	for end < len(s) && s[end] == s[start] {
+		end++
+	}
+	return patternRun{char: s[start], width: end - start, end: end}
 }
 
 func skipQuotedLiteral(s string, start int) int {
@@ -148,7 +190,7 @@ func applySkeletonToken(format *Formats, char byte, length int) {
 	case 'd':
 		format.Day = numericStyle(length)
 	case 'E', 'e', 'c':
-		format.Weekday = weekdayStyle(length)
+		format.Weekday = textStyle(length)
 	case 'h':
 		format.Hour = numericStyle(length)
 		format.HourCycle = HourCycleH12
@@ -197,32 +239,22 @@ func numericStyle(length int) NumericStyle {
 }
 
 func fieldWidthStyle(length int) FieldStyle {
-	switch length {
-	case 1:
-		return FieldNumeric
-	case 2:
-		return Field2Digit
-	case 3:
-		return FieldShort
-	case 4:
-		return FieldLong
-	default:
-		return FieldNarrow
+	if length >= 1 && length <= len(fieldWidthStyles) {
+		return fieldWidthStyles[length-1]
 	}
+	return FieldNarrow
+}
+
+func fieldStyleWidth(style FieldStyle) int {
+	for idx, known := range fieldWidthStyles {
+		if style == known {
+			return idx + 1
+		}
+	}
+	return 1
 }
 
 func textStyle(length int) FieldStyle {
-	switch length {
-	case 4:
-		return FieldLong
-	case 5:
-		return FieldNarrow
-	default:
-		return FieldShort
-	}
-}
-
-func weekdayStyle(length int) FieldStyle {
 	switch length {
 	case 4:
 		return FieldLong

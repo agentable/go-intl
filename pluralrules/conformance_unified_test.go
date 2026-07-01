@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/agentable/go-intl/internal/intlerr"
-
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/tools/conformance"
 )
@@ -19,10 +19,9 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 
 	conformance.RunFixtures(t, ".", func(t *testing.T, fixture conformance.Fixture) {
 		rules, err := New(locale.List{intltest.Locale(t, fixture.Locale)}, conformancePluralOptions(t, fixture))
-		if fixture.ErrorCode != "" {
-			if !errors.Is(err, intlerr.ErrInvalidOption) {
-				t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
-			}
+		if testcontract.AssertErrorCode(t, "New()", err, fixture.ErrorCode, func(code string) error {
+			return conformancePluralError(t, code)
+		}) {
 			return
 		}
 		if err != nil {
@@ -32,17 +31,34 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 		if err := json.Unmarshal(fixture.Input, &input); err != nil {
 			t.Fatal(err)
 		}
-		if fixture.Expected == nil {
-			t.Fatal("fixture expected is required")
-		}
+		want := fixture.RequiredExpected(t)
 		got, err := pluralFixtureValue(rules, fixture.Feature, input)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.String() != *fixture.Expected {
-			t.Fatalf("Select(%v) = %q, want %q", input, got.String(), *fixture.Expected)
+		if got.String() != want {
+			t.Fatalf("Select(%v) = %q, want %q", input, got.String(), want)
 		}
 	})
+}
+
+func TestConformancePluralOptionsPreserveExplicitEmptyString(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(intltest.LocaleList(t, "en"), conformancePluralOptions(t, conformance.Fixture{
+		Options: json.RawMessage(`{"type":""}`),
+	}))
+	if !errors.Is(err, intlerr.ErrInvalidOption) {
+		t.Fatalf("New() error = %v, want %v", err, intlerr.ErrInvalidOption)
+	}
+	testcontract.AssertOptionError(t, err, "pluralrules", intlerr.InvalidOption, "type", "", "en")
+	testcontract.AssertOptionExpected(t, err, `one of "cardinal", "ordinal"`)
+}
+
+func conformancePluralError(t testing.TB, code string) error {
+	t.Helper()
+
+	return testcontract.IntlErrorCode(t, "pluralrules", code, "invalid_option")
 }
 
 func pluralFixtureValue(rules *PluralRules, feature string, input any) (Category, error) {
@@ -98,59 +114,36 @@ func conformancePluralOptions(t *testing.T, fixture conformance.Fixture) Options
 	t.Helper()
 
 	var options struct {
-		Type                     string `json:"type"`
-		MinimumIntegerDigits     *int   `json:"minimumIntegerDigits"`
-		MinimumFractionDigits    *int   `json:"minimumFractionDigits"`
-		MaximumFractionDigits    *int   `json:"maximumFractionDigits"`
-		MinimumSignificantDigits *int   `json:"minimumSignificantDigits"`
-		MaximumSignificantDigits *int   `json:"maximumSignificantDigits"`
-		RoundingIncrement        *int   `json:"roundingIncrement"`
-		RoundingMode             string `json:"roundingMode"`
-		RoundingPriority         string `json:"roundingPriority"`
-		TrailingZeroDisplay      string `json:"trailingZeroDisplay"`
-		Notation                 string `json:"notation"`
-		CompactDisplay           string `json:"compactDisplay"`
+		LocaleMatcher            *string `json:"localeMatcher"`
+		Type                     *string `json:"type"`
+		MinimumIntegerDigits     *int    `json:"minimumIntegerDigits"`
+		MinimumFractionDigits    *int    `json:"minimumFractionDigits"`
+		MaximumFractionDigits    *int    `json:"maximumFractionDigits"`
+		MinimumSignificantDigits *int    `json:"minimumSignificantDigits"`
+		MaximumSignificantDigits *int    `json:"maximumSignificantDigits"`
+		RoundingIncrement        *int    `json:"roundingIncrement"`
+		RoundingMode             *string `json:"roundingMode"`
+		RoundingPriority         *string `json:"roundingPriority"`
+		TrailingZeroDisplay      *string `json:"trailingZeroDisplay"`
+		Notation                 *string `json:"notation"`
+		CompactDisplay           *string `json:"compactDisplay"`
 	}
 	if err := json.Unmarshal(fixture.Options, &options); err != nil {
 		t.Fatal(err)
 	}
-	typ, ok := typeFromString(options.Type)
-	if !ok {
-		return Options{Type: Type(99)}
+	return Options{
+		LocaleMatcher:            options.LocaleMatcher,
+		Type:                     options.Type,
+		MinimumIntegerDigits:     options.MinimumIntegerDigits,
+		MinimumFractionDigits:    options.MinimumFractionDigits,
+		MaximumFractionDigits:    options.MaximumFractionDigits,
+		MinimumSignificantDigits: options.MinimumSignificantDigits,
+		MaximumSignificantDigits: options.MaximumSignificantDigits,
+		RoundingIncrement:        options.RoundingIncrement,
+		RoundingMode:             options.RoundingMode,
+		RoundingPriority:         options.RoundingPriority,
+		TrailingZeroDisplay:      options.TrailingZeroDisplay,
+		Notation:                 options.Notation,
+		CompactDisplay:           options.CompactDisplay,
 	}
-	out := Options{Type: typ}
-	if options.MinimumIntegerDigits != nil {
-		out.MinimumIntegerDigits = options.MinimumIntegerDigits
-	}
-	if options.MinimumFractionDigits != nil {
-		out.MinimumFractionDigits = options.MinimumFractionDigits
-	}
-	if options.MaximumFractionDigits != nil {
-		out.MaximumFractionDigits = options.MaximumFractionDigits
-	}
-	if options.MinimumSignificantDigits != nil {
-		out.MinimumSignificantDigits = options.MinimumSignificantDigits
-	}
-	if options.MaximumSignificantDigits != nil {
-		out.MaximumSignificantDigits = options.MaximumSignificantDigits
-	}
-	if options.RoundingIncrement != nil {
-		out.RoundingIncrement = options.RoundingIncrement
-	}
-	if options.RoundingMode != "" {
-		out.RoundingMode = RoundingMode(options.RoundingMode)
-	}
-	if options.RoundingPriority != "" {
-		out.RoundingPriority = RoundingPriority(options.RoundingPriority)
-	}
-	if options.TrailingZeroDisplay != "" {
-		out.TrailingZeroDisplay = TrailingZeroDisplay(options.TrailingZeroDisplay)
-	}
-	if options.Notation != "" {
-		out.Notation = Notation(options.Notation)
-	}
-	if options.CompactDisplay != "" {
-		out.CompactDisplay = CompactDisplay(options.CompactDisplay)
-	}
-	return out
 }

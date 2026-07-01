@@ -70,10 +70,10 @@ const (
 )
 
 type Options struct {
-    LocaleMatcher   LocaleMatcher
-    NumberingSystem string
-    Style           Style
-    Numeric         Numeric
+    LocaleMatcher   *string
+    NumberingSystem *string
+    Style           *string
+    Numeric         *string
 }
 
 type ResolvedOptions struct {
@@ -109,7 +109,7 @@ func (f *RelativeTimeFormat) FormatToParts(value Value, unit Unit) ([]Part, erro
 MUST rules:
 
 1. `New` accepts a single `Options` value. `New(locales, Options{})` is the ECMA-402 "empty options object" call.
-2. `Options{}` defaults to `style="long"` and `numeric="always"`.
+2. `Options{}` defaults to `style="long"` and `numeric="always"`; explicit empty `style` or `numeric` strings are invalid.
 3. `RelativeTimeFormat` is immutable after construction. All methods on `*RelativeTimeFormat` must be safe for concurrent callers.
 4. Integer and unsigned typed values return errors only for invalid units.
 5. `Float` values reject NaN and infinities at `Format` / `FormatToParts` with `ErrInvalidValue`, matching ECMA-402 `RangeError`.
@@ -128,11 +128,11 @@ MUST rules:
 Pipeline:
 
 1. Validate at most one options object.
-2. Read `localeMatcher`, default `best fit`, allowed `lookup | best fit`.
+2. Read `localeMatcher`, default `best fit`, allowed `lookup | best fit`; `nil` means omitted and `gointl.String("")` is invalid.
 3. Validate optional `numberingSystem` as a Unicode numbering-system identifier.
 4. Resolve locale against the RelativeTimeFormat supported set with relevant extension key `nu`.
-5. Read `style`, default `long`, allowed `long | short | narrow`.
-6. Read `numeric`, default `always`, allowed `always | auto`.
+5. Read `style`, default `long`, allowed `long | short | narrow`; `nil` means omitted and `gointl.String("")` is invalid.
+6. Read `numeric`, default `always`, allowed `always | auto`; `nil` means omitted and `gointl.String("")` is invalid.
 7. Construct or retain internal `numberformat.NumberFormat` using the resolved locale and numbering system.
 8. Construct or retain internal cardinal `pluralrules.PluralRules` using the resolved locale.
 9. Load CLDR relative field data for the resolved data locale.
@@ -251,7 +251,7 @@ MUST rules:
 1. Use the intersection of generated RelativeTimeFormat, NumberFormat, and PluralRules supported locale sets. Do not derive from `tools/locale-profile.json` or from one payload family alone.
 2. Call `localematcher.FilterLocalesWithMaximizer`.
 3. Accept one `Options` value; `Options{}` represents omitted static-method options.
-4. Read only `LocaleMatcher`; ignore formatting options for this static method.
+4. Read only `LocaleMatcher`; ignore formatting options for this static method. `nil` means omitted and an explicit empty string is invalid.
 5. Invalid locale matcher returns `ErrInvalidOption`.
 
 ---

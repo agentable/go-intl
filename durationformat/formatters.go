@@ -8,103 +8,83 @@ import (
 	"github.com/agentable/go-intl/numberformat"
 )
 
-type durationFormatters struct {
-	list            *listformat.ListFormat
-	unit            [unitCount]durationNumberFormatters
-	unitFraction    [unitCount]durationNumberFormatters
-	numeric         [unitCount]durationNumberFormatters
-	numericFraction [unitCount]durationNumberFormatters
-}
-
 type durationNumberFormatters struct {
 	signVisible *numberformat.NumberFormat
 	signHidden  *numberformat.NumberFormat
 }
 
-func (f durationNumberFormatters) formatter(signDisplayed bool) *numberformat.NumberFormat {
-	if !signDisplayed {
-		return f.signHidden
-	}
-	return f.signVisible
-}
+func buildDurationFormatters(format *DurationFormat) error {
+	locales := locale.List{format.resolved.Locale}
 
-func buildDurationFormatters(resolved ResolvedOptions, unitOptions [unitCount]resolvedUnitConfig) (durationFormatters, error) {
-	var out durationFormatters
-	locales := locale.List{resolved.Locale}
-
-	listStyle := listformat.Style(resolved.Style)
-	if resolved.Style == DigitalStyle {
+	listStyle := listformat.Style(format.resolved.Style)
+	if format.resolved.Style == DigitalStyle {
 		listStyle = listformat.ShortStyle
 	}
-	list, err := listformat.New(locales, listformat.Options{Type: listformat.Unit, Style: listStyle})
+	list, err := listformat.New(locales, listformat.Options{
+		Type:  optionString(listformat.Unit),
+		Style: optionString(listStyle),
+	})
 	if err != nil {
-		return out, fmt.Errorf("durationformat: construct list formatter: %w", err)
+		return fmt.Errorf("durationformat: construct list formatter: %w", err)
 	}
-	out.list = list
+	format.listFormatter = list
 
-	for _, spec := range durationUnitSpecs {
-		opt := unitOptions[spec.index]
+	for _, spec := range durationUnitSpecs[:] {
+		opt := format.unitOptions[spec.index]
 		switch opt.style {
 		case LongUnitStyle, ShortUnitStyle, NarrowUnitStyle:
-			pair, err := newDurationUnitFormatters(locales, resolved, spec, opt, false)
+			options := durationUnitNumberOptions(format.resolved, spec, opt)
+			pair, err := newDurationNumberFormatters(locales, options, spec.unit)
 			if err != nil {
-				return out, err
+				return err
 			}
-			out.unit[spec.index] = pair
-			if durationNextUnitFractional(unitOptions, spec.index) {
-				pair, err := newDurationUnitFormatters(locales, resolved, spec, opt, true)
+			format.unitFormatters[spec.index] = pair
+			if durationNextUnitFractional(format.unitOptions, spec) {
+				pair, err := newDurationNumberFormatters(locales, durationFractionalNumberOptions(options, format.resolved), spec.unit)
 				if err != nil {
-					return out, err
+					return err
 				}
-				out.unitFraction[spec.index] = pair
+				format.unitFractionFormatters[spec.index] = pair
 			}
 		case NumericUnitStyle, TwoDigitUnitStyle:
-			pair, err := newDurationNumericFormatters(locales, resolved, opt, false)
+			options := durationNumericNumberOptions(format.resolved, opt)
+			pair, err := newDurationNumberFormatters(locales, options, "numeric")
 			if err != nil {
-				return out, err
+				return err
 			}
-			out.numeric[spec.index] = pair
+			format.numericFormatters[spec.index] = pair
 			if spec.index == secondsIndex {
-				pair, err := newDurationNumericFormatters(locales, resolved, opt, true)
+				pair, err := newDurationNumberFormatters(locales, durationFractionalNumberOptions(options, format.resolved), "numeric")
 				if err != nil {
-					return out, err
+					return err
 				}
-				out.numericFraction[spec.index] = pair
+				format.secondsNumericFractionFormatter = pair
 			}
 		case fractionalUnitStyle:
 		}
 	}
-	return out, nil
+	return nil
 }
 
-func newDurationUnitFormatters(locales locale.List, resolved ResolvedOptions, spec durationUnitSpec, opt resolvedUnitConfig, fractional bool) (durationNumberFormatters, error) {
-	options := numberformat.Options{
-		Style:           numberformat.UnitStyle,
-		Unit:            numberformat.Unit(string(spec.formatUnit)),
-		UnitDisplay:     numberformat.UnitDisplay(publicUnitStyle(opt.style)),
-		NumberingSystem: resolved.NumberingSystem,
+func durationUnitNumberOptions(resolved ResolvedOptions, spec durationUnitSpec, opt resolvedUnitConfig) numberformat.Options {
+	return numberformat.Options{
+		Style:           optionString(numberformat.UnitStyle),
+		Unit:            optionString(spec.formatUnit),
+		UnitDisplay:     optionString(numberformat.UnitDisplay(publicUnitStyle(opt.style))),
+		NumberingSystem: optionString(resolved.NumberingSystem),
 	}
-	if fractional {
-		setDurationFractionDigits(&options, resolved)
-		options.RoundingMode = numberformat.TruncRoundingMode
-	}
-	return newDurationNumberFormatters(locales, options, spec.unit)
 }
 
-func newDurationNumericFormatters(locales locale.List, resolved ResolvedOptions, opt resolvedUnitConfig, fractional bool) (durationNumberFormatters, error) {
+func durationNumericNumberOptions(resolved ResolvedOptions, opt resolvedUnitConfig) numberformat.Options {
 	options := numberformat.Options{
-		NumberingSystem: resolved.NumberingSystem,
-		UseGrouping:     numberformat.UseGroupingFalse,
+		NumberingSystem: optionString(resolved.NumberingSystem),
+		UseGrouping:     optionString(numberformat.UseGroupingFalse),
 	}
 	if opt.style == TwoDigitUnitStyle {
 		minimumIntegerDigits := 2
 		options.MinimumIntegerDigits = &minimumIntegerDigits
 	}
-	if fractional {
-		setDurationFractionDigits(&options, resolved)
-		options.RoundingMode = numberformat.TruncRoundingMode
-	}
-	return newDurationNumberFormatters(locales, options, "numeric")
+	return options
 }
 
 func newDurationNumberFormatters(locales locale.List, options numberformat.Options, name string) (durationNumberFormatters, error) {
@@ -113,15 +93,16 @@ func newDurationNumberFormatters(locales locale.List, options numberformat.Optio
 		return durationNumberFormatters{}, fmt.Errorf("durationformat: construct number formatter for %s: %w", name, err)
 	}
 
-	options.SignDisplay = numberformat.NeverSignDisplay
-	signHidden, err := numberformat.New(locales, options)
+	signHiddenOptions := options
+	signHiddenOptions.SignDisplay = optionString(numberformat.NeverSignDisplay)
+	signHidden, err := numberformat.New(locales, signHiddenOptions)
 	if err != nil {
 		return durationNumberFormatters{}, fmt.Errorf("durationformat: construct sign-hidden number formatter for %s: %w", name, err)
 	}
 	return durationNumberFormatters{signVisible: signVisible, signHidden: signHidden}, nil
 }
 
-func setDurationFractionDigits(options *numberformat.Options, resolved ResolvedOptions) {
+func durationFractionalNumberOptions(options numberformat.Options, resolved ResolvedOptions) numberformat.Options {
 	minimumFractionDigits := 0
 	maximumFractionDigits := 9
 	if resolved.FractionalDigits != nil {
@@ -130,4 +111,11 @@ func setDurationFractionDigits(options *numberformat.Options, resolved ResolvedO
 	}
 	options.MinimumFractionDigits = &minimumFractionDigits
 	options.MaximumFractionDigits = &maximumFractionDigits
+	options.RoundingMode = optionString(numberformat.TruncRoundingMode)
+	return options
+}
+
+func optionString[T ~string](value T) *string {
+	out := string(value)
+	return &out
 }

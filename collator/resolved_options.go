@@ -7,7 +7,7 @@ type ResolvedOptions struct {
 	Usage             Usage         `json:"usage"`
 	Sensitivity       Sensitivity   `json:"sensitivity"`
 	CaseFirst         CaseFirst     `json:"caseFirst"`
-	Collation         string        `json:"collation,omitempty"`
+	Collation         string        `json:"collation"`
 	Numeric           bool          `json:"numeric"`
 	IgnorePunctuation bool          `json:"ignorePunctuation"`
 }

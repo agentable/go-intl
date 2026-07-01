@@ -81,11 +81,47 @@ func New(kind ErrorKind, owner, name, value, locale string, cause error) error {
 	return NewExpected(kind, owner, name, value, locale, "", cause)
 }
 
+// NewInvalidOptionExpected returns a structured invalid-option error with
+// caller-provided expected guidance.
+func NewInvalidOptionExpected(owner, name, value, locale, expected string, cause error) error {
+	return NewExpected(InvalidOption, owner, name, value, locale, expected, cause)
+}
+
+// NewUnsupportedOptionExpected returns a structured unsupported-option error
+// with caller-provided expected guidance.
+func NewUnsupportedOptionExpected(owner, name, value, locale, expected string, cause error) error {
+	return NewExpected(UnsupportedOption, owner, name, value, locale, expected, cause)
+}
+
+// NewInvalidValueExpected returns a structured invalid-value error with
+// caller-provided expected guidance.
+func NewInvalidValueExpected(owner, name, value, locale, expected string, cause error) error {
+	return NewExpected(InvalidValue, owner, name, value, locale, expected, cause)
+}
+
+// NewInvalidCodeExpected returns a structured invalid-code error with
+// caller-provided expected guidance.
+func NewInvalidCodeExpected(owner, name, value, locale, expected string, cause error) error {
+	return NewExpected(InvalidCode, owner, name, value, locale, expected, cause)
+}
+
+// NewInvalidKey returns a structured invalid-key error.
+func NewInvalidKey(owner, name, value, locale string, cause error) error {
+	return New(InvalidKey, owner, name, value, locale, cause)
+}
+
+// NewUnsupportedLocale returns a structured unsupported-locale error.
+func NewUnsupportedLocale(owner, name, value, locale string, cause error) error {
+	return New(UnsupportedLocale, owner, name, value, locale, cause)
+}
+
+// NewUnsupportedBackend returns a structured unsupported-backend error.
+func NewUnsupportedBackend(owner, name, value, locale string, cause error) error {
+	return New(UnsupportedBackend, owner, name, value, locale, cause)
+}
+
 // NewExpected returns an Error with caller-provided "expected" guidance.
 func NewExpected(kind ErrorKind, owner, name, value, locale, expected string, cause error) error {
-	if cause == nil {
-		cause = sentinelOf(kind)
-	}
 	err := &Error{
 		Kind:     kind,
 		Owner:    owner,
@@ -93,12 +129,23 @@ func NewExpected(kind ErrorKind, owner, name, value, locale, expected string, ca
 		Value:    value,
 		Locale:   locale,
 		Expected: expected,
-		Err:      cause,
+		Err:      causeWithKind(kind, cause),
 	}
 	if err.Expected == "" {
 		err.Expected = err.expectedText()
 	}
 	return err
+}
+
+func causeWithKind(kind ErrorKind, cause error) error {
+	sentinel := sentinelOf(kind)
+	if cause == nil {
+		return sentinel
+	}
+	if errors.Is(cause, sentinel) {
+		return cause
+	}
+	return errors.Join(sentinel, cause)
 }
 
 func (e *Error) Error() string {

@@ -1,6 +1,7 @@
 // Package locale implements the ECMA-402 Intl.Locale constructor.
 //
-//	loc, _ := locale.New("en-US", locale.Options{Calendar: "gregory"})
+//	calendar := "gregory"
+//	loc, _ := locale.New("en-US", locale.Options{Calendar: &calendar})
 //	tag := loc.String()
 //	_ = tag
 //

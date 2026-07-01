@@ -1,10 +1,15 @@
-// Hand-written accessor layer for the relativetime domain. The query semantics
-// mirror the legacy root cldr relative-time accessors exactly, so
-// RelativeTimeFormat output is byte-for-byte unchanged.
+// Hand-written accessor layer for the relativetime domain. It exposes
+// relative-field data and the narrow supported-locale index over lazily decoded
+// const blobs.
 
 package relativetime
 
-import cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+import (
+	"maps"
+	"slices"
+
+	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+)
 
 // ResolveLocale resolves a tag to its kernel locale handle, forwarding to the
 // shared locale kernel so relativetime handles index identically to every other
@@ -13,12 +18,49 @@ func ResolveLocale(tag string) (Locale, bool) {
 	return cldrlocale.ResolveLocale(tag)
 }
 
-// FieldsFor returns the relative-time field data for the locale, or nil when the
-// locale carries none. The returned maps mirror the legacy
-// loc.RelativeTimeFields() value exactly.
+// FieldsFor returns a caller-owned copy of the relative-time field data for the
+// locale, or nil when the locale carries none.
 func FieldsFor(loc Locale) RelativeTimeFields {
 	fieldOnce.Do(loadFields)
-	return fieldsByLocale[loc]
+	return cloneFields(relativeTimeFieldsForLocale(loc))
+}
+
+func relativeTimeFieldsForLocale(loc Locale) RelativeTimeFields {
+	fields, ok := fieldsByLocale[loc]
+	if !ok {
+		return nil
+	}
+	return fields
+}
+
+func cloneFields(fields RelativeTimeFields) RelativeTimeFields {
+	if fields == nil {
+		return nil
+	}
+	out := make(RelativeTimeFields, len(fields))
+	for unit, styles := range fields {
+		out[unit] = cloneStyleFields(styles)
+	}
+	return out
+}
+
+func cloneStyleFields(styles map[string]RelativeTimeField) map[string]RelativeTimeField {
+	if styles == nil {
+		return nil
+	}
+	out := make(map[string]RelativeTimeField, len(styles))
+	for style, field := range styles {
+		out[style] = cloneField(field)
+	}
+	return out
+}
+
+func cloneField(field RelativeTimeField) RelativeTimeField {
+	return RelativeTimeField{
+		Future:   maps.Clone(field.Future),
+		Past:     maps.Clone(field.Past),
+		Relative: maps.Clone(field.Relative),
+	}
 }
 
 // SupportedLocales returns the relative-time-supported locale tags in
@@ -26,7 +68,5 @@ func FieldsFor(loc Locale) RelativeTimeFields {
 // triggers the field blob decode.
 func SupportedLocales() []string {
 	supportedOnce.Do(loadSupported)
-	tags := make([]string, len(supportedTags))
-	copy(tags, supportedTags)
-	return tags
+	return slices.Clone(supportedTags)
 }

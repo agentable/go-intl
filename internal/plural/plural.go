@@ -17,22 +17,29 @@ const (
 	Other
 )
 
+var categoryNames = [...]string{
+	Zero:  "zero",
+	One:   "one",
+	Two:   "two",
+	Few:   "few",
+	Many:  "many",
+	Other: "other",
+}
+
 func (c Category) String() string {
-	switch c {
-	case Zero:
-		return "zero"
-	case One:
-		return "one"
-	case Two:
-		return "two"
-	case Few:
-		return "few"
-	case Many:
-		return "many"
-	case Other:
-		return "other"
+	if int(c) < len(categoryNames) {
+		return categoryNames[c]
 	}
 	return "other"
+}
+
+func ParseCategory(name string) (Category, bool) {
+	for category, categoryName := range categoryNames {
+		if name == categoryName {
+			return Category(category), true
+		}
+	}
+	return 0, false
 }
 
 func (c Category) MarshalText() ([]byte, error) {

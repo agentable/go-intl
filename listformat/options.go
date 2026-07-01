@@ -2,20 +2,34 @@ package listformat
 
 import (
 	"github.com/agentable/go-intl/internal/ecma402"
-	"github.com/agentable/go-intl/internal/intlerr"
-	"github.com/agentable/go-intl/locale"
+)
+
+const listFormatOwner = "listformat"
+
+var (
+	listTypeValues = [...]string{
+		string(Conjunction),
+		string(Disjunction),
+		string(Unit),
+	}
+	listStyleValues = [...]string{
+		string(LongStyle),
+		string(ShortStyle),
+		string(NarrowStyle),
+	}
 )
 
 type Options struct {
-	LocaleMatcher LocaleMatcher
-	Type          Type
-	Style         Style
+	LocaleMatcher *string
+	Type          *string
+	Style         *string
 }
 
 type config struct {
-	localeMatcher string
-	typ           string
-	style         string
+	localeMatcher    string
+	localeMatcherSet bool
+	typ              string
+	style            string
 }
 
 func defaultConfig() config {
@@ -27,28 +41,25 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	if opts.LocaleMatcher != "" {
-		cfg.localeMatcher = string(opts.LocaleMatcher)
-	}
-	if opts.Type != "" {
-		cfg.typ = string(opts.Type)
-	}
-	if opts.Style != "" {
-		cfg.style = string(opts.Style)
-	}
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOption(&cfg.typ, opts.Type)
+	ecma402.ApplyOption(&cfg.style, opts.Style)
 }
 
-func (cfg config) validate(loc locale.Locale) error {
-	if check, ok := ecma402.InvalidStringOption(
-		ecma402.LocaleMatcherOption(cfg.localeMatcher),
-		ecma402.RequiredStringOption("type", cfg.typ, string(Conjunction), string(Disjunction), string(Unit)),
-		ecma402.RequiredStringOption("style", cfg.style, string(LongStyle), string(ShortStyle), string(NarrowStyle)),
-	); ok {
-		return invalidOption(check.Name, check.Value, loc)
-	}
-	return nil
+func (cfg config) validate(locName string) error {
+	return ecma402.ValidateStringOptions(
+		listFormatOwner,
+		locName,
+		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.localeMatcherSet),
+		listTypeOption(cfg.typ),
+		listStyleOption(cfg.style),
+	)
 }
 
-func invalidOption(name, value string, loc locale.Locale) error {
-	return ecma402.InvalidOptionError("listformat", name, value, loc.String(), intlerr.ErrInvalidOption)
+func listTypeOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption("type", value, listTypeValues[:]...)
+}
+
+func listStyleOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption("style", value, listStyleValues[:]...)
 }

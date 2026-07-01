@@ -2,8 +2,6 @@ package displaynames
 
 import (
 	"github.com/agentable/go-intl/internal/ecma402"
-	"github.com/agentable/go-intl/internal/intlerr"
-	"github.com/agentable/go-intl/locale"
 )
 
 type LocaleMatcher string
@@ -11,6 +9,8 @@ type Type string
 type Style string
 type Fallback string
 type LanguageDisplay string
+
+const displayNamesOwner = "displaynames"
 
 const (
 	LookupLocaleMatcher  LocaleMatcher = "lookup"
@@ -34,20 +34,45 @@ const (
 	StandardLanguageDisplay LanguageDisplay = "standard"
 )
 
+var (
+	displayNameTypeValues = [...]string{
+		string(Language),
+		string(Region),
+		string(Script),
+		string(Currency),
+		string(Calendar),
+		string(DateTimeField),
+	}
+	displayNameStyleValues = [...]string{
+		string(LongStyle),
+		string(ShortStyle),
+		string(NarrowStyle),
+	}
+	displayNameFallbackValues = [...]string{
+		string(CodeFallback),
+		string(NoneFallback),
+	}
+	displayNameLanguageDisplayValues = [...]string{
+		string(DialectLanguageDisplay),
+		string(StandardLanguageDisplay),
+	}
+)
+
 type Options struct {
-	LocaleMatcher   LocaleMatcher
-	Type            Type
-	Style           Style
-	Fallback        Fallback
-	LanguageDisplay LanguageDisplay
+	LocaleMatcher   *string
+	Type            *string
+	Style           *string
+	Fallback        *string
+	LanguageDisplay *string
 }
 
 type config struct {
-	localeMatcher   string
-	typ             string
-	style           string
-	fallback        string
-	languageDisplay string
+	localeMatcher    string
+	localeMatcherSet bool
+	typ              string
+	style            string
+	fallback         string
+	languageDisplay  string
 }
 
 func defaultConfig() config {
@@ -60,44 +85,37 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	if opts.LocaleMatcher != "" {
-		cfg.localeMatcher = string(opts.LocaleMatcher)
-	}
-	if opts.Type != "" {
-		cfg.typ = string(opts.Type)
-	}
-	if opts.Style != "" {
-		cfg.style = string(opts.Style)
-	}
-	if opts.Fallback != "" {
-		cfg.fallback = string(opts.Fallback)
-	}
-	if opts.LanguageDisplay != "" {
-		cfg.languageDisplay = string(opts.LanguageDisplay)
-	}
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOption(&cfg.typ, opts.Type)
+	ecma402.ApplyOption(&cfg.style, opts.Style)
+	ecma402.ApplyOption(&cfg.fallback, opts.Fallback)
+	ecma402.ApplyOption(&cfg.languageDisplay, opts.LanguageDisplay)
 }
 
-func (cfg config) validate(loc locale.Locale) error {
-	if check, ok := ecma402.InvalidStringOption(ecma402.LocaleMatcherOption(cfg.localeMatcher)); ok {
-		return invalidOption(check.Name, check.Value, loc)
-	}
-	switch cfg.typ {
-	case "":
-		return invalidOption("type", "", loc)
-	case string(Language), string(Region), string(Script), string(Currency), string(Calendar), string(DateTimeField):
-	default:
-		return invalidOption("type", cfg.typ, loc)
-	}
-	if check, ok := ecma402.InvalidStringOption(
-		ecma402.RequiredStringOption("style", cfg.style, string(LongStyle), string(ShortStyle), string(NarrowStyle)),
-		ecma402.RequiredStringOption("fallback", cfg.fallback, string(CodeFallback), string(NoneFallback)),
-		ecma402.RequiredStringOption("languageDisplay", cfg.languageDisplay, string(DialectLanguageDisplay), string(StandardLanguageDisplay)),
-	); ok {
-		return invalidOption(check.Name, check.Value, loc)
-	}
-	return nil
+func (cfg config) validate(locName string) error {
+	return ecma402.ValidateStringOptions(
+		displayNamesOwner,
+		locName,
+		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.localeMatcherSet),
+		displayNameTypeOption(cfg.typ),
+		displayNameStyleOption(cfg.style),
+		displayNameFallbackOption(cfg.fallback),
+		displayNameLanguageDisplayOption(cfg.languageDisplay),
+	)
 }
 
-func invalidOption(name, value string, loc locale.Locale) error {
-	return ecma402.InvalidOptionError("displaynames", name, value, loc.String(), intlerr.ErrInvalidOption)
+func displayNameTypeOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption("type", value, displayNameTypeValues[:]...)
+}
+
+func displayNameStyleOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption("style", value, displayNameStyleValues[:]...)
+}
+
+func displayNameFallbackOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption("fallback", value, displayNameFallbackValues[:]...)
+}
+
+func displayNameLanguageDisplayOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption("languageDisplay", value, displayNameLanguageDisplayValues[:]...)
 }

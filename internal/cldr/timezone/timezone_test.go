@@ -1,78 +1,45 @@
 package timezone
 
 import (
-	"os"
-	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+	"github.com/agentable/go-intl/internal/testcontract"
+	"github.com/agentable/go-intl/internal/testprocess"
 )
 
 // narrowIndexSubprocessEnv gates the narrow-index Once assertion so it runs in a
 // freshly started process where no main-blob decode has happened yet.
 const narrowIndexSubprocessEnv = "GO_INTL_TIMEZONE_NARROW_INDEX_SUBPROCESS"
 
+const missingLocale Locale = 65535
+
 // TestSupportedTimeZonesDoesNotDecodeMainBlobs asserts the narrow-index rule:
 // SupportedTimeZones reads only the supported blob and must never trigger the
 // metazone-period, names, or formats decode.
 //
-// The assertion is order-sensitive: any other test in this binary that touches a
-// metazone, name, or format lookup populates those package-level maps, after
-// which a same-binary assertion would see them already decoded. Rather than
-// depend on test order, this test re-executes the test binary as a subprocess
-// that runs only the inner assertion via -test.run, so the assertion always
-// observes a process that has decoded nothing.
+// The assertion runs in a fresh process so other time-zone tests cannot populate
+// the package-level Once state first.
 func TestSupportedTimeZonesDoesNotDecodeMainBlobs(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv(narrowIndexSubprocessEnv) == "1" {
-		assertSupportedTimeZonesDoesNotDecodeMainBlobs(t)
+	if !testprocess.RunInFreshProcess(t, narrowIndexSubprocessEnv) {
 		return
 	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=^TestSupportedTimeZonesDoesNotDecodeMainBlobs$", "-test.v")
-	cmd.Env = append(os.Environ(), narrowIndexSubprocessEnv+"=1")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("narrow-index subprocess failed: %v\n%s", err, out)
-	}
-	if !strings.Contains(string(out), "PASS") {
-		t.Fatalf("narrow-index subprocess did not report PASS:\n%s", out)
-	}
-}
-
-func assertSupportedTimeZonesDoesNotDecodeMainBlobs(t *testing.T) {
-	t.Helper()
-
-	tags := SupportedTimeZones()
-	if len(tags) == 0 {
-		t.Fatal("SupportedTimeZones returned no tags")
-	}
-	if zoneToMetazones != nil {
-		t.Error("SupportedTimeZones decoded the metazone-period blob; narrow index must not")
-	}
-	if metazoneNamesByLocale != nil || timeZoneNamesByLocale != nil || exemplarCitiesByLocale != nil {
-		t.Error("SupportedTimeZones decoded the names blob; narrow index must not")
-	}
-	if timeZoneFormatsByLocale != nil {
-		t.Error("SupportedTimeZones decoded the formats blob; narrow index must not")
-	}
+	testcontract.AssertNarrowStringIndexDoesNotLoad(t, "SupportedTimeZones", SupportedTimeZones,
+		testcontract.LoadProbe{Name: "metazone-period blob", Loaded: func() bool { return zoneToMetazones != nil }},
+		testcontract.LoadProbe{Name: "names blob", Loaded: func() bool {
+			return metazoneNamesByLocale != nil || timeZoneNamesByLocale != nil || exemplarCitiesByLocale != nil
+		}},
+		testcontract.LoadProbe{Name: "formats blob", Loaded: func() bool { return timeZoneFormatsByLocale != nil }},
+	)
 }
 
 func TestSupportedTimeZonesReturnsCopy(t *testing.T) {
 	t.Parallel()
 
-	a := SupportedTimeZones()
-	if len(a) == 0 {
-		t.Fatal("SupportedTimeZones returned no tags")
-	}
-	a[0] = "mutated"
-	b := SupportedTimeZones()
-	if b[0] == "mutated" {
-		t.Error("SupportedTimeZones returned a shared slice; callers can corrupt the cache")
-	}
+	testcontract.AssertStringSliceReturnsCopy(t, "SupportedTimeZones", SupportedTimeZones)
 }
 
 // TestSmokeMetazoneAccessors is a checkout-independent smoke test mirroring the
@@ -86,8 +53,8 @@ func TestSmokeMetazoneAccessors(t *testing.T) {
 	if !ok {
 		t.Fatal(`ResolveLocale("en-US") = false, want true`)
 	}
-	if got, want := ZoneToMetazone("America/Los_Angeles"), "America_Pacific"; got != want {
-		t.Fatalf("ZoneToMetazone(America/Los_Angeles) = %q, want %q", got, want)
+	if got, want := TimeZoneMetazone("America/Los_Angeles", 0), "America_Pacific"; got != want {
+		t.Fatalf("TimeZoneMetazone(America/Los_Angeles, 0) = %q, want %q", got, want)
 	}
 	if got, want := metazoneName(loc, "America_Pacific", "long-generic"), "Pacific Time"; got != want {
 		t.Fatalf("metazoneName(long-generic) = %q, want %q", got, want)
@@ -97,6 +64,22 @@ func TestSmokeMetazoneAccessors(t *testing.T) {
 	}
 	if got, want := exemplarCity(loc, "Europe/Tirane"), "Tirana"; got != want {
 		t.Fatalf("exemplarCity(Europe/Tirane) = %q, want %q", got, want)
+	}
+	assertMissingLocalizedTimeZoneNames(t, missingLocale, "America_Pacific", "America/Los_Angeles")
+	assertMissingLocalizedTimeZoneNames(t, loc, "Missing_Metazone", "Mars/Olympus")
+}
+
+func assertMissingLocalizedTimeZoneNames(t *testing.T, loc Locale, metazone, zone string) {
+	t.Helper()
+
+	if got := metazoneName(loc, metazone, zoneNameLongGeneric); got != "" {
+		t.Fatalf("metazoneName(%d, %q) = %q, want empty", loc, metazone, got)
+	}
+	if got := zoneSpecificName(loc, zone, zoneNameLongGeneric); got != "" {
+		t.Fatalf("zoneSpecificName(%d, %q) = %q, want empty", loc, zone, got)
+	}
+	if got := exemplarCity(loc, zone); got != "" {
+		t.Fatalf("exemplarCity(%d, %q) = %q, want empty", loc, zone, got)
 	}
 }
 
@@ -111,6 +94,14 @@ func TestSmokeTimeZoneMetazoneInstants(t *testing.T) {
 	}
 	if got, want := TimeZoneMetazone("Europe/Moscow", summer2012), "Moscow"; got != want {
 		t.Fatalf("TimeZoneMetazone(Europe/Moscow, 2012) = %q, want %q", got, want)
+	}
+}
+
+func TestMissingTimeZoneMetazoneReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	if got := TimeZoneMetazone("Mars/Olympus", 0); got != "" {
+		t.Fatalf("TimeZoneMetazone(Mars/Olympus, 0) = %q, want empty", got)
 	}
 }
 
@@ -146,7 +137,10 @@ func TestSmokeTimeZoneDisplayName(t *testing.T) {
 		{"long daylight", enUS, "America/New_York", TimeZoneNameLong, true, -5 * 3600 * 1000, "Eastern Daylight Time"},
 		{"short standard", enUS, "America/Los_Angeles", TimeZoneNameShort, false, -5 * 3600 * 1000, "PST"},
 		{"zone specific daylight", enGB, "Europe/London", TimeZoneNameLong, true, 3600 * 1000, "British Summer Time"},
+		{"short offset", enUS, "America/New_York", TimeZoneNameShortOffset, false, -5 * 3600 * 1000, "GMT-5"},
+		{"long offset", enUS, "America/New_York", TimeZoneNameLongOffset, false, -5 * 3600 * 1000, "GMT-05:00"},
 		{"gmt fallback", enUS, "Mars/Olympus", TimeZoneNameShortGeneric, false, -5 * 3600 * 1000, "GMT-5"},
+		{"missing locale fallback", missingLocale, "America/New_York", TimeZoneNameShortGeneric, false, -5 * 3600 * 1000, "GMT-5"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -188,6 +182,8 @@ func TestSmokeGMTOffsetName(t *testing.T) {
 		{"short half hour", en, TimeZoneNameShortOffset, 5*3600*1000 + 30*60*1000, "GMT+5:30"},
 		{"short quarter hour", en, TimeZoneNameShortOffset, 5*3600*1000 + 45*60*1000, "GMT+5:45"},
 		{"zh active locale", zh, TimeZoneNameShortOffset, -3*3600*1000 - 30*60*1000, "GMT-3:30"},
+		{"missing locale short", missingLocale, TimeZoneNameShortOffset, -5 * 3600 * 1000, "GMT-5"},
+		{"missing locale long", missingLocale, TimeZoneNameLongOffset, -5 * 3600 * 1000, "GMT-05:00"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

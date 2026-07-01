@@ -37,6 +37,7 @@ import (
 	"log"
 	"time"
 
+	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/datetimeformat"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/numberformat"
@@ -49,8 +50,8 @@ func main() {
 	}
 
 	priceFormat, err := numberformat.New(locales, numberformat.Options{
-		Style:    numberformat.CurrencyStyle,
-		Currency: numberformat.Currency("USD"),
+		Style:    gointl.String(numberformat.CurrencyStyle),
+		Currency: gointl.String("USD"),
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -58,8 +59,8 @@ func main() {
 	price := priceFormat.Format(numberformat.Float(1234.5))
 
 	dateFormat, err := datetimeformat.New(locales, datetimeformat.Options{
-		DateStyle: datetimeformat.LongDateTimeStyle,
-		TimeZone:  "America/New_York",
+		DateStyle: gointl.String(datetimeformat.LongDateTimeStyle),
+		TimeZone:  gointl.String("America/New_York"),
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -161,7 +162,7 @@ Use constructor packages directly in production services that need one `Intl` co
 locales := mustLocaleList("en-US")
 
 compactFormat, err := numberformat.New(locales, numberformat.Options{
-	Notation: numberformat.CompactNotation,
+	Notation: gointl.String(numberformat.CompactNotation),
 })
 if err != nil {
 	return err
@@ -191,7 +192,7 @@ Constructor static methods stay with their packages, just like native `Intl.<Con
 requested := mustLocaleList("de-DE", "en-US-u-nu-latn", "zh-Hans-CN")
 
 supported, err := numberformat.SupportedLocalesOf(requested, numberformat.Options{
-	LocaleMatcher: numberformat.LookupLocaleMatcher,
+	LocaleMatcher: gointl.String(numberformat.LookupLocaleMatcher),
 })
 if err != nil {
 	return err
@@ -208,16 +209,18 @@ Use formatter packages directly when you need resolved options, parts, ranges, o
 
 ```go
 format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
-	Style:       numberformat.UnitStyle,
-	Unit:        numberformat.Unit("kilometer-per-hour"),
-	UnitDisplay: numberformat.ShortUnitDisplay,
+	Style:       gointl.String(numberformat.UnitStyle),
+	Unit:        gointl.String("kilometer-per-hour"),
+	UnitDisplay: gointl.String(numberformat.ShortUnitDisplay),
 })
 if err != nil {
 	return err
 }
 
 fmt.Println(format.Format(numberformat.Int(88)))
-fmt.Println(format.ResolvedOptions().Unit)
+if unit := format.ResolvedOptions().Unit; unit != nil {
+	fmt.Println(*unit)
+}
 ```
 
 Unit identifiers follow native `Intl.NumberFormat`: use canonical lowercase ECMA-402 identifiers such as `meter`, `microsecond`, or `kilometer-per-hour`.
@@ -251,7 +254,7 @@ Use decimal-string methods when binary `float64` cannot represent the value you 
 
 ```go
 format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
-	Style:                 numberformat.PercentStyle,
+	Style:                 gointl.String(numberformat.PercentStyle),
 	MinimumFractionDigits: gointl.Int(2),
 	MaximumFractionDigits: gointl.Int(2),
 })
@@ -275,8 +278,8 @@ Use parts APIs when you need to style or transform individual formatted tokens:
 
 ```go
 format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
-	Style:    numberformat.CurrencyStyle,
-	Currency: numberformat.Currency("USD"),
+	Style:    gointl.String(numberformat.CurrencyStyle),
+	Currency: gointl.String("USD"),
 })
 if err != nil {
 	return err
@@ -294,8 +297,8 @@ hosts can pass them through without rebuilding field maps:
 
 ```go
 format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
-	Style: numberformat.CurrencyStyle,
-	Currency: numberformat.Currency("USD"),
+	Style:    gointl.String(numberformat.CurrencyStyle),
+	Currency: gointl.String("USD"),
 })
 if err != nil {
 	return err
@@ -319,9 +322,9 @@ fmt.Println(string(data))
 
 ```go
 format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
-	DateStyle: datetimeformat.MediumDateTimeStyle,
-	TimeStyle: datetimeformat.ShortDateTimeStyle,
-	TimeZone:  "America/New_York",
+	DateStyle: gointl.String(datetimeformat.MediumDateTimeStyle),
+	TimeStyle: gointl.String(datetimeformat.ShortDateTimeStyle),
+	TimeZone:  gointl.String("America/New_York"),
 })
 if err != nil {
 	return err
@@ -331,7 +334,11 @@ start := time.Date(2026, time.May, 8, 14, 30, 0, 0, time.UTC)
 end := start.Add(2 * time.Hour)
 
 fmt.Println(format.Format(start))
-fmt.Println(format.FormatRange(start, end))
+rangeText, err := format.FormatRange(start, end)
+if err != nil {
+	return err
+}
+fmt.Println(rangeText)
 ```
 
 ### Select Plural Categories
@@ -340,7 +347,7 @@ Use `pluralrules` to select CLDR plural categories for message selection:
 
 ```go
 rules, err := pluralrules.New(mustLocaleList("en"), pluralrules.Options{
-	Type: pluralrules.Ordinal,
+	Type: gointl.String(pluralrules.Ordinal),
 })
 if err != nil {
 	return err
@@ -401,7 +408,7 @@ Use `durationformat` for `Intl.DurationFormat` semantics, including digital time
 
 ```go
 format, err := durationformat.New(mustLocaleList("en"), durationformat.Options{
-	Style: durationformat.DigitalStyle,
+	Style: gointl.String(durationformat.DigitalStyle),
 })
 if err != nil {
 	return err
@@ -433,7 +440,7 @@ Use the remaining constructor packages when you need display names, collation, o
 locales := mustLocaleList("en")
 
 names, err := displaynames.New(locales, displaynames.Options{
-	Type: displaynames.Region,
+	Type: gointl.String(displaynames.Region),
 })
 if err != nil {
 	return err
@@ -516,7 +523,7 @@ collation backend.
 | `segmenter.segment(s)` returns a JS iterable of `{ segment, index, isWordLike }` | `Segments.All() iter.Seq[Segment]` with `Segment.CodeUnitIndex` and `Segment.ByteIndex` | Mirrors ECMA-402 while still supporting Go string offsets. |
 | JS `new Intl.X(locales, options?)` | `New(locales, opts Options)` accepting a `locale.List` plus exactly one typed `Options` value | Callers express omitted locales with `nil` / `locale.List{}` and use `Options{}` for the empty or omitted JS options object. |
 | `format(value)` accepting `Number \| BigInt \| string` | Opaque `numberformat.Value` constructors plus `Format`, `FormatToParts`, `FormatRange`, and `FormatRangeToParts` | Preserves type safety without a public `any` hot path. |
-| Resolved option properties that JS omits when inactive (e.g. `minimumFractionDigits` under `roundingType="significantDigits"`) | `*int` / `*LanguageDisplay` fields on `ResolvedOptions` that are `nil` when the spec hides them | Distinguishes "not set" from "explicitly zero" without ambiguity. |
+| Resolved option properties that JS omits when inactive (e.g. PluralRules `compactDisplay`, DateTimeFormat component fields, or DisplayNames `languageDisplay`) | Pointer fields on `ResolvedOptions` that are `nil` when the spec hides them | Distinguishes "not set" from "explicitly zero" without ambiguity. |
 
 ### Conformance divergences
 
@@ -552,7 +559,7 @@ The three `ErrUnsupported*` categories also match `errors.ErrUnsupported`.
 
 ```go
 _, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
-	Style: numberformat.CurrencyStyle,
+	Style: gointl.String(numberformat.CurrencyStyle),
 })
 if err != nil {
 	if errors.Is(err, gointl.ErrInvalidOption) {
@@ -580,6 +587,8 @@ task fmt                  # Format Go code
 task vet                  # Run go vet
 task test                 # Run go test -race -p 1 ./...
 task lint                 # Run go mod tidy check and golangci-lint
+task codegraph:source        # Build a source-only CodeGraph mirror under .tmp/codegraph-source
+task codegraph:source:status # Show the current source-only CodeGraph mirror status
 task conformance:verify   # Validate fixtures, skip-list, coverage, Node witness matrix, and divergence audit
 task conformance:witness  # Refresh generated Node Intl witness fixtures with the active node binary
 task data                 # Regenerate CLDR data into internal/cldr/ (writes back)
@@ -596,6 +605,12 @@ task verify               # Run deps, fmt, vet, lint, test, conformance, data co
 The host consumer profile is exercised by `go test ./...`; it protects
 supported-set boundaries and reversed range behavior that host integrations
 depend on.
+
+Use `task codegraph:source` before structural exploration. The generated mirror
+excludes `.references/` and lives under ignored `.tmp/codegraph-source`, so
+current-source questions do not accidentally traverse the vendored reference
+trees. Reference projects keep their own CodeGraph indexes when a comparison
+needs implementation evidence.
 
 Measure aggregate root facade cost separately from per-surface formatter cost.
 Treat `go list -deps .` as root aggregate evidence only; use direct subpackage

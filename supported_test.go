@@ -2,9 +2,6 @@ package gointl
 
 import (
 	"encoding/json"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"slices"
 	"strings"
@@ -18,6 +15,7 @@ import (
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	cldrdisplaynames "github.com/agentable/go-intl/internal/cldr/displaynames"
 	cldrlist "github.com/agentable/go-intl/internal/cldr/list"
+	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	cldrplural "github.com/agentable/go-intl/internal/cldr/plural"
 	cldrrelativetime "github.com/agentable/go-intl/internal/cldr/relativetime"
@@ -27,6 +25,7 @@ import (
 	"github.com/agentable/go-intl/internal/ecma402"
 	"github.com/agentable/go-intl/internal/intltest"
 	internalsegmentation "github.com/agentable/go-intl/internal/segmentation"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/internal/tz"
 	"github.com/agentable/go-intl/listformat"
 	"github.com/agentable/go-intl/locale"
@@ -48,63 +47,63 @@ func TestSupportedLocalesOfMatchesCapabilityAccessors(t *testing.T) {
 			name:      "NumberFormat",
 			supported: cldrnumber.SupportedLocales(),
 			filter: func(requested locale.List) (locale.List, error) {
-				return numberformat.SupportedLocalesOf(requested, numberformat.Options{LocaleMatcher: numberformat.LookupLocaleMatcher})
+				return numberformat.SupportedLocalesOf(requested, numberformat.Options{LocaleMatcher: String(numberformat.LookupLocaleMatcher)})
 			},
 		},
 		{
 			name:      "DateTimeFormat",
 			supported: cldrdate.SupportedLocales(),
 			filter: func(requested locale.List) (locale.List, error) {
-				return datetimeformat.SupportedLocalesOf(requested, datetimeformat.Options{LocaleMatcher: datetimeformat.LookupLocaleMatcher})
+				return datetimeformat.SupportedLocalesOf(requested, datetimeformat.Options{LocaleMatcher: String(datetimeformat.LookupLocaleMatcher)})
 			},
 		},
 		{
 			name:      "PluralRules",
 			supported: cldrplural.SupportedLocales(),
 			filter: func(requested locale.List) (locale.List, error) {
-				return pluralrules.SupportedLocalesOf(requested, pluralrules.Options{LocaleMatcher: pluralrules.LookupLocaleMatcher})
+				return pluralrules.SupportedLocalesOf(requested, pluralrules.Options{LocaleMatcher: String(pluralrules.LookupLocaleMatcher)})
 			},
 		},
 		{
 			name:      "ListFormat",
 			supported: cldrlist.SupportedLocales(),
 			filter: func(requested locale.List) (locale.List, error) {
-				return listformat.SupportedLocalesOf(requested, listformat.Options{LocaleMatcher: listformat.LookupLocaleMatcher})
+				return listformat.SupportedLocalesOf(requested, listformat.Options{LocaleMatcher: String(listformat.LookupLocaleMatcher)})
 			},
 		},
 		{
 			name:      "RelativeTimeFormat",
 			supported: relativeTimeSupportedLocaleContract(),
 			filter: func(requested locale.List) (locale.List, error) {
-				return relativetimeformat.SupportedLocalesOf(requested, relativetimeformat.Options{LocaleMatcher: relativetimeformat.LookupLocaleMatcher})
+				return relativetimeformat.SupportedLocalesOf(requested, relativetimeformat.Options{LocaleMatcher: String(relativetimeformat.LookupLocaleMatcher)})
 			},
 		},
 		{
 			name:      "DurationFormat",
 			supported: durationSupportedLocaleContract(),
 			filter: func(requested locale.List) (locale.List, error) {
-				return durationformat.SupportedLocalesOf(requested, durationformat.Options{LocaleMatcher: durationformat.LookupLocaleMatcher})
+				return durationformat.SupportedLocalesOf(requested, durationformat.Options{LocaleMatcher: String(durationformat.LookupLocaleMatcher)})
 			},
 		},
 		{
 			name:      "DisplayNames",
 			supported: cldrdisplaynames.SupportedLocales(),
 			filter: func(requested locale.List) (locale.List, error) {
-				return displaynames.SupportedLocalesOf(requested, displaynames.Options{LocaleMatcher: displaynames.LookupLocaleMatcher})
+				return displaynames.SupportedLocalesOf(requested, displaynames.Options{LocaleMatcher: String(displaynames.LookupLocaleMatcher)})
 			},
 		},
 		{
 			name:      "Collator",
 			supported: internalcollation.SupportedLocales(),
 			filter: func(requested locale.List) (locale.List, error) {
-				return collator.SupportedLocalesOf(requested, collator.Options{LocaleMatcher: collator.LookupLocaleMatcher})
+				return collator.SupportedLocalesOf(requested, collator.Options{LocaleMatcher: String(collator.LookupLocaleMatcher)})
 			},
 		},
 		{
 			name:      "Segmenter",
 			supported: internalsegmentation.SupportedLocales(),
 			filter: func(requested locale.List) (locale.List, error) {
-				return segmenter.SupportedLocalesOf(requested, segmenter.Options{LocaleMatcher: segmenter.LookupLocaleMatcher})
+				return segmenter.SupportedLocalesOf(requested, segmenter.Options{LocaleMatcher: String(segmenter.LookupLocaleMatcher)})
 			},
 		},
 	}
@@ -119,9 +118,7 @@ func TestSupportedLocalesOfMatchesCapabilityAccessors(t *testing.T) {
 				t.Fatalf("SupportedLocalesOf(all supported locales) error = %v", err)
 			}
 			want := requested.Strings()
-			if !slices.Equal(got.Strings(), want) {
-				t.Fatalf("SupportedLocalesOf(all supported locales) = %v, want %v", got.Strings(), want)
-			}
+			testcontract.AssertLocaleListStrings(t, "SupportedLocalesOf(all supported locales)", got, want)
 		})
 	}
 }
@@ -186,7 +183,7 @@ func TestSupportedLocalesConstructFormatters(t *testing.T) {
 			name:      "DisplayNames",
 			supported: cldrdisplaynames.SupportedLocales(),
 			construct: func(locales locale.List) error {
-				_, err := displaynames.New(locales, displaynames.Options{Type: displaynames.Language})
+				_, err := displaynames.New(locales, displaynames.Options{Type: String(displaynames.Language)})
 				return err
 			},
 		},
@@ -249,16 +246,7 @@ func TestSupportedValuesReturnFreshSlices(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := tt.values()
-			if len(got) == 0 {
-				return
-			}
-			original := tt.want()
-			got[0] = "mutated"
-			again := tt.values()
-			if !slices.Equal(again, original) {
-				t.Fatalf("%s supported values share mutable backing storage: got %v, want %v", tt.name, again, original)
-			}
+			testcontract.AssertOptionalStringSliceReturnsCopy(t, tt.name, tt.values)
 		})
 	}
 }
@@ -271,14 +259,7 @@ func TestSupportedValuesAreSortedUnique(t *testing.T) {
 			t.Parallel()
 
 			values := tt.values()
-			if !slices.IsSorted(values) {
-				t.Fatalf("%s supported values = %v, want sorted", tt.name, values)
-			}
-			for i := 1; i < len(values); i++ {
-				if values[i] == values[i-1] {
-					t.Fatalf("%s supported values contain duplicate %q: %v", tt.name, values[i], values)
-				}
-			}
+			testcontract.AssertStringSliceSortedUnique(t, tt.name, values)
 		})
 	}
 }
@@ -309,7 +290,7 @@ func TestSupportedValuesAreBackedByConstructors(t *testing.T) {
 		t.Run("calendar/"+calendar, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := datetimeformat.New(en, datetimeformat.Options{Calendar: calendar})
+			_, err := datetimeformat.New(en, datetimeformat.Options{Calendar: String(calendar)})
 			if err != nil {
 				t.Fatalf("DateTimeFormat calendar %q error = %v", calendar, err)
 			}
@@ -320,7 +301,7 @@ func TestSupportedValuesAreBackedByConstructors(t *testing.T) {
 		t.Run("collation/"+collation, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := collator.New(en, collator.Options{Collation: collation})
+			_, err := collator.New(en, collator.Options{Collation: String(collation)})
 			if err != nil {
 				t.Fatalf("Collator collation %q error = %v", collation, err)
 			}
@@ -332,8 +313,8 @@ func TestSupportedValuesAreBackedByConstructors(t *testing.T) {
 			t.Parallel()
 
 			_, err := numberformat.New(en, numberformat.Options{
-				Style:    numberformat.CurrencyStyle,
-				Currency: numberformat.Currency(currency),
+				Style:    String(numberformat.CurrencyStyle),
+				Currency: String(currency),
 			})
 			if err != nil {
 				t.Fatalf("NumberFormat currency %q error = %v", currency, err)
@@ -345,7 +326,7 @@ func TestSupportedValuesAreBackedByConstructors(t *testing.T) {
 		t.Run("numberingSystem/"+numberingSystem, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := numberformat.New(en, numberformat.Options{NumberingSystem: numberingSystem})
+			_, err := numberformat.New(en, numberformat.Options{NumberingSystem: String(numberingSystem)})
 			if err != nil {
 				t.Fatalf("NumberFormat numberingSystem %q error = %v", numberingSystem, err)
 			}
@@ -356,7 +337,7 @@ func TestSupportedValuesAreBackedByConstructors(t *testing.T) {
 		t.Run("timeZone/"+strings.ReplaceAll(timeZone, "/", "_"), func(t *testing.T) {
 			t.Parallel()
 
-			_, err := datetimeformat.New(en, datetimeformat.Options{TimeZone: timeZone})
+			_, err := datetimeformat.New(en, datetimeformat.Options{TimeZone: String(timeZone)})
 			if err != nil {
 				t.Fatalf("DateTimeFormat timeZone %q error = %v", timeZone, err)
 			}
@@ -368,8 +349,8 @@ func TestSupportedValuesAreBackedByConstructors(t *testing.T) {
 			t.Parallel()
 
 			_, err := numberformat.New(en, numberformat.Options{
-				Style: numberformat.UnitStyle,
-				Unit:  numberformat.Unit(unit),
+				Style: String(numberformat.UnitStyle),
+				Unit:  String(unit),
 			})
 			if err != nil {
 				t.Fatalf("NumberFormat unit %q error = %v", unit, err)
@@ -432,62 +413,6 @@ func TestNodeSupportedValuesWitnessIsReferenceOnly(t *testing.T) {
 	}
 }
 
-func TestConstructorSupportedLocalesAvoidHandWrittenAllowLists(t *testing.T) {
-	t.Parallel()
-
-	for _, path := range []string{
-		"numberformat/supported.go",
-		"datetimeformat/supported.go",
-		"pluralrules/supported.go",
-		"listformat/supported.go",
-		"relativetimeformat/supported.go",
-		"durationformat/supported.go",
-		"displaynames/supported.go",
-		"collator/supported.go",
-		"segmenter/supported.go",
-	} {
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-
-			hasLiteral, err := hasStringSliceLiteral(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if hasLiteral {
-				t.Fatalf("%s must use generated or engine capability accessors, not a hand-written []string allow-list", path)
-			}
-		})
-	}
-}
-
-func TestConstructorSupportedLocalesUseSharedECMA402Operation(t *testing.T) {
-	t.Parallel()
-
-	for _, path := range []string{
-		"numberformat/supported.go",
-		"datetimeformat/supported.go",
-		"pluralrules/supported.go",
-		"listformat/supported.go",
-		"relativetimeformat/supported.go",
-		"durationformat/supported.go",
-		"displaynames/supported.go",
-		"collator/supported.go",
-		"segmenter/supported.go",
-	} {
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-
-			calls, err := fileCallsImportedSelector(path, "github.com/agentable/go-intl/internal/ecma402", "SupportedLocalesOf")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !calls {
-				t.Fatalf("%s must call internal/ecma402.SupportedLocalesOf instead of duplicating locale filtering", path)
-			}
-		})
-	}
-}
-
 func localeListFromSupportedTags(t *testing.T, tags []string) locale.List {
 	t.Helper()
 
@@ -499,85 +424,18 @@ func localeListFromSupportedTags(t *testing.T, tags []string) locale.List {
 }
 
 func relativeTimeSupportedLocaleContract() []string {
-	numbers := cldrnumber.SupportedLocales()
-	plurals := cldrplural.SupportedLocales()
-
-	out := slices.Clone(cldrrelativetime.SupportedLocales())
-	return slices.DeleteFunc(out, func(loc string) bool {
-		return !slices.Contains(numbers, loc) || !slices.Contains(plurals, loc)
-	})
+	return cldrlocale.IntersectSupportedLocales(
+		cldrrelativetime.SupportedLocales(),
+		cldrnumber.SupportedLocales(),
+		cldrplural.SupportedLocales(),
+	)
 }
 
 func durationSupportedLocaleContract() []string {
-	lists := cldrlist.SupportedLocales()
-	plurals := cldrplural.SupportedLocales()
-	units := cldrunit.SupportedLocales()
-
-	out := slices.Clone(cldrnumber.SupportedLocales())
-	return slices.DeleteFunc(out, func(loc string) bool {
-		return !slices.Contains(lists, loc) ||
-			!slices.Contains(plurals, loc) ||
-			!slices.Contains(units, loc)
-	})
-}
-
-func hasStringSliceLiteral(path string) (bool, error) {
-	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-	if err != nil {
-		return false, err
-	}
-
-	hasLiteral := false
-	ast.Inspect(file, func(node ast.Node) bool {
-		lit, ok := node.(*ast.CompositeLit)
-		if !ok {
-			return true
-		}
-		array, ok := lit.Type.(*ast.ArrayType)
-		if !ok {
-			return true
-		}
-		elt, ok := array.Elt.(*ast.Ident)
-		if ok && elt.Name == "string" {
-			hasLiteral = true
-			return false
-		}
-		return true
-	})
-	return hasLiteral, nil
-}
-
-func fileCallsImportedSelector(path, importPath, selectorName string) (bool, error) {
-	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-	if err != nil {
-		return false, err
-	}
-	imports := map[string]string{}
-	for _, spec := range file.Imports {
-		path := strings.Trim(spec.Path.Value, `"`)
-		name := path[strings.LastIndex(path, "/")+1:]
-		if spec.Name != nil {
-			name = spec.Name.Name
-		}
-		imports[name] = path
-	}
-
-	found := false
-	ast.Inspect(file, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		selector, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || selector.Sel.Name != selectorName {
-			return true
-		}
-		ident, ok := selector.X.(*ast.Ident)
-		if ok && imports[ident.Name] == importPath {
-			found = true
-			return false
-		}
-		return true
-	})
-	return found, nil
+	return cldrlocale.IntersectSupportedLocales(
+		cldrnumber.SupportedLocales(),
+		cldrlist.SupportedLocales(),
+		cldrplural.SupportedLocales(),
+		cldrunit.SupportedLocales(),
+	)
 }

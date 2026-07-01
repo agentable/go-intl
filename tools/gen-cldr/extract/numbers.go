@@ -2,6 +2,7 @@ package extract
 
 import (
 	"maps"
+	"slices"
 
 	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 )
@@ -24,38 +25,38 @@ type CurrencyData struct {
 // hundred bytes per locale per currency); we err on the side of inclusion
 // because users formatting :currency expect a symbol or full name, not a
 // fallback to the ISO code.
-var displayCurrencyAllowlist = map[string]bool{
-	"AUD": true,
-	"BRL": true,
-	"CAD": true,
-	"CHF": true,
-	"CNY": true,
-	"CZK": true,
-	"DKK": true,
-	"EUR": true,
-	"GBP": true,
-	"HKD": true,
-	"HUF": true,
-	"IDR": true,
-	"ILS": true,
-	"INR": true,
-	"JPY": true,
-	"KRW": true,
-	"MXN": true,
-	"MYR": true,
-	"NOK": true,
-	"NZD": true,
-	"PHP": true,
-	"PLN": true,
-	"RUB": true,
-	"SEK": true,
-	"SGD": true,
-	"THB": true,
-	"TRY": true,
-	"TWD": true,
-	"USD": true,
-	"VND": true,
-	"ZAR": true,
+var displayCurrencyAllowlist = [...]string{
+	"AUD",
+	"BRL",
+	"CAD",
+	"CHF",
+	"CNY",
+	"CZK",
+	"DKK",
+	"EUR",
+	"GBP",
+	"HKD",
+	"HUF",
+	"IDR",
+	"ILS",
+	"INR",
+	"JPY",
+	"KRW",
+	"MXN",
+	"MYR",
+	"NOK",
+	"NZD",
+	"PHP",
+	"PLN",
+	"RUB",
+	"SEK",
+	"SGD",
+	"THB",
+	"TRY",
+	"TWD",
+	"USD",
+	"VND",
+	"ZAR",
 }
 
 func ExtractNumbers(raw map[string]cldr.Numbers, locales []string) Numbers {
@@ -79,13 +80,18 @@ func ExtractCurrencies(fractions map[string]cldr.CurrencyFraction, currencies ma
 		}
 		filtered := make(cldr.Currencies, len(displayCurrencyAllowlist))
 		for code, names := range byCurrency {
-			if displayCurrencyAllowlist[code] {
+			if isDisplayCurrencyAllowed(code) {
 				filtered[code] = names
 			}
 		}
 		filteredCurrencies[locale] = filtered
 	}
 	return CurrencyData{Fractions: filteredFractions, Currencies: filteredCurrencies}
+}
+
+func isDisplayCurrencyAllowed(code string) bool {
+	_, ok := slices.BinarySearch(displayCurrencyAllowlist[:], code)
+	return ok
 }
 
 func localeSet(locales []string) map[string]bool {

@@ -1,8 +1,6 @@
 package gointl
 
 import (
-	"slices"
-
 	cldrcurrency "github.com/agentable/go-intl/internal/cldr/currency"
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
@@ -11,26 +9,50 @@ import (
 	"github.com/agentable/go-intl/internal/ecma402"
 )
 
+// SupportedCalendars returns the calendar identifiers for
+// Intl.supportedValuesOf("calendar").
+//
+// The returned slice is sorted, canonical, and independent.
 func SupportedCalendars() []string {
-	return slices.Clone(cldrdate.SupportedCalendars())
+	return cldrdate.SupportedCalendars()
 }
 
+// SupportedCollations returns the active Collator backend collation identifiers
+// for Intl.supportedValuesOf("collation").
+//
+// The returned slice is sorted, canonical, and independent.
 func SupportedCollations() []string {
-	return slices.Clone(collation.SupportedCollations())
+	return collation.SupportedCollations()
 }
 
+// SupportedCurrencies returns the currency identifiers for
+// Intl.supportedValuesOf("currency").
+//
+// The returned slice is sorted, canonical, and independent.
 func SupportedCurrencies() []string {
-	return slices.Clone(cldrcurrency.SupportedCodes())
+	return cldrcurrency.SupportedCodes()
 }
 
+// SupportedNumberingSystems returns the numbering-system identifiers for
+// Intl.supportedValuesOf("numberingSystem").
+//
+// The returned slice is sorted, canonical, and independent.
 func SupportedNumberingSystems() []string {
-	return slices.Clone(cldrnumber.SupportedNumberingSystems())
+	return cldrnumber.SupportedNumberingSystems()
 }
 
+// SupportedTimeZones returns the primary IANA time-zone identifiers for
+// Intl.supportedValuesOf("timeZone").
+//
+// The returned slice is sorted, canonical, and independent.
 func SupportedTimeZones() []string {
-	return slices.Clone(cldrtimezone.SupportedTimeZones())
+	return cldrtimezone.SupportedTimeZones()
 }
 
+// SupportedUnits returns the sanctioned unit identifiers for
+// Intl.supportedValuesOf("unit").
+//
+// The returned slice is sorted, canonical, and independent.
 func SupportedUnits() []string {
-	return slices.Clone(ecma402.SanctionedSimpleUnitIdentifiers())
+	return ecma402.SanctionedSimpleUnitIdentifiers()
 }

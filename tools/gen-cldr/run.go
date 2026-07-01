@@ -11,6 +11,7 @@ import (
 	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 	"github.com/agentable/go-intl/tools/gen-cldr/codegen"
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
+	"github.com/agentable/go-intl/tools/internal/localeprofile"
 )
 
 // Config controls a generator run.
@@ -38,7 +39,7 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 		return fmt.Errorf("read pinned version: %w", err)
 	}
 	log.InfoContext(ctx, "pinned versions", "cldr", want.CLDR, "icu", want.ICU, "tzdata", want.TZData)
-	profile, err := readLocaleProfile(cfg.ProfileFile)
+	profile, err := localeprofile.Read(cfg.ProfileFile)
 	if err != nil {
 		return err
 	}
@@ -57,12 +58,11 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 		return err
 	}
 
-	locales := extract.ExtractLocales(source.Available, profile.Locales)
+	locales := extract.ExtractLocales(source.Available)
 	likely := extract.ExtractLikelySubtags(source.LikelySubtags)
 	numbers := extract.ExtractNumbers(source.Numbers, profile.Locales)
 	currencies := extract.ExtractCurrencies(source.CurrencyFractions, source.Currencies, profile.Locales)
 	dates := extract.ExtractDates(source.Dates, profile.Locales)
-	preference := extract.ExtractPreference(source.Preference)
 	metazones := extract.ExtractMetazones(source.Metazones, profile.Locales)
 	units := extract.ExtractUnits(source.Units, profile.Locales)
 	listPatterns := extract.ExtractListPatterns(source.ListPatterns, profile.Locales)
@@ -74,9 +74,8 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 		LikelySubtags: likely,
 		Numbers:       numbers,
 		Currencies:    currencies,
-		Collations:    source.Collations,
 		Dates:         dates,
-		Preferences:   preference,
+		Preferences:   source.Preference,
 		Metazones:     metazones,
 		Units:         units,
 		ListPatterns:  listPatterns,
@@ -89,27 +88,29 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 	return nil
 }
 
-func buildManifest(versionFile, profileFile, cldrRoot string, versions cldr.Versions, profile LocaleProfile) (codegen.ManifestInput, error) {
-	hashes := []codegen.ManifestHash{}
-	for _, file := range []struct {
+func buildManifest(versionFile, profileFile, cldrRoot string, versions cldr.Versions, profile localeprofile.Profile) (codegen.ManifestInput, error) {
+	inputFiles := [...]struct {
 		name string
 		path string
 	}{
 		{name: "internal/cldr/VERSION", path: versionFile},
 		{name: "tools/locale-profile.json", path: profileFile},
-	} {
+	}
+	packages := cldr.RequiredPackages()
+	hashes := make([]codegen.ManifestHash, len(inputFiles)+len(packages))
+	for i, file := range inputFiles {
 		hash, err := fileSHA256(file.path)
 		if err != nil {
 			return codegen.ManifestInput{}, err
 		}
-		hashes = append(hashes, codegen.ManifestHash{Name: file.name, SHA256: hash})
+		hashes[i] = codegen.ManifestHash{Name: file.name, SHA256: hash}
 	}
-	for _, name := range cldr.RequiredPackages {
+	for i, name := range packages {
 		hash, err := fileSHA256(filepath.Join(cldrRoot, name, "package.json"))
 		if err != nil {
 			return codegen.ManifestInput{}, err
 		}
-		hashes = append(hashes, codegen.ManifestHash{Name: filepath.ToSlash(filepath.Join("cldr-json", name, "package.json")), SHA256: hash})
+		hashes[len(inputFiles)+i] = codegen.ManifestHash{Name: filepath.ToSlash(filepath.Join("cldr-json", name, "package.json")), SHA256: hash}
 	}
 	return codegen.ManifestInput{
 		Generator:     "tools/gen-cldr",

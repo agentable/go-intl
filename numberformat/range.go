@@ -1,103 +1,149 @@
 package numberformat
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/agentable/go-intl/internal/decimal"
+	"github.com/agentable/go-intl/internal/ecma402"
 )
 
 // FormatRange formats a numeric range.
-func (f *NumberFormat) FormatRange(start, end Value) string {
-	return joinRangeParts(f.FormatRangeToParts(start, end))
+func (f *NumberFormat) FormatRange(start, end Value) (string, error) {
+	return formatRangeDecimal(start.numeric.Decimal, end.numeric.Decimal, &f.formatState)
 }
 
 // FormatRangeToParts formats a numeric range into ECMA-402 range parts.
-func (f *NumberFormat) FormatRangeToParts(start, end Value) []RangePart {
-	return f.formatRangeToPartsDecimal(start.decimal, end.decimal)
+func (f *NumberFormat) FormatRangeToParts(start, end Value) ([]RangePart, error) {
+	return formatRangeToPartsDecimal(start.numeric.Decimal, end.numeric.Decimal, &f.formatState)
 }
 
-func (f *NumberFormat) formatRangeValue(start, end any) string {
-	return f.FormatRange(anyValue(start), anyValue(end))
-}
-
-func (f *NumberFormat) formatRangeToPartsValue(start, end any) []RangePart {
-	return f.FormatRangeToParts(anyValue(start), anyValue(end))
-}
-
-func (f *NumberFormat) formatRangeToPartsDecimal(start, end decimal.Decimal) []RangePart {
-	if !start.IsFinite() || !end.IsFinite() {
-		return nil
+func formatRangeDecimal(start, end decimal.Decimal, formatState *decimalFormatState) (string, error) {
+	startParts, endParts, approximate, err := rangeEndpointParts(start, end, formatState)
+	if err != nil {
+		return "", err
 	}
-	startParts := f.formatDecimalToParts(start)
-	endParts := f.formatDecimalToParts(end)
-	if f.roundedRangeEqual(start, end) || slices.Equal(startParts, endParts) {
-		out := make([]RangePart, 0, len(startParts)+1)
-		out = append(out, RangePart{Type: PartApproximatelySign, Value: f.symbols().ApproxSign, Source: SourceShared})
-		out = append(out, rangeParts(startParts, SourceShared)...)
-		return out
+	if approximate {
+		return formatApproximateRangeText(formatState.symbols.ApproxSign, startParts), nil
 	}
-	out := rangeParts(startParts, SourceStartRange)
-	out = append(out, RangePart{Type: PartLiteral, Value: "–", Source: SourceShared})
-	out = append(out, rangeParts(endParts, SourceEndRange)...)
-	return collapseRangeParts(out)
+	separator := numberRangeSeparator(startParts, formatState.symbols.RangeSign)
+	startParts, endParts = collapseRangeEndpointParts(startParts, endParts)
+	return joinRangeText(startParts, separator, endParts), nil
 }
 
-func (f *NumberFormat) roundedRangeEqual(start, end decimal.Decimal) bool {
-	startRounded, ok := f.roundedForRange(start)
+func formatRangeToPartsDecimal(start, end decimal.Decimal, formatState *decimalFormatState) ([]RangePart, error) {
+	startParts, endParts, approximate, err := rangeEndpointParts(start, end, formatState)
+	if err != nil {
+		return nil, err
+	}
+	if approximate {
+		out := make([]RangePart, len(startParts)+1)
+		out[0] = RangePart{Type: PartApproximatelySign, Value: formatState.symbols.ApproxSign, Source: SourceShared}
+		fillRangeParts(out[1:], startParts, SourceShared)
+		return out, nil
+	}
+	separator := numberRangeSeparator(startParts, formatState.symbols.RangeSign)
+	startParts, endParts = collapseRangeEndpointParts(startParts, endParts)
+	out := make([]RangePart, len(startParts)+1+len(endParts))
+	fillRangeParts(out[:len(startParts)], startParts, SourceStartRange)
+	out[len(startParts)] = RangePart{Type: PartLiteral, Value: separator, Source: SourceShared}
+	fillRangeParts(out[len(startParts)+1:], endParts, SourceEndRange)
+	return out, nil
+}
+
+func rangeEndpointParts(start, end decimal.Decimal, formatState *decimalFormatState) ([]Part, []Part, bool, error) {
+	if start.IsNaN() || end.IsNaN() {
+		return nil, nil, false, invalidNumberRange(start, end, formatState.resolved.Locale.String())
+	}
+	startParts := formatDecimalToPartsAppend(nil, start, formatState)
+	endParts := formatDecimalToPartsAppend(nil, end, formatState)
+	if roundedRangeEqual(start, end, formatState) || slices.Equal(startParts, endParts) {
+		return startParts, endParts, true, nil
+	}
+	return startParts, endParts, false, nil
+}
+
+func invalidNumberRange(start, end decimal.Decimal, loc string) error {
+	value := fmt.Sprintf("start=%s end=%s", start.String(), end.String())
+	return ecma402.InvalidValueErrorExpected(numberFormatOwner, "range", value, loc, "numeric range values that are not NaN", decimal.ErrInvalidDecimal)
+}
+
+func roundedRangeEqual(start, end decimal.Decimal, state *decimalFormatState) bool {
+	startRounded, ok := roundedForRange(start, state.resolved.Style, state.resolved.Notation, state.digitOptions, state.compact)
 	if !ok {
 		return false
 	}
-	endRounded, ok := f.roundedForRange(end)
+	endRounded, ok := roundedForRange(end, state.resolved.Style, state.resolved.Notation, state.digitOptions, state.compact)
 	return ok && startRounded.Cmp(endRounded) == 0
 }
 
-func rangeParts(parts []Part, source RangeSource) []RangePart {
-	out := make([]RangePart, len(parts))
+func numberRangeSeparator(startParts []Part, sign string) string {
+	if sign == "" {
+		sign = "–"
+	}
+	if len(startParts) > 0 && isSignPart(startParts[0].Type) {
+		return " " + sign + " "
+	}
+	return sign
+}
+
+func isSignPart(typ PartType) bool {
+	return typ == PartMinusSign || typ == PartPlusSign
+}
+
+func fillRangeParts(out []RangePart, parts []Part, source RangeSource) {
 	for i, part := range parts {
 		out[i] = RangePart{Type: part.Type, Value: part.Value, Source: source}
 	}
-	return out
 }
 
-func joinRangeParts(parts []RangePart) string {
-	size := 0
+func formatApproximateRangeText(sign string, parts []Part) string {
+	size := len(sign)
 	for _, part := range parts {
 		size += len(part.Value)
 	}
 	var b strings.Builder
 	b.Grow(size)
+	b.WriteString(sign)
 	for _, part := range parts {
 		b.WriteString(part.Value)
 	}
 	return b.String()
 }
 
-func collapseRangeParts(parts []RangePart) []RangePart {
-	separator := rangeSeparatorIndex(parts)
-	if separator < 0 {
-		return parts
+func joinRangeText(startParts []Part, separator string, endParts []Part) string {
+	size := len(separator)
+	for _, part := range startParts {
+		size += len(part.Value)
 	}
-	if count := collapsibleSuffixCount(parts[:separator]); rangePartWidth(parts[separator-count:separator]) > 1 {
-		return append(parts[:separator-count], parts[separator:]...)
+	for _, part := range endParts {
+		size += len(part.Value)
 	}
-	if count := collapsiblePrefixCount(parts[separator+1:]); rangePartWidth(parts[separator+1:separator+1+count]) > 1 {
-		return append(parts[:separator+1], parts[separator+1+count:]...)
+	var b strings.Builder
+	b.Grow(size)
+	for _, part := range startParts {
+		b.WriteString(part.Value)
 	}
-	return parts
+	b.WriteString(separator)
+	for _, part := range endParts {
+		b.WriteString(part.Value)
+	}
+	return b.String()
 }
 
-func rangeSeparatorIndex(parts []RangePart) int {
-	for i, part := range parts {
-		if part.Type == PartLiteral && part.Source == SourceShared && part.Value == "–" {
-			return i
-		}
+func collapseRangeEndpointParts(startParts, endParts []Part) ([]Part, []Part) {
+	if count := collapsiblePartSuffixCount(startParts); partWidth(startParts[len(startParts)-count:]) > 1 {
+		return startParts[:len(startParts)-count], endParts
 	}
-	return -1
+	if count := collapsiblePartPrefixCount(endParts); partWidth(endParts[:count]) > 1 {
+		return startParts, endParts[count:]
+	}
+	return startParts, endParts
 }
 
-func collapsibleSuffixCount(parts []RangePart) int {
+func collapsiblePartSuffixCount(parts []Part) int {
 	count := 0
 	for i := len(parts) - 1; i >= 0; i-- {
 		if !isCollapsibleRangePart(parts[i].Type) {
@@ -108,7 +154,7 @@ func collapsibleSuffixCount(parts []RangePart) int {
 	return count
 }
 
-func collapsiblePrefixCount(parts []RangePart) int {
+func collapsiblePartPrefixCount(parts []Part) int {
 	count := 0
 	for _, part := range parts {
 		if !isCollapsibleRangePart(part.Type) {
@@ -119,7 +165,7 @@ func collapsiblePrefixCount(parts []RangePart) int {
 	return count
 }
 
-func rangePartWidth(parts []RangePart) int {
+func partWidth(parts []Part) int {
 	width := 0
 	for _, part := range parts {
 		width += utf8.RuneCountInString(part.Value)

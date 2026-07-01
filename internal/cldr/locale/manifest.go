@@ -135,7 +135,6 @@ var dataManifest = DataManifest{
 	InputHashes: []InputHash{
 		{Name: "internal/cldr/VERSION", SHA256: "e6c55fb0bb5501c5304201c121de2f3bc34ddb1ae012eb4dcbb5d1f7bcfc2a4e"},
 		{Name: "tools/locale-profile.json", SHA256: "822923d77a510a142df2821429a34cbb22ebac3157a984cba28864605ab21c57"},
-		{Name: "cldr-json/cldr-bcp47/package.json", SHA256: "f0f7f7a9dde03427ad62691d85dab5742d2a9b32aefd310e225e93fa81ce1590"},
 		{Name: "cldr-json/cldr-core/package.json", SHA256: "011bbe1bbef323918db142e04e5c944d8cd498a4ac1023b600e1e8c3bc75fca4"},
 		{Name: "cldr-json/cldr-dates-full/package.json", SHA256: "88934d4889c4ecc2b2acdf6ebbee6dd15067def36d015deaaae4473ca04a6e7f"},
 		{Name: "cldr-json/cldr-localenames-full/package.json", SHA256: "bf4e24361f5082c36903fd8970b1987f6d2da17ffbf034d6dabd26711e291433"},

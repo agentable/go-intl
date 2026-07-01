@@ -7,7 +7,6 @@ package cldr
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -23,9 +22,9 @@ type Versions struct {
 // any of the required keys (cldr/icu/tzdata) being absent is an error so the
 // generator never runs with a partially-specified pin.
 func ReadVersionFile(path string) (Versions, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := readRequiredFile(path)
 	if err != nil {
-		return Versions{}, fmt.Errorf("read %s: %w", path, err)
+		return Versions{}, err
 	}
 	var v Versions
 	for line := range strings.SplitSeq(string(raw), "\n") {
@@ -53,9 +52,9 @@ func ReadVersionFile(path string) (Versions, error) {
 // distribution) and compares its `version` field.
 func CrossCheck(cldrJSONRoot string, want Versions) error {
 	pkgPath := filepath.Join(cldrJSONRoot, "cldr-core", "package.json")
-	raw, err := os.ReadFile(pkgPath)
+	raw, err := readRequiredFile(pkgPath)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", pkgPath, err)
+		return err
 	}
 	var meta struct {
 		Name    string `json:"name"`

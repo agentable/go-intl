@@ -104,7 +104,7 @@ pr, err := pluralrules.New(locales, pluralrules.Options{})
 lf, err := listformat.New(locales, listformat.Options{})
 rtf, err := relativetimeformat.New(locales, relativetimeformat.Options{})
 df, err := durationformat.New(locales, durationformat.Options{})
-dn, err := displaynames.New(locales, displaynames.Options{Type: displaynames.Language})
+dn, err := displaynames.New(locales, displaynames.Options{Type: gointl.String(displaynames.Language)})
 col, err := collator.New(locales, collator.Options{})
 seg, err := segmenter.New(locales, segmenter.Options{})
 ```
@@ -211,7 +211,7 @@ Supported accessors:
 | Function | Source |
 |----------|--------|
 | `SupportedCalendars` | generated CLDR calendar identifiers plus ECMA-402 required constants such as `iso8601` |
-| `SupportedCollations` | active `collator` backend collation identifiers that can be truthfully applied through explicit Collator collation requests; currently empty until tailoring support lands |
+| `SupportedCollations` | active `collator` backend collation identifiers that can be truthfully applied through locale-scoped Collator collation requests, currently sourced from `golang.org/x/text/collate.Supported()` |
 | `SupportedCurrencies` | generated CLDR / ISO 4217 currency identifiers |
 | `SupportedNumberingSystems` | ECMA-402 simple digit numbering systems plus generated CLDR numbering-system identifiers |
 | `SupportedTimeZones` | generated primary IANA time-zone identifiers |

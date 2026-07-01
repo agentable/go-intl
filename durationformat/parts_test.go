@@ -12,8 +12,8 @@ import (
 func TestFormatToPartsTypedConstants(t *testing.T) {
 	t.Parallel()
 	df, err := New(locale.List{intltest.Locale(t, "en")}, Options{
-		Hours:   LongUnitStyle,
-		Minutes: LongUnitStyle,
+		Hours:   stringPtr(LongUnitStyle),
+		Minutes: stringPtr(LongUnitStyle),
 	})
 	if err != nil {
 		t.Fatalf("New err = %v", err)

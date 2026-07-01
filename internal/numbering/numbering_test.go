@@ -3,6 +3,8 @@ package numbering
 import (
 	"slices"
 	"testing"
+
+	"github.com/agentable/go-intl/internal/testcontract"
 )
 
 func TestLocalizeDigits(t *testing.T) {
@@ -32,38 +34,45 @@ func TestLocalizeDigits(t *testing.T) {
 	}
 }
 
-func TestSimpleNumberingSystemsIncludesECMA402SimpleSets(t *testing.T) {
+func TestSimpleNumberingSystemsMatchesECMA402SimpleSets(t *testing.T) {
 	t.Parallel()
 
-	if !slices.IsSorted(SimpleNumberingSystems) {
-		t.Fatalf("SimpleNumberingSystems = %v, want sorted ECMA-402 table", SimpleNumberingSystems)
+	systems := SimpleNumberingSystems()
+	want := []string{
+		"adlm", "ahom", "arab", "arabext", "bali", "beng", "bhks", "brah",
+		"cakm", "cham", "deva", "diak", "fullwide", "gara", "gong", "gonm",
+		"gujr", "gukh", "guru", "hanidec", "hmng", "hmnp", "java", "kali",
+		"kawi", "khmr", "knda", "krai", "lana", "lanatham", "laoo", "latn",
+		"lepc", "limb", "mathbold", "mathdbl", "mathmono", "mathsanb",
+		"mathsans", "mlym", "modi", "mong", "mroo", "mtei", "mymr",
+		"mymrepka", "mymrpao", "mymrshan", "mymrtlng", "nagm", "newa",
+		"nkoo", "olck", "onao", "orya", "osma", "outlined", "rohg", "saur",
+		"segment", "shrd", "sind", "sinh", "sora", "sund", "sunu", "takr",
+		"talu", "tamldec", "telu", "thai", "tibt", "tirh", "tnsa", "tols",
+		"vaii", "wara", "wcho",
 	}
-	for i := 1; i < len(SimpleNumberingSystems); i++ {
-		if SimpleNumberingSystems[i] == SimpleNumberingSystems[i-1] {
-			t.Fatalf("SimpleNumberingSystems contains duplicate %q", SimpleNumberingSystems[i])
-		}
+	if !slices.Equal(systems, want) {
+		t.Fatalf("SimpleNumberingSystems() = %v, want %v", systems, want)
 	}
-	for _, want := range []string{"arab", "hanidec", "latn", "thai"} {
-		if !slices.Contains(SimpleNumberingSystems, want) {
-			t.Fatalf("SimpleNumberingSystems missing %q", want)
-		}
-	}
+	testcontract.AssertStringSliceSortedUnique(t, "SimpleNumberingSystems", systems)
 }
 
 func TestSimpleNumberingSystemsHaveDigitLocalizationData(t *testing.T) {
 	t.Parallel()
 
-	for _, numberingSystem := range SimpleNumberingSystems {
+	systems := SimpleNumberingSystems()
+	for _, numberingSystem := range systems {
 		if numberingSystem == "hanidec" {
 			continue
 		}
-		if _, ok := digitZeroByNumberingSystem[numberingSystem]; !ok {
+		if _, ok := digitZeroFor(numberingSystem); !ok {
 			t.Fatalf("SimpleNumberingSystems contains %q without digit localization data", numberingSystem)
 		}
 	}
-	for numberingSystem := range digitZeroByNumberingSystem {
-		if !slices.Contains(SimpleNumberingSystems, numberingSystem) {
-			t.Fatalf("digit localization data contains non-simple numbering system %q", numberingSystem)
-		}
-	}
+}
+
+func TestSimpleNumberingSystemsReturnsCopy(t *testing.T) {
+	t.Parallel()
+
+	testcontract.AssertStringSliceReturnsCopy(t, "SimpleNumberingSystems", SimpleNumberingSystems)
 }

@@ -39,118 +39,78 @@ func MatchBasic(opts Options, formats []Formats) Formats {
 
 // AdjustFieldTypes rewrites selected pattern field widths to match options.
 func AdjustFieldTypes(format Formats, opts Options) Formats {
-	if opts.Year != "" && format.Year != opts.Year {
-		format.Pattern = adjustPatternField(format.Pattern, 'y', numericPatternWidth(opts.Year))
-		format.Year = opts.Year
-	}
+	adjustNumericField(&format, &format.Year, opts.Year, 'y')
 	if opts.Month != "" && format.Month != opts.Month {
-		if canAdjustFieldStyle(format.Pattern, "ML", opts.Month) {
-			format.Pattern = adjustPatternFields(format.Pattern, "ML", fieldPatternWidth('M', opts.Month))
+		if canAdjustFieldStyle(format.Pattern, monthPatternFields, opts.Month) {
+			format.Pattern = adjustPatternFields(format.Pattern, monthPatternFields, fieldPatternWidth('M', opts.Month))
 			format.Month = opts.Month
 		}
 	}
-	if opts.Day != "" && format.Day != opts.Day {
-		format.Pattern = adjustPatternField(format.Pattern, 'd', numericPatternWidthFor('d', opts.Day))
-		format.Day = opts.Day
-	}
+	adjustNumericField(&format, &format.Day, opts.Day, 'd')
 	if opts.Weekday != "" && format.Weekday != opts.Weekday {
-		format.Pattern = adjustPatternFields(format.Pattern, "Eec", fieldPatternWidth('E', opts.Weekday))
+		format.Pattern = adjustPatternFields(format.Pattern, weekdayPatternFields, fieldPatternWidth('E', opts.Weekday))
 		format.Weekday = opts.Weekday
 	}
 	if opts.Era != "" && format.Era != opts.Era {
-		format.Pattern = adjustPatternField(format.Pattern, 'G', fieldPatternWidth('G', opts.Era))
+		format.Pattern = adjustPatternFields(format.Pattern, "G", fieldPatternWidth('G', opts.Era))
 		format.Era = opts.Era
 	}
 	if opts.Hour != "" && format.Hour != opts.Hour {
-		format.Pattern = adjustPatternFields(format.Pattern, "hHkK", numericPatternWidthFor(hourPatternChar(format.HourCycle), opts.Hour))
+		format.Pattern = adjustPatternFields(format.Pattern, hourPatternFields, numericPatternWidthFor(hourPatternChar(format.HourCycle), opts.Hour))
 		format.Hour = opts.Hour
 	}
-	if opts.Minute != "" && format.Minute != opts.Minute {
-		format.Pattern = adjustPatternField(format.Pattern, 'm', numericPatternWidthFor('m', opts.Minute))
-		format.Minute = opts.Minute
-	}
-	if opts.Second != "" && format.Second != opts.Second {
-		format.Pattern = adjustPatternField(format.Pattern, 's', numericPatternWidthFor('s', opts.Second))
-		format.Second = opts.Second
-	}
+	adjustNumericField(&format, &format.Minute, opts.Minute, 'm')
+	adjustNumericField(&format, &format.Second, opts.Second, 's')
 	if opts.DayPeriod != "" && format.DayPeriod != opts.DayPeriod {
-		format.Pattern = adjustPatternFields(format.Pattern, "abB", fieldPatternWidth('B', opts.DayPeriod))
+		format.Pattern = adjustPatternFields(format.Pattern, dayPeriodPatternFields, fieldPatternWidth('B', opts.DayPeriod))
 		format.DayPeriod = opts.DayPeriod
 	}
 	if opts.FractionalSecondDigits != 0 && format.FractionalSecondDigits != opts.FractionalSecondDigits {
-		format.Pattern = adjustPatternField(format.Pattern, 'S', repeatedField('S', opts.FractionalSecondDigits))
+		format.Pattern = adjustPatternFields(format.Pattern, "S", repeatedField('S', opts.FractionalSecondDigits))
 		format.FractionalSecondDigits = opts.FractionalSecondDigits
 	}
 	if opts.TimeZoneName != "" && format.TimeZoneName != opts.TimeZoneName {
-		format.Pattern = adjustPatternFields(format.Pattern, "zZOvVxX", timeZonePatternWidth(opts.TimeZoneName))
+		format.Pattern = adjustPatternFields(format.Pattern, timeZoneNamePatternFields, TimeZonePatternField(opts.TimeZoneName))
 		format.TimeZoneName = opts.TimeZoneName
 	}
 	return format
 }
 
-func adjustPatternField(pattern string, char byte, replacement string) string {
-	return adjustPatternFields(pattern, string(char), replacement)
+func adjustNumericField(format *Formats, current *NumericStyle, requested NumericStyle, char byte) {
+	if requested == "" || *current == requested {
+		return
+	}
+	format.Pattern = adjustPatternFields(format.Pattern, string(char), numericPatternWidthFor(char, requested))
+	*current = requested
 }
 
 func adjustPatternFields(pattern string, chars string, replacement string) string {
 	out := make([]byte, 0, len(pattern)+len(replacement))
 	for i := 0; i < len(pattern); {
-		if pattern[i] == '\'' {
-			j := skipQuotedLiteral(pattern, i)
-			out = append(out, pattern[i:j]...)
-			i = j
-			continue
-		}
-		j := i + 1
-		for j < len(pattern) && pattern[j] == pattern[i] {
-			j++
-		}
-		if strings.IndexByte(chars, pattern[i]) >= 0 {
+		run := nextPatternRun(pattern, i)
+		if !run.quoted && strings.IndexByte(chars, run.char) >= 0 {
 			out = append(out, replacement...)
 		} else {
-			out = append(out, pattern[i:j]...)
+			out = append(out, pattern[i:run.end]...)
 		}
-		i = j
+		i = run.end
 	}
 	return string(out)
 }
 
-func numericPatternWidth(style NumericStyle) string {
-	return numericPatternWidthFor('y', style)
-}
-
 func numericPatternWidthFor(char byte, style NumericStyle) string {
 	if style == Numeric2Digit {
-		return string([]byte{char, char})
+		return repeatedField(char, 2)
 	}
 	return string(char)
 }
 
 func fieldPatternWidth(char byte, style FieldStyle) string {
-	var length int
-	switch style {
-	case FieldNumeric:
-		length = 1
-	case Field2Digit:
-		length = 2
-	case FieldShort:
-		length = 3
-	case FieldLong:
-		length = 4
-	case FieldNarrow:
-		length = 5
-	default:
-		length = 1
-	}
-	return repeatedField(char, length)
+	return repeatedField(char, fieldStyleWidth(style))
 }
 
 func repeatedField(char byte, length int) string {
-	out := make([]byte, length)
-	for i := range out {
-		out[i] = char
-	}
-	return string(out)
+	return strings.Repeat(string(char), length)
 }
 
 func canAdjustFieldStyle(pattern string, chars string, requested FieldStyle) bool {
@@ -164,39 +124,13 @@ func canAdjustFieldStyle(pattern string, chars string, requested FieldStyle) boo
 
 func firstPatternFieldWidth(pattern string, chars string) (int, bool) {
 	for i := 0; i < len(pattern); {
-		if pattern[i] == '\'' {
-			i = skipQuotedLiteral(pattern, i)
-			continue
+		run := nextPatternRun(pattern, i)
+		if !run.quoted && strings.IndexByte(chars, run.char) >= 0 {
+			return run.width, true
 		}
-		j := i + 1
-		for j < len(pattern) && pattern[j] == pattern[i] {
-			j++
-		}
-		if strings.IndexByte(chars, pattern[i]) >= 0 {
-			return j - i, true
-		}
-		i = j
+		i = run.end
 	}
 	return 0, false
-}
-
-func timeZonePatternWidth(style TimeZoneName) string {
-	switch style {
-	case TimeZoneNameShort:
-		return "z"
-	case TimeZoneNameLong:
-		return "zzzz"
-	case TimeZoneNameShortOffset:
-		return "O"
-	case TimeZoneNameLongOffset:
-		return "OOOO"
-	case TimeZoneNameShortGeneric:
-		return "v"
-	case TimeZoneNameLongGeneric:
-		return "vvvv"
-	default:
-		return "z"
-	}
 }
 
 func hourPatternChar(hourCycle HourCycle) byte {
@@ -216,9 +150,7 @@ func hourPatternChar(hourCycle HourCycle) byte {
 
 func scoreFormat(opts Options, format Formats) int {
 	score := 0
-	if opts.Hour12 != nil && format.HourCycle != "" && *opts.Hour12 != hourCycleIs12Hour(format.HourCycle) {
-		score -= removalPenalty
-	}
+	score += scoreHourCycleField(opts.Hour12, format.HourCycle)
 	score += scoreStyleField(opts.Weekday, format.Weekday)
 	score += scoreStyleField(opts.Era, format.Era)
 	score += scoreNumericField(opts.Year, format.Year)
@@ -231,6 +163,13 @@ func scoreFormat(opts Options, format Formats) int {
 	score += scoreFractionalSecondDigits(opts.FractionalSecondDigits, format.FractionalSecondDigits)
 	score += scoreTimeZoneNameField(opts.TimeZoneName, format.TimeZoneName)
 	return score
+}
+
+func scoreHourCycleField(want12 *bool, have HourCycle) int {
+	if want12 == nil || have == "" || *want12 == hourCycleIs12Hour(have) {
+		return 0
+	}
+	return -removalPenalty
 }
 
 func hourCycleIs12Hour(hourCycle HourCycle) bool {

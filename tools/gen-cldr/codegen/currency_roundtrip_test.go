@@ -1,14 +1,9 @@
 package codegen
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/cldr/currency"
-	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
-	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
 )
 
@@ -26,24 +21,8 @@ import (
 func TestCurrencyRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := filepath.Clean("../../..")
-	cldrDir := filepath.Join(repoRoot, "tools", "gen-cldr", ".cldr-json", "node_modules")
-	if _, err := os.Stat(cldrDir); err != nil {
-		t.Skipf("pinned cldr-json checkout absent (%v); run task data:fetch", err)
-	}
-
-	versions, err := cldr.ReadVersionFile(filepath.Join(repoRoot, "internal", "cldr", "VERSION"))
-	if err != nil {
-		t.Fatalf("read VERSION: %v", err)
-	}
-	profile := readUnitTestProfile(t, filepath.Join(repoRoot, "tools", "locale-profile.json"))
-
-	source, err := cldr.LoadAll(context.Background(), cldrDir, versions, profile)
-	if err != nil {
-		t.Fatalf("load cldr-json: %v", err)
-	}
-
-	data := extract.ExtractCurrencies(source.CurrencyFractions, source.Currencies, profile)
+	input := loadRoundTripSource(t)
+	data := extract.ExtractCurrencies(input.source.CurrencyFractions, input.source.Currencies, input.profile)
 
 	// Fraction table: every code, including the DEFAULT entry the accessor falls
 	// back to, must read back exactly. Digits maps a missing code onto DEFAULT,
@@ -57,7 +36,7 @@ func TestCurrencyRoundTrip(t *testing.T) {
 
 	// Per-locale names: display map per plural, canonical name, and symbol.
 	for localeTag, currencies := range data.Currencies {
-		loc := resolveCurrencyLocale(t, localeTag)
+		loc := resolveKernelLocale(t, localeTag)
 		for code, names := range currencies {
 			for plural, want := range names.Display {
 				if got := currency.DisplayName(loc, code, plural); got != want {
@@ -65,13 +44,13 @@ func TestCurrencyRoundTrip(t *testing.T) {
 				}
 			}
 			if names.Symbol != "" {
-				if got := currency.Symbol(loc, code, "symbol"); got != names.Symbol {
-					t.Errorf("Symbol(%q, %q, symbol) = %q, want %q", localeTag, code, got, names.Symbol)
+				if got := currency.Symbol(loc, code); got != names.Symbol {
+					t.Errorf("Symbol(%q, %q) = %q, want %q", localeTag, code, got, names.Symbol)
 				}
 			}
 			if names.Narrow != "" {
-				if got := currency.Symbol(loc, code, "narrow"); got != names.Narrow {
-					t.Errorf("Symbol(%q, %q, narrow) = %q, want %q", localeTag, code, got, names.Narrow)
+				if got := currency.NarrowSymbol(loc, code); got != names.Narrow {
+					t.Errorf("NarrowSymbol(%q, %q) = %q, want %q", localeTag, code, got, names.Narrow)
 				}
 			}
 		}
@@ -80,24 +59,5 @@ func TestCurrencyRoundTrip(t *testing.T) {
 	// Supported codes narrow index.
 	wantCodes := supportedCurrencyValues(data)
 	gotCodes := currency.SupportedCodes()
-	if len(gotCodes) != len(wantCodes) {
-		t.Fatalf("SupportedCodes len = %d, want %d", len(gotCodes), len(wantCodes))
-	}
-	for i := range wantCodes {
-		if gotCodes[i] != wantCodes[i] {
-			t.Errorf("SupportedCodes[%d] = %q, want %q", i, gotCodes[i], wantCodes[i])
-		}
-	}
-}
-
-// resolveCurrencyLocale resolves a tag to the kernel handle the currency
-// accessors take. The names map is keyed by the kernel locale index, so a tag
-// that fails to resolve would silently mis-key every name lookup.
-func resolveCurrencyLocale(t *testing.T, tag string) cldrlocale.Locale {
-	t.Helper()
-	loc, ok := cldrlocale.ResolveLocale(tag)
-	if !ok {
-		t.Fatalf("kernel locale %q not resolvable", tag)
-	}
-	return loc
+	assertStringSliceEqual(t, "SupportedCodes", gotCodes, wantCodes)
 }

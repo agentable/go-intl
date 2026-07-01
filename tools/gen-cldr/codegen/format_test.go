@@ -16,7 +16,5 @@ func TestFormatFile_AddsGeneratedHeaderAndFormats(t *testing.T) {
 	if !strings.HasPrefix(src, generatedHeader) {
 		t.Fatalf("missing generated header:\n%s", src)
 	}
-	if !strings.Contains(src, "func X() { return }") {
-		t.Fatalf("source was not gofmt'ed:\n%s", src)
-	}
+	assertSourceContains(t, "FormatFile output", src, "func X() { return }")
 }

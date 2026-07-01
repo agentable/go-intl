@@ -36,7 +36,7 @@ func BenchmarkDurationFormat_Short_Cached(b *testing.B) {
 }
 
 func BenchmarkDurationFormat_Digital_Cached(b *testing.B) {
-	format := benchmarkDurationFormat(b, Options{Style: DigitalStyle})
+	format := benchmarkDurationFormat(b, Options{Style: stringPtr(DigitalStyle)})
 	duration := Duration{Hours: 12, Minutes: 3, Seconds: 4, Milliseconds: 567}
 
 	b.ReportAllocs()

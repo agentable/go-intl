@@ -1,16 +1,19 @@
-// Hand-written accessor layer for the locale kernel. The query semantics mirror
-// the legacy literal locales.go, likely_subtags.go, preference.go, and
-// numbering.go exactly, so locale negotiation and formatter output are
-// byte-for-byte unchanged.
+// Hand-written accessor layer for the locale kernel. It owns locale handles,
+// likely subtags, preference data, and numbering defaults shared by CLDR-backed
+// formatter domains.
 
 package cldrlocale
 
 import (
+	"cmp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/agentable/go-intl/internal/localeid"
 )
+
+const worldRegion = "001"
 
 // ResolveLocale resolves a tag to its kernel Locale handle, falling back to the
 // base language subtag, or (Undefined, false) when neither is known.
@@ -31,7 +34,30 @@ func ResolveLocale(tag string) (Locale, bool) {
 // (Locale index = position, "und" pinned at 0).
 func AvailableLocales() []string {
 	localeRegistryOnce.Do(loadLocaleRegistry)
-	return availableLocaleTags
+	return slices.Clone(availableLocaleTags)
+}
+
+// IntersectSupportedLocales returns primary locales supported by every required
+// locale list. It preserves primary order and returns a new slice.
+func IntersectSupportedLocales(primary []string, required ...[]string) []string {
+	if len(required) == 0 {
+		return slices.Clone(primary)
+	}
+	sets := make([]map[string]bool, len(required))
+	for i, locales := range required {
+		set := make(map[string]bool, len(locales))
+		for _, loc := range locales {
+			set[loc] = true
+		}
+		sets[i] = set
+	}
+	out := make([]string, 0, len(primary))
+	for _, loc := range primary {
+		if supportedByAll(loc, sets) {
+			out = append(out, loc)
+		}
+	}
+	return out
 }
 
 // Maximize adds likely subtags to tag using the kernel maximize data.
@@ -51,12 +77,14 @@ func MaximizeSubtags(language, script, region string) (lang, scr, reg string, ok
 	if region != "" {
 		key += "-" + region
 	}
-	i := searchLikelySubtag(key)
-	if i >= len(likelySubtags) || likelySubtags[i].key != key {
-		return "", "", "", false
+	i, ok := slices.BinarySearchFunc(likelySubtags, key, func(row maximizeSubtagRecord, target string) int {
+		return cmp.Compare(row.key, target)
+	})
+	if ok {
+		triple := likelySubtags[i]
+		return triple.lang, triple.script, triple.region, true
 	}
-	triple := likelySubtags[i]
-	return triple.lang, triple.script, triple.region, true
+	return "", "", "", false
 }
 
 // MinimizeSubtags returns the minimized tag for the input subtags, or ok=false
@@ -64,11 +92,12 @@ func MaximizeSubtags(language, script, region string) (lang, scr, reg string, ok
 func MinimizeSubtags(language, script, region string) (lang, scr, reg string, ok bool) {
 	likelySubtagsOnce.Do(loadLikelySubtags)
 
-	i := searchMinimizeSubtag(language, script, region)
-	if i >= len(minimizeSubtags) || compareMinimizeSubtag(minimizeSubtags[i], language, script, region) != 0 {
-		return "", "", "", false
+	key := minimizeSubtagKey{language: language, script: script, region: region}
+	i, ok := slices.BinarySearchFunc(minimizeSubtags, key, compareMinimizeSubtag)
+	if ok {
+		return minimizeSubtags[i].minimized, "", "", true
 	}
-	return minimizeSubtags[i].minimized, "", "", true
+	return "", "", "", false
 }
 
 // DefaultNumberingSystem returns the default numbering system for the locale,
@@ -81,19 +110,14 @@ func (l Locale) DefaultNumberingSystem() string {
 	return "latn"
 }
 
-// SupportedCollations returns the supported collation identifiers.
-func SupportedCollations() []string {
-	return collationValues
-}
-
 // HourCyclePreference returns the region's hour-cycle preference list, falling
 // back to the world ("001") default.
 func HourCyclePreference(region string) []string {
 	preferenceOnce.Do(loadPreferenceData)
 	if data, ok := hourCyclePreference[region]; ok {
-		return data
+		return slices.Clone(data)
 	}
-	return hourCyclePreference["001"]
+	return slices.Clone(hourCyclePreference[worldRegion])
 }
 
 // HasHourCyclePreference reports whether the region has an explicit hour-cycle
@@ -125,9 +149,9 @@ func MinimalDaysInFirstWeek(region string) int {
 func CalendarPreference(region string) []string {
 	preferenceOnce.Do(loadPreferenceData)
 	if data, ok := calendarPreference[region]; ok {
-		return data
+		return slices.Clone(data)
 	}
-	return calendarPreference["001"]
+	return slices.Clone(calendarPreference[worldRegion])
 }
 
 // HasCalendarPreference reports whether the region has an explicit calendar
@@ -150,53 +174,30 @@ func weekPreferenceRecord(region string) weekPreference {
 	if data, ok := weekPreferenceByRegion[region]; ok {
 		return data
 	}
-	return weekPreferenceByRegion["001"]
+	return weekPreferenceByRegion[worldRegion]
 }
 
-func searchLikelySubtag(key string) int {
-	low, high := 0, len(likelySubtags)
-	for low < high {
-		mid := int(uint(low+high) >> 1)
-		if likelySubtags[mid].key < key {
-			low = mid + 1
-		} else {
-			high = mid
+func supportedByAll(loc string, sets []map[string]bool) bool {
+	for _, set := range sets {
+		if !set[loc] {
+			return false
 		}
 	}
-	return low
+	return true
 }
 
-func searchMinimizeSubtag(language, script, region string) int {
-	low, high := 0, len(minimizeSubtags)
-	for low < high {
-		mid := int(uint(low+high) >> 1)
-		if compareMinimizeSubtag(minimizeSubtags[mid], language, script, region) < 0 {
-			low = mid + 1
-		} else {
-			high = mid
-		}
-	}
-	return low
+type minimizeSubtagKey struct {
+	language string
+	script   string
+	region   string
 }
 
-func compareMinimizeSubtag(row minimizeSubtagRecord, language, script, region string) int {
-	if row.lang != language {
-		if row.lang < language {
-			return -1
-		}
-		return 1
+func compareMinimizeSubtag(row minimizeSubtagRecord, key minimizeSubtagKey) int {
+	if diff := cmp.Compare(row.lang, key.language); diff != 0 {
+		return diff
 	}
-	if row.script != script {
-		if row.script < script {
-			return -1
-		}
-		return 1
+	if diff := cmp.Compare(row.script, key.script); diff != 0 {
+		return diff
 	}
-	if row.region != region {
-		if row.region < region {
-			return -1
-		}
-		return 1
-	}
-	return 0
+	return cmp.Compare(row.region, key.region)
 }

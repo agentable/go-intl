@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
-var RequiredPackages = []string{
-	"cldr-bcp47",
+var requiredPackages = [...]string{
 	"cldr-core",
 	"cldr-dates-full",
 	"cldr-localenames-full",
@@ -17,11 +17,15 @@ var RequiredPackages = []string{
 	"cldr-units-full",
 }
 
+func RequiredPackages() []string {
+	return slices.Clone(requiredPackages[:])
+}
+
 func ResolveLocalDir(root string) (string, error) {
 	if root == "" {
 		return "", fmt.Errorf("cldr-json root is required")
 	}
-	for _, name := range RequiredPackages {
+	for _, name := range requiredPackages {
 		info, err := os.Stat(filepath.Join(root, name))
 		if err != nil {
 			return "", fmt.Errorf("missing %s under %s: %w", name, root, err)

@@ -1,7 +1,6 @@
 package codegen
 
 import (
-	"bytes"
 	"maps"
 	"slices"
 
@@ -9,11 +8,11 @@ import (
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
 )
 
-// numberSymbolFieldOrder fixes the wire order of the twelve NumberSymbols
+// numberSymbolFieldOrder fixes the wire order of the thirteen NumberSymbols
 // fields. The encoder writes each field as a StringRef in this order and the
-// decoder reads them back in the same order, so the slice is the single source
+// decoder reads them back in the same order, so the table is the single source
 // of truth for both sides of the mirror.
-var numberSymbolFieldOrder = []func(cldr.NumberSymbols) string{
+var numberSymbolFieldOrder = [...]func(cldr.NumberSymbols) string{
 	func(s cldr.NumberSymbols) string { return s.Decimal },
 	func(s cldr.NumberSymbols) string { return s.Group },
 	func(s cldr.NumberSymbols) string { return s.Percent },
@@ -22,6 +21,7 @@ var numberSymbolFieldOrder = []func(cldr.NumberSymbols) string{
 	func(s cldr.NumberSymbols) string { return s.NaN },
 	func(s cldr.NumberSymbols) string { return s.Infinity },
 	func(s cldr.NumberSymbols) string { return s.ApproxSign },
+	func(s cldr.NumberSymbols) string { return s.RangeSign },
 	func(s cldr.NumberSymbols) string { return s.PerMille },
 	func(s cldr.NumberSymbols) string { return s.Exponential },
 	func(s cldr.NumberSymbols) string { return s.SuperscriptingExponent },
@@ -36,7 +36,7 @@ var numberSymbolFieldOrder = []func(cldr.NumberSymbols) string{
 //     written as a sorted delta stream; each locale carries its default
 //     numbering system StringRef followed by the symbols, decimal, percent,
 //     scientific, currency, and compact sub-blocks. The decoder rebuilds the
-//     same map[Locale]numberData the legacy loadNumbersByLocale produced.
+//     map[Locale]numberData consumed by the number accessors.
 //   - _numberSupportedBlob: the locales with number data, in sorted-locale
 //     order. A narrow index so SupportedLocales never decodes the main blob.
 //
@@ -48,45 +48,24 @@ func encodeNumbers(input RuntimeInput, table *StringTable) ([]byte, error) {
 
 	var main blobEncoder
 	locales := sortedLocaleKeys(data)
-	main.appendUvarint(uint64(len(locales)))
-	for _, locale := range locales {
-		main.appendDelta(mustLocaleIndex(localeIndex, locale))
+	if err := main.appendLocaleDeltaRecords(locales, localeIndex, func(locale string) {
 		encodeNumberLocale(&main, data[locale], table)
+	}); err != nil {
+		return nil, err
 	}
 
 	var supported blobEncoder
-	supportedTags := numberSupportedLocaleTags(data)
-	supported.appendUvarint(uint64(len(supportedTags)))
-	for _, tag := range supportedTags {
-		supported.appendStringRef(table.Add(tag))
-	}
+	supported.appendStringRefSlice(locales, table)
 
 	var numberingSystems blobEncoder
 	nsExtras := numberingSystemExtras(data)
-	numberingSystems.appendUvarint(uint64(len(nsExtras)))
-	for _, ns := range nsExtras {
-		numberingSystems.appendStringRef(table.Add(ns))
-	}
+	numberingSystems.appendStringRefSlice(nsExtras, table)
 
-	var b bytes.Buffer
-	b.WriteString("package number\n\n")
-	if err := table.EmitDataConst(&b, "_data"); err != nil {
-		return nil, err
-	}
-	for _, blob := range []struct {
-		name  string
-		bytes []byte
-	}{
-		{"_numberBlob", main.bytes()},
-		{"_numberSupportedBlob", supported.bytes()},
-		{"_numberingSystemBlob", numberingSystems.bytes()},
-	} {
-		b.WriteString("\n")
-		if err := emitStringConst(&b, blob.name, string(blob.bytes)); err != nil {
-			return nil, err
-		}
-	}
-	return FormatFile(b.Bytes())
+	return renderPayloadFile("number", table,
+		payloadBlob{"_numberBlob", main.bytes()},
+		payloadBlob{"_numberSupportedBlob", supported.bytes()},
+		payloadBlob{"_numberingSystemBlob", numberingSystems.bytes()},
+	)
 }
 
 // encodeNumberLocale serializes one locale's numberData in the fixed order the
@@ -95,37 +74,30 @@ func encodeNumbers(input RuntimeInput, table *StringTable) ([]byte, error) {
 func encodeNumberLocale(e *blobEncoder, n cldr.Numbers, table *StringTable) {
 	e.appendStringRef(table.Add(n.DefaultNumberingSystem))
 	encodeNumberSymbols(e, n.Symbols, table)
-	encodeStringMap(e, n.DecimalPatterns, table)
-	encodeStringMap(e, n.PercentPatterns, table)
-	encodeStringMap(e, n.ScientificPatterns, table)
+	e.appendStringRefMap(n.DecimalPatterns, table)
+	e.appendStringRefMap(n.PercentPatterns, table)
+	e.appendStringRefMap(n.ScientificPatterns, table)
 	encodeCurrencyPatterns(e, n.CurrencyPatterns, table)
 	encodeCompactPatterns(e, n.CompactPatterns, table)
 }
 
 // encodeNumberSymbols serializes the per-numbering-system symbols map. Each
-// numbering system key is followed by its twelve symbol StringRefs in
+// numbering system key is followed by its thirteen symbol StringRefs in
 // numberSymbolFieldOrder.
 func encodeNumberSymbols(e *blobEncoder, symbols map[string]cldr.NumberSymbols, table *StringTable) {
-	keys := slices.Sorted(maps.Keys(symbols))
-	e.appendUvarint(uint64(len(keys)))
-	for _, ns := range keys {
-		e.appendStringRef(table.Add(ns))
-		s := symbols[ns]
+	appendStringRefKeyMap(e, symbols, table, func(s cldr.NumberSymbols) {
 		for _, field := range numberSymbolFieldOrder {
 			e.appendStringRef(table.Add(field(s)))
 		}
-	}
+	})
 }
 
 // encodeCurrencyPatterns serializes the ns -> sign -> pattern map as a sorted
 // numbering-system key map whose values are sorted sign string-maps.
 func encodeCurrencyPatterns(e *blobEncoder, values map[string]map[string]string, table *StringTable) {
-	keys := slices.Sorted(maps.Keys(values))
-	e.appendUvarint(uint64(len(keys)))
-	for _, ns := range keys {
-		e.appendStringRef(table.Add(ns))
-		encodeStringMap(e, values[ns], table)
-	}
+	appendStringRefKeyMap(e, values, table, func(signPatterns map[string]string) {
+		e.appendStringRefMap(signPatterns, table)
+	})
 }
 
 // encodeCompactPatterns serializes the ns -> display -> exp -> plural -> pattern
@@ -133,39 +105,27 @@ func encodeCurrencyPatterns(e *blobEncoder, values map[string]map[string]string,
 // is a sorted-uvarint key map (exponents are small non-negative ints) whose
 // values are sorted plural string-maps.
 func encodeCompactPatterns(e *blobEncoder, values map[string]map[string]map[int]map[string]string, table *StringTable) {
-	nsKeys := slices.Sorted(maps.Keys(values))
-	e.appendUvarint(uint64(len(nsKeys)))
-	for _, ns := range nsKeys {
-		e.appendStringRef(table.Add(ns))
-		displays := values[ns]
-		displayKeys := slices.Sorted(maps.Keys(displays))
-		e.appendUvarint(uint64(len(displayKeys)))
-		for _, display := range displayKeys {
-			e.appendStringRef(table.Add(display))
-			exps := displays[display]
-			expKeys := slices.Sorted(maps.Keys(exps))
-			e.appendUvarint(uint64(len(expKeys)))
-			for _, exp := range expKeys {
-				e.appendUvarint(uint64(exp))
-				encodeStringMap(e, exps[exp], table)
-			}
-		}
-	}
+	appendStringRefKeyMap(e, values, table, func(displays map[string]map[int]map[string]string) {
+		appendStringRefKeyMap(e, displays, table, func(exps map[int]map[string]string) {
+			encodeCompactExponentPatterns(e, exps, table)
+		})
+	})
 }
 
-// numberSupportedLocaleTags returns the locales with number data in
-// sorted-locale order. The kernel localeRecords table is sorted by tag, so the
-// legacy supportedLocaleTags (which scans localeRecords in index order and keeps
-// tags with data) yields exactly the sorted key set of the data map.
-func numberSupportedLocaleTags(data extract.Numbers) []string {
-	return sortedLocaleKeys(data)
+func encodeCompactExponentPatterns(e *blobEncoder, exps map[int]map[string]string, table *StringTable) {
+	expKeys := slices.Sorted(maps.Keys(exps))
+	e.appendUvarint(uint64(len(expKeys)))
+	for _, exp := range expKeys {
+		e.appendUvarint(uint64(exp))
+		e.appendStringRefMap(exps[exp], table)
+	}
 }
 
 // numberingSystemExtras returns the numbering systems that appear in the
 // generated number data (each locale's default numbering system plus any
 // numbering system carrying symbols), in sorted order. The number domain's
 // SupportedNumberingSystems accessor merges these with the ECMA-402 simple
-// numbering-system set, exactly as the legacy root supported path did.
+// numbering-system set.
 func numberingSystemExtras(numbers extract.Numbers) []string {
 	seen := map[string]bool{}
 	for _, data := range numbers {

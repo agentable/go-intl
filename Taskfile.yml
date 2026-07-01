@@ -25,6 +25,8 @@ vars:
       {{.GOLANGCI_LINT_BINARY}} version --format short 2>/dev/null ||
       {{.GOLANGCI_LINT_BINARY}} version --short 2>/dev/null ||
       echo "not-installed"
+  REQUIRED_BENCHSTAT_VERSION: v0.0.0-20260615155930-9e4b9ddef5b6
+  BENCHSTAT_VERSION_MARKER: .tmp/benchstat.version
 
 env:
   GOBIN: '{{.GOBIN}}'
@@ -50,6 +52,21 @@ tasks:
       - echo "Cleaning build artifacts..."
       - rm -rf {{.GOBIN}}
       - go clean -cache -testcache || true
+
+  codegraph:source:
+    desc: Build a source-only CodeGraph mirror that excludes .references
+    cmds:
+      - scripts/codegraph-source.sh init
+
+  codegraph:source:status:
+    desc: Show source-only CodeGraph mirror status
+    cmds:
+      - scripts/codegraph-source.sh status
+
+  codegraph:source:clean:
+    desc: Remove the source-only CodeGraph mirror
+    cmds:
+      - scripts/codegraph-source.sh clean
 
   deps:
     desc: Download Go module dependencies
@@ -179,7 +196,7 @@ tasks:
     cmds:
       - |
         VERSION_PIN=$(grep '^cldr=' internal/cldr/VERSION | cut -d= -f2 | tr -d ' \t\r\n')
-        MANIFEST_PIN=$(grep '"cldr-bcp47"' tools/gen-cldr/.cldr-json/package.json | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/')
+        MANIFEST_PIN=$(grep '"cldr-core"' tools/gen-cldr/.cldr-json/package.json | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/')
         if [ -z "$VERSION_PIN" ] || [ -z "$MANIFEST_PIN" ]; then
           echo "ERROR: could not extract CLDR pin from VERSION or package.json" >&2
           exit 1
@@ -187,8 +204,8 @@ tasks:
         if [ "$VERSION_PIN" != "$MANIFEST_PIN" ]; then
           printf '\nERROR: CLDR version pin drift\n' >&2
           printf '  internal/cldr/VERSION                          : cldr=%s\n' "$VERSION_PIN" >&2
-          printf '  tools/gen-cldr/.cldr-json/package.json         : cldr-bcp47=%s\n\n' "$MANIFEST_PIN" >&2
-          printf 'Fix: edit tools/gen-cldr/.cldr-json/package.json so all 8 cldr-* deps match VERSION,\n' >&2
+          printf '  tools/gen-cldr/.cldr-json/package.json         : cldr-core=%s\n\n' "$MANIFEST_PIN" >&2
+          printf 'Fix: edit tools/gen-cldr/.cldr-json/package.json so all 7 cldr-* deps match VERSION,\n' >&2
           printf '     run: npm install --package-lock-only --prefix tools/gen-cldr/.cldr-json\n' >&2
           printf '     then commit package.json and package-lock.json.\n\n' >&2
           exit 1
@@ -251,9 +268,9 @@ tasks:
         -profile ../locale-profile.json
       # displaynames/accessors.go is hand-written lookup policy; compare the
       # generated DisplayNames payload explicitly.
-      # codec is a hand-written decode package; accessors.go and decode.go are
-      # the hand-written per-domain query/decode layers. Only the generated
-      # data.go payload is compared for each migrated domain.
+      # codec is a hand-written decode package; accessors.go, decode.go, and
+      # fallback.go are hand-written per-domain query/decode/fallback layers.
+      # Only the generated data.go payload is compared for each migrated domain.
       - >-
         diff -ru
         -x VERSION
@@ -265,6 +282,7 @@ tasks:
         -x codec
         -x accessors.go
         -x decode.go
+        -x fallback.go
         internal/cldr .tmp/cldr-check
       - >-
         diff -u
@@ -322,10 +340,12 @@ tasks:
   benchstat:
     desc: Install benchstat CLI
     cmds:
-      - mkdir -p {{.GOBIN}}
-      - go install golang.org/x/perf/cmd/benchstat@latest
+      - mkdir -p {{.GOBIN}} .tmp
+      - go install golang.org/x/perf/cmd/benchstat@{{.REQUIRED_BENCHSTAT_VERSION}}
+      - printf '%s\n' '{{.REQUIRED_BENCHSTAT_VERSION}}' > {{.BENCHSTAT_VERSION_MARKER}}
     status:
       - test -x {{.GOBIN}}/benchstat
+      - test "$(cat {{.BENCHSTAT_VERSION_MARKER}} 2>/dev/null)" = "{{.REQUIRED_BENCHSTAT_VERSION}}"
 
   bench:run:
     desc: Run benchmarks once with allocation reporting

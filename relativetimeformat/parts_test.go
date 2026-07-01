@@ -12,7 +12,7 @@ import (
 // typed value instead of comparing raw strings.
 func TestFormatToPartsTypedConstants(t *testing.T) {
 	t.Parallel()
-	rtf, err := New(locale.List{intltest.Locale(t, "en")}, Options{Numeric: NumericAlways})
+	rtf, err := New(locale.List{intltest.Locale(t, "en")}, Options{Numeric: stringPtr(NumericAlways)})
 	if err != nil {
 		t.Fatalf("New err = %v", err)
 	}

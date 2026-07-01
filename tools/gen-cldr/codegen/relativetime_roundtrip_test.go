@@ -1,14 +1,9 @@
 package codegen
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
-	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/cldr/relativetime"
-	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
 )
 
@@ -26,27 +21,12 @@ import (
 func TestRelativeTimeRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := filepath.Clean("../../..")
-	cldrDir := filepath.Join(repoRoot, "tools", "gen-cldr", ".cldr-json", "node_modules")
-	if _, err := os.Stat(cldrDir); err != nil {
-		t.Skipf("pinned cldr-json checkout absent (%v); run task data:fetch", err)
-	}
+	input := loadRoundTripSource(t)
+	fields := extract.ExtractRelativeTimeFields(input.source.RelativeTime, input.profile)
+	locales := sortedLocaleKeys(fields)
 
-	versions, err := cldr.ReadVersionFile(filepath.Join(repoRoot, "internal", "cldr", "VERSION"))
-	if err != nil {
-		t.Fatalf("read VERSION: %v", err)
-	}
-	profile := readUnitTestProfile(t, filepath.Join(repoRoot, "tools", "locale-profile.json"))
-
-	source, err := cldr.LoadAll(context.Background(), cldrDir, versions, profile)
-	if err != nil {
-		t.Fatalf("load cldr-json: %v", err)
-	}
-
-	fields := extract.ExtractRelativeTimeFields(source.RelativeTime, profile)
-
-	for _, localeTag := range relativeTimeLocales(fields) {
-		loc := resolveRelativeTimeLocale(t, localeTag)
+	for _, localeTag := range locales {
+		loc := resolveKernelLocale(t, localeTag)
 		got := relativetime.FieldsFor(loc)
 		want := fields[localeTag]
 
@@ -64,16 +44,9 @@ func TestRelativeTimeRoundTrip(t *testing.T) {
 		}
 	}
 
-	wantTags := relativeTimeSupportedLocaleTags(fields)
+	wantTags := locales
 	gotTags := relativetime.SupportedLocales()
-	if len(gotTags) != len(wantTags) {
-		t.Fatalf("SupportedLocales len = %d, want %d", len(gotTags), len(wantTags))
-	}
-	for i := range wantTags {
-		if gotTags[i] != wantTags[i] {
-			t.Errorf("SupportedLocales[%d] = %q, want %q", i, gotTags[i], wantTags[i])
-		}
-	}
+	assertStringSliceEqual(t, "SupportedLocales", gotTags, wantTags)
 }
 
 func assertPatternMap(t *testing.T, locale, unit, style, section string, want, got map[string]string) {
@@ -86,16 +59,4 @@ func assertPatternMap(t *testing.T, locale, unit, style, section string, want, g
 			t.Errorf("%s/%s/%s/%s[%q] = %q, want %q", locale, unit, style, section, key, got[key], value)
 		}
 	}
-}
-
-// resolveRelativeTimeLocale resolves a tag to the kernel handle the relativetime
-// accessors take. The field map is keyed by the kernel locale index, so a tag
-// that fails to resolve would silently mis-key every field lookup.
-func resolveRelativeTimeLocale(t *testing.T, tag string) cldrlocale.Locale {
-	t.Helper()
-	loc, ok := cldrlocale.ResolveLocale(tag)
-	if !ok {
-		t.Fatalf("kernel locale %q not resolvable", tag)
-	}
-	return loc
 }

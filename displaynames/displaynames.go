@@ -1,13 +1,11 @@
 package displaynames
 
 import (
-	"errors"
 	"sync"
 
 	cldrdn "github.com/agentable/go-intl/internal/cldr/displaynames"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/ecma402"
-	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/internal/localematcher"
 	"github.com/agentable/go-intl/locale"
 )
@@ -23,23 +21,31 @@ var displayNamesLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
 
 func New(locales locale.List, opts Options) (*DisplayNames, error) {
 	validationLocale := ecma402.ValidationLocale(locales)
+	validationLocaleName := validationLocale.String()
 	cfg := defaultConfig()
 	applyOptions(&cfg, opts)
-	if err := cfg.validate(validationLocale); err != nil {
+	if err := cfg.validate(validationLocaleName); err != nil {
 		return nil, err
 	}
-	resolvedLocale, dataLocale := resolveLocale(locales, validationLocale, cfg)
+	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
+		Locales:       locales,
+		Fallback:      validationLocale,
+		LocaleMatcher: cfg.localeMatcher,
+		Matcher:       displayNamesLocaleMatcher(),
+	})
 	resolved := ResolvedOptions{
-		Locale:   resolvedLocale,
+		Locale:   resolution.Locale,
 		Style:    Style(cfg.style),
 		Type:     Type(cfg.typ),
 		Fallback: Fallback(cfg.fallback),
 	}
 	if resolved.Type == Language {
-		ld := LanguageDisplay(cfg.languageDisplay)
-		resolved.LanguageDisplay = &ld
+		resolved.LanguageDisplay = ecma402.ResolvedScalar(LanguageDisplay(cfg.languageDisplay))
 	}
-	return &DisplayNames{dataLocale: dataLocale, resolved: resolved}, nil
+	return &DisplayNames{
+		resolved:   resolved,
+		dataLocale: ecma402.ResolveDataLocaleTag(resolution),
+	}, nil
 }
 
 // Of returns the localized display name for a code. Invalid code shape returns
@@ -48,40 +54,29 @@ func New(locales locale.List, opts Options) (*DisplayNames, error) {
 // NoneFallback, the empty string is returned with ok=false. The (string, bool)
 // pair is the Go bridge for the JS `string | undefined` return.
 func (d *DisplayNames) Of(code string) (string, bool, error) {
-	canonical, err := ecma402.CanonicalCodeForDisplayNames(string(d.resolved.Type), code)
+	resolved := d.resolved
+	dataLocale := d.dataLocale
+	typ := string(resolved.Type)
+	style := string(resolved.Style)
+	allowCodeFallback := resolved.Fallback == CodeFallback
+
+	canonical, err := ecma402.CanonicalCodeForDisplayNames(typ, code)
 	if err != nil {
-		return "", false, intlerr.New(
-			intlerr.InvalidCode,
-			"displaynames",
-			string(d.resolved.Type),
+		localeName := resolved.Locale.String()
+		return "", false, ecma402.InvalidDisplayNamesCodeError(
+			displayNamesOwner,
+			typ,
 			code,
-			"",
-			errors.Join(intlerr.ErrInvalidCode, err),
+			localeName,
+			err,
 		)
 	}
-	var languageDisplay string
-	if d.resolved.LanguageDisplay != nil {
-		languageDisplay = string(*d.resolved.LanguageDisplay)
-	}
-	if value, ok := cldrdn.Of(d.dataLocale, string(d.resolved.Type), string(d.resolved.Style), languageDisplay, canonical, string(d.resolved.Fallback)); ok && value != "" {
+	languageDisplay := string(ecma402.ResolvedScalarValue(resolved.LanguageDisplay))
+	if value, ok := cldrdn.Of(dataLocale, typ, style, languageDisplay, canonical, allowCodeFallback); ok && value != "" {
 		return value, true, nil
 	}
-	if d.resolved.Fallback == NoneFallback {
+	if !allowCodeFallback {
 		return "", false, nil
 	}
 	return canonical, true, nil
-}
-
-func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, string) {
-	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
-		Locales:       locales,
-		Fallback:      fallback,
-		LocaleMatcher: cfg.localeMatcher,
-		Matcher:       displayNamesLocaleMatcher(),
-	})
-	dataLocale := resolution.DataLocale
-	if dataLocale == "" {
-		dataLocale = ecma402.DefaultLocale()
-	}
-	return resolution.Locale, dataLocale
 }

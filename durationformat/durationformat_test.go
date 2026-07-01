@@ -2,9 +2,6 @@ package durationformat
 
 import (
 	"errors"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"reflect"
 	"strings"
 	"testing"
@@ -12,8 +9,20 @@ import (
 	"github.com/agentable/go-intl/internal/intlerr"
 
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
+	"github.com/agentable/go-intl/listformat"
 	"github.com/agentable/go-intl/locale"
 )
+
+func assertDurationInvalidValue(t testing.TB, err error, name, value, loc, expected string) {
+	t.Helper()
+
+	if !errors.Is(err, intlerr.ErrInvalidValue) {
+		t.Fatalf("error = %v, want intlerr.ErrInvalidValue", err)
+	}
+	testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "durationformat", name, value, loc)
+	testcontract.AssertErrorExpected(t, err, expected)
+}
 
 func TestDurationFormatResolvedOptionsDefault(t *testing.T) {
 	t.Parallel()
@@ -54,25 +63,87 @@ func TestDurationFormatResolvedOptionsDefault(t *testing.T) {
 	}
 }
 
+func TestDurationFormatResolvedOptionsPreservesUnitOverrides(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
+		Years:               stringPtr(LongUnitStyle),
+		YearsDisplay:        stringPtr(AlwaysDisplay),
+		Months:              stringPtr(NarrowUnitStyle),
+		MonthsDisplay:       stringPtr(AutoDisplay),
+		Weeks:               stringPtr(ShortUnitStyle),
+		WeeksDisplay:        stringPtr(AlwaysDisplay),
+		Days:                stringPtr(LongUnitStyle),
+		DaysDisplay:         stringPtr(AutoDisplay),
+		Hours:               stringPtr(NarrowUnitStyle),
+		HoursDisplay:        stringPtr(AlwaysDisplay),
+		Minutes:             stringPtr(LongUnitStyle),
+		MinutesDisplay:      stringPtr(AutoDisplay),
+		Seconds:             stringPtr(ShortUnitStyle),
+		SecondsDisplay:      stringPtr(AlwaysDisplay),
+		Milliseconds:        stringPtr(NarrowUnitStyle),
+		MillisecondsDisplay: stringPtr(AutoDisplay),
+		Microseconds:        stringPtr(LongUnitStyle),
+		MicrosecondsDisplay: stringPtr(AlwaysDisplay),
+		Nanoseconds:         stringPtr(ShortUnitStyle),
+		NanosecondsDisplay:  stringPtr(AutoDisplay),
+	})
+	if err != nil {
+		t.Fatalf("New(en) error = %v", err)
+	}
+
+	got := format.ResolvedOptions()
+	tests := []struct {
+		name        string
+		gotStyle    UnitStyle
+		wantStyle   UnitStyle
+		gotDisplay  Display
+		wantDisplay Display
+	}{
+		{"years", got.Years, LongUnitStyle, got.YearsDisplay, AlwaysDisplay},
+		{"months", got.Months, NarrowUnitStyle, got.MonthsDisplay, AutoDisplay},
+		{"weeks", got.Weeks, ShortUnitStyle, got.WeeksDisplay, AlwaysDisplay},
+		{"days", got.Days, LongUnitStyle, got.DaysDisplay, AutoDisplay},
+		{"hours", got.Hours, NarrowUnitStyle, got.HoursDisplay, AlwaysDisplay},
+		{"minutes", got.Minutes, LongUnitStyle, got.MinutesDisplay, AutoDisplay},
+		{"seconds", got.Seconds, ShortUnitStyle, got.SecondsDisplay, AlwaysDisplay},
+		{"milliseconds", got.Milliseconds, NarrowUnitStyle, got.MillisecondsDisplay, AutoDisplay},
+		{"microseconds", got.Microseconds, LongUnitStyle, got.MicrosecondsDisplay, AlwaysDisplay},
+		{"nanoseconds", got.Nanoseconds, ShortUnitStyle, got.NanosecondsDisplay, AutoDisplay},
+	}
+	for _, tc := range tests {
+		if tc.gotStyle != tc.wantStyle {
+			t.Errorf("%s style = %q, want %q", tc.name, tc.gotStyle, tc.wantStyle)
+		}
+		if tc.gotDisplay != tc.wantDisplay {
+			t.Errorf("%s display = %q, want %q", tc.name, tc.gotDisplay, tc.wantDisplay)
+		}
+	}
+}
+
 func TestSupportedLocalesOf(t *testing.T) {
 	t.Parallel()
 
 	requested := locale.List{intltest.Locale(t, "en-US"), intltest.Locale(t, "hi"), intltest.Locale(t, "zh-Hans-CN")}
-	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: LookupLocaleMatcher})
+	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: stringPtr(LookupLocaleMatcher)})
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf() error = %v", err)
 	}
-	want := locale.List{intltest.Locale(t, "en-US"), intltest.Locale(t, "hi"), intltest.Locale(t, "zh-Hans-CN")}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("SupportedLocalesOf() = %v, want %v", got, want)
+	testcontract.AssertLocaleListStrings(t, "SupportedLocalesOf()", got, []string{"en-US", "hi", "zh-Hans-CN"})
+
+	for _, matcher := range []string{"bad", ""} {
+		t.Run(matcher, func(t *testing.T) {
+			t.Parallel()
+			_, err := SupportedLocalesOf(requested, Options{LocaleMatcher: stringPtr(matcher)})
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("SupportedLocalesOf(invalid matcher) error = %v, want intlerr.ErrInvalidOption", err)
+			}
+			testcontract.AssertOptionError(t, err, "durationformat", intlerr.InvalidOption, "localeMatcher", matcher, "en-US")
+			testcontract.AssertOptionExpected(t, err, `one of "lookup", "best fit"`)
+		})
 	}
 
-	_, err = SupportedLocalesOf(requested, Options{LocaleMatcher: LocaleMatcher("bad")})
-	if !errors.Is(err, intlerr.ErrInvalidOption) {
-		t.Fatalf("SupportedLocalesOf(invalid matcher) error = %v, want intlerr.ErrInvalidOption", err)
-	}
-
-	_, err = SupportedLocalesOf(requested, Options{Style: Style("bad")})
+	_, err = SupportedLocalesOf(requested, Options{Style: stringPtr("bad")})
 	if err != nil {
 		t.Fatalf("SupportedLocalesOf(invalid formatting option) error = %v, want nil", err)
 	}
@@ -131,7 +202,7 @@ func TestDurationFormatFormatEmptyDuration(t *testing.T) {
 func TestDurationFormatFormatDigital(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: DigitalStyle})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(DigitalStyle)})
 	if err != nil {
 		t.Fatalf("New(en, digital) error = %v", err)
 	}
@@ -146,6 +217,54 @@ func TestDurationFormatFormatDigital(t *testing.T) {
 	}
 }
 
+func TestDurationFormatFormatToPartsDigital(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(DigitalStyle)})
+	if err != nil {
+		t.Fatalf("New(en, digital) error = %v", err)
+	}
+
+	got, err := format.FormatToParts(Duration{Hours: 1, Minutes: 2, Seconds: 3})
+	if err != nil {
+		t.Fatalf("FormatToParts() error = %v", err)
+	}
+	want := []Part{
+		{Type: PartInteger, Value: "1", Unit: Hour},
+		{Type: PartLiteral, Value: ":"},
+		{Type: PartInteger, Value: "02", Unit: Minute},
+		{Type: PartLiteral, Value: ":"},
+		{Type: PartInteger, Value: "03", Unit: Second},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("FormatToParts() = %#v, want %#v", got, want)
+	}
+}
+
+func TestDurationFormatUsesNumberingSystemForEmbeddedNumberFormat(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
+		NumberingSystem: stringPtr("arab"),
+		Style:           stringPtr(DigitalStyle),
+	})
+	if err != nil {
+		t.Fatalf("New(en, arab digital) error = %v", err)
+	}
+	if got := format.ResolvedOptions().NumberingSystem; got != "arab" {
+		t.Fatalf("ResolvedOptions().NumberingSystem = %q, want %q", got, "arab")
+	}
+
+	got, err := format.Format(Duration{Hours: 1, Minutes: 2, Seconds: 3})
+	if err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+	const want = "١:٠٢:٠٣"
+	if got != want {
+		t.Fatalf("Format() = %q, want %q", got, want)
+	}
+}
+
 func TestDurationFormatRejectsInvalidDurationValues(t *testing.T) {
 	t.Parallel()
 
@@ -155,23 +274,61 @@ func TestDurationFormatRejectsInvalidDurationValues(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		duration Duration
+		name         string
+		duration     Duration
+		wantName     string
+		wantValue    string
+		wantExpected string
 	}{
-		{name: "mixed signs", duration: Duration{Hours: 1, Minutes: -1}},
-		{name: "years too large", duration: Duration{Years: 1 << 32}},
-		{name: "months too negative", duration: Duration{Months: -(1 << 32)}},
-		{name: "normalized seconds too large", duration: Duration{Days: 1 << 40}},
+		{
+			name:         "mixed signs",
+			duration:     Duration{Hours: 1, Minutes: -1},
+			wantName:     "duration",
+			wantValue:    "mixed signs",
+			wantExpected: "all non-zero duration fields to have the same sign",
+		},
+		{
+			name:         "years too large",
+			duration:     Duration{Years: 1 << 32},
+			wantName:     "years",
+			wantValue:    "4294967296",
+			wantExpected: "an absolute value less than 2^32",
+		},
+		{
+			name:         "months too negative",
+			duration:     Duration{Months: -(1 << 32)},
+			wantName:     "months",
+			wantValue:    "-4294967296",
+			wantExpected: "an absolute value less than 2^32",
+		},
+		{
+			name:         "normalized seconds too large",
+			duration:     Duration{Days: 1 << 40},
+			wantName:     "duration",
+			wantValue:    "normalized seconds",
+			wantExpected: "normalized day and smaller fields below 1e9 * 2^53 nanoseconds",
+		},
+		{
+			name:         "normalized seconds too large from seconds",
+			duration:     Duration{Seconds: 1 << 53},
+			wantName:     "duration",
+			wantValue:    "normalized seconds",
+			wantExpected: "normalized day and smaller fields below 1e9 * 2^53 nanoseconds",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := format.Format(tc.duration); !errors.Is(err, intlerr.ErrInvalidValue) {
-				t.Fatalf("Format(%s) error = %v, want intlerr.ErrInvalidValue", tc.name, err)
+			if _, err := format.Format(tc.duration); err == nil {
+				t.Fatalf("Format(%s) error = nil, want intlerr.ErrInvalidValue", tc.name)
+			} else {
+				assertDurationInvalidValue(t, err, tc.wantName, tc.wantValue, "en", tc.wantExpected)
 			}
-			if _, err := format.FormatToParts(tc.duration); !errors.Is(err, intlerr.ErrInvalidValue) {
-				t.Fatalf("FormatToParts(%s) error = %v, want intlerr.ErrInvalidValue", tc.name, err)
+			if _, err := format.FormatToParts(tc.duration); err == nil {
+				t.Fatalf("FormatToParts(%s) error = nil, want intlerr.ErrInvalidValue", tc.name)
+			} else {
+				assertDurationInvalidValue(t, err, tc.wantName, tc.wantValue, "en", tc.wantExpected)
 			}
 		})
 	}
@@ -216,17 +373,65 @@ func TestDurationFormatRejectsInvalidOptions(t *testing.T) {
 
 	en := locale.List{intltest.Locale(t, "en")}
 	tests := []struct {
-		name string
-		opts Options
+		name         string
+		opts         Options
+		wantName     string
+		wantValue    string
+		wantExpected string
 	}{
-		{name: "locale matcher", opts: Options{LocaleMatcher: LocaleMatcher("bad")}},
-		{name: "style", opts: Options{Style: Style("bad")}},
-		{name: "numbering system", opts: Options{NumberingSystem: "bad!"}},
-		{name: "date unit numeric style", opts: Options{Years: NumericUnitStyle}},
-		{name: "unit display", opts: Options{HoursDisplay: Display("sometimes")}},
-		{name: "fractional unit always display", opts: Options{Milliseconds: NumericUnitStyle, MillisecondsDisplay: AlwaysDisplay}},
-		{name: "fractional chain broken", opts: Options{Milliseconds: NumericUnitStyle, Microseconds: ShortUnitStyle}},
-		{name: "numeric chain broken", opts: Options{Hours: NumericUnitStyle, Minutes: LongUnitStyle}},
+		{name: "locale matcher", opts: Options{LocaleMatcher: stringPtr("bad")}, wantName: "localeMatcher", wantValue: "bad"},
+		{name: "locale matcher empty", opts: Options{LocaleMatcher: stringPtr("")}, wantName: "localeMatcher", wantValue: ""},
+		{name: "style", opts: Options{Style: stringPtr("bad")}, wantName: "style", wantValue: "bad"},
+		{name: "style empty", opts: Options{Style: stringPtr("")}, wantName: "style", wantValue: ""},
+		{name: "numbering system", opts: Options{NumberingSystem: stringPtr("bad!")}, wantName: "numberingSystem", wantValue: "bad!"},
+		{name: "numbering system empty", opts: Options{NumberingSystem: stringPtr("")}, wantName: "numberingSystem", wantValue: ""},
+		{
+			name:         "date unit numeric style",
+			opts:         Options{Years: stringPtr(NumericUnitStyle)},
+			wantName:     "years",
+			wantValue:    "numeric",
+			wantExpected: `one of "long", "short", "narrow"`,
+		},
+		{
+			name:      "date unit empty style",
+			opts:      Options{Years: stringPtr("")},
+			wantName:  "years",
+			wantValue: "",
+		},
+		{
+			name:         "unit display",
+			opts:         Options{HoursDisplay: stringPtr("sometimes")},
+			wantName:     "hoursDisplay",
+			wantValue:    "sometimes",
+			wantExpected: `one of "auto", "always"`,
+		},
+		{
+			name:      "unit display empty",
+			opts:      Options{HoursDisplay: stringPtr("")},
+			wantName:  "hoursDisplay",
+			wantValue: "",
+		},
+		{
+			name:         "fractional unit always display",
+			opts:         Options{Milliseconds: stringPtr(NumericUnitStyle), MillisecondsDisplay: stringPtr(AlwaysDisplay)},
+			wantName:     "millisecondsDisplay",
+			wantValue:    "always",
+			wantExpected: "auto display when formatting subsecond units as a fractional part",
+		},
+		{
+			name:         "fractional chain broken",
+			opts:         Options{Milliseconds: stringPtr(NumericUnitStyle), Microseconds: stringPtr(ShortUnitStyle)},
+			wantName:     "microseconds",
+			wantValue:    "short",
+			wantExpected: "fractional style while continuing a subsecond fractional chain",
+		},
+		{
+			name:         "numeric chain broken",
+			opts:         Options{Hours: stringPtr(NumericUnitStyle), Minutes: stringPtr(LongUnitStyle)},
+			wantName:     "minutes",
+			wantValue:    "long",
+			wantExpected: "numeric, 2-digit, or fractional style while continuing a digital time chain",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -236,6 +441,10 @@ func TestDurationFormatRejectsInvalidOptions(t *testing.T) {
 			if !errors.Is(err, intlerr.ErrInvalidOption) {
 				t.Fatalf("New(%s) error = %v, want intlerr.ErrInvalidOption", tc.name, err)
 			}
+			testcontract.AssertOptionError(t, err, "durationformat", intlerr.InvalidOption, tc.wantName, tc.wantValue, "en")
+			if tc.wantExpected != "" {
+				testcontract.AssertOptionExpected(t, err, tc.wantExpected)
+			}
 		})
 	}
 }
@@ -244,8 +453,8 @@ func TestDurationFormatSubsecondRollupIsExact(t *testing.T) {
 	t.Parallel()
 
 	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
-		Style:        NarrowStyle,
-		Milliseconds: NumericUnitStyle,
+		Style:        stringPtr(NarrowStyle),
+		Milliseconds: stringPtr(NumericUnitStyle),
 	})
 	if err != nil {
 		t.Fatalf("New(en) error = %v", err)
@@ -264,7 +473,7 @@ func TestDurationFormatSubsecondRollupIsExact(t *testing.T) {
 func TestDurationFormatDigitalNegativeSignAppearsOnce(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: DigitalStyle})
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(DigitalStyle)})
 	if err != nil {
 		t.Fatalf("New(en, digital) error = %v", err)
 	}
@@ -277,12 +486,44 @@ func TestDurationFormatDigitalNegativeSignAppearsOnce(t *testing.T) {
 	}
 }
 
+func TestDurationFormatDigitalNegativeZeroLeadingUnit(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(DigitalStyle)})
+	if err != nil {
+		t.Fatalf("New(en, digital) error = %v", err)
+	}
+	got, err := format.Format(Duration{Minutes: -1})
+	if err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+	if got != "-0:01:00" {
+		t.Fatalf("Format() = %q, want -0:01:00", got)
+	}
+}
+
+func TestDurationFormatDigitalFormatsSubsecondOnly(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(DigitalStyle)})
+	if err != nil {
+		t.Fatalf("New(en, digital) error = %v", err)
+	}
+	got, err := format.Format(Duration{Milliseconds: 473})
+	if err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+	if got != "0:00:00.473" {
+		t.Fatalf("Format() = %q, want 0:00:00.473", got)
+	}
+}
+
 func TestDurationFormatSubsecondRollupCarriesToParentUnit(t *testing.T) {
 	t.Parallel()
 
 	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
-		Style:        NarrowStyle,
-		Milliseconds: NumericUnitStyle,
+		Style:        stringPtr(NarrowStyle),
+		Milliseconds: stringPtr(NumericUnitStyle),
 	})
 	if err != nil {
 		t.Fatalf("New(en) error = %v", err)
@@ -295,6 +536,62 @@ func TestDurationFormatSubsecondRollupCarriesToParentUnit(t *testing.T) {
 	const want = "2s"
 	if got != want {
 		t.Fatalf("Format() = %q, want %q", got, want)
+	}
+}
+
+func TestDurationFormatSubsecondRollupFromMicrosecondsToMilliseconds(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
+		Style:        stringPtr(NarrowStyle),
+		Microseconds: stringPtr(NumericUnitStyle),
+	})
+	if err != nil {
+		t.Fatalf("New(en) error = %v", err)
+	}
+
+	got, err := format.Format(Duration{
+		Milliseconds: 1,
+		Microseconds: 2,
+		Nanoseconds:  3,
+	})
+	if err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+	const want = "1.002003ms"
+	if got != want {
+		t.Fatalf("Format() = %q, want %q", got, want)
+	}
+}
+
+func TestDurationFormatSubsecondRollupToParts(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
+		Style:        stringPtr(NarrowStyle),
+		Milliseconds: stringPtr(NumericUnitStyle),
+	})
+	if err != nil {
+		t.Fatalf("New(en) error = %v", err)
+	}
+
+	got, err := format.FormatToParts(Duration{
+		Seconds:      1,
+		Milliseconds: 2,
+		Microseconds: 3,
+		Nanoseconds:  4,
+	})
+	if err != nil {
+		t.Fatalf("FormatToParts() error = %v", err)
+	}
+	want := []Part{
+		{Type: PartInteger, Value: "1", Unit: Second},
+		{Type: PartDecimal, Value: ".", Unit: Second},
+		{Type: PartFraction, Value: "002003004", Unit: Second},
+		{Type: PartUnit, Value: "s", Unit: Second},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("FormatToParts() = %#v, want %#v", got, want)
 	}
 }
 
@@ -321,6 +618,54 @@ func TestDurationFormatFormatToParts(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("FormatToParts() = %#v, want %#v", got, want)
+	}
+}
+
+func TestDurationFormatListFormatPartsFlattensGroups(t *testing.T) {
+	t.Parallel()
+
+	listType := string(listformat.Unit)
+	listStyle := string(listformat.LongStyle)
+	formatter, err := listformat.New(locale.List{intltest.Locale(t, "en")}, listformat.Options{
+		Type:  &listType,
+		Style: &listStyle,
+	})
+	if err != nil {
+		t.Fatalf("listformat.New(en, unit long) error = %v", err)
+	}
+
+	got := durationListFormatParts(formatter, [][]Part{
+		{
+			{Type: PartInteger, Value: "1", Unit: Hour},
+			{Type: PartLiteral, Value: " ", Unit: Hour},
+			{Type: PartUnit, Value: "hr", Unit: Hour},
+		},
+		{
+			{Type: PartInteger, Value: "2", Unit: Minute},
+			{Type: PartLiteral, Value: " ", Unit: Minute},
+			{Type: PartUnit, Value: "min", Unit: Minute},
+		},
+		{
+			{Type: PartInteger, Value: "3", Unit: Second},
+			{Type: PartLiteral, Value: " ", Unit: Second},
+			{Type: PartUnit, Value: "sec", Unit: Second},
+		},
+	})
+	want := []Part{
+		{Type: PartInteger, Value: "1", Unit: Hour},
+		{Type: PartLiteral, Value: " ", Unit: Hour},
+		{Type: PartUnit, Value: "hr", Unit: Hour},
+		{Type: PartLiteral, Value: ", "},
+		{Type: PartInteger, Value: "2", Unit: Minute},
+		{Type: PartLiteral, Value: " ", Unit: Minute},
+		{Type: PartUnit, Value: "min", Unit: Minute},
+		{Type: PartLiteral, Value: ", "},
+		{Type: PartInteger, Value: "3", Unit: Second},
+		{Type: PartLiteral, Value: " ", Unit: Second},
+		{Type: PartUnit, Value: "sec", Unit: Second},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("durationListFormatParts() = %#v, want %#v", got, want)
 	}
 }
 
@@ -352,27 +697,27 @@ func TestDurationFormatFormatEqualsFormatToPartsJoin(t *testing.T) {
 		},
 		{
 			name:     "digital",
-			options:  Options{Style: DigitalStyle},
+			options:  Options{Style: stringPtr(DigitalStyle)},
 			duration: Duration{Hours: 1, Minutes: 2, Seconds: 3},
 		},
 		{
 			name:     "negative digital",
-			options:  Options{Style: DigitalStyle},
+			options:  Options{Style: stringPtr(DigitalStyle)},
 			duration: Duration{Hours: -1, Minutes: -2, Seconds: -3},
 		},
 		{
 			name: "fractional subsecond",
 			options: Options{
-				Style:        NarrowStyle,
-				Milliseconds: NumericUnitStyle,
+				Style:        stringPtr(NarrowStyle),
+				Milliseconds: stringPtr(NumericUnitStyle),
 			},
 			duration: Duration{Seconds: 1, Milliseconds: 473},
 		},
 		{
 			name: "explicit fractional digits",
 			options: Options{
-				Style:            NarrowStyle,
-				Milliseconds:     NumericUnitStyle,
+				Style:            stringPtr(NarrowStyle),
+				Milliseconds:     stringPtr(NumericUnitStyle),
 				FractionalDigits: intPtr(2),
 			},
 			duration: Duration{Seconds: 1, Milliseconds: 230},
@@ -402,22 +747,6 @@ func TestDurationFormatFormatEqualsFormatToPartsJoin(t *testing.T) {
 	}
 }
 
-func TestDurationFormatFormatUsesPartsOwner(t *testing.T) {
-	t.Parallel()
-
-	parsed, err := parser.ParseFile(token.NewFileSet(), "format.go", nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	format := durationMethodDecl(parsed, "Format")
-	if format == nil {
-		t.Fatal("Format method not found")
-	}
-	if !durationMethodCalls(format, "FormatToParts") || !durationMethodCalls(format, "joinParts") {
-		t.Fatal("Format must derive output from FormatToParts and joinParts to avoid string/parts drift")
-	}
-}
-
 func TestDurationFormatRejectsMixedSigns(t *testing.T) {
 	t.Parallel()
 
@@ -425,8 +754,16 @@ func TestDurationFormatRejectsMixedSigns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New(en) error = %v", err)
 	}
-	if _, err := format.Format(Duration{Hours: 1, Minutes: -1}); !errors.Is(err, intlerr.ErrInvalidValue) {
-		t.Fatalf("Format(mixed signs) error = %v, want intlerr.ErrInvalidValue", err)
+	duration := Duration{Hours: 1, Minutes: -1}
+	if _, err := format.Format(duration); err == nil {
+		t.Fatal("Format(mixed signs) error = nil, want intlerr.ErrInvalidValue")
+	} else {
+		assertDurationInvalidValue(t, err, "duration", "mixed signs", "en", expectedDurationMixedSigns)
+	}
+	if _, err := format.FormatToParts(duration); err == nil {
+		t.Fatal("FormatToParts(mixed signs) error = nil, want intlerr.ErrInvalidValue")
+	} else {
+		assertDurationInvalidValue(t, err, "duration", "mixed signs", "en", expectedDurationMixedSigns)
 	}
 }
 
@@ -445,39 +782,4 @@ func durationPartsText(parts []Part) string {
 		b.WriteString(part.Value)
 	}
 	return b.String()
-}
-
-func durationMethodDecl(file *ast.File, name string) *ast.FuncDecl {
-	for _, decl := range file.Decls {
-		decl, ok := decl.(*ast.FuncDecl)
-		if ok && decl.Recv != nil && decl.Name.Name == name {
-			return decl
-		}
-	}
-	return nil
-}
-
-func durationMethodCalls(fn *ast.FuncDecl, name string) bool {
-	found := false
-	ast.Inspect(fn.Body, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		switch fun := call.Fun.(type) {
-		case *ast.Ident:
-			if fun.Name != name {
-				return true
-			}
-		case *ast.SelectorExpr:
-			if fun.Sel.Name != name {
-				return true
-			}
-		default:
-			return true
-		}
-		found = true
-		return false
-	})
-	return found
 }

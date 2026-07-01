@@ -210,9 +210,9 @@ Benchmark numbers are evidence, not gates. A benchmark result may justify invest
 
 **Rules**:
 
-1. CI runner **MUST** be installed through `go install golang.org/x/perf/cmd/benchstat@latest` (independent command, not go.mod require).
+1. CI runner **MUST** install the pinned `benchstat` version declared by `Taskfile.yml` through `go install golang.org/x/perf/cmd/benchstat@<version>` (independent command, not go.mod require).
 2. **FORBIDDEN** to add `golang.org/x/perf` to `go.mod`; the active scope keeps runtime and test dependencies tightly closed.
-3. The benchstat version **should** be pinned to `Taskfile.yml`(`benchstat@v0.0.0-2025xxxxxxxx`) to prevent CI behavior from drifting.
+3. The active pin is `golang.org/x/perf/cmd/benchstat@v0.0.0-20260615155930-9e4b9ddef5b6`. Refreshing it is a release-maintenance act and must update this SPEC and `Taskfile.yml` together.
 
 ### 4.2 Report format
 
@@ -284,7 +284,7 @@ file is a release-maintenance act, not a correctness gate.
 
 ### Tooling
 
-- [ ] benchstat is installed via `go install`; **not** present in `go.mod`.
+- [ ] benchstat is installed through the pinned `go install` version in `Taskfile.yml`; **not** present in `go.mod`.
 - [ ] CI runner specifications (CPU / Go version / GOARCH) are recorded in the benchstat report header.
 - [ ] Import-cost reports list `go list -deps .` separately from each touched per-surface package.
 - [ ] Binary-size reports label root facade harnesses separately from per-surface harnesses.

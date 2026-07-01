@@ -23,10 +23,10 @@ func Default() (string, *time.Location) {
 
 // OverrideDefaultForTest replaces the default time-zone provider for tests and
 // returns a restore function.
-func OverrideDefaultForTest(name string) func() {
+func OverrideDefaultForTest(name string) (func(), error) {
 	loc, err := Resolve(name)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defaultProvider.Lock()
 	previous := defaultProvider.location
@@ -36,7 +36,7 @@ func OverrideDefaultForTest(name string) func() {
 		defaultProvider.Lock()
 		defaultProvider.location = previous
 		defaultProvider.Unlock()
-	}
+	}, nil
 }
 
 func defaultLocation(local *time.Location) (string, *time.Location) {
@@ -48,31 +48,25 @@ func defaultLocation(local *time.Location) (string, *time.Location) {
 	}
 	if name := localtimeLinkName(); name != "" {
 		if loc, err := Resolve(name); err == nil {
-			return canonicalName(name), loc
+			return CanonicalLink(name), loc
 		}
 	}
 	return "UTC", time.UTC
 }
 
 func canonicalLocation(name string, fallback *time.Location) (string, *time.Location) {
-	if strings.HasPrefix(name, "+") || strings.HasPrefix(name, "-") {
+	if isOffsetName(name) {
 		if loc, err := Resolve(name); err == nil {
-			return name, loc
+			canonical := loc.String()
+			return canonical, loc
 		}
 		return name, fallback
 	}
-	canonical := canonicalName(name)
+	canonical := CanonicalLink(name)
 	if loc, err := Resolve(canonical); err == nil {
 		return canonical, loc
 	}
 	return name, fallback
-}
-
-func canonicalName(name string) string {
-	if strings.HasPrefix(name, "+") || strings.HasPrefix(name, "-") {
-		return name
-	}
-	return CanonicalLink(name)
 }
 
 func localtimeLinkName() string {

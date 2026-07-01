@@ -6,6 +6,15 @@ import (
 	"github.com/agentable/go-intl/internal/pattern"
 )
 
+const (
+	// PatternPartLiteral is the part type for literal text returned by PartitionPattern.
+	PatternPartLiteral = pattern.Literal
+	// PatternPartPlaceholder0 is the placeholder part type for "{0}".
+	PatternPartPlaceholder0 = "0"
+	// PatternPartPlaceholder1 is the placeholder part type for "{1}".
+	PatternPartPlaceholder1 = "1"
+)
+
 // PartitionPattern mirrors ECMA-402 sec-partitionpattern (formatjs
 // PartitionPattern.ts). It splits a pattern of the form "AA{0}BB" into
 // alternating literal and placeholder parts:

@@ -1,6 +1,10 @@
 package localematcher
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/agentable/go-intl/internal/localeid"
+)
 
 func TestUnicodeExtensionValue(t *testing.T) {
 	t.Parallel()
@@ -33,10 +37,10 @@ func TestInsertUnicodeExtensionAndCanonicalize(t *testing.T) {
 	if got := InsertUnicodeExtensionAndCanonicalize("en", nil); got != "en" {
 		t.Fatalf("InsertUnicodeExtensionAndCanonicalize(en, nil) = %q, want en", got)
 	}
-	keywords := []keyword{
-		{key: "nu", value: "arab"},
-		{key: "kn", value: "true"},
-		{key: "ca", value: "islamic-civil"},
+	keywords := []localeid.UnicodeKeyword{
+		{Key: "nu", Value: "arab"},
+		{Key: "kn", Value: "true"},
+		{Key: "ca", Value: "islamic-civil"},
 	}
 	got := InsertUnicodeExtensionAndCanonicalize("en", keywords)
 	want := "en-u-ca-islamic-civil-kn-nu-arab"

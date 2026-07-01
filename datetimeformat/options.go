@@ -1,58 +1,83 @@
 package datetimeformat
 
 import (
-	"fmt"
-
-	"github.com/agentable/go-intl/internal/intlerr"
-
 	"github.com/agentable/go-intl/internal/ecma402"
-	"github.com/agentable/go-intl/locale"
 )
 
+const (
+	dateTimeFormatOwner           = "datetimeformat"
+	dateTimeStyleConflictExpected = "no explicit component options when dateStyle or timeStyle is set"
+)
+
+var dateTimeStyleValues = [...]string{
+	string(FullDateTimeStyle),
+	string(LongDateTimeStyle),
+	string(MediumDateTimeStyle),
+	string(ShortDateTimeStyle),
+}
+
 type Options struct {
-	Calendar               string
-	NumberingSystem        string
-	LocaleMatcher          LocaleMatcher
-	FormatMatcher          FormatMatcher
-	TimeZone               string
-	TimeZoneName           TimeZoneName
-	Weekday                FieldStyle
-	Era                    FieldStyle
-	Year                   NumericStyle
-	Month                  MonthStyle
-	Day                    NumericStyle
-	DayPeriod              FieldStyle
-	Hour                   NumericStyle
-	Minute                 NumericStyle
-	Second                 NumericStyle
-	HourCycle              HourCycle
+	Calendar               *string
+	NumberingSystem        *string
+	LocaleMatcher          *string
+	FormatMatcher          *string
+	TimeZone               *string
+	TimeZoneName           *string
+	Weekday                *string
+	Era                    *string
+	Year                   *string
+	Month                  *string
+	Day                    *string
+	DayPeriod              *string
+	Hour                   *string
+	Minute                 *string
+	Second                 *string
+	HourCycle              *string
 	Hour12                 *bool
-	DateStyle              Style
-	TimeStyle              Style
+	DateStyle              *string
+	TimeStyle              *string
 	FractionalSecondDigits *int
 }
 
 type config struct {
 	calendar                  string
+	calendarSet               bool
 	numberingSystem           string
+	numberingSystemSet        bool
 	localeMatcher             string
+	localeMatcherSet          bool
 	formatMatcher             string
+	formatMatcherSet          bool
 	timeZone                  string
+	timeZoneSet               bool
 	timeZoneName              string
+	timeZoneNameSet           bool
 	weekday                   string
+	weekdaySet                bool
 	era                       string
+	eraSet                    bool
 	year                      string
+	yearSet                   bool
 	month                     string
+	monthSet                  bool
 	day                       string
+	daySet                    bool
 	dayPeriod                 string
+	dayPeriodSet              bool
 	hour                      string
+	hourSet                   bool
 	minute                    string
+	minuteSet                 bool
 	second                    string
+	secondSet                 bool
 	hourCycle                 string
+	hourCycleSet              bool
 	hour12                    bool
 	hasHour12                 bool
 	dateStyle                 string
+	dateStyleSet              bool
 	timeStyle                 string
+	timeStyleSet              bool
 	fractionalSecondDigits    int
 	hasFractionalSecondDigits bool
 }
@@ -62,140 +87,170 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	if opts.Calendar != "" {
-		cfg.calendar = opts.Calendar
-	}
-	if opts.NumberingSystem != "" {
-		cfg.numberingSystem = opts.NumberingSystem
-	}
-	if opts.LocaleMatcher != "" {
-		cfg.localeMatcher = string(opts.LocaleMatcher)
-	}
-	if opts.FormatMatcher != "" {
-		cfg.formatMatcher = string(opts.FormatMatcher)
-	}
-	if opts.TimeZone != "" {
-		cfg.timeZone = opts.TimeZone
-	}
-	if opts.TimeZoneName != "" {
-		cfg.timeZoneName = string(opts.TimeZoneName)
-	}
-	if opts.Weekday != "" {
-		cfg.weekday = string(opts.Weekday)
-	}
-	if opts.Era != "" {
-		cfg.era = string(opts.Era)
-	}
-	if opts.Year != "" {
-		cfg.year = string(opts.Year)
-	}
-	if opts.Month != "" {
-		cfg.month = string(opts.Month)
-	}
-	if opts.Day != "" {
-		cfg.day = string(opts.Day)
-	}
-	if opts.DayPeriod != "" {
-		cfg.dayPeriod = string(opts.DayPeriod)
-	}
-	if opts.Hour != "" {
-		cfg.hour = string(opts.Hour)
-	}
-	if opts.Minute != "" {
-		cfg.minute = string(opts.Minute)
-	}
-	if opts.Second != "" {
-		cfg.second = string(opts.Second)
-	}
-	if opts.HourCycle != "" {
-		cfg.hourCycle = string(opts.HourCycle)
-	}
-	if opts.Hour12 != nil {
-		cfg.hour12 = *opts.Hour12
-		cfg.hasHour12 = true
-	}
-	if opts.DateStyle != "" {
-		cfg.dateStyle = string(opts.DateStyle)
-	}
-	if opts.TimeStyle != "" {
-		cfg.timeStyle = string(opts.TimeStyle)
-	}
-	if opts.FractionalSecondDigits != nil {
-		cfg.fractionalSecondDigits = *opts.FractionalSecondDigits
-		cfg.hasFractionalSecondDigits = true
-	}
+	ecma402.ApplyOptionInput(&cfg.calendar, &cfg.calendarSet, opts.Calendar)
+	ecma402.ApplyOptionInput(&cfg.numberingSystem, &cfg.numberingSystemSet, opts.NumberingSystem)
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOptionInput(&cfg.formatMatcher, &cfg.formatMatcherSet, opts.FormatMatcher)
+	ecma402.ApplyOptionInput(&cfg.timeZone, &cfg.timeZoneSet, opts.TimeZone)
+	ecma402.ApplyOptionInput(&cfg.timeZoneName, &cfg.timeZoneNameSet, opts.TimeZoneName)
+	ecma402.ApplyOptionInput(&cfg.weekday, &cfg.weekdaySet, opts.Weekday)
+	ecma402.ApplyOptionInput(&cfg.era, &cfg.eraSet, opts.Era)
+	ecma402.ApplyOptionInput(&cfg.year, &cfg.yearSet, opts.Year)
+	ecma402.ApplyOptionInput(&cfg.month, &cfg.monthSet, opts.Month)
+	ecma402.ApplyOptionInput(&cfg.day, &cfg.daySet, opts.Day)
+	ecma402.ApplyOptionInput(&cfg.dayPeriod, &cfg.dayPeriodSet, opts.DayPeriod)
+	ecma402.ApplyOptionInput(&cfg.hour, &cfg.hourSet, opts.Hour)
+	ecma402.ApplyOptionInput(&cfg.minute, &cfg.minuteSet, opts.Minute)
+	ecma402.ApplyOptionInput(&cfg.second, &cfg.secondSet, opts.Second)
+	ecma402.ApplyOptionInput(&cfg.hourCycle, &cfg.hourCycleSet, opts.HourCycle)
+	ecma402.ApplyOptionInput(&cfg.hour12, &cfg.hasHour12, opts.Hour12)
+	ecma402.ApplyOptionInput(&cfg.dateStyle, &cfg.dateStyleSet, opts.DateStyle)
+	ecma402.ApplyOptionInput(&cfg.timeStyle, &cfg.timeStyleSet, opts.TimeStyle)
+	ecma402.ApplyOptionInput(&cfg.fractionalSecondDigits, &cfg.hasFractionalSecondDigits, opts.FractionalSecondDigits)
 }
 
-func (c config) validate(loc locale.Locale) error {
-	checks := []ecma402.StringOption{
-		ecma402.RequiredStringOption("formatMatcher", c.formatMatcher, "basic", "best fit"),
-		ecma402.OptionalStringOption("timeZoneName", c.timeZoneName, "short", "long", "shortOffset", "longOffset", "shortGeneric", "longGeneric"),
-		ecma402.OptionalStringOption("weekday", c.weekday, "narrow", "short", "long"),
-		ecma402.OptionalStringOption("era", c.era, "narrow", "short", "long"),
-		ecma402.OptionalStringOption("year", c.year, "numeric", "2-digit"),
-		ecma402.OptionalStringOption("month", c.month, "numeric", "2-digit", "narrow", "short", "long"),
-		ecma402.OptionalStringOption("day", c.day, "numeric", "2-digit"),
-		ecma402.OptionalStringOption("dayPeriod", c.dayPeriod, "narrow", "short", "long"),
-		ecma402.OptionalStringOption("hour", c.hour, "numeric", "2-digit"),
-		ecma402.OptionalStringOption("minute", c.minute, "numeric", "2-digit"),
-		ecma402.OptionalStringOption("second", c.second, "numeric", "2-digit"),
-		ecma402.OptionalStringOption("hourCycle", c.hourCycle, "h11", "h12", "h23", "h24"),
-		ecma402.OptionalStringOption("dateStyle", c.dateStyle, "full", "long", "medium", "short"),
-		ecma402.OptionalStringOption("timeStyle", c.timeStyle, "full", "long", "medium", "short"),
-		ecma402.LocaleMatcherOption(c.localeMatcher),
+func (c config) validate(locName string) error {
+	if err := ecma402.ValidateStringOptions(
+		dateTimeFormatOwner,
+		locName,
+		dateTimeFormatMatcherOptionInput(c.formatMatcher, c.formatMatcherSet),
+		dateTimeZoneNameOptionInput(c.timeZoneName, c.timeZoneNameSet),
+		dateTimeFieldStyleOptionInput("weekday", c.weekday, c.weekdaySet),
+		dateTimeFieldStyleOptionInput("era", c.era, c.eraSet),
+		dateTimeNumericStyleOptionInput("year", c.year, c.yearSet),
+		dateTimeMonthStyleOptionInput(c.month, c.monthSet),
+		dateTimeNumericStyleOptionInput("day", c.day, c.daySet),
+		dateTimeFieldStyleOptionInput("dayPeriod", c.dayPeriod, c.dayPeriodSet),
+		dateTimeNumericStyleOptionInput("hour", c.hour, c.hourSet),
+		dateTimeNumericStyleOptionInput("minute", c.minute, c.minuteSet),
+		dateTimeNumericStyleOptionInput("second", c.second, c.secondSet),
+		dateTimeHourCycleOptionInput(c.hourCycle, c.hourCycleSet),
+		dateTimeStyleOptionInput("dateStyle", c.dateStyle, c.dateStyleSet),
+		dateTimeStyleOptionInput("timeStyle", c.timeStyle, c.timeStyleSet),
+		ecma402.LocaleMatcherOptionInput(c.localeMatcher, c.localeMatcherSet),
+	); err != nil {
+		return err
 	}
-	if check, ok := ecma402.InvalidStringOption(checks...); ok {
-		return invalidOption(check.Name, check.Value, loc)
+	if err := ecma402.ValidateUnicodeTypeOptionInput(dateTimeFormatOwner, "calendar", c.calendar, locName, c.calendarSet); err != nil {
+		return err
 	}
-	if c.calendar != "" && !ecma402.IsWellFormedUnicodeType(c.calendar) {
-		return invalidOption("calendar", c.calendar, loc)
+	if err := ecma402.ValidateUnicodeTypeOptionInput(dateTimeFormatOwner, "numberingSystem", c.numberingSystem, locName, c.numberingSystemSet); err != nil {
+		return err
 	}
-	if c.calendar != "" && !isSupportedCalendar(c.calendar) {
-		return unsupportedCalendar(c.calendar, loc)
-	}
-	if c.numberingSystem != "" && !ecma402.IsWellFormedUnicodeType(c.numberingSystem) {
-		return invalidOption("numberingSystem", c.numberingSystem, loc)
-	}
-	if check, ok := ecma402.InvalidIntegerOption(ecma402.IntegerOption{
+	if err := ecma402.ValidateIntegerOptions(dateTimeFormatOwner, locName, ecma402.IntegerOption{
 		Name:  "fractionalSecondDigits",
 		Value: c.fractionalSecondDigits,
 		Min:   1,
 		Max:   3,
 		Set:   c.hasFractionalSecondDigits,
-	}); ok {
-		return invalidOption(check.Name, fmt.Sprint(check.Value), loc)
+	}); err != nil {
+		return err
 	}
-	if c.dateStyle != "" || c.timeStyle != "" {
-		for _, field := range []struct {
-			name  string
-			value string
-		}{
-			{name: "weekday", value: c.weekday},
-			{name: "era", value: c.era},
-			{name: "year", value: c.year},
-			{name: "month", value: c.month},
-			{name: "day", value: c.day},
-			{name: "dayPeriod", value: c.dayPeriod},
-			{name: "hour", value: c.hour},
-			{name: "minute", value: c.minute},
-			{name: "second", value: c.second},
-			{name: "timeZoneName", value: c.timeZoneName},
-		} {
-			if field.value != "" {
-				return invalidOption("dateStyle/timeStyle", field.name, loc)
-			}
-		}
-		if c.hasFractionalSecondDigits {
-			return invalidOption("dateStyle/timeStyle", "fractionalSecondDigits", loc)
-		}
+	return c.validateDateTimeStyleConflicts(locName)
+}
+
+func (c config) validateDateTimeStyleConflicts(loc string) error {
+	if c.dateStyle == "" && c.timeStyle == "" {
+		return nil
+	}
+	if field, ok := c.firstDateTimeStyleConflict(); ok {
+		return invalidDateTimeStyleConflict(field, loc)
 	}
 	return nil
 }
 
-func invalidOption(name, value string, loc locale.Locale) error {
-	return ecma402.InvalidOptionError("datetimeformat", name, value, loc.String(), intlerr.ErrInvalidOption)
+func (c config) firstDateTimeStyleConflict() (string, bool) {
+	switch {
+	case c.weekday != "":
+		return "weekday", true
+	case c.era != "":
+		return "era", true
+	case c.year != "":
+		return "year", true
+	case c.month != "":
+		return "month", true
+	case c.day != "":
+		return "day", true
+	case c.dayPeriod != "":
+		return "dayPeriod", true
+	case c.hour != "":
+		return "hour", true
+	case c.minute != "":
+		return "minute", true
+	case c.second != "":
+		return "second", true
+	case c.timeZoneName != "":
+		return "timeZoneName", true
+	case c.hasFractionalSecondDigits:
+		return "fractionalSecondDigits", true
+	default:
+		return "", false
+	}
 }
 
-func unsupportedCalendar(value string, loc locale.Locale) error {
-	return ecma402.UnsupportedOptionError("datetimeformat", "calendar", value, loc.String(), intlerr.ErrUnsupportedOption)
+func dateTimeFormatMatcherOptionInput(value string, present bool) ecma402.StringOption {
+	return ecma402.OptionalStringOptionInput("formatMatcher", value, present,
+		string(BasicFormatMatcher),
+		string(BestFitFormatMatcher),
+	)
+}
+
+func dateTimeZoneNameOptionInput(value string, present bool) ecma402.StringOption {
+	return ecma402.OptionalStringOptionInput("timeZoneName", value, present,
+		string(ShortTimeZoneName),
+		string(LongTimeZoneName),
+		string(ShortOffsetTimeZoneName),
+		string(LongOffsetTimeZoneName),
+		string(ShortGenericTimeZoneName),
+		string(LongGenericTimeZoneName),
+	)
+}
+
+func dateTimeFieldStyleOptionInput(name, value string, present bool) ecma402.StringOption {
+	return ecma402.OptionalStringOptionInput(name, value, present,
+		string(NarrowFieldStyle),
+		string(ShortFieldStyle),
+		string(LongFieldStyle),
+	)
+}
+
+func dateTimeNumericStyleOptionInput(name, value string, present bool) ecma402.StringOption {
+	return ecma402.OptionalStringOptionInput(name, value, present,
+		string(NumericFieldStyle),
+		string(TwoDigitFieldStyle),
+	)
+}
+
+func dateTimeMonthStyleOptionInput(value string, present bool) ecma402.StringOption {
+	return ecma402.OptionalStringOptionInput("month", value, present,
+		string(NumericMonthStyle),
+		string(TwoDigitMonthStyle),
+		string(NarrowMonthStyle),
+		string(ShortMonthStyle),
+		string(LongMonthStyle),
+	)
+}
+
+func dateTimeHourCycleOptionInput(value string, present bool) ecma402.StringOption {
+	return ecma402.OptionalStringOptionInput("hourCycle", value, present,
+		string(H11HourCycle),
+		string(H12HourCycle),
+		string(H23HourCycle),
+		string(H24HourCycle),
+	)
+}
+
+func dateTimeStyleOptionInput(name, value string, present bool) ecma402.StringOption {
+	return ecma402.OptionalStringOptionInput(name, value, present, dateTimeStyleValues[:]...)
+}
+
+func invalidDateTimeStyleConflict(value, loc string) error {
+	return ecma402.InvalidOptionErrorExpected(
+		dateTimeFormatOwner,
+		"dateStyle/timeStyle",
+		value,
+		loc,
+		dateTimeStyleConflictExpected,
+		nil,
+	)
 }

@@ -23,10 +23,11 @@ func truncationPosition(locale string) int {
 }
 
 func LookupSupportedLocales(supported, requested []string) []string {
+	matcher := NewMatcher(supported, nil)
 	out := make([]string, 0, len(requested))
 	for _, loc := range requested {
 		noExtensionLocale, _ := removeUnicodeExtension(loc)
-		if BestAvailableLocale(supported, noExtensionLocale) != "" {
+		if matcher.bestAvailableLocale(noExtensionLocale) != "" {
 			out = append(out, noExtensionLocale)
 		}
 	}

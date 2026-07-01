@@ -2,32 +2,28 @@ package datetimeformat
 
 import "unicode/utf8"
 
-func (f *DateTimeFormat) appendDateTime(dst []byte, t localTime) []byte {
-	switch f.pattern.kind {
+func (p selectedPattern) appendTo(f *DateTimeFormat, dst []byte, t localTime) []byte {
+	switch p.kind {
 	case patternDate:
-		return f.appendDatePattern(dst, f.pattern.date, t)
+		return f.appendPattern(dst, p.date, t)
 	case patternTime:
-		return f.appendTimePattern(dst, f.pattern.time, t)
+		return f.appendPattern(dst, p.time, t)
 	case patternDateTime:
 		var dateScratch [64]byte
 		var timeScratch [64]byte
-		date := f.appendDatePattern(dateScratch[:0], f.pattern.date, t)
-		time := f.appendTimePattern(timeScratch[:0], f.pattern.time, t)
-		return appendDateTimePattern(dst, f.pattern.dateTime, date, time)
+		date := f.appendPattern(dateScratch[:0], p.date, t)
+		time := f.appendPattern(timeScratch[:0], p.time, t)
+		return appendDateTimePattern(dst, p.dateTime, date, time)
 	case patternNone:
 	}
 	return dst
 }
 
-func (f *DateTimeFormat) appendDatePattern(dst []byte, pattern string, t localTime) []byte {
-	return f.appendPattern(dst, pattern, t)
-}
-
-func (f *DateTimeFormat) appendTimePattern(dst []byte, pattern string, t localTime) []byte {
-	return f.appendPattern(dst, pattern, t)
-}
-
 func (f *DateTimeFormat) appendPattern(dst []byte, pattern string, t localTime) []byte {
+	numberingSystem := f.resolved.NumberingSystem
+	uses24Hour := f.uses24Hour
+	cldrLoc := f.cldrLoc
+	gregorian := &f.gregorian
 	for pattern != "" {
 		r := rune(pattern[0])
 		if r == '\'' {
@@ -48,10 +44,10 @@ func (f *DateTimeFormat) appendPattern(dst []byte, pattern string, t localTime) 
 		}
 		switch {
 		case isDatePatternField(r):
-			part := f.datePatternPart(r, width, t)
+			part := datePatternPart(r, width, t, gregorian, numberingSystem)
 			dst = append(dst, part.Value...)
 		default:
-			part, ok := f.timePatternPart(r, width, t)
+			part, ok := f.timePatternPart(r, width, t, numberingSystem, uses24Hour, cldrLoc, gregorian)
 			if ok {
 				dst = append(dst, part.Value...)
 			} else {

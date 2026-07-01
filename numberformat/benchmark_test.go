@@ -33,7 +33,7 @@ func BenchmarkNumberFormat_Decimal_Cached(b *testing.B) {
 }
 
 func BenchmarkNumberFormat_Percent_Cached(b *testing.B) {
-	format, err := New(locale.List{intltest.Locale(b, "en-US")}, Options{Style: PercentStyle})
+	format, err := New(locale.List{intltest.Locale(b, "en-US")}, Options{Style: stringPtr(PercentStyle)})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func BenchmarkNumberFormat_Percent_Cached(b *testing.B) {
 }
 
 func BenchmarkNumberFormat_Currency_Cached(b *testing.B) {
-	format, err := New(locale.List{intltest.Locale(b, "en-US")}, Options{Style: CurrencyStyle, Currency: Currency("USD")})
+	format, err := New(locale.List{intltest.Locale(b, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD")})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func BenchmarkNumberFormat_Currency_Cached(b *testing.B) {
 }
 
 func BenchmarkNumberFormat_Compact_Cached(b *testing.B) {
-	format, err := New(locale.List{intltest.Locale(b, "en-US")}, Options{Notation: CompactNotation})
+	format, err := New(locale.List{intltest.Locale(b, "en-US")}, Options{Notation: stringPtr(CompactNotation)})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -77,6 +77,20 @@ func BenchmarkNumberFormat_FormatToParts_Cached(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		_ = format.FormatToParts(Float(1234.5))
+	}
+}
+
+func BenchmarkNumberFormat_FormatRange_Cached(b *testing.B) {
+	format, err := New(locale.List{intltest.Locale(b, "en-US")}, Options{})
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := format.FormatRange(Int(1234), Int(5678)); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 

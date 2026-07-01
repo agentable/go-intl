@@ -25,13 +25,7 @@
   },
   {
     "id": "collator-node-v26-german-phonebook-option-contract",
-    "reason": "active x/text backend has no stable public contract for arbitrary explicit collation tailoring",
-    "expires_at": "2026-09-30",
-    "tracking_issue": "SPEC-45"
-  },
-  {
-    "id": "collator-node-v26-german-phonebook-locale-contract",
-    "reason": "active x/text backend has no stable public contract for arbitrary explicit collation tailoring",
+    "reason": "Node reflects explicit collation options in resolved locale extensions while ECMA-402 ResolveLocale and FormatJS keep option overrides out of the locale tag",
     "expires_at": "2026-09-30",
     "tracking_issue": "SPEC-45"
   }

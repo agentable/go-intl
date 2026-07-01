@@ -3,22 +3,22 @@ package datetimeformat
 import (
 	"strings"
 
-	"github.com/agentable/go-intl/internal/pattern"
+	"github.com/agentable/go-intl/internal/ecma402"
 )
 
 func interpolateDateTimeParts(text string, dateParts, timeParts []Part) []Part {
-	patternParts, err := pattern.Partition(text)
+	patternParts, err := ecma402.PartitionPattern(text)
 	if err != nil {
 		return []Part{{Type: PartLiteral, Value: text}}
 	}
 	parts := make([]Part, 0, len(dateParts)+len(timeParts)+len(patternParts))
 	for _, part := range patternParts {
 		switch part.Type {
-		case "0":
+		case ecma402.PatternPartPlaceholder0:
 			parts = append(parts, timeParts...)
-		case "1":
+		case ecma402.PatternPartPlaceholder1:
 			parts = append(parts, dateParts...)
-		case pattern.Literal:
+		case ecma402.PatternPartLiteral:
 			parts = appendDateTimeConnectorLiteral(parts, part.Value)
 		default:
 			parts = appendLiteralPart(parts, "{"+part.Type+"}")
@@ -28,18 +28,18 @@ func interpolateDateTimeParts(text string, dateParts, timeParts []Part) []Part {
 }
 
 func interpolateDateTimeRangeParts(text string, dateParts, timeParts []RangePart) []RangePart {
-	patternParts, err := pattern.Partition(text)
+	patternParts, err := ecma402.PartitionPattern(text)
 	if err != nil {
 		return []RangePart{{Type: PartLiteral, Value: text, Source: SourceShared}}
 	}
 	parts := make([]RangePart, 0, len(dateParts)+len(timeParts)+len(patternParts))
 	for _, part := range patternParts {
 		switch part.Type {
-		case "0":
+		case ecma402.PatternPartPlaceholder0:
 			parts = append(parts, timeParts...)
-		case "1":
+		case ecma402.PatternPartPlaceholder1:
 			parts = append(parts, dateParts...)
-		case pattern.Literal:
+		case ecma402.PatternPartLiteral:
 			parts = appendDateTimeConnectorRangeLiteral(parts, part.Value)
 		default:
 			parts = appendRangeLiteralPart(parts, "{"+part.Type+"}", SourceShared)

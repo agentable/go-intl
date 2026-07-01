@@ -14,4 +14,8 @@ func TestOptionPointerHelpers(t *testing.T) {
 	if got := String("USD"); got == nil || *got != "USD" {
 		t.Fatalf("String(USD) = %v, want pointer to USD", got)
 	}
+	type optionString string
+	if got := String(optionString("meter")); got == nil || *got != "meter" {
+		t.Fatalf("String(optionString(meter)) = %v, want pointer to meter", got)
+	}
 }

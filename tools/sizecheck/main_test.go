@@ -19,9 +19,10 @@ import (
 func TestSizeCasesCoverP4MeasurementBoundaries(t *testing.T) {
 	t.Parallel()
 
-	names := make([]string, 0, len(sizeCases()))
-	for _, tc := range sizeCases() {
-		names = append(names, tc.name)
+	cases := sizeCases()
+	names := make([]string, len(cases))
+	for i, tc := range cases {
+		names[i] = tc.name
 	}
 	for _, name := range []string{
 		"empty",
@@ -57,7 +58,7 @@ func TestReadDataProfile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "internal", "cldr", "VERSION"), []byte("cldr=48.1.0\nicu=78\ntzdata=2025b\n"), 0o666); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "tools", "locale-profile.json"), []byte(`{"locales":["en","fr","zh-Hant-TW"]}`), 0o666); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "tools", "locale-profile.json"), []byte(`{"locales":["fr","en","und","en"]}`), 0o666); err != nil {
 		t.Fatal(err)
 	}
 
@@ -65,7 +66,7 @@ func TestReadDataProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readDataProfile() error = %v, want nil", err)
 	}
-	want := dataProfile{CLDR: "48.1.0", ICU: "78", TZData: "2025b", LocaleCount: 3}
+	want := dataProfile{CLDR: "48.1.0", ICU: "78", TZData: "2025b", LocaleCount: 2}
 	if got != want {
 		t.Fatalf("readDataProfile() = %+v, want %+v", got, want)
 	}
@@ -180,17 +181,19 @@ func TestReadVersionFileRejectsMissingPins(t *testing.T) {
 	}
 }
 
-func TestReadLocaleProfileCountRejectsInvalidProfiles(t *testing.T) {
+func TestReadLocaleProfileCountUsesSharedProfileContract(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
 		content string
-		want    error
+		want    int
+		wantErr string
 	}{
-		{name: "empty locales", content: `{"locales":[]}`, want: errEmptyLocaleProfile},
-		{name: "multiple values", content: `{"locales":["en"]} {}`, want: errMultipleProfileValues},
-		{name: "unknown field", content: `{"locales":["en"],"extra":true}`},
+		{name: "normalizes duplicates and sentinel", content: `{"locales":["fr","en","und","en"]}`, want: 2},
+		{name: "empty locales", content: `{"locales":["und",""]}`, wantErr: "locales is empty"},
+		{name: "multiple values", content: `{"locales":["en"]} {}`, wantErr: "multiple JSON values"},
+		{name: "unknown field", content: `{"locales":["en"],"extra":true}`, wantErr: `unknown field "extra"`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -200,12 +203,21 @@ func TestReadLocaleProfileCountRejectsInvalidProfiles(t *testing.T) {
 			if err := os.WriteFile(path, []byte(tc.content), 0o666); err != nil {
 				t.Fatal(err)
 			}
-			_, err := readLocaleProfileCount(path)
+			got, err := readLocaleProfileCount(path)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("readLocaleProfileCount() error = %v, want nil", err)
+				}
+				if got != tc.want {
+					t.Fatalf("readLocaleProfileCount() = %d, want %d", got, tc.want)
+				}
+				return
+			}
 			if err == nil {
 				t.Fatal("readLocaleProfileCount() error = nil, want error")
 			}
-			if tc.want != nil && !errors.Is(err, tc.want) {
-				t.Fatalf("readLocaleProfileCount() error = %v, want %v", err, tc.want)
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("readLocaleProfileCount() error = %v, want containing %q", err, tc.wantErr)
 			}
 		})
 	}

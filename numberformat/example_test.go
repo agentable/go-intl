@@ -28,7 +28,7 @@ func Example() {
 func Example_options() {
 	format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
 		MaximumFractionDigits: gointl.Int(0),
-		RoundingMode:          numberformat.FloorRoundingMode,
+		RoundingMode:          gointl.String(numberformat.FloorRoundingMode),
 	})
 	if err != nil {
 		panic(err)

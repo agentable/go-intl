@@ -1,86 +1,148 @@
 package ecma402
 
 import (
-	"fmt"
-	"regexp"
+	"slices"
 	"strings"
 
-	"github.com/agentable/go-intl/internal/intlerr"
+	"github.com/agentable/go-intl/internal/localeid"
 
 	"golang.org/x/text/language"
 )
 
 var (
-	displayNamesRegionSubtag = regexp.MustCompile(`^([a-zA-Z]{2}|[0-9]{3})$`)
-	displayNamesScriptSubtag = regexp.MustCompile(`^[a-zA-Z]{4}$`)
+	displayNamesDateTimeFieldValues = [...]string{
+		"era",
+		"year",
+		"quarter",
+		"month",
+		"weekOfYear",
+		"weekday",
+		"day",
+		"dayPeriod",
+		"hour",
+		"minute",
+		"second",
+		"timeZoneName",
+	}
+	displayNamesDateTimeFieldExpected = "one of " + quotedValues(displayNamesDateTimeFieldValues[:])
 )
 
-var displayNamesDateTimeFields = map[string]struct{}{
-	"era":          {},
-	"year":         {},
-	"quarter":      {},
-	"month":        {},
-	"weekOfYear":   {},
-	"weekday":      {},
-	"day":          {},
-	"dayPeriod":    {},
-	"hour":         {},
-	"minute":       {},
-	"second":       {},
-	"timeZoneName": {},
+type displayNamesCodeRule struct {
+	canonicalize func(string) (string, bool)
+	expected     string
 }
 
 // CanonicalCodeForDisplayNames implements ECMA-402
 // CanonicalCodeForDisplayNames for Intl.DisplayNames.prototype.of.
 func CanonicalCodeForDisplayNames(typ, code string) (string, error) {
+	rule, ok := displayNamesCodeRuleFor(typ)
+	if !ok {
+		return "", ErrInvalidCode
+	}
+	canonical, ok := rule.canonicalize(code)
+	if !ok {
+		return "", ErrInvalidCode
+	}
+	return canonical, nil
+}
+
+func displayNamesCodeRuleFor(typ string) (displayNamesCodeRule, bool) {
 	switch typ {
 	case "language":
-		tag, err := canonicalDisplayNamesLanguage(code)
-		if err != nil {
-			return "", invalidDisplayNamesCode(typ, code)
-		}
-		return tag, nil
+		return displayNamesCodeRule{
+			canonicalize: canonicalDisplayNamesLanguage,
+			expected:     "a Unicode language identifier",
+		}, true
 	case "region":
-		if !displayNamesRegionSubtag.MatchString(code) {
-			return "", invalidDisplayNamesCode(typ, code)
-		}
-		return strings.ToUpper(code), nil
+		return displayNamesCodeRule{
+			canonicalize: canonicalDisplayNamesRegion,
+			expected:     "a two-letter ASCII or three-digit region code",
+		}, true
 	case "script":
-		if !displayNamesScriptSubtag.MatchString(code) {
-			return "", invalidDisplayNamesCode(typ, code)
-		}
-		lower := strings.ToLower(code)
-		return strings.ToUpper(lower[:1]) + lower[1:], nil
+		return displayNamesCodeRule{
+			canonicalize: canonicalDisplayNamesScript,
+			expected:     "a four-letter ASCII script code",
+		}, true
 	case "calendar":
-		if !IsWellFormedUnicodeType(code) {
-			return "", invalidDisplayNamesCode(typ, code)
-		}
-		return strings.ToLower(code), nil
+		return displayNamesCodeRule{
+			canonicalize: canonicalDisplayNamesCalendar,
+			expected:     "a Unicode locale extension type",
+		}, true
 	case "dateTimeField":
-		if _, ok := displayNamesDateTimeFields[code]; !ok {
-			return "", invalidDisplayNamesCode(typ, code)
-		}
-		return code, nil
+		return displayNamesCodeRule{
+			canonicalize: canonicalDisplayNamesDateTimeField,
+			expected:     displayNamesDateTimeFieldExpected,
+		}, true
 	case "currency":
-		if !IsWellFormedCurrencyCode(code) {
-			return "", invalidDisplayNamesCode(typ, code)
-		}
-		return strings.ToUpper(code), nil
+		return displayNamesCodeRule{
+			canonicalize: canonicalDisplayNamesCurrency,
+			expected:     "a three-letter ASCII currency code",
+		}, true
 	default:
-		return "", invalidDisplayNamesCode(typ, code)
+		return displayNamesCodeRule{}, false
 	}
 }
 
-func canonicalDisplayNamesLanguage(code string) (string, error) {
+// InvalidDisplayNamesCodeError records an invalid DisplayNames code with
+// type-specific guidance from CanonicalCodeForDisplayNames.
+func InvalidDisplayNamesCodeError(owner, typ, code, loc string, err error) error {
+	return InvalidCodeErrorExpected(owner, typ, code, loc, DisplayNamesCodeExpected(typ), err)
+}
+
+// DisplayNamesCodeExpected returns user-facing guidance for DisplayNames code
+// validation. It shares the same type cases as CanonicalCodeForDisplayNames.
+func DisplayNamesCodeExpected(typ string) string {
+	if rule, ok := displayNamesCodeRuleFor(typ); ok {
+		return rule.expected
+	}
+	return "a well-formed DisplayNames code"
+}
+
+func canonicalDisplayNamesLanguage(code string) (string, bool) {
 	canonical, ok := canonicalizeUnicodeLanguageID(code)
 	if !ok {
-		return "", invalidDisplayNamesCode("language", code)
+		return "", false
 	}
 	tag, err := language.Parse(canonical)
 	if err == nil {
-		return tag.String(), nil
+		return tag.String(), true
 	}
-	return canonical, nil
+	return canonical, true
+}
+
+func canonicalDisplayNamesRegion(code string) (string, bool) {
+	if !localeid.IsUnicodeRegionSubtag(code) {
+		return "", false
+	}
+	return asciiUpper(code), true
+}
+
+func canonicalDisplayNamesScript(code string) (string, bool) {
+	if !localeid.IsUnicodeScriptSubtag(code) {
+		return "", false
+	}
+	return asciiTitle(code), true
+}
+
+func canonicalDisplayNamesCalendar(code string) (string, bool) {
+	if !IsWellFormedUnicodeType(code) {
+		return "", false
+	}
+	return asciiLower(code), true
+}
+
+func canonicalDisplayNamesDateTimeField(code string) (string, bool) {
+	if slices.Contains(displayNamesDateTimeFieldValues[:], code) {
+		return code, true
+	}
+	return "", false
+}
+
+func canonicalDisplayNamesCurrency(code string) (string, bool) {
+	if !IsWellFormedCurrencyCode(code) {
+		return "", false
+	}
+	return CanonicalCurrencyCode(code), true
 }
 
 func canonicalizeUnicodeLanguageID(code string) (string, bool) {
@@ -88,34 +150,29 @@ func canonicalizeUnicodeLanguageID(code string) (string, bool) {
 		return "", false
 	}
 	parts := strings.Split(code, "-")
-	for _, part := range parts {
-		if part == "" || !isASCIIAlnum(part) {
-			return "", false
-		}
-	}
 
-	if !isUnicodeLanguageSubtag(parts[0]) {
+	if !localeid.IsUnicodeLanguageSubtag(parts[0]) {
 		return "", false
 	}
 
-	out := []string{strings.ToLower(parts[0])}
+	out := []string{asciiLower(parts[0])}
 	index := 1
-	if index < len(parts) && len(parts[index]) == 4 && isASCIIAlpha(parts[index]) {
-		out = append(out, titlecaseASCII(parts[index]))
+	if index < len(parts) && localeid.IsUnicodeScriptSubtag(parts[index]) {
+		out = append(out, asciiTitle(parts[index]))
 		index++
 	}
-	if index < len(parts) && isDisplayNamesRegionSubtag(parts[index]) {
-		out = append(out, strings.ToUpper(parts[index]))
+	if index < len(parts) && localeid.IsUnicodeRegionSubtag(parts[index]) {
+		out = append(out, asciiUpper(parts[index]))
 		index++
 	}
 
-	seenVariants := map[string]struct{}{}
-	for index < len(parts) && isVariantSubtag(parts[index]) {
-		variant := strings.ToLower(parts[index])
-		if _, ok := seenVariants[variant]; ok {
+	var seenVariants []string
+	for index < len(parts) && localeid.IsUnicodeVariantSubtag(parts[index]) {
+		variant := asciiLower(parts[index])
+		if slices.Contains(seenVariants, variant) {
 			return "", false
 		}
-		seenVariants[variant] = struct{}{}
+		seenVariants = append(seenVariants, variant)
 		out = append(out, variant)
 		index++
 	}
@@ -125,56 +182,4 @@ func canonicalizeUnicodeLanguageID(code string) (string, bool) {
 	}
 
 	return strings.Join(out, "-"), true
-}
-
-func isUnicodeLanguageSubtag(subtag string) bool {
-	length := len(subtag)
-	return (length >= 2 && length <= 3 || length >= 5 && length <= 8) && isASCIIAlpha(subtag)
-}
-
-func isDisplayNamesRegionSubtag(subtag string) bool {
-	return displayNamesRegionSubtag.MatchString(subtag)
-}
-
-func isVariantSubtag(subtag string) bool {
-	length := len(subtag)
-	if length >= 5 && length <= 8 {
-		return isASCIIAlnum(subtag)
-	}
-	return length == 4 && isASCIIDigit(subtag[0]) && isASCIIAlnum(subtag)
-}
-
-func titlecaseASCII(value string) string {
-	lower := strings.ToLower(value)
-	return strings.ToUpper(lower[:1]) + lower[1:]
-}
-
-func isASCIIAlpha(value string) bool {
-	for i := range len(value) {
-		if !isASCIIAlphaByte(value[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func isASCIIAlnum(value string) bool {
-	for i := range len(value) {
-		if !isASCIIAlphaByte(value[i]) && !isASCIIDigit(value[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func isASCIIAlphaByte(value byte) bool {
-	return value >= 'A' && value <= 'Z' || value >= 'a' && value <= 'z'
-}
-
-func isASCIIDigit(value byte) bool {
-	return value >= '0' && value <= '9'
-}
-
-func invalidDisplayNamesCode(typ, code string) error {
-	return fmt.Errorf("ecma402: invalid DisplayNames %s code %q: %w", typ, code, intlerr.ErrInvalidCode)
 }

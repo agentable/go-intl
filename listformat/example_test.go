@@ -3,6 +3,7 @@ package listformat_test
 import (
 	"fmt"
 
+	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/listformat"
 	"github.com/agentable/go-intl/locale"
 )
@@ -23,7 +24,7 @@ func Example() {
 // Example_options demonstrates Intl.ListFormat constructor options from ECMA-402.
 func Example_options() {
 	format, err := listformat.New(mustLocaleList("en-US"), listformat.Options{
-		Type: listformat.Disjunction,
+		Type: gointl.String(listformat.Disjunction),
 	})
 	if err != nil {
 		panic(err)

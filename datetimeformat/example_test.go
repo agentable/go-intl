@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/datetimeformat"
 	"github.com/agentable/go-intl/locale"
 )
@@ -11,7 +12,7 @@ import (
 // Example demonstrates Intl.DateTimeFormat.prototype.format from ECMA-402.
 func Example() {
 	format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
-		TimeZone: "UTC",
+		TimeZone: gointl.String("UTC"),
 	})
 	if err != nil {
 		panic(err)
@@ -27,8 +28,8 @@ func Example() {
 // Example_options demonstrates Intl.DateTimeFormat constructor options from ECMA-402.
 func Example_options() {
 	format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
-		DateStyle: datetimeformat.LongDateTimeStyle,
-		TimeZone:  "UTC",
+		DateStyle: gointl.String(string(datetimeformat.LongDateTimeStyle)),
+		TimeZone:  gointl.String("UTC"),
 	})
 	if err != nil {
 		panic(err)
@@ -44,10 +45,10 @@ func Example_options() {
 // ExampleDateTimeFormat_FormatToParts demonstrates Intl.DateTimeFormat.prototype.formatToParts from ECMA-402.
 func ExampleDateTimeFormat_FormatToParts() {
 	format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
-		Year:     datetimeformat.NumericFieldStyle,
-		Month:    datetimeformat.ShortMonthStyle,
-		Day:      datetimeformat.NumericFieldStyle,
-		TimeZone: "UTC",
+		Year:     gointl.String(string(datetimeformat.NumericFieldStyle)),
+		Month:    gointl.String(string(datetimeformat.ShortMonthStyle)),
+		Day:      gointl.String(string(datetimeformat.NumericFieldStyle)),
+		TimeZone: gointl.String("UTC"),
 	})
 	if err != nil {
 		panic(err)

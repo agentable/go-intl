@@ -44,6 +44,37 @@ func TestCanonicalCodeForDisplayNamesCanonicalizesValidCodes(t *testing.T) {
 	}
 }
 
+func TestCanonicalCodeForDisplayNamesAcceptsEveryDateTimeField(t *testing.T) {
+	t.Parallel()
+
+	for _, field := range []string{
+		"era",
+		"year",
+		"quarter",
+		"month",
+		"weekOfYear",
+		"weekday",
+		"day",
+		"dayPeriod",
+		"hour",
+		"minute",
+		"second",
+		"timeZoneName",
+	} {
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ecma402.CanonicalCodeForDisplayNames("dateTimeField", field)
+			if err != nil {
+				t.Fatalf("CanonicalCodeForDisplayNames(dateTimeField, %q) error = %v, want nil", field, err)
+			}
+			if got != field {
+				t.Fatalf("CanonicalCodeForDisplayNames(dateTimeField, %q) = %q, want %q", field, got, field)
+			}
+		})
+	}
+}
+
 func TestCanonicalCodeForDisplayNamesRejectsInvalidCodes(t *testing.T) {
 	t.Parallel()
 
@@ -76,6 +107,32 @@ func TestCanonicalCodeForDisplayNamesRejectsInvalidCodes(t *testing.T) {
 			}
 			if errors.Is(err, ecma402.ErrInvalidOption) {
 				t.Fatalf("CanonicalCodeForDisplayNames(%q, %q) error = %v, must not match ErrInvalidOption", tc.typ, tc.code, err)
+			}
+		})
+	}
+}
+
+func TestDisplayNamesCodeExpected(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		typ  string
+		want string
+	}{
+		{typ: "language", want: "a Unicode language identifier"},
+		{typ: "region", want: "a two-letter ASCII or three-digit region code"},
+		{typ: "script", want: "a four-letter ASCII script code"},
+		{typ: "calendar", want: "a Unicode locale extension type"},
+		{typ: "dateTimeField", want: `one of "era", "year", "quarter", "month", "weekOfYear", "weekday", "day", "dayPeriod", "hour", "minute", "second", "timeZoneName"`},
+		{typ: "currency", want: "a three-letter ASCII currency code"},
+		{typ: "unknown", want: "a well-formed DisplayNames code"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.typ, func(t *testing.T) {
+			t.Parallel()
+
+			if got := ecma402.DisplayNamesCodeExpected(tc.typ); got != tc.want {
+				t.Fatalf("DisplayNamesCodeExpected(%q) = %q, want %q", tc.typ, got, tc.want)
 			}
 		})
 	}

@@ -1,18 +1,15 @@
 package collator
 
 import (
-	"strings"
-
-	"github.com/agentable/go-intl/internal/intlerr"
-
 	"github.com/agentable/go-intl/internal/ecma402"
-	"github.com/agentable/go-intl/locale"
 )
 
 type LocaleMatcher string
 type Usage string
 type Sensitivity string
 type CaseFirst string
+
+const collatorOwner = "collator"
 
 const (
 	LookupLocaleMatcher  LocaleMatcher = "lookup"
@@ -31,30 +28,55 @@ const (
 	FalseCaseFirst CaseFirst = "false"
 )
 
+var (
+	collatorUsageValues = [...]string{
+		string(SortUsage),
+		string(SearchUsage),
+	}
+	supportedCollatorUsageValues = [...]string{
+		string(SortUsage),
+	}
+	collatorSensitivityValues = [...]string{
+		string(BaseSensitivity),
+		string(AccentSensitivity),
+		string(CaseSensitivity),
+		string(VariantSensitivity),
+	}
+	collatorCaseFirstValues = [...]string{
+		string(FalseCaseFirst),
+		string(UpperCaseFirst),
+		string(LowerCaseFirst),
+	}
+)
+
 // Options mirrors the JS Intl.Collator options bag.
 //
 // A zero value means "no caller preference" for every field; defaults defined
 // by ECMA-402 (Usage=SortUsage, Sensitivity=VariantSensitivity for sort) are
 // applied during construction.
 type Options struct {
-	LocaleMatcher     LocaleMatcher
-	Usage             Usage
-	Sensitivity       Sensitivity
-	CaseFirst         CaseFirst
+	LocaleMatcher     *string
+	Usage             *string
+	Sensitivity       *string
+	CaseFirst         *string
 	Numeric           *bool
 	IgnorePunctuation *bool
-	Collation         string
+	Collation         *string
 }
 
 type config struct {
 	localeMatcher     string
+	localeMatcherSet  bool
 	usage             string
+	sensitivitySet    bool
 	sensitivity       string
+	caseFirstSet      bool
 	caseFirst         string
 	numeric           bool
 	numericSet        bool
 	ignorePunctuation bool
 	collation         string
+	collationSet      bool
 }
 
 func defaultConfig() config {
@@ -65,69 +87,69 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	if opts.LocaleMatcher != "" {
-		cfg.localeMatcher = string(opts.LocaleMatcher)
-	}
-	if opts.Usage != "" {
-		cfg.usage = string(opts.Usage)
-	}
-	if opts.Sensitivity != "" {
-		cfg.sensitivity = string(opts.Sensitivity)
-	}
-	if opts.CaseFirst != "" {
-		cfg.caseFirst = string(opts.CaseFirst)
-	}
-	if opts.Numeric != nil {
-		cfg.numeric = *opts.Numeric
-		cfg.numericSet = true
-	}
-	if opts.IgnorePunctuation != nil {
-		cfg.ignorePunctuation = *opts.IgnorePunctuation
-	}
-	if opts.Collation != "" {
-		cfg.collation = strings.ToLower(opts.Collation)
-	}
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOption(&cfg.usage, opts.Usage)
+	ecma402.ApplyOptionInput(&cfg.sensitivity, &cfg.sensitivitySet, opts.Sensitivity)
+	ecma402.ApplyOptionInput(&cfg.caseFirst, &cfg.caseFirstSet, opts.CaseFirst)
+	ecma402.ApplyOptionInput(&cfg.numeric, &cfg.numericSet, opts.Numeric)
+	ecma402.ApplyOption(&cfg.ignorePunctuation, opts.IgnorePunctuation)
+	ecma402.ApplyUnicodeTypeOptionInput(&cfg.collation, &cfg.collationSet, opts.Collation)
 }
 
-func (cfg config) validate(loc locale.Locale) error {
-	if check, ok := ecma402.InvalidStringOption(ecma402.LocaleMatcherOption(cfg.localeMatcher)); ok {
-		return invalidOption(check.Name, check.Value, loc)
+func (cfg config) validate(locName string) error {
+	if err := ecma402.ValidateStringOptions(
+		collatorOwner,
+		locName,
+		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.localeMatcherSet),
+		usageOption(cfg.usage),
+	); err != nil {
+		return err
 	}
-	switch cfg.usage {
-	case string(SortUsage):
-	case string(SearchUsage):
-		return unsupportedOption("usage", cfg.usage, loc)
-	default:
-		return invalidOption("usage", cfg.usage, loc)
+	if err := ecma402.ValidateSupportedStringOptions(collatorOwner, locName, supportedUsageOption(cfg.usage)); err != nil {
+		return err
 	}
-	if check, ok := ecma402.InvalidStringOption(
-		ecma402.OptionalStringOption("sensitivity", cfg.sensitivity, string(BaseSensitivity), string(AccentSensitivity), string(CaseSensitivity), string(VariantSensitivity)),
-		ecma402.OptionalStringOption("caseFirst", cfg.caseFirst, string(FalseCaseFirst), string(UpperCaseFirst), string(LowerCaseFirst)),
-	); ok {
-		return invalidOption(check.Name, check.Value, loc)
+	if err := ecma402.ValidateStringOptions(
+		collatorOwner,
+		locName,
+		sensitivityOptionInput(cfg.sensitivity, cfg.sensitivitySet),
+		caseFirstOptionInput(cfg.caseFirst, cfg.caseFirstSet),
+	); err != nil {
+		return err
 	}
-	if cfg.caseFirst == string(UpperCaseFirst) || cfg.caseFirst == string(LowerCaseFirst) {
-		return unsupportedOption("caseFirst", cfg.caseFirst, loc)
-	}
-	if cfg.collation != "" {
-		if !ecma402.IsWellFormedUnicodeType(cfg.collation) {
-			return invalidOption("collation", cfg.collation, loc)
-		}
-		if !isDefaultCollation(cfg.collation) {
-			return unsupportedOption("collation", cfg.collation, loc)
+	if cfg.caseFirst != "" {
+		if err := ecma402.ValidateSupportedStringOptions(collatorOwner, locName, supportedCaseFirstOption(cfg.caseFirst)); err != nil {
+			return err
 		}
 	}
-	return nil
+	return ecma402.ValidateUnicodeTypeOptionInput(collatorOwner, "collation", cfg.collation, locName, cfg.collationSet)
 }
 
-func isDefaultCollation(value string) bool {
-	return value == "default" || value == "standard" || value == "search"
+func usageOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption("usage", value, collatorUsageValues[:]...)
 }
 
-func invalidOption(name, value string, loc locale.Locale) error {
-	return ecma402.InvalidOptionError("collator", name, value, loc.String(), intlerr.ErrInvalidOption)
+func supportedUsageOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption("usage", value, supportedCollatorUsageValues[:]...)
 }
 
-func unsupportedOption(name, value string, loc locale.Locale) error {
-	return ecma402.UnsupportedOptionError("collator", name, value, loc.String(), intlerr.ErrUnsupportedOption)
+func sensitivityOptionInput(value string, present bool) ecma402.StringOption {
+	return ecma402.OptionalStringOptionInput(
+		"sensitivity",
+		value,
+		present,
+		collatorSensitivityValues[:]...,
+	)
+}
+
+func caseFirstOptionInput(value string, present bool) ecma402.StringOption {
+	return ecma402.OptionalStringOptionInput(
+		"caseFirst",
+		value,
+		present,
+		collatorCaseFirstValues[:]...,
+	)
+}
+
+func supportedCaseFirstOption(value string) ecma402.StringOption {
+	return ecma402.RequiredStringOption("caseFirst", value, supportedCollatorCaseFirstValues[:]...)
 }

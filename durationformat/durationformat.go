@@ -7,14 +7,19 @@ import (
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	"github.com/agentable/go-intl/internal/ecma402"
 	"github.com/agentable/go-intl/internal/localematcher"
+	"github.com/agentable/go-intl/listformat"
 	"github.com/agentable/go-intl/locale"
 )
 
 type DurationFormat struct {
-	resolved    ResolvedOptions
-	unitOptions [unitCount]resolvedUnitConfig
-	separator   string
-	formatters  durationFormatters
+	resolved                        ResolvedOptions
+	unitOptions                     [unitCount]resolvedUnitConfig
+	listFormatter                   *listformat.ListFormat
+	unitFormatters                  [unitCount]durationNumberFormatters
+	unitFractionFormatters          [unitCount]durationNumberFormatters
+	numericFormatters               [unitCount]durationNumberFormatters
+	secondsNumericFractionFormatter durationNumberFormatters
+	separator                       string
 }
 
 var durationLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
@@ -23,81 +28,45 @@ var durationLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
 
 func New(locales locale.List, opts Options) (*DurationFormat, error) {
 	validationLocale := ecma402.ValidationLocale(locales)
+	validationLocaleName := validationLocale.String()
 	cfg := defaultConfig()
 	applyOptions(&cfg, opts)
-	if err := cfg.validate(validationLocale); err != nil {
+	if err := cfg.validate(validationLocaleName); err != nil {
 		return nil, err
 	}
 	resolvedLocale, cldrLoc, numberingSystem := resolveLocale(locales, validationLocale, cfg)
-	unitOptions, err := resolveUnitOptions(cfg, validationLocale)
+	unitOptions, err := resolveUnitOptions(cfg, validationLocaleName)
 	if err != nil {
 		return nil, err
 	}
-	resolved := ResolvedOptions{
-		Locale:              resolvedLocale,
-		NumberingSystem:     numberingSystem,
-		Style:               Style(cfg.style),
-		Years:               publicUnitStyle(unitOptions[yearsIndex].style),
-		YearsDisplay:        unitOptions[yearsIndex].display,
-		Months:              publicUnitStyle(unitOptions[monthsIndex].style),
-		MonthsDisplay:       unitOptions[monthsIndex].display,
-		Weeks:               publicUnitStyle(unitOptions[weeksIndex].style),
-		WeeksDisplay:        unitOptions[weeksIndex].display,
-		Days:                publicUnitStyle(unitOptions[daysIndex].style),
-		DaysDisplay:         unitOptions[daysIndex].display,
-		Hours:               publicUnitStyle(unitOptions[hoursIndex].style),
-		HoursDisplay:        unitOptions[hoursIndex].display,
-		Minutes:             publicUnitStyle(unitOptions[minutesIndex].style),
-		MinutesDisplay:      unitOptions[minutesIndex].display,
-		Seconds:             publicUnitStyle(unitOptions[secondsIndex].style),
-		SecondsDisplay:      unitOptions[secondsIndex].display,
-		Milliseconds:        publicUnitStyle(unitOptions[millisecondsIndex].style),
-		MillisecondsDisplay: unitOptions[millisecondsIndex].display,
-		Microseconds:        publicUnitStyle(unitOptions[microsecondsIndex].style),
-		MicrosecondsDisplay: unitOptions[microsecondsIndex].display,
-		Nanoseconds:         publicUnitStyle(unitOptions[nanosecondsIndex].style),
-		NanosecondsDisplay:  unitOptions[nanosecondsIndex].display,
-	}
-	if cfg.hasFractionalDigits {
-		resolved.FractionalDigits = &cfg.fractionalDigits
-	}
+	resolved := resolvedOptionsForDurationFormat(resolvedLocale, numberingSystem, cfg, unitOptions)
 	symbols := cldrLoc.NumberSymbols(numberingSystem)
 	separator := symbols.TimeSeparator
-	if separator == "" {
-		separator = ":"
+	format := &DurationFormat{
+		resolved:    resolved,
+		unitOptions: unitOptions,
+		separator:   separator,
 	}
-	formatters, err := buildDurationFormatters(resolved, unitOptions)
-	if err != nil {
+	if err := buildDurationFormatters(format); err != nil {
 		return nil, err
 	}
-	return &DurationFormat{resolved: resolved, unitOptions: unitOptions, separator: separator, formatters: formatters}, nil
+	return format, nil
 }
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrnumber.Locale, string) {
-	defaultLocale := ecma402.DefaultLocale()
 	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
 		Locales:               locales,
 		Fallback:              fallback,
 		LocaleMatcher:         cfg.localeMatcher,
 		Matcher:               durationLocaleMatcher(),
-		RelevantExtensionKeys: []string{"nu"},
-		OptionValues:          []localematcher.Option{{Key: "nu", Value: cfg.numberingSystem}},
+		RelevantExtensionKeys: ecma402.NumberingSystemExtensionKeys(),
+		OptionValues:          ecma402.NumberingSystemExtensionOptions(cfg.numberingSystem),
 		LocaleData:            cldrnumber.NumberLocaleData{},
 	})
-	cldrLoc, ok := cldrnumber.ResolveLocale(resolution.DataLocale)
-	if !ok {
-		cldrLoc, _ = cldrnumber.ResolveLocale(defaultLocale)
-	}
-	numberingSystem := resolution.Extensions["nu"]
+	cldrLoc := ecma402.ResolveDataLocale(resolution, cldrnumber.ResolveLocale)
+	numberingSystem := resolution.Extensions[ecma402.UnicodeExtensionKeyNumberingSystem]
 	if numberingSystem == "" {
 		numberingSystem = cldrLoc.DefaultNumberingSystem()
 	}
 	return resolution.Locale, cldrLoc, numberingSystem
-}
-
-func publicUnitStyle(style UnitStyle) UnitStyle {
-	if style == fractionalUnitStyle {
-		return NumericUnitStyle
-	}
-	return style
 }

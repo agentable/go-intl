@@ -71,7 +71,7 @@ func TestResolveLocale(t *testing.T) {
 				Requested:             []string{"th-u-ca-buddhist-nu-thai"},
 				DefaultLocale:         "en",
 				RelevantExtensionKeys: []string{"ca", "nu"},
-				Options:               map[string]string{"ca": "gregory"},
+				OptionValues:          []Option{{Key: "ca", Value: "gregory"}},
 				LocaleData: testLocaleData{
 					"th": {
 						"ca": []string{"buddhist", "gregory"},
@@ -82,6 +82,23 @@ func TestResolveLocale(t *testing.T) {
 			locale:    "th-u-nu-thai",
 			data:      "th",
 			extension: map[string]string{"ca": "gregory", "nu": "thai"},
+		},
+		{
+			name: "unsupported option keeps supported unicode extension",
+			opts: ResolveOptions{
+				Algorithm:             AlgorithmLookup,
+				Supported:             []string{"th", "en"},
+				Requested:             []string{"th-u-ca-buddhist"},
+				DefaultLocale:         "en",
+				RelevantExtensionKeys: []string{"ca"},
+				OptionValues:          []Option{{Key: "ca", Value: "islamic"}},
+				LocaleData: testLocaleData{
+					"th": {"ca": []string{"gregory", "buddhist"}},
+				},
+			},
+			locale:    "th-u-ca-buddhist",
+			data:      "th",
+			extension: map[string]string{"ca": "buddhist"},
 		},
 		{
 			name: "derived available locale keeps backed data locale",
@@ -107,7 +124,7 @@ func TestResolveLocale(t *testing.T) {
 				Requested:             []string{"en-u-ca-buddhist"},
 				DefaultLocale:         "en",
 				RelevantExtensionKeys: []string{"ca"},
-				Options:               map[string]string{"ca": "islamic"},
+				OptionValues:          []Option{{Key: "ca", Value: "islamic"}},
 				LocaleData: testLocaleData{
 					"en": {"ca": []string{"gregory"}},
 				},

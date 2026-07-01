@@ -102,3 +102,89 @@ func (r *Reader) StringRef(data string) string {
 	length := r.Uvarint()
 	return data[off : off+length]
 }
+
+// StringRefSlice reads a count-prefixed sequence of string references from the
+// cursor and resolves each reference against data.
+func (r *Reader) StringRefSlice(data string) []string {
+	count := r.Uvarint()
+	out := make([]string, count)
+	for i := range out {
+		out[i] = r.StringRef(data)
+	}
+	return out
+}
+
+// StringRefMap reads a count-prefixed map whose keys and values are string
+// references resolved against data. A zero count returns nil because generated
+// optional map fields use nil as their absent value.
+func (r *Reader) StringRefMap(data string) map[string]string {
+	count := r.Uvarint()
+	if count == 0 {
+		return nil
+	}
+	out := make(map[string]string, count)
+	for range count {
+		key := r.StringRef(data)
+		out[key] = r.StringRef(data)
+	}
+	return out
+}
+
+// StringRefKeyMap reads a count-prefixed map whose keys are string references
+// resolved against data and whose values are decoded by decode.
+func StringRefKeyMap[V any](r *Reader, data string, decode func(*Reader) V) map[string]V {
+	count := r.Uvarint()
+	if count == 0 {
+		return nil
+	}
+	out := make(map[string]V, count)
+	for range count {
+		key := r.StringRef(data)
+		out[key] = decode(r)
+	}
+	return out
+}
+
+// CountedSlice reads a count-prefixed sequence whose values are decoded by
+// decode. A zero count returns an empty non-nil slice, matching Go's natural
+// make([]T, 0) behavior for generated present-but-empty sequences.
+func CountedSlice[V any](r *Reader, decode func(*Reader) V) []V {
+	count := r.Uvarint()
+	out := make([]V, count)
+	for i := range out {
+		out[i] = decode(r)
+	}
+	return out
+}
+
+// Uint16DeltaMap reads a count-prefixed map whose uint16 keys are delta-coded in
+// ascending order and whose values are decoded by decode.
+func Uint16DeltaMap[K ~uint16, V any](r *Reader, decode func(*Reader) V) map[K]V {
+	count := r.Uvarint()
+	out := make(map[K]V, count)
+	keys := Delta(r)
+	for range count {
+		key := K(keys.Next())
+		out[key] = decode(r)
+	}
+	return out
+}
+
+// Uint32DeltaSlice reads a count-prefixed sequence whose uint32 keys are
+// delta-coded in ascending order and whose values are decoded by decode.
+func Uint32DeltaSlice[V any](r *Reader, decode func(uint32, *Reader) V) []V {
+	count := r.Uvarint()
+	out := make([]V, count)
+	keys := Delta(r)
+	for i := range out {
+		out[i] = decode(keys.Next32(), r)
+	}
+	return out
+}
+
+// StringRefSlice decodes a whole generated blob that contains only a
+// count-prefixed sequence of string references.
+func StringRefSlice(blob, data string) []string {
+	r := NewReader(blob)
+	return r.StringRefSlice(data)
+}

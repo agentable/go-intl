@@ -1,6 +1,9 @@
 package displaynames
 
-import "github.com/agentable/go-intl/locale"
+import (
+	"github.com/agentable/go-intl/internal/ecma402"
+	"github.com/agentable/go-intl/locale"
+)
 
 type ResolvedOptions struct {
 	Locale   locale.Locale `json:"locale"`
@@ -15,9 +18,6 @@ type ResolvedOptions struct {
 
 func (d *DisplayNames) ResolvedOptions() ResolvedOptions {
 	resolved := d.resolved
-	if resolved.LanguageDisplay != nil {
-		languageDisplay := *resolved.LanguageDisplay
-		resolved.LanguageDisplay = &languageDisplay
-	}
+	resolved.LanguageDisplay = ecma402.CloneResolvedScalar(resolved.LanguageDisplay)
 	return resolved
 }

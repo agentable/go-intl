@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
+	"github.com/agentable/go-intl/internal/ecma402"
 	ecma402dtf "github.com/agentable/go-intl/internal/ecma402/datetimeformat"
 	"github.com/agentable/go-intl/internal/pattern"
 )
@@ -28,99 +29,79 @@ type selectedPattern struct {
 	timeIntervalOptions ecma402dtf.Options
 }
 
-func (f *DateTimeFormat) selectPattern() selectedPattern {
-	resolved := f.resolved
-	patterns := f.patternData()
-	if resolved.DateStyle != "" && resolved.TimeStyle != "" {
-		datePattern := dateStylePattern(f.gregorian, resolved.DateStyle)
-		timePattern := timeStylePattern(f.gregorian, resolved.TimeStyle)
-		dateFormat, _ := f.styleDateIntervalFormat(resolved.DateStyle)
-		timeFormat, _ := f.styleTimeIntervalFormat(resolved.TimeStyle)
-		dateStyleOptions := patterns.style(resolved.DateStyle)
-		timeStyleOptions := patterns.style(resolved.TimeStyle)
+func selectPattern(patterns *patternData, formatMatcher FormatMatcher, resolved ResolvedOptions, uses24Hour bool, gregorian cldrdate.Gregorian) selectedPattern {
+	appendItems := gregorian.AppendItems
+	dateStyle := ecma402.ResolvedScalarValue(resolved.DateStyle)
+	timeStyle := ecma402.ResolvedScalarValue(resolved.TimeStyle)
+	if dateStyle != "" && timeStyle != "" {
+		datePattern := dateStylePattern(gregorian, dateStyle)
+		timePattern := timeStylePattern(gregorian, timeStyle)
+		dateFormat := styleDateIntervalFormat(patterns, dateStyle, formatMatcher, appendItems)
+		timeFormat := styleTimeIntervalFormat(patterns, timeStyle, formatMatcher, appendItems)
+		dateStyleOptions := patterns.style(dateStyle)
+		timeStyleOptions := patterns.style(timeStyle)
 		return selectedPattern{
 			kind:                patternDateTime,
 			date:                datePattern,
 			time:                timePattern,
-			dateTime:            dateTimeStylePattern(f.gregorian, resolved.DateStyle),
+			dateTime:            dateTimeStylePattern(gregorian, dateStyle),
 			dateSkeleton:        dateFormat.Skeleton,
 			timeSkeleton:        timeFormat.Skeleton,
 			dateIntervalOptions: dateStyleOptions.dateOptions,
 			timeIntervalOptions: timeStyleOptions.timeOptions,
 		}
 	}
-	if resolved.DateStyle != "" {
-		datePattern := dateStylePattern(f.gregorian, resolved.DateStyle)
-		dateFormat, _ := f.styleDateIntervalFormat(resolved.DateStyle)
+	if dateStyle != "" {
+		datePattern := dateStylePattern(gregorian, dateStyle)
+		dateFormat := styleDateIntervalFormat(patterns, dateStyle, formatMatcher, appendItems)
 		return selectedPattern{
 			kind:                patternDate,
 			date:                datePattern,
 			dateSkeleton:        dateFormat.Skeleton,
-			dateIntervalOptions: patterns.style(resolved.DateStyle).dateOptions,
+			dateIntervalOptions: patterns.style(dateStyle).dateOptions,
 		}
 	}
-	if resolved.TimeStyle != "" {
-		timePattern := timeStylePattern(f.gregorian, resolved.TimeStyle)
-		timeFormat, _ := f.styleTimeIntervalFormat(resolved.TimeStyle)
+	if timeStyle != "" {
+		timePattern := timeStylePattern(gregorian, timeStyle)
+		timeFormat := styleTimeIntervalFormat(patterns, timeStyle, formatMatcher, appendItems)
 		return selectedPattern{
 			kind:                patternTime,
 			time:                timePattern,
 			timeSkeleton:        timeFormat.Skeleton,
-			timeIntervalOptions: patterns.style(resolved.TimeStyle).timeOptions,
+			timeIntervalOptions: patterns.style(timeStyle).timeOptions,
 		}
 	}
-	if pattern, ok := f.componentPattern(); ok {
+	if pattern, ok := componentPattern(patterns, formatMatcher, resolved, uses24Hour, gregorian, appendItems); ok {
 		return pattern
 	}
 	return selectedPattern{}
 }
 
-func (f *DateTimeFormat) patternData() *patternData {
-	if f.patterns != nil {
-		return f.patterns
-	}
-	return buildPatternData(f.gregorian)
-}
-
-func (p selectedPattern) parts(f *DateTimeFormat, t localTime) ([]Part, bool) {
+func (p selectedPattern) parts(f *DateTimeFormat, t localTime) []Part {
 	switch p.kind {
 	case patternDate:
-		return f.formatDatePattern(p.date, t), true
+		return f.formatPattern(p.date, t)
 	case patternTime:
-		return f.formatTimePattern(p.time, t), true
+		return f.formatPattern(p.time, t)
 	case patternDateTime:
-		dateParts := f.formatDatePattern(p.date, t)
-		timeParts := f.formatTimePattern(p.time, t)
-		return interpolateDateTimeParts(p.dateTime, dateParts, timeParts), true
+		dateParts := f.formatPattern(p.date, t)
+		timeParts := f.formatPattern(p.time, t)
+		return interpolateDateTimeParts(p.dateTime, dateParts, timeParts)
 	case patternNone:
 	}
-	return nil, false
+	return nil
 }
 
 func dateStylePattern(g cldrdate.Gregorian, style Style) string {
-	switch style {
-	case FullDateTimeStyle:
-		return g.DateFormats[0]
-	case LongDateTimeStyle:
-		return g.DateFormats[1]
-	case MediumDateTimeStyle:
-		return g.DateFormats[2]
-	case ShortDateTimeStyle:
-		return g.DateFormats[3]
+	if idx, ok := knownDateTimeStyleIndex(style); ok {
+		return g.DateFormats[idx]
 	}
 	return ""
 }
 
 func timeStylePattern(g cldrdate.Gregorian, style Style) string {
-	switch style {
-	case FullDateTimeStyle:
-		return g.TimeFormats[0]
-	case LongDateTimeStyle:
-		return g.TimeFormats[1]
-	case MediumDateTimeStyle:
-		return g.TimeFormats[2]
-	case ShortDateTimeStyle:
-		return g.TimeFormats[3]
+	if idx, ok := knownDateTimeStyleIndex(style); ok {
+		return g.TimeFormats[idx]
 	}
 	return ""
 }
@@ -133,41 +114,29 @@ func dateTimeStylePattern(g cldrdate.Gregorian, style Style) string {
 }
 
 func dateTimeAtStylePattern(g cldrdate.Gregorian, style Style) string {
-	switch style {
-	case FullDateTimeStyle:
-		return g.DateTimeAtFormats[0]
-	case LongDateTimeStyle:
-		return g.DateTimeAtFormats[1]
-	case MediumDateTimeStyle:
-		return g.DateTimeAtFormats[2]
-	case ShortDateTimeStyle:
-		return g.DateTimeAtFormats[3]
+	if idx, ok := knownDateTimeStyleIndex(style); ok {
+		return g.DateTimeAtFormats[idx]
 	}
 	return ""
 }
 
 func dateTimeStandardStylePattern(g cldrdate.Gregorian, style Style) string {
-	switch style {
-	case FullDateTimeStyle:
-		return g.DateTimeFormats[0]
-	case LongDateTimeStyle:
-		return g.DateTimeFormats[1]
-	case MediumDateTimeStyle:
-		return g.DateTimeFormats[2]
-	case ShortDateTimeStyle:
-		return g.DateTimeFormats[3]
+	if idx, ok := knownDateTimeStyleIndex(style); ok {
+		return g.DateTimeFormats[idx]
 	}
 	return ""
 }
 
-func (f *DateTimeFormat) componentPattern() (selectedPattern, bool) {
-	opts := f.matcherOptions()
+func componentPattern(patterns *patternData, formatMatcher FormatMatcher, resolved ResolvedOptions, uses24Hour bool, gregorian cldrdate.Gregorian, appendItems map[string]string) (selectedPattern, bool) {
+	opts := matcherOptions(resolved, uses24Hour)
 	hasDate := hasDateMatcherOptions(opts)
 	hasTime := hasTimeMatcherOptions(opts)
 	switch {
 	case hasDate && hasTime:
-		dateFormat, dateOK := f.matchComponentPattern(dateOnlyMatcherOptions(opts), f.datePatternCandidates())
-		timeFormat, timeOK := f.matchComponentPattern(timeOnlyMatcherOptions(opts), f.timePatternCandidates(opts))
+		dateOpts := dateOnlyMatcherOptions(opts)
+		timeOpts := timeOnlyMatcherOptions(opts)
+		dateFormat, dateOK := matchComponentPattern(formatMatcher, dateOpts, patterns.dateCandidates, appendItems)
+		timeFormat, timeOK := matchComponentPattern(formatMatcher, timeOpts, patterns.timePatternCandidates(timeOpts.FractionalSecondDigits), appendItems)
 		if !dateOK || !timeOK {
 			return selectedPattern{}, false
 		}
@@ -175,20 +144,20 @@ func (f *DateTimeFormat) componentPattern() (selectedPattern, bool) {
 			kind:                patternDateTime,
 			date:                dateFormat.Pattern,
 			time:                timeFormat.Pattern,
-			dateTime:            f.componentDateTimePattern(opts, dateFormat),
+			dateTime:            componentDateTimePattern(gregorian, opts, dateFormat),
 			dateSkeleton:        dateFormat.Skeleton,
 			timeSkeleton:        timeFormat.Skeleton,
-			dateIntervalOptions: dateOnlyMatcherOptions(opts),
-			timeIntervalOptions: timeOnlyMatcherOptions(opts),
+			dateIntervalOptions: dateOpts,
+			timeIntervalOptions: timeOpts,
 		}, true
 	case hasDate:
-		format, ok := f.matchComponentPattern(opts, f.datePatternCandidates())
+		format, ok := matchComponentPattern(formatMatcher, opts, patterns.dateCandidates, appendItems)
 		if !ok {
 			return selectedPattern{}, false
 		}
 		return selectedPattern{kind: patternDate, date: format.Pattern, dateSkeleton: format.Skeleton, dateIntervalOptions: opts}, true
 	case hasTime:
-		format, ok := f.matchComponentPattern(opts, f.timePatternCandidates(opts))
+		format, ok := matchComponentPattern(formatMatcher, opts, patterns.timePatternCandidates(opts.FractionalSecondDigits), appendItems)
 		if !ok {
 			return selectedPattern{}, false
 		}
@@ -198,7 +167,7 @@ func (f *DateTimeFormat) componentPattern() (selectedPattern, bool) {
 	}
 }
 
-func (f *DateTimeFormat) componentDateTimePattern(opts ecma402dtf.Options, dateFormat ecma402dtf.Formats) string {
+func componentDateTimePattern(gregorian cldrdate.Gregorian, opts ecma402dtf.Options, dateFormat ecma402dtf.Formats) string {
 	style := MediumDateTimeStyle
 	switch {
 	case dateFormat.Month == ecma402dtf.FieldLong && dateFormat.Weekday == ecma402dtf.FieldLong:
@@ -208,16 +177,19 @@ func (f *DateTimeFormat) componentDateTimePattern(opts ecma402dtf.Options, dateF
 	case opts.Year == ecma402dtf.Numeric2Digit && (opts.Month == ecma402dtf.FieldNumeric || opts.Month == ecma402dtf.Field2Digit):
 		style = ShortDateTimeStyle
 	}
-	return dateTimeStylePattern(f.gregorian, style)
+	return dateTimeStylePattern(gregorian, style)
 }
 
-func (f *DateTimeFormat) styleDateIntervalFormat(style Style) (ecma402dtf.Formats, bool) {
-	return f.matchComponentPattern(f.patternData().style(style).dateOptions, f.datePatternCandidates())
+func styleDateIntervalFormat(patterns *patternData, style Style, formatMatcher FormatMatcher, appendItems map[string]string) ecma402dtf.Formats {
+	opts := patterns.style(style).dateOptions
+	format, _ := matchComponentPattern(formatMatcher, opts, patterns.dateCandidates, appendItems)
+	return format
 }
 
-func (f *DateTimeFormat) styleTimeIntervalFormat(style Style) (ecma402dtf.Formats, bool) {
-	opts := f.patternData().style(style).timeOptions
-	return f.matchComponentPattern(opts, f.timePatternCandidates(opts))
+func styleTimeIntervalFormat(patterns *patternData, style Style, formatMatcher FormatMatcher, appendItems map[string]string) ecma402dtf.Formats {
+	opts := patterns.style(style).timeOptions
+	format, _ := matchComponentPattern(formatMatcher, opts, patterns.timePatternCandidates(opts.FractionalSecondDigits), appendItems)
+	return format
 }
 
 func timeStylePatternOptions(pattern string) ecma402dtf.Options {
@@ -225,11 +197,9 @@ func timeStylePatternOptions(pattern string) ecma402dtf.Options {
 	opts.DayPeriod = ""
 	switch opts.HourCycle {
 	case ecma402dtf.HourCycleH11, ecma402dtf.HourCycleH12:
-		v := true
-		opts.Hour12 = &v
+		opts.Hour12 = ecma402.ResolvedScalar(true)
 	case ecma402dtf.HourCycleH23, ecma402dtf.HourCycleH24:
-		v := false
-		opts.Hour12 = &v
+		opts.Hour12 = ecma402.ResolvedScalar(false)
 	}
 	return opts
 }
@@ -252,35 +222,32 @@ func stylePatternOptions(pattern string) ecma402dtf.Options {
 	}
 }
 
-func (f *DateTimeFormat) matcherOptions() ecma402dtf.Options {
-	resolved := f.resolved
+func matcherOptions(resolved ResolvedOptions, uses24Hour bool) ecma402dtf.Options {
 	hour12 := resolved.Hour12
+	hourCycle := ecma402.ResolvedScalarValue(resolved.HourCycle)
 	if hour12 == nil {
-		switch resolved.HourCycle {
+		switch hourCycle {
 		case H11HourCycle, H12HourCycle:
-			v := true
-			hour12 = &v
+			hour12 = ecma402.ResolvedScalar(true)
 		case H23HourCycle, H24HourCycle:
-			v := false
-			hour12 = &v
+			hour12 = ecma402.ResolvedScalar(false)
 		default:
-			v := !f.uses24HourTime()
-			hour12 = &v
+			hour12 = ecma402.ResolvedScalar(!uses24Hour)
 		}
 	}
 	return ecma402dtf.Options{
-		Weekday:                ecma402dtf.FieldStyle(resolved.Weekday),
-		Era:                    ecma402dtf.FieldStyle(resolved.Era),
-		Year:                   ecma402dtf.NumericStyle(resolved.Year),
-		Month:                  ecma402dtf.FieldStyle(resolved.Month),
-		Day:                    ecma402dtf.NumericStyle(resolved.Day),
-		Hour:                   ecma402dtf.NumericStyle(resolved.Hour),
-		HourCycle:              ecma402dtf.HourCycle(resolved.HourCycle),
-		Minute:                 ecma402dtf.NumericStyle(resolved.Minute),
-		Second:                 ecma402dtf.NumericStyle(resolved.Second),
-		DayPeriod:              ecma402dtf.FieldStyle(resolved.DayPeriod),
-		FractionalSecondDigits: resolved.FractionalSecondDigits,
-		TimeZoneName:           ecma402dtf.TimeZoneName(resolved.TimeZoneName),
+		Weekday:                ecma402dtf.FieldStyle(ecma402.ResolvedScalarValue(resolved.Weekday)),
+		Era:                    ecma402dtf.FieldStyle(ecma402.ResolvedScalarValue(resolved.Era)),
+		Year:                   ecma402dtf.NumericStyle(ecma402.ResolvedScalarValue(resolved.Year)),
+		Month:                  ecma402dtf.FieldStyle(ecma402.ResolvedScalarValue(resolved.Month)),
+		Day:                    ecma402dtf.NumericStyle(ecma402.ResolvedScalarValue(resolved.Day)),
+		Hour:                   ecma402dtf.NumericStyle(ecma402.ResolvedScalarValue(resolved.Hour)),
+		HourCycle:              ecma402dtf.HourCycle(hourCycle),
+		Minute:                 ecma402dtf.NumericStyle(ecma402.ResolvedScalarValue(resolved.Minute)),
+		Second:                 ecma402dtf.NumericStyle(ecma402.ResolvedScalarValue(resolved.Second)),
+		DayPeriod:              ecma402dtf.FieldStyle(ecma402.ResolvedScalarValue(resolved.DayPeriod)),
+		FractionalSecondDigits: ecma402.ResolvedScalarValue(resolved.FractionalSecondDigits),
+		TimeZoneName:           ecma402dtf.TimeZoneName(ecma402.ResolvedScalarValue(resolved.TimeZoneName)),
 		Hour12:                 hour12,
 	}
 }
@@ -314,14 +281,6 @@ func hasTimeMatcherOptions(opts ecma402dtf.Options) bool {
 	return opts.Hour != "" || opts.Minute != "" || opts.Second != "" || opts.DayPeriod != "" || opts.FractionalSecondDigits != 0 || opts.TimeZoneName != ""
 }
 
-func (f *DateTimeFormat) datePatternCandidates() []ecma402dtf.Formats {
-	return f.patternData().dateCandidates
-}
-
-func (f *DateTimeFormat) timePatternCandidates(opts ecma402dtf.Options) []ecma402dtf.Formats {
-	return f.patternData().timePatternCandidates(opts.FractionalSecondDigits)
-}
-
 func hasDateFormatOnly(format ecma402dtf.Formats) bool {
 	return hasDateFormatFields(format) && !hasTimeFormatFields(format)
 }
@@ -338,52 +297,33 @@ func hasTimeFormatFields(format ecma402dtf.Formats) bool {
 	return format.Hour != "" || format.Minute != "" || format.Second != "" || format.DayPeriod != "" || format.FractionalSecondDigits != 0 || format.TimeZoneName != ""
 }
 
-func (f *DateTimeFormat) matchComponentPattern(opts ecma402dtf.Options, candidates []ecma402dtf.Formats) (ecma402dtf.Formats, bool) {
+func matchComponentPattern(formatMatcher FormatMatcher, opts ecma402dtf.Options, candidates []ecma402dtf.Formats, appendItems map[string]string) (ecma402dtf.Formats, bool) {
 	if len(candidates) == 0 {
 		return ecma402dtf.Formats{}, false
 	}
 	var format ecma402dtf.Formats
-	if f.formatMatcher == BasicFormatMatcher {
+	if formatMatcher == BasicFormatMatcher {
 		format = ecma402dtf.MatchBasic(opts, candidates)
 	} else {
 		format = ecma402dtf.Match(opts, candidates)
 	}
 	if opts.TimeZoneName != "" && format.Pattern != "" && !format.PatternHasTimeZoneName {
-		format = f.appendTimeZoneName(format, opts.TimeZoneName)
+		format = appendTimeZoneName(format, opts.TimeZoneName, appendItems)
 	}
 	return format, format.Pattern != ""
 }
 
-func (f *DateTimeFormat) appendTimeZoneName(format ecma402dtf.Formats, style ecma402dtf.TimeZoneName) ecma402dtf.Formats {
-	text := f.gregorian.AppendItems["Timezone"]
+func appendTimeZoneName(format ecma402dtf.Formats, style ecma402dtf.TimeZoneName, appendItems map[string]string) ecma402dtf.Formats {
+	text := appendItems["Timezone"]
 	if text == "" {
 		text = "{0} {1}"
 	}
-	field := timeZonePatternField(style)
+	field := ecma402dtf.TimeZonePatternField(style)
 	format.Pattern = pattern.FormatIndexed(text, format.Pattern, field)
 	format.Skeleton += field
 	format.TimeZoneName = style
 	format.PatternHasTimeZoneName = true
 	return format
-}
-
-func timeZonePatternField(style ecma402dtf.TimeZoneName) string {
-	switch style {
-	case ecma402dtf.TimeZoneNameShort:
-		return "z"
-	case ecma402dtf.TimeZoneNameLong:
-		return "zzzz"
-	case ecma402dtf.TimeZoneNameShortOffset:
-		return "O"
-	case ecma402dtf.TimeZoneNameLongOffset:
-		return "OOOO"
-	case ecma402dtf.TimeZoneNameShortGeneric:
-		return "v"
-	case ecma402dtf.TimeZoneNameLongGeneric:
-		return "vvvv"
-	default:
-		return "z"
-	}
 }
 
 func insertFractionalSecondField(pattern string, digits int) string {

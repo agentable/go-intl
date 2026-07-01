@@ -5,10 +5,18 @@
 package displaynames
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/agentable/go-intl/internal/cldr/currency"
+	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+	"github.com/agentable/go-intl/internal/localeid"
 	"github.com/agentable/go-intl/internal/pattern"
+)
+
+const (
+	fallbackDisplayLocale = "en"
+	defaultLocalePattern  = "{0} ({1})"
 )
 
 // Of returns the localized display name for a code and whether one exists.
@@ -16,46 +24,51 @@ import (
 // kind: "language" | "region" | "script" | "currency" | "calendar" | "dateTimeField".
 // style: "long" | "short" | "narrow".
 // languageDisplay: "dialect" | "standard" (only meaningful when kind == "language").
+// fallbackCode controls whether language-with-region composition can use the
+// region code when no localized region name exists.
 //
 // When data for the requested locale is unavailable, the lookup walks the
 // truncation parent chain (e.g. en-US -> en) and finally falls back to "en".
-func Of(dataLocale, kind, style, languageDisplay, code, fallback string) (string, bool) {
-	if kind == "currency" {
-		return currencyDisplay(dataLocale, style, code)
-	}
+func Of(dataLocale, kind, style, languageDisplay, code string, fallbackCode bool) (string, bool) {
 	if kind == "calendar" {
-		if alias := calendarAlias[code]; alias != "" {
-			code = alias
-		}
+		code = calendarLookupCode(code)
 	}
 	if kind == "dateTimeField" {
-		if alias := dateTimeFieldAlias[code]; alias != "" {
-			code = alias
-		}
+		code = dateTimeFieldLookupCode(code)
 	}
 	for tag := dataLocale; tag != ""; tag = parentTag(tag) {
-		if value, ok := lookup(tag, kind, style, languageDisplay, code, fallback); ok {
+		if value, ok := lookupInLocale(tag, kind, style, languageDisplay, code, fallbackCode); ok {
 			return value, true
 		}
 	}
-	return lookup("en", kind, style, languageDisplay, code, fallback)
+	return lookupInLocale(fallbackDisplayLocale, kind, style, languageDisplay, code, fallbackCode)
 }
 
-// calendarAlias maps ECMA-402 calendar identifiers (Unicode BCP 47 `u-ca`
-// keys) to CLDR's `localeDisplayNames.types.calendar` keys.
-var calendarAlias = map[string]string{
-	"gregory": "gregorian",
-	"ethioaa": "ethiopic-amete-alem",
+// calendarLookupCode maps ECMA-402 calendar identifiers (Unicode BCP 47 `u-ca`
+// keys) to CLDR's localeDisplayNames.types.calendar keys.
+func calendarLookupCode(code string) string {
+	switch code {
+	case "gregory":
+		return "gregorian"
+	case "ethioaa":
+		return "ethiopic-amete-alem"
+	default:
+		return code
+	}
 }
 
-var dateTimeFieldAlias = map[string]string{
-	"dayPeriod": "dayperiod",
+func dateTimeFieldLookupCode(code string) string {
+	if code == "dayPeriod" {
+		return "dayperiod"
+	}
+	return code
 }
 
 // SupportedLocales returns the locale tags with display-name data. It reads only
 // the narrow supported blob and never triggers any names blob decode.
 func SupportedLocales() []string {
-	return displayNamesSupportedLocales()
+	supportedOnce.Do(loadSupported)
+	return slices.Clone(supportedTags)
 }
 
 func parentTag(tag string) string {
@@ -66,7 +79,7 @@ func parentTag(tag string) string {
 	return tag[:idx]
 }
 
-func lookup(tag, kind, style, languageDisplay, code, fallback string) (string, bool) {
+func lookupInLocale(tag, kind, style, languageDisplay, code string, fallbackCode bool) (string, bool) {
 	switch kind {
 	case "language":
 		rec, ok := languageData()[tag]
@@ -80,11 +93,13 @@ func lookup(tag, kind, style, languageDisplay, code, fallback string) (string, b
 		if value, ok := resolveStyled(display, style, code); ok {
 			return value, true
 		}
-		return resolveLanguage(tag, rec.localePattern, display, style, code, fallback == "code")
+		return resolveLanguage(tag, rec.localePattern, display, style, code, fallbackCode)
 	case "region":
 		return resolveStyledForTag(territoryData(), tag, style, code)
 	case "script":
 		return resolveStyledForTag(scriptData(), tag, style, code)
+	case "currency":
+		return currencyDisplay(tag, code)
 	case "calendar":
 		return resolveStyledForTag(calendarData(), tag, style, code)
 	case "dateTimeField":
@@ -133,7 +148,7 @@ func languageBaseAndRegion(display styledNames, style string, parts []string) (b
 		script = parts[index]
 		index++
 	}
-	if index < len(parts) && isRegionSubtag(parts[index]) {
+	if index < len(parts) && localeid.IsUnicodeRegionSubtag(parts[index]) {
 		region = parts[index]
 	}
 
@@ -148,13 +163,9 @@ func languageBaseAndRegion(display styledNames, style string, parts []string) (b
 	return "", "", false
 }
 
-func isRegionSubtag(subtag string) bool {
-	return len(subtag) == 2 || len(subtag) == 3
-}
-
 func applyLocalePattern(text, language, region string) string {
 	if text == "" {
-		text = "{0} ({1})"
+		text = defaultLocalePattern
 	}
 	return pattern.FormatIndexed(text, language, region)
 }
@@ -179,10 +190,10 @@ func resolveStyled(s styledNames, style, code string) (string, bool) {
 	return "", false
 }
 
-func currencyDisplay(dataLocale, _, code string) (string, bool) {
-	loc, ok := currency.ResolveLocale(dataLocale)
+func currencyDisplay(dataLocale, code string) (string, bool) {
+	loc, ok := cldrlocale.ResolveLocale(dataLocale)
 	if !ok {
-		loc, _ = currency.ResolveLocale("en")
+		return "", false
 	}
 	if name := currency.CanonicalName(loc, code); name != "" {
 		return name, true

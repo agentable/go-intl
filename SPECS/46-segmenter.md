@@ -23,8 +23,8 @@ const (
 )
 
 type Options struct {
-    LocaleMatcher LocaleMatcher
-    Granularity   Granularity
+    LocaleMatcher *string
+    Granularity   *string
 }
 
 type Segment struct {
@@ -50,13 +50,14 @@ func (s *Segmenter) ResolvedOptions() ResolvedOptions
 MUST rules:
 
 1. `Granularity` defaults to `GraphemeGranularity` when omitted.
-2. `Segment.CodeUnitIndex` is the ECMA-402 UTF-16 code-unit offset in the original input string.
-3. `All` is a Go 1.23 range-over-func iterator, mirroring the JavaScript iterable contract.
-4. `Segment.ByteIndex` is the UTF-8 byte offset for callers that need Go string slicing.
-5. `Containing(index)` returns the segment whose half-open UTF-16 code-unit range contains `index`. Out-of-range returns `(Segment{}, false)`.
-6. `ContainingByte(index)` returns the segment whose half-open byte range `[ByteIndex, ByteIndex+len(Segment))` contains `index`.
-7. `IsWordLike` is meaningful only when `Granularity == WordGranularity`. For other granularities the field is always `false`.
-8. `Segmenter` and `Segments` are immutable after construction; both are safe for concurrent use as long as no goroutine mutates the underlying input string.
+2. `LocaleMatcher` and `Granularity` are presence-aware: `nil` means omitted, while a non-nil pointer is an explicit option value. Explicit empty strings are invalid option values.
+3. `Segment.CodeUnitIndex` is the ECMA-402 UTF-16 code-unit offset in the original input string.
+4. `All` is a Go 1.23 range-over-func iterator, mirroring the JavaScript iterable contract.
+5. `Segment.ByteIndex` is the UTF-8 byte offset for callers that need Go string slicing.
+6. `Containing(index)` returns the segment whose half-open UTF-16 code-unit range contains `index`. Out-of-range returns `(Segment{}, false)`.
+7. `ContainingByte(index)` returns the segment whose half-open byte range `[ByteIndex, ByteIndex+len(Segment))` contains `index`.
+8. `IsWordLike` is meaningful only when `Granularity == WordGranularity`. For other granularities the Go field is `false` and JSON omits `isWordLike`, matching ECMA-402's conditional segment data property.
+9. `Segmenter` and `Segments` are immutable after construction; both are safe for concurrent use as long as no goroutine mutates the underlying input string.
 
 ---
 
@@ -124,7 +125,7 @@ MUST rules:
 2a. The manual `SupportedLocalesOf` fixture must continue to request known tailored locales and expect only the actively supported set; deleting that fixture weakens the capability boundary.
 3. Call `localematcher.FilterLocalesWithMaximizer`.
 4. Accept one `Options` value; `Options{}` represents omitted static-method options.
-5. Read only `LocaleMatcher`.
+5. Read only `LocaleMatcher`; `nil` means omitted and an explicit empty string is invalid.
 
 ---
 

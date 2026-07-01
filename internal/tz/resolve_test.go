@@ -2,7 +2,6 @@ package tz
 
 import (
 	"errors"
-	"strings"
 	"testing"
 	"time"
 )
@@ -113,6 +112,22 @@ func TestResolveIanaLink(t *testing.T) {
 	}
 }
 
+func TestResolveIanaLinkUsesCanonicalCache(t *testing.T) {
+	t.Parallel()
+
+	link, err := Resolve("US/Eastern")
+	if err != nil {
+		t.Fatalf("Resolve(US/Eastern) error = %v", err)
+	}
+	canonical, err := Resolve("America/New_York")
+	if err != nil {
+		t.Fatalf("Resolve(America/New_York) error = %v", err)
+	}
+	if link != canonical {
+		t.Fatal("Resolve(US/Eastern) and Resolve(America/New_York) returned different cached locations")
+	}
+}
+
 func TestResolveUnknownZone(t *testing.T) {
 	t.Parallel()
 
@@ -123,8 +138,12 @@ func TestResolveUnknownZone(t *testing.T) {
 	if !errors.Is(err, errors.ErrUnsupported) {
 		t.Fatalf("Resolve(Mars/Olympus) error = %v, want errors.ErrUnsupported", err)
 	}
-	if !strings.Contains(err.Error(), "Mars/Olympus") {
-		t.Fatalf("Resolve(Mars/Olympus) error = %v, want input in message", err)
+	detail, ok := errors.AsType[unsupportedTimeZoneError](err)
+	if !ok {
+		t.Fatalf("Resolve(Mars/Olympus) error = %T, want unsupportedTimeZoneError", err)
+	}
+	if detail.name != "Mars/Olympus" {
+		t.Fatalf("unsupportedTimeZoneError.name = %q, want Mars/Olympus", detail.name)
 	}
 }
 
@@ -137,6 +156,13 @@ func TestResolveRejectsInvalidFixedOffset(t *testing.T) {
 	}
 	if !errors.Is(err, errors.ErrUnsupported) {
 		t.Fatalf("Resolve(+24:00) error = %v, want errors.ErrUnsupported", err)
+	}
+	detail, ok := errors.AsType[unsupportedTimeZoneError](err)
+	if !ok {
+		t.Fatalf("Resolve(+24:00) error = %T, want unsupportedTimeZoneError", err)
+	}
+	if detail.reason != "invalid offset" || detail.name != "+24:00" {
+		t.Fatalf("unsupportedTimeZoneError = %+v, want invalid offset +24:00", detail)
 	}
 }
 
