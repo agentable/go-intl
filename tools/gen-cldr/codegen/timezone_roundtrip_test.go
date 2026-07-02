@@ -22,7 +22,7 @@ import (
 func TestTimezoneRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	data := loadTimezoneTestInput(t)
+	data, aliases := loadTimezoneTestInput(t)
 
 	// Metazone periods: probe the midpoint of every finite period and confirm the
 	// production TimeZoneMetazone resolves the metazone the period encodes.
@@ -62,7 +62,7 @@ func TestTimezoneRoundTrip(t *testing.T) {
 	}
 
 	// Supported-zone narrow index.
-	wantTags := timezoneSupportedZones(data)
+	wantTags := timezoneSupportedZones(data, aliases)
 	gotTags := timezone.SupportedTimeZones()
 	assertStringSliceEqual(t, "SupportedTimeZones", gotTags, wantTags)
 }
@@ -164,9 +164,9 @@ func periodProbeInstant(start, end int64) int64 {
 	}
 }
 
-func loadTimezoneTestInput(t *testing.T) extract.Metazones {
+func loadTimezoneTestInput(t *testing.T) (extract.Metazones, []cldr.TimeZoneAlias) {
 	t.Helper()
 
 	input := loadRoundTripSource(t)
-	return extract.ExtractMetazones(input.source.Metazones, input.profile)
+	return extract.ExtractMetazones(input.source.Metazones, input.profile), input.source.TimeZoneAliases
 }

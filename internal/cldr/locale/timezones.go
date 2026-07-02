@@ -44,12 +44,94 @@ var timeZonesByRegion = [...]regionTimeZonesRecord{
 
 func CanonicalTimeZoneLink(name string) string {
 	switch name {
+	case "Africa/Timbuktu":
+		return "Africa/Bamako"
+	case "America/Montreal":
+		return "America/Toronto"
+	case "America/Nipigon":
+		return "America/Toronto"
+	case "America/Pangnirtung":
+		return "America/Iqaluit"
+	case "America/Rainy_River":
+		return "America/Winnipeg"
+	case "America/Santa_Isabel":
+		return "America/Tijuana"
+	case "America/Shiprock":
+		return "America/Denver"
+	case "America/Thunder_Bay":
+		return "America/Toronto"
+	case "America/Yellowknife":
+		return "America/Edmonton"
+	case "Antarctica/South_Pole":
+		return "Pacific/Auckland"
+	case "Asia/Calcutta":
+		return "Asia/Kolkata"
+	case "Asia/Choibalsan":
+		return "Asia/Ulaanbaatar"
+	case "Asia/Chongqing":
+		return "Asia/Shanghai"
+	case "Asia/Harbin":
+		return "Asia/Shanghai"
+	case "Asia/Kashgar":
+		return "Asia/Urumqi"
+	case "Atlantic/Jan_Mayen":
+		return "Europe/Oslo"
+	case "Australia/Currie":
+		return "Australia/Hobart"
+	case "CST6CDT":
+		return "America/Chicago"
+	case "EST":
+		return "America/Panama"
+	case "EST5EDT":
+		return "America/New_York"
+	case "Europe/Belfast":
+		return "Europe/London"
+	case "Europe/Uzhgorod":
+		return "Europe/Kiev"
+	case "Europe/Zaporozhye":
+		return "Europe/Kiev"
+	case "HST":
+		return "Pacific/Honolulu"
+	case "MST":
+		return "America/Phoenix"
+	case "MST7MDT":
+		return "America/Denver"
+	case "PST8PDT":
+		return "America/Los_Angeles"
+	case "Pacific/Johnston":
+		return "Pacific/Honolulu"
+	case "Pacific/Yap":
+		return "Pacific/Truk"
+	case "SystemV/AST4":
+		return "America/Puerto_Rico"
+	case "SystemV/AST4ADT":
+		return "America/Halifax"
+	case "SystemV/CST6":
+		return "America/Regina"
+	case "SystemV/CST6CDT":
+		return "America/Chicago"
+	case "SystemV/EST5":
+		return "America/Indianapolis"
+	case "SystemV/EST5EDT":
+		return "America/New_York"
+	case "SystemV/HST10":
+		return "Pacific/Honolulu"
+	case "SystemV/MST7":
+		return "America/Phoenix"
+	case "SystemV/MST7MDT":
+		return "America/Denver"
+	case "SystemV/PST8":
+		return "Pacific/Pitcairn"
+	case "SystemV/PST8PDT":
+		return "America/Los_Angeles"
+	case "SystemV/YST9":
+		return "Pacific/Gambier"
+	case "SystemV/YST9YDT":
+		return "America/Anchorage"
 	case "US/Eastern":
 		return "America/New_York"
 	case "US/Pacific":
 		return "America/Los_Angeles"
-	case "Asia/Calcutta":
-		return "Asia/Kolkata"
 	}
 	return name
 }

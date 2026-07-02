@@ -62,31 +62,29 @@ const (
 type skipEntry struct {
 	Source       string `json:"source"`
 	Category     string `json:"category"`
+	Route        string `json:"route"`
 	Reason       string `json:"reason"`
 	DivergenceID string `json:"divergenceId,omitempty"`
 }
 
 const (
-	skipCategoryMissingReference          = "missing-reference"
 	skipCategoryPartialExtraction         = "partial-extraction"
 	skipCategoryUnsupportedExtractorShape = "unsupported-extractor-shape"
 
-	skipReasonFormatJSPathNotProvided         = "formatjs path not provided"
-	skipReasonFormatJSTestsPathNotFound       = "tests path not found"
+	skipRouteExtractor = "extractor"
+
+	formatJSTestsPathNotFound = "tests path not found"
+
 	skipReasonFormatJSPartialExtraction       = "mechanical assertions outside current generated fixture gate"
 	skipReasonUnsupportedVitestAssertionShape = "unsupported Vitest assertion shape"
 )
 
-func missingReferenceSkip(source, reason string) skipEntry {
-	return skipEntry{Source: source, Category: skipCategoryMissingReference, Reason: reason}
-}
-
 func formatJSImportPartialExtractionSkip(source string) skipEntry {
-	return skipEntry{Source: source, Category: skipCategoryPartialExtraction, Reason: skipReasonFormatJSPartialExtraction}
+	return skipEntry{Source: source, Category: skipCategoryPartialExtraction, Route: skipRouteExtractor, Reason: skipReasonFormatJSPartialExtraction}
 }
 
 func formatJSUnsupportedExtractorShapeSkip(source string) skipEntry {
-	return skipEntry{Source: source, Category: skipCategoryUnsupportedExtractorShape, Reason: skipReasonUnsupportedVitestAssertionShape}
+	return skipEntry{Source: source, Category: skipCategoryUnsupportedExtractorShape, Route: skipRouteExtractor, Reason: skipReasonUnsupportedVitestAssertionShape}
 }
 
 type nodeWitness struct {
@@ -194,7 +192,7 @@ func run(args []string) error {
 	if *nodePath != "" {
 		return nil
 	}
-	return writeSkips(*outDir, []skipEntry{missingReferenceSkip("formatjs", skipReasonFormatJSPathNotProvided)})
+	return fmt.Errorf("missing -formatjs or -node")
 }
 
 func writeSkips(outDir string, skips []skipEntry) error {
@@ -561,7 +559,7 @@ func importFormatJSPackageTests(path, targetRoot string, spec formatJSImportSpec
 	root := formatJSPackageTestsRoot(path, spec.packageDir)
 	if stat, err := os.Stat(root); err != nil {
 		if os.IsNotExist(err) {
-			return []skipEntry{missingReferenceSkip(spec.sourcePrefix(), skipReasonFormatJSTestsPathNotFound)}, nil
+			return nil, fmt.Errorf("%s: %s: %s", spec.sourcePrefix(), root, formatJSTestsPathNotFound)
 		}
 		return nil, err
 	} else if !stat.IsDir() {

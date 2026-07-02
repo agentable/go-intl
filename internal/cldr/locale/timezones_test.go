@@ -11,6 +11,9 @@ func TestCanonicalTimeZoneLink(t *testing.T) {
 	if got, want := CanonicalTimeZoneLink("US/Eastern"), "America/New_York"; got != want {
 		t.Fatalf("CanonicalTimeZoneLink(US/Eastern) = %q, want %q", got, want)
 	}
+	if got, want := CanonicalTimeZoneLink("America/Montreal"), "America/Toronto"; got != want {
+		t.Fatalf("CanonicalTimeZoneLink(America/Montreal) = %q, want %q", got, want)
+	}
 	if got, want := CanonicalTimeZoneLink("America/New_York"), "America/New_York"; got != want {
 		t.Fatalf("CanonicalTimeZoneLink(America/New_York) = %q, want %q", got, want)
 	}

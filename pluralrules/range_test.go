@@ -44,7 +44,15 @@ func TestPluralRulesSelectRangeDecimal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := rules.SelectRange(decimalValue("1.0"), decimalValue("1.00"))
+	got, err := rules.SelectRange(decimalValue("1"), decimalValue("1.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != Other {
+		t.Fatalf("SelectRangeDecimal(1, 1.0) = %s, want %s", got, Other)
+	}
+
+	got, err = rules.SelectRange(decimalValue("1.0"), decimalValue("1.00"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +98,7 @@ func TestPluralRulesSelectRangeReversedPreservesInputOrder(t *testing.T) {
 	}
 }
 
-func TestPluralRulesSelectRangeUsesRoundedEquality(t *testing.T) {
+func TestPluralRulesSelectRangeUsesFormattedEqualityAfterRounding(t *testing.T) {
 	t.Parallel()
 
 	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{MaximumFractionDigits: intPtr(0)})

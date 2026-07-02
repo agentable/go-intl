@@ -18,9 +18,9 @@ This SPEC decides:
 2. The `Decimal` type that provides the ECMA-402 abstraction layer narrow interface in `internal/decimal/`; apd as a backend, but does not expose the apd type through the public API (to facilitate future switching).
 3. Nine ECMA-402 rounding modes → 8 GDA mode mappings of apd + `halfFloor` self-implemented patch.
 4. `RoundingPriority` / `RoundingIncrement` / `TrailingZeroDisplay` Three ES 2025 V3 algorithms are implemented in this package (SPEC 20 / 40 only for consumption).
-5. Implement the `MathematicalValue` interface (defined in SPEC 12 §6) and inject `*Decimal` into the abstraction layer.
+5. Formatter packages carry numeric inputs through `internal/ecma402.NumericValue`; the concrete `internal/decimal.Decimal` value is consumed directly by shared number-format and plural-rules algorithms. There is no active `MathematicalValue` interface layer.
 
-This SPEC **not** defines: NumberFormat option pipeline (SPEC 20), PluralRules rule compilation (SPEC 40), CLDR currency precision data (SPEC 50), `MathematicalValue` interface itself (SPEC 12 §6 defined).
+This SPEC **not** defines: NumberFormat option pipeline (SPEC 20), PluralRules rule compilation (SPEC 40), CLDR currency precision data (SPEC 50), or formatter public `Value` wrappers.
 
 ---
 
@@ -70,7 +70,7 @@ internal/decimal/
 ├── log10.go ← Log10Floor (for ComputeExponent)
 ├── trailing_zero.go ← TrailingZeroDisplay algorithm
 ├── priority.go       ← RoundingPriority(auto / morePrecision / lessPrecision)
-└── math_value.go ← Implements SPEC 12 §6 MathematicalValue interface
+└── math_value.go ← ToIntlMathematicalValue internal conversion helper
 ```
 
 > **Why private package**: Users **cannot** directly construct Decimal; `internal/` forces the apd dependency to be hidden, making "switching the Decimal backend" a single point of modification.
@@ -116,9 +116,6 @@ NaN // Not a numeric value
 NaNSignaling // signaling NaN (internal)
 )
 
-// Form returns the type of d.
-func (d Decimal) Form() Form
-
 // Sign returns -1 / 0 / +1 (NaN returns 0, Inf according to the Negative field).
 func (d Decimal) Sign() int
 
@@ -130,14 +127,12 @@ func (d Decimal) IsNaN() bool
 func (d Decimal) IsInf() bool
 func (d Decimal) IsFinite() bool
 
-// Exponent returns decimal exponent (Finite form); other forms return 0.
-func (d Decimal) Exponent() int32
-
-// Coeff returns the absolute value string of the decimal coefficient (big.Int.String()); NaN/Inf returns an empty string.
-func (d Decimal) Coeff() string
-
 // Negative returns the sign bit (Inf / Finite are both meaningful).
 func (d Decimal) Negative() bool
+
+// Cmp compares finite decimal values. Callers must reject NaN/non-finite inputs
+// before using it where ECMA-402 would throw.
+func (d Decimal) Cmp(other Decimal) int
 ```
 
 > **Why fields are all exposed through methods**: `apd.Decimal` public fields (`Negative` / `Coefficient` / `Exponent` / `Form`) allow direct mutation; our `Decimal` uses value semantics + read-only method, and the client cannot mutate the intermediate state.
@@ -199,42 +194,27 @@ func ParseString(s string) (Decimal, error)
 ```go
 // internal/decimal/decimal.go(signature)
 
-// Add / Sub / Mul / Div returns a new Decimal (without modifying the receiver).
-// NaN contagion: Return NaNValue when any operand is NaN.
-// Inf arithmetic follows IEEE-754: Inf - Inf = NaN; 0 × Inf = NaN; Inf / Inf = NaN.
-func (d Decimal) Add(other Decimal) Decimal
-func (d Decimal) Sub(other Decimal) Decimal
-func (d Decimal) Mul(other Decimal) Decimal
-func (d Decimal) Div(other Decimal) (Decimal, error) // 0/0 returns NaN; non-zero/0 returns ±Inf
+// Cmp compares finite values. Callers own NaN/non-finite rejection.
+func (d Decimal) Cmp(other Decimal) int
 
-// Neg returns -d(NaN is still NaN).
-func (d Decimal) Neg() Decimal
+// Abs returns d without a sign.
+func Abs(d Decimal) Decimal
 
-// Abs returns |d|.
-func (d Decimal) Abs() Decimal
+// AbsDiffCmp compares |base-a| and |base-b| for rounding-priority selection.
+func AbsDiffCmp(base, a, b Decimal) int
 
-// Cmp compares d with other:
-//   -1 = d <  other
-// 0 = d == other(NaN-aware: If any one is NaN, return -1? See below)
-//   +1 = d >  other
-//
-// NaN processing: When any operand is NaN, ErrNaNComparison (IEEE-754 recommendation) is returned;
-// The caller needs to check IsNaN first and then Cmp.
-func (d Decimal) Cmp(other Decimal) (int, error)
+// MulInt returns d multiplied by n, preserving non-finite values.
+func MulInt(d Decimal, n int64) Decimal
 
-// Equal is NaN-aware equivalent: NaN == NaN returns false (IEEE-754), otherwise go to Cmp.
-// Equal does not return an error (NaN is directly false).
-func (d Decimal) Equal(other Decimal) bool
-
-// PowerOf10 returns 10^n; n can be negative; NaN input returns NaN.
-func PowerOf10(n int) Decimal
+// Scale10 returns d multiplied by 10^exp by adjusting the decimal exponent.
+func Scale10(d Decimal, exp int32) Decimal
 ```
 
-> **Why `Cmp` returns error but `Equal` does not**:
-> - `Cmp` is 3-valued (`<` / `=` / `>`); NaN has no 3-valued answer, IEEE-754 recommends "unordered" - Go expresses it with error.
-> - `Equal` is a 2-valued bool;NaN ≠ NaN (IEEE-754), which naturally maps to false.
->
-> **Why does not implement Go `==` (Decimal is not comparable)**: `apd.Decimal` contains `big.Int` (non-comparable) internally; after embedding, Decimal is not either. Forced to go `Equal()`.
+`internal/decimal` is not a general-purpose arithmetic package. It exports only
+the operations consumed by NumberFormat and PluralRules: comparison, sign/finite
+inspection, decimal scaling, integer multiplication, and rounding helpers.
+Additional arithmetic stays unexported until a formatter algorithm actually
+needs it.
 
 ### 2.4 String round trip
 
@@ -286,15 +266,16 @@ d. Otherwise: Convert primValue to Decimal via "the shortest round-trip string"
 // ToIntlMathematicalValue implements ECMA-402 §6.4.
 //
 // Accept input (called uniformly by NumberFormat / PluralRules at the boundary):
+//   - nil / bool
 //   - int / int8 / int16 / int32 / int64
-//   - uint / uint8 / uint16 / uint32 / uint64
+//   - uint / uint8 / uint16 / uint32 / uint64 / uintptr
 //   - float32 / float64
-//   - *big.Int / *big.Float / *big.Rat
+//   - *big.Int / big.Int
 //   - string(StringNumericLiteral)
 // - Decimal (through)
-// - fmt.Stringer (recurse after taking String())
 //
-// Not accepted: nil / bool / composite type / any struct.
+// Not accepted: big.Float, big.Rat, fmt.Stringer-only values, composite type,
+// or arbitrary structs.
 func ToIntlMathematicalValue(value any) (Decimal, error)
 ```
 
@@ -524,37 +505,48 @@ func Log10Floor(x Decimal) (int32, error)
 
 ---
 
-## 6. MathematicalValue interface implementation
+## 6. NumericValue bridge
 
-### 6.1 SPEC 12 §6 Interface
+### 6.1 Shared numeric record
 
-[SPEC 12 §6](./12-abstract-operations.md#6-math-value-boundary) defines the abstraction layer interface (in `internal/ecma402/types.go`):
+Formatter packages do not expose `decimal.Decimal` directly. Public packages
+wrap numeric inputs in package-local `Value` types; those wrappers carry an
+`internal/ecma402.NumericValue` record:
 
 ```go
-// Documented by SPEC 12 §6, this SPEC is implementation only.
 package ecma402
-type MathematicalValue interface {
-// (The specific method set is owned by SPEC 12; this SPEC is not repeated)
+
+type NumericValueKind uint8
+
+const (
+    NumericValueDecimal NumericValueKind = iota
+    NumericValueInt64
+    NumericValueUint64
+)
+
+type NumericValue struct {
+    Decimal decimal.Decimal
+    Kind    NumericValueKind
+    Int64   int64
+    Uint64  uint64
 }
 ```
 
-### 6.2 Implement binding
+The kind field preserves integer fast paths without widening the public API.
+The decimal field remains the general ECMA-402 mathematical value consumed by
+shared digit formatting and plural operand logic.
+
+### 6.2 Conversion owner
 
 ```go
-// internal/ecma402/decimal_test.go (signature)
-package ecma402
+package decimal
 
-import "github.com/agentable/go-intl/internal/decimal"
-
-// Compile-time assertion: Decimal implements the SPEC 12 §6 MathematicalValue interface.
-var _ MathematicalValue = decimal.Decimal{}
-
-// Implementation details are omitted; each method is derived from d.Form() / d.Coeff() / d.Exponent().
+func ToIntlMathematicalValue(value any) (Decimal, error)
 ```
 
-> **Why assertions are placed in SPEC 12 tests instead of `internal/decimal` production code**: `MathematicalValue` is now at root `internal/ecma402`;`internal/decimal` Production code must not reverse import the abstraction layer. Test assertions verify the contract but do not change the direction of production dependencies.
->
-> **Why compile-time assertion `var _`**: Compilation fails immediately when the interface signature changes to avoid nil interface panic at runtime; Go idiom.
+`ToIntlMathematicalValue` is an internal conversion helper for test and bridge
+call sites that still accept `any`. Formatter public APIs should prefer typed
+`Value` constructors so ordinary method calls do not repeat type switches.
 
 ---
 
@@ -575,7 +567,8 @@ var (
 // ErrInvalidRoundingIncrement: Not in the ValidRoundingIncrements list.
     ErrInvalidRoundingIncrement = errors.New("decimal: invalid rounding increment")
 
-// ErrNaNComparison: When Cmp, any operand is NaN.
+// ErrNaNComparison: Reserved comparison-domain sentinel; current Cmp callers
+// reject NaN/non-finite values before comparison instead of returning this.
     ErrNaNComparison = errors.New("decimal: NaN in comparison")
 
 // ErrLog10Domain: Log10Floor input is 0 or non-Finite.
@@ -647,28 +640,24 @@ f.Add(f, big.NewFloat(0.2))
 fmt.Println(f.Text('g', -1))  // "0.30000000000000004"
 
 // ✅ Correct: Decimal
-a, _ := decimal.ToIntlMathematicalValue("0.1")
-b, _ := decimal.ToIntlMathematicalValue("0.2")
-sum := a.Add(b)
-fmt.Println(sum.String())  // "0.3"
+d, _ := decimal.ToIntlMathematicalValue("0.3")
+fmt.Println(d.String())  // "0.3"
 ```
 
 > **Why**: Generated reference uses decimal BigDecimal; `big.Float` is IEEE-754 binary, and the conformance test must fail.
 
-### 8.5 ❌ Do not silently return 0 when `Cmp` uses NaN
+### 8.5 ❌ Do not use `Cmp` as validation for NaN
 
 ```go
-// ❌ Error: Violation of IEEE-754 "NaN unordered"
-func (d Decimal) Cmp(other Decimal) int {
-if d.IsNaN() || other.IsNaN() { return 0 } // Pretend to be equal
-    // ...
+// ❌ Error: comparison is being used before the native operation's error boundary.
+if start.Cmp(end) == 0 {
+    return startCategory
 }
 
-// ✅ Correct: Return error to force the caller to handle it
-func (d Decimal) Cmp(other Decimal) (int, error) {
-    if d.IsNaN() || other.IsNaN() { return 0, ErrNaNComparison }
-    // ...
-}
+// ✅ Correct: reject or route non-finite input at the ECMA-402 owner boundary first.
+if err := ecma402.RequireFiniteDecimalInput(start); err != nil { return err }
+if err := ecma402.RequireFiniteDecimalInput(end); err != nil { return err }
+same := start.Cmp(end) == 0
 ```
 
 ### 8.6 ❌ Don’t implement Go `==` on top of `Decimal`
@@ -677,8 +666,8 @@ func (d Decimal) Cmp(other Decimal) (int, error) {
 // ❌ Error: Decimal embedded apd.Decimal contains big.Int (non-comparable)
 if d1 == d2 { /* compile error or undefined behavior */ }
 
-// ✅ Correct: use Equal()
-if d1.Equal(d2) { /* ... */ }
+// ✅ Correct: use Cmp after the ECMA-402 owner has rejected NaN/non-finite values.
+if d1.Cmp(d2) == 0 { /* ... */ }
 ```
 
 ### 8.7 ❌ Do not put the `RoundingPriority` algorithm in SPEC 20
@@ -702,15 +691,18 @@ rt := decimal.ApplyRoundingPriority(hasSD, hasFD, opts.RoundingPriority)
 ```go
 // ❌ Error: Circular dependency (internal/ecma402 §1.4 reverse direction is also prohibited)
 import "github.com/agentable/go-intl/internal/ecma402"
-func Foo() { ecma402.ToIntlMathematicalValue(...) }
+func Foo() { _ = ecma402.NumericValue{} }
 
 // ✅ Correct: Contract assertions are placed in the internal/ecma402 test
 package ecma402
-import "github.com/agentable/go-intl/internal/decimal"
-var _ MathematicalValue = decimal.Decimal{}
+
+type NumericValue struct {
+    Decimal decimal.Decimal
+    Kind    NumericValueKind
+}
 ```
 
-> **Why**: SPEC 12 §1.4 and SPEC 21 §1.2 are closed - the production code dependency direction remains `internal/ecma402` → `internal/decimal`, and contract checking is undertaken by the test.
+> **Why**: SPEC 12 §1.4 and SPEC 21 §1.2 are closed - the production code dependency direction remains `internal/ecma402` → `internal/decimal`. `internal/decimal` must not import the abstract-operation layer.
 
 ---
 
@@ -727,7 +719,7 @@ var _ MathematicalValue = decimal.Decimal{}
 - [ ] `Decimal` is a value type (struct); `Decimal{}` is `Form=Finite, Coeff=0, Exp=0` (equivalent to +0).
 - [ ] `Form` enumeration values `Finite=0` / `Infinite=1` / `NaN=2` / `NaNSignaling=3` (can be converted by apd).
 - [ ] Package-level singletons `Zero` / `NaNValue` / `PosInfinity` / `NegInfinity` cannot be mutated.
-- [ ] `IsNaN` / `IsInf` / `IsFinite` are semantically consistent with the `Form()` method.
+- [ ] `IsNaN` / `IsInf` / `IsFinite` are semantically consistent with the stored form.
 
 ### Construction
 
@@ -735,27 +727,23 @@ var _ MathematicalValue = decimal.Decimal{}
 - [ ] `FromInt64(int64) Decimal` appears in benchmark telemetry with allocation reporting.
 - [ ] `FromFloat64(NaN)` returns `NaNValue`(IsNaN()=true).
 - [ ] `FromFloat64(±Inf)` returns `±PosInfinity`.
-- [ ] `FromFloat64(0.1).Add(FromFloat64(0.2)).String() == "0.3"` (decimal not deviated).
+- [ ] `FromFloat64(0.1).String() == "0.1"` and `FromFloat64(0.2).String() == "0.2"` (shortest round-trip decimal conversion).
 - [ ] `ParseString("NaN")` / `"Infinity"` / `"-Infinity"` are each correct.
 - [ ] `ParseString("foo")` returns `ErrInvalidDecimal` wrap error.
 
 ### Arithmetic
 
-- [ ] `Add` / `Sub` / `Mul` / `Div` Do not modify receiver; return new Decimal.
-- [ ] NaN contagion: any operand NaN → result NaN.
-- [ ] Inf Arithmetic as per IEEE-754: `Inf - Inf = NaN`, `0 × Inf = NaN`, `Inf / Inf = NaN`.
-- [ ] `Div` returns NaN in `0 / 0`, `nonzero / 0` returns `±Inf`, **not** panic.
-- [ ] `Cmp(NaN, _) → (0, ErrNaNComparison)`.
-- [ ] `Equal(NaN, NaN) == false`(IEEE-754).
-- [ ] `PowerOf10(n) == 10^n` is all accurate to `-100 ≤ n ≤ 100`.
+- [ ] `Cmp` compares finite values and callers reject NaN/non-finite inputs before using it for ECMA-402 equality.
+- [ ] `Abs`, `AbsDiffCmp`, `MulInt`, and `Scale10` preserve value semantics and do not mutate caller-owned inputs.
+- [ ] `Scale10` preserves NaN and infinities unchanged.
 
 ### ToIntlMathematicalValue
 
 - [ ] `ToIntlMathematicalValue(int64(98765)).String() == "98765"`.
-- [ ] `ToIntlMathematicalValue("3.14").Exponent() == -2` and `Coeff() == "314"`.
+- [ ] `ToIntlMathematicalValue("3.14").String() == "3.14"`.
 - [ ] `ToIntlMathematicalValue(math.NaN()).IsNaN() == true`.
 - [ ] `ToIntlMathematicalValue(math.Inf(+1)).IsInf() == true` and `Negative() == false`.
-- [ ] `ToIntlMathematicalValue(nil)` returns `ErrInvalidDecimal`.
+- [ ] `ToIntlMathematicalValue(nil).String() == "0"`.
 - [ ] `BenchmarkToIntlMathematicalValue_Int64` appears in non-blocking benchmark telemetry.
 - [ ] `BenchmarkToIntlMathematicalValue_String_3p14` appears in non-blocking benchmark telemetry.
 - [ ] generated-reference `bigdecimal/tests/` All fixtures pass in `internal/decimal/from_test.go`.
@@ -792,9 +780,9 @@ var _ MathematicalValue = decimal.Decimal{}
 - [ ] `Log10Floor(FromInt64(0))` returns `ErrLog10Domain`.
 - [ ] `Log10Floor(NaNValue)` returns `ErrLog10Domain`.
 
-### MathematicalValue interface
+### NumericValue bridge
 
-- [ ] `var _ MathematicalValue = decimal.Decimal{}` compiles in `internal/ecma402` test.
+- [ ] `internal/ecma402.NumericValue` preserves decimal, int64, and uint64 bridge kinds.
 - [ ] `internal/decimal` production files **not** imported `internal/ecma402`;`rg '"github.com/agentable/go-intl/internal/ecma402"' internal/decimal --glob '!**/*_test.go'` should be empty.
 
 ### Error
@@ -846,7 +834,7 @@ var _ MathematicalValue = decimal.Decimal{}
 ### Cross-SPEC
 
 - [SPEC 00 §8 Q1 — Decimal backend selection](./00-vision-and-scope.md#8-open-questions)(This SPEC is closed)
-- [SPEC 12 §6 — MathematicalValue interface](./12-abstract-operations.md#6-math-value-boundary) — This SPEC `Decimal` implements this interface
+- [SPEC 12 §Numeric value boundary](./12-abstract-operations.md#6-math-value-boundary) — Formatter bridges carry `internal/ecma402.NumericValue` records backed by `internal/decimal.Decimal`
 - [SPEC 12 §1 — Package Layout(forbidden import)](./12-abstract-operations.md#1-package-layout) — This SPEC §1.2 is closed with
 - [SPEC 20 §Format Pipeline](./20-numberformat.md) - This SPEC is its mathematical layer
 - [SPEC 40 §Compact Operand Contract](./40-pluralrules.md#compact-operand-contract) —— compact notation constructs OperandsRecord through `Decimal` and format string

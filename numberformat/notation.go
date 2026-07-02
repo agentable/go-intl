@@ -89,27 +89,6 @@ func compactPatternForFormatted(entry compactPatternEntry, formatted string, car
 	return entry.pattern(category)
 }
 
-func roundedForRange(d decimal.Decimal, style Style, notation Notation, digitOptions ecma402nf.DigitOptions, compact compactPatternSet) (decimal.Decimal, bool) {
-	if !d.IsFinite() {
-		return decimal.Decimal{}, false
-	}
-	if style == PercentStyle {
-		d = decimal.MulInt(d, 100)
-	}
-	switch notation {
-	case CompactNotation:
-		d, _ = resolveCompactPattern(d, digitOptions, compact)
-	case ScientificNotation, EngineeringNotation:
-		exponent, ok := ecma402nf.ScientificExponent(d, notation == EngineeringNotation)
-		if !ok {
-			return decimal.Decimal{}, false
-		}
-		d = decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent came from decimal.Log10Floor int32.
-	case StandardNotation:
-	}
-	return ecma402nf.FormatNumericToString(d, digitOptions).Rounded, true
-}
-
 func formatScientificAppend(parts []Part, d decimal.Decimal, notation Notation, state *decimalFormatState) ([]Part, decimal.Decimal) {
 	symbols := state.symbols
 	resolved := state.resolved

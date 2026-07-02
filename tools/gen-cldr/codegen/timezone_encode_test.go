@@ -65,7 +65,11 @@ func TestMetazoneNameLocalesOwnsNameLocaleUnion(t *testing.T) {
 func TestCanonicalTimeZoneLinksDriveEncoderAndRuntimeRender(t *testing.T) {
 	t.Parallel()
 
-	src, err := renderTimezones()
+	input := minimalRuntimeInput()
+	input.TimeZoneAliases = []cldr.TimeZoneAlias{
+		{Alias: "America/Montreal", Canonical: "America/Toronto"},
+	}
+	src, err := renderTimezones(input)
 	if err != nil {
 		t.Fatalf("renderTimezones() error = %v", err)
 	}
@@ -75,8 +79,9 @@ func TestCanonicalTimeZoneLinksDriveEncoderAndRuntimeRender(t *testing.T) {
 	assertSourceContains(t, "renderTimezones() output", rendered, "switch name")
 	assertSourceContains(t, "renderTimezones() output", rendered, "for _, record := range timeZonesByRegion")
 
-	for _, link := range canonicalTimeZoneLinks[:] {
-		if got := canonicalTimeZoneLink(link.alias); got != link.canonical {
+	links := canonicalTimeZoneLinks(input.TimeZoneAliases)
+	for _, link := range links {
+		if got := canonicalTimeZoneLink(link.alias, links); got != link.canonical {
 			t.Errorf("canonicalTimeZoneLink(%q) = %q, want %q", link.alias, got, link.canonical)
 		}
 		assertSourceContains(t, "renderTimezones() output", rendered, fmt.Sprintf("case %q:", link.alias))
@@ -84,7 +89,25 @@ func TestCanonicalTimeZoneLinksDriveEncoderAndRuntimeRender(t *testing.T) {
 	}
 
 	const unknown = "Europe/Paris"
-	if got := canonicalTimeZoneLink(unknown); got != unknown {
+	if got := canonicalTimeZoneLink(unknown, links); got != unknown {
 		t.Errorf("canonicalTimeZoneLink(%q) = %q, want identity", unknown, got)
 	}
+}
+
+func TestTimezoneSupportedZonesCanonicalizesAliases(t *testing.T) {
+	t.Parallel()
+
+	data := extract.Metazones{
+		ZoneToMetazones: map[string][]cldr.MetazonePeriod{
+			"America/Montreal": nil,
+			"Etc/Unknown":      nil,
+		},
+	}
+	aliases := []cldr.TimeZoneAlias{
+		{Alias: "America/Montreal", Canonical: "America/Toronto"},
+	}
+
+	got := timezoneSupportedZones(data, aliases)
+	want := []string{"America/Toronto"}
+	assertStringSliceEqual(t, "timezoneSupportedZones()", got, want)
 }

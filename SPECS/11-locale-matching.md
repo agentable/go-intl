@@ -405,7 +405,6 @@ type ResolveOptions struct {
     DefaultLocale         string           // matcher fallback
     RelevantExtensionKeys []string         // Example: ["nu"] (NumberFormat)
     OptionValues          []Option         // explicit option overrides in stable order
-    Options               map[string]string // map bridge for callers that already build keyed option data
     LocaleData            LocaleDataLookup // Inject from internal/cldr
     Maximizer             Maximizer        // optional maximize function when Matcher is nil
 }

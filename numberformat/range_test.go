@@ -308,6 +308,33 @@ func TestNumberFormatRangeEqualAfterRoundingUsesApproximateSign(t *testing.T) {
 	}
 }
 
+func TestNumberFormatRangeScientificExponentChangesVisibleOutput(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
+		Notation:              stringPtr(ScientificNotation),
+		MaximumFractionDigits: intPtr(0),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mustFormatRange(t, format, Int(1000), Int(10000)); got != "1E3–1E4" {
+		t.Fatalf("FormatRange(1000, 10000) = %q; want 1E3–1E4", got)
+	}
+	want := []RangePart{
+		{Type: PartInteger, Value: "1", Source: SourceStartRange},
+		{Type: PartExponentSeparator, Value: "E", Source: SourceStartRange},
+		{Type: PartExponentInteger, Value: "3", Source: SourceStartRange},
+		{Type: PartLiteral, Value: "–", Source: SourceShared},
+		{Type: PartInteger, Value: "1", Source: SourceEndRange},
+		{Type: PartExponentSeparator, Value: "E", Source: SourceEndRange},
+		{Type: PartExponentInteger, Value: "4", Source: SourceEndRange},
+	}
+	if got := mustFormatRangeToParts(t, format, Int(1000), Int(10000)); !reflect.DeepEqual(got, want) {
+		t.Fatalf("FormatRangeToParts(1000, 10000) = %#v, want %#v", got, want)
+	}
+}
+
 func TestNumberFormatFormatRangeToPartsCollapsesCurrency(t *testing.T) {
 	t.Parallel()
 

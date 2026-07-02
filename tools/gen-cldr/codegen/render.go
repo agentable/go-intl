@@ -11,18 +11,19 @@ import (
 )
 
 type RuntimeInput struct {
-	Manifest      ManifestInput
-	Locales       extract.Locales
-	LikelySubtags extract.LikelySubtags
-	Numbers       extract.Numbers
-	Currencies    extract.CurrencyData
-	Dates         extract.Dates
-	Preferences   cldr.PreferenceData
-	Metazones     extract.Metazones
-	Units         extract.Units
-	ListPatterns  extract.ListPatterns
-	RelativeTime  extract.RelativeTimeFields
-	DisplayNames  extract.DisplayNames
+	Manifest        ManifestInput
+	Locales         extract.Locales
+	LikelySubtags   extract.LikelySubtags
+	Numbers         extract.Numbers
+	Currencies      extract.CurrencyData
+	Dates           extract.Dates
+	Preferences     cldr.PreferenceData
+	Metazones       extract.Metazones
+	TimeZoneAliases []cldr.TimeZoneAlias
+	Units           extract.Units
+	ListPatterns    extract.ListPatterns
+	RelativeTime    extract.RelativeTimeFields
+	DisplayNames    extract.DisplayNames
 }
 
 type generatedFile struct {
@@ -39,7 +40,7 @@ type localeKernelLeaf struct {
 
 var localeKernelLeaves = [...]localeKernelLeaf{
 	{name: "locale/manifest.go", render: func(in RuntimeInput) ([]byte, error) { return renderManifest(in.Manifest) }},
-	{name: "locale/timezones.go", render: func(RuntimeInput) ([]byte, error) { return renderTimezones() }},
+	{name: "locale/timezones.go", render: func(in RuntimeInput) ([]byte, error) { return renderTimezones(in) }},
 }
 
 func RenderRuntime(outDir string, input RuntimeInput) error {
@@ -143,9 +144,10 @@ func replaceGeneratedPackage(src []byte, packageName string) ([]byte, error) {
 	return FormatFile(replaced)
 }
 
-func renderTimezones() ([]byte, error) {
+func renderTimezones(input RuntimeInput) ([]byte, error) {
 	var linkCases bytes.Buffer
-	for i, link := range canonicalTimeZoneLinks[:] {
+	links := canonicalTimeZoneLinks(input.TimeZoneAliases)
+	for i, link := range links {
 		if i > 0 {
 			if _, err := linkCases.WriteString("\n"); err != nil {
 				return nil, err

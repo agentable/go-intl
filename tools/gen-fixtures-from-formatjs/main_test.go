@@ -494,17 +494,15 @@ JSON
 	assertPathAbsent(t, "node-only import .skip-list.json stat error", filepath.Join(out, ".skip-list.json"))
 }
 
-func TestRunWithoutReferencesWritesMissingFormatJSSkip(t *testing.T) {
+func TestRunWithoutReferencesRequiresInput(t *testing.T) {
 	t.Parallel()
 
 	out := t.TempDir()
-	if err := run([]string{"-out", out}); err != nil {
-		t.Fatalf("run(-out) error = %v", err)
+	err := run([]string{"-out", out})
+	if err == nil {
+		t.Fatal("run(-out) error = nil, want missing reference input error")
 	}
-
-	got := mustReadSkips(t, filepath.Join(out, ".skip-list.json"))
-	want := []skipEntry{missingReferenceSkip("formatjs", skipReasonFormatJSPathNotProvided)}
-	assertSkipsEqual(t, "run(-out)", got, want)
+	assertPathAbsent(t, "run(-out) .skip-list.json stat error", filepath.Join(out, ".skip-list.json"))
 }
 
 func TestWriteSkipsSortsAndWritesStableJSON(t *testing.T) {
@@ -513,10 +511,10 @@ func TestWriteSkipsSortsAndWritesStableJSON(t *testing.T) {
 	out := t.TempDir()
 	path := filepath.Join(out, ".skip-list.json")
 	if err := writeSkips(out, []skipEntry{
-		{Source: "formatjs", Category: "z-last", Reason: "later"},
-		{Source: "node", Category: "a-native", Reason: "native"},
-		{Source: "formatjs", Category: "a-first", Reason: "second reason", DivergenceID: "D2"},
-		{Source: "formatjs", Category: "a-first", Reason: "first reason", DivergenceID: "D1"},
+		{Source: "formatjs", Category: "z-last", Route: "extractor", Reason: "later"},
+		{Source: "node", Category: "a-native", Route: "native-witness", Reason: "native"},
+		{Source: "formatjs", Category: "a-first", Route: "extractor", Reason: "second reason", DivergenceID: "D2"},
+		{Source: "formatjs", Category: "a-first", Route: "extractor", Reason: "first reason", DivergenceID: "D1"},
 	}); err != nil {
 		t.Fatalf("writeSkips() error = %v", err)
 	}
@@ -528,10 +526,10 @@ func TestWriteSkipsSortsAndWritesStableJSON(t *testing.T) {
 
 	got := mustReadSkips(t, path)
 	want := []skipEntry{
-		{Source: "formatjs", Category: "a-first", Reason: "first reason", DivergenceID: "D1"},
-		{Source: "formatjs", Category: "a-first", Reason: "second reason", DivergenceID: "D2"},
-		{Source: "formatjs", Category: "z-last", Reason: "later"},
-		{Source: "node", Category: "a-native", Reason: "native"},
+		{Source: "formatjs", Category: "a-first", Route: "extractor", Reason: "first reason", DivergenceID: "D1"},
+		{Source: "formatjs", Category: "a-first", Route: "extractor", Reason: "second reason", DivergenceID: "D2"},
+		{Source: "formatjs", Category: "z-last", Route: "extractor", Reason: "later"},
+		{Source: "node", Category: "a-native", Route: "native-witness", Reason: "native"},
 	}
 	assertSkipsEqual(t, "writeSkips()", got, want)
 }
@@ -678,7 +676,7 @@ it('extracts Intl.getCanonicalLocales', () => {
 	assertFixtureIDs(t, "importFormatJSLocales() "+filepath.Base(canonicalPath), canonicalFixtures, wantCanonicalID)
 }
 
-func TestImportFormatJSRecordsMissingPackageReferences(t *testing.T) {
+func TestImportFormatJSRequiresPackageTestRoots(t *testing.T) {
 	t.Parallel()
 
 	formatJSRoot := t.TempDir()
@@ -686,21 +684,13 @@ func TestImportFormatJSRecordsMissingPackageReferences(t *testing.T) {
 	stalePath := filepath.Join(out, "numberformat", "testdata", "conformance", "formatjs", "stale.json")
 	mustWriteFile(t, stalePath, "[]\n")
 
-	skips, err := importFormatJS(formatJSRoot, out)
-	if err != nil {
-		t.Fatalf("importFormatJS() error = %v", err)
+	_, err := importFormatJS(formatJSRoot, out)
+	if err == nil {
+		t.Fatal("importFormatJS() error = nil, want missing tests path error")
 	}
-	want := []skipEntry{
-		missingReferenceSkip(formatJSNumberFormatTestSourcePrefix, skipReasonFormatJSTestsPathNotFound),
-		missingReferenceSkip(formatJSPluralRulesTestSourcePrefix, skipReasonFormatJSTestsPathNotFound),
-		missingReferenceSkip(formatJSDateTimeFormatTestSourcePrefix, skipReasonFormatJSTestsPathNotFound),
-		missingReferenceSkip(formatJSLocaleTestSourcePrefix, skipReasonFormatJSTestsPathNotFound),
-		missingReferenceSkip(formatJSCanonicalLocalesTestSourcePrefix, skipReasonFormatJSTestsPathNotFound),
-		missingReferenceSkip(formatJSListFormatTestSourcePrefix, skipReasonFormatJSTestsPathNotFound),
-		missingReferenceSkip(formatJSRelativeTimeFormatTestSourcePrefix, skipReasonFormatJSTestsPathNotFound),
-		missingReferenceSkip(formatJSDurationFormatTestSourcePrefix, skipReasonFormatJSTestsPathNotFound),
+	if !strings.Contains(err.Error(), formatJSNumberFormatTestSourcePrefix) {
+		t.Fatalf("importFormatJS() error = %v, want source prefix %q", err, formatJSNumberFormatTestSourcePrefix)
 	}
-	assertSkipsEqual(t, "importFormatJS()", skips, want)
 	assertPathAbsent(t, "importFormatJS() stale file stat error", stalePath)
 }
 
@@ -1093,19 +1083,14 @@ func TestFormatJSSkipEntriesUseSharedWireShape(t *testing.T) {
 		want skipEntry
 	}{
 		{
-			name: "missing reference",
-			got:  missingReferenceSkip("formatjs", skipReasonFormatJSPathNotProvided),
-			want: skipEntry{Source: "formatjs", Category: "missing-reference", Reason: "formatjs path not provided"},
-		},
-		{
 			name: "partial extraction",
 			got:  formatJSImportPartialExtractionSkip("formatjs:packages/intl-numberformat/tests/basic.test.ts"),
-			want: skipEntry{Source: "formatjs:packages/intl-numberformat/tests/basic.test.ts", Category: "partial-extraction", Reason: "mechanical assertions outside current generated fixture gate"},
+			want: skipEntry{Source: "formatjs:packages/intl-numberformat/tests/basic.test.ts", Category: "partial-extraction", Route: "extractor", Reason: "mechanical assertions outside current generated fixture gate"},
 		},
 		{
 			name: "unsupported extractor shape",
 			got:  formatJSUnsupportedExtractorShapeSkip("formatjs:packages/intl-numberformat/tests/basic.test.ts"),
-			want: skipEntry{Source: "formatjs:packages/intl-numberformat/tests/basic.test.ts", Category: "unsupported-extractor-shape", Reason: "unsupported Vitest assertion shape"},
+			want: skipEntry{Source: "formatjs:packages/intl-numberformat/tests/basic.test.ts", Category: "unsupported-extractor-shape", Route: "extractor", Reason: "unsupported Vitest assertion shape"},
 		},
 	}
 	for _, tc := range tests {
@@ -2546,6 +2531,7 @@ describe('duration mechanical cases', () => {
 	assertContainsAll(t, "skip list", skipData,
 		`format_to_parts.test.ts`,
 		`"category": "`+skipCategoryUnsupportedExtractorShape+`"`,
+		`"route": "extractor"`,
 		skipReasonUnsupportedVitestAssertionShape,
 	)
 	for _, retired := range []string{

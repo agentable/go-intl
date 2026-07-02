@@ -133,13 +133,13 @@ func selectRangeDecimal(start, end decimal.Decimal, f *PluralRules) Category {
 	notation := f.resolved.Notation
 	digitOptions := f.digitOptions
 	rule := f.rule
-	_, startRounded, startCategory := resolveDecimal(start, notation, digitOptions, rule)
-	_, endRounded, endCategory := resolveDecimal(end, notation, digitOptions, rule)
-	return selectRangeResolved(startRounded, startCategory, endRounded, endCategory, f)
+	startFormatted, _, startCategory := resolveDecimal(start, notation, digitOptions, rule)
+	endFormatted, _, endCategory := resolveDecimal(end, notation, digitOptions, rule)
+	return selectRangeResolved(startFormatted, startCategory, endFormatted, endCategory, f)
 }
 
-func selectRangeResolved(startRounded decimal.Decimal, startCategory Category, endRounded decimal.Decimal, endCategory Category, f *PluralRules) Category {
-	if startRounded.Cmp(endRounded) == 0 {
+func selectRangeResolved(startFormatted string, startCategory Category, endFormatted string, endCategory Category, f *PluralRules) Category {
+	if startFormatted == endFormatted {
 		return startCategory
 	}
 	return selectRangeCategories(startCategory, endCategory, f)

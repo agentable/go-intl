@@ -323,9 +323,11 @@ tasks:
     cmds:
       - go test -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile|GeneratedDataShape|CLDRImportGraphDirection|NoImportOfRetiredRootCLDR|RetiredRootCLDRHasNoGoFiles)$' ./internal/cldr/locale
       - go test -run 'Test(SupportedCodesDoesNotDecodeOtherBlobs|NarrowIndexDoesNotDecodeMainBlobs|SupportedCalendarsReturnsCopy|SupportedLocalesDoesNotDecode(NameBlobs|PatternBlob|NumberBlob|FieldBlob|PatternBlobs)|SupportedTimeZonesDoesNotDecodeMainBlobs|GeneratedNumberingSystemExtrasHaveRuntimePayload|RuntimeNumberingSystemPayloadsAreAdvertised)$' ./internal/cldr/currency ./internal/cldr/date ./internal/cldr/displaynames ./internal/cldr/list ./internal/cldr/number ./internal/cldr/relativetime ./internal/cldr/timezone ./internal/cldr/unit
+      - go test ./internal/cldr/plural
       - go test ./internal/numbering
       - go test -run 'Test(SupportedLocalesReturnsCopy|SupportedCollationsReturnsCopy)$' ./internal/collation
       - go test -run 'TestSupportedLocales(ExcludesTailoredLocales|ReturnsSnapshot)$' ./internal/segmentation
+      - go -C tools/gen-plural-rules test ./...
 
   build:size:
     desc: Report direct formatter, root facade, and CLDR binary size deltas

@@ -43,7 +43,7 @@ func encodeTimezone(input RuntimeInput, table *StringTable) ([]byte, error) {
 	}
 
 	var supported blobEncoder
-	supportedTags := timezoneSupportedZones(data)
+	supportedTags := timezoneSupportedZones(data, input.TimeZoneAliases)
 	supported.appendStringRefSlice(supportedTags, table)
 
 	return renderPayloadFile("timezone", table,
@@ -148,13 +148,14 @@ func metazoneNameLocales(data extract.Metazones) []string {
 // timezoneSupportedZones returns the canonicalized supported IANA zone names in
 // sorted order: every zone in the metazone-period map (minus Etc/Unknown),
 // canonicalized through the kernel links and deduplicated.
-func timezoneSupportedZones(data extract.Metazones) []string {
+func timezoneSupportedZones(data extract.Metazones, aliases []cldr.TimeZoneAlias) []string {
+	links := canonicalTimeZoneLinks(aliases)
 	seen := map[string]bool{}
 	for zone := range data.ZoneToMetazones {
 		if zone == "Etc/Unknown" {
 			continue
 		}
-		seen[canonicalTimeZoneLink(zone)] = true
+		seen[canonicalTimeZoneLink(zone, links)] = true
 	}
 	return slices.Sorted(maps.Keys(seen))
 }

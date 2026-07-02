@@ -59,8 +59,8 @@ MUST rules:
 1. `Compare` returns a negative, zero, or positive integer, matching `bytes.Compare`, `strings.Compare`, and the comparator shape that `slices.SortFunc` expects.
 2. `LocaleMatcher`, `Usage`, `Sensitivity`, `CaseFirst`, `Numeric`, `IgnorePunctuation`, and `Collation` use pointer presence fields so that zero `Options{}` means "no caller preference", while `LocaleMatcher: gointl.String(collator.LookupLocaleMatcher)` selects lookup, `Usage: gointl.String(collator.SearchUsage)` requests search tailoring, `Sensitivity: gointl.String(collator.BaseSensitivity)` selects a comparison strength, `CaseFirst: gointl.String(collator.FalseCaseFirst)` explicitly overrides locale `kf`, `Numeric: gointl.Bool(false)` can explicitly override locale `kn`, and `Collation: gointl.String("")` is an explicit invalid option instead of omitted input. Constructors copy pointee values into internal config.
 2a. `New` accepts one `Options` value; `Options{}` represents omitted or empty JS options.
-3. Each `Compare` call MUST acquire a fresh `*collate.Collator` (via `collate.New`). `golang.org/x/text/collate.Collator` is NOT safe for concurrent use; the wrapping `*Collator` is.
-4. `Collator` is immutable after construction.
+3. `New` MUST construct and freeze one `*collate.Collator` backend from the resolved data locale and options. `Compare` MUST serialize access to that cached backend because `golang.org/x/text/collate.Collator` mutates private iterators while comparing; the wrapping `*Collator` remains safe for concurrent use.
+4. `Collator` is immutable after construction except for the private comparison mutex.
 5. `Collation` and `CaseFirst` are resolved through ECMA-402 locale negotiation. Backend-supported `co` values are applied through the private `collate` tag and reflected in `ResolvedOptions().Collation`; well-formed unsupported `co` and locale `kf` extension values fall back to the active default resolved options. Explicit `Options.CaseFirst = gointl.String(upper|lower)` returns `ErrUnsupportedOption` because it is an option value the active backend cannot apply truthfully.
 
 ### 1.1 Current support tier

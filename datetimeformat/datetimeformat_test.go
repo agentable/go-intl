@@ -383,12 +383,26 @@ func TestDateTimeFormatResolvedOptionsReturnsStableSnapshots(t *testing.T) {
 func TestDateTimeFormatCanonicalizesTimeZoneLink(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{TimeZone: stringPtr("US/Eastern")})
-	if err != nil {
-		t.Fatalf("New(Options{TimeZone: US/Eastern}) error = %v", err)
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "legacy iana", in: "US/Eastern", want: "America/New_York"},
+		{name: "cldr alias", in: "America/Montreal", want: "America/Toronto"},
 	}
-	if got, want := format.ResolvedOptions().TimeZone, "America/New_York"; got != want {
-		t.Fatalf("ResolvedOptions().TimeZone = %q, want %q", got, want)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{TimeZone: stringPtr(tc.in)})
+			if err != nil {
+				t.Fatalf("New(Options{TimeZone: %s}) error = %v", tc.in, err)
+			}
+			if got := format.ResolvedOptions().TimeZone; got != tc.want {
+				t.Fatalf("ResolvedOptions().TimeZone = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

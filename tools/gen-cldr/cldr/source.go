@@ -19,6 +19,7 @@ type Source struct {
 	Dates             map[string]Dates
 	Preference        PreferenceData
 	Metazones         Metazones
+	TimeZoneAliases   []TimeZoneAlias
 	Units             map[string]Units
 	ListPatterns      map[string]ListPatterns
 	RelativeTime      map[string]RelativeTimeFields
@@ -71,6 +72,10 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 	if err != nil {
 		return nil, err
 	}
+	timeZoneAliases, err := loadTimeZoneAliases(resolved)
+	if err != nil {
+		return nil, err
+	}
 	units, err := loadUnits(resolved, available)
 	if err != nil {
 		return nil, err
@@ -97,6 +102,7 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 		Dates:             dates,
 		Preference:        preference,
 		Metazones:         metazones,
+		TimeZoneAliases:   timeZoneAliases,
 		Units:             units,
 		ListPatterns:      listPatterns,
 		RelativeTime:      relativeTime,

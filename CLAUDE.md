@@ -2,7 +2,7 @@
 
 Go implementation of the active ECMA-402 Intl surface: `Locale`, `NumberFormat`, `DateTimeFormat`, `PluralRules`, `ListFormat`, `RelativeTimeFormat`, `DurationFormat`, `DisplayNames`, `Collator`, `Segmenter`, and the root `go-intl` namespace. The compatibility target is the ECMA-402 specification in `.references/ecma402/spec/`; FormatJS is the vendored readable implementation reference used to validate observable behavior.
 
-For human usage examples, read [`README.md`](README.md). This file is the development guide for AI coding agents.
+For human usage examples, read [`README.md`](README.md). This file is the development guide for AI coding agents; [`AGENTS.md`](AGENTS.md) is a symlink to it.
 
 ## Commands
 
@@ -77,6 +77,19 @@ go-intl/
 ```
 
 The root package mirrors the JavaScript `Intl` namespace shape as closely as Go allows. Formatter-specific constructors, options, and methods live in their formatter packages; `internal/*` stays private.
+
+## Agent Operating Rules
+
+- Think from ECMA-402, SPECS, and references before coding.
+- Use CodeGraph for source orientation when the source graph matters.
+- Apply KISS, DRY, and YAGNI as product judgment, not minimalism theater.
+- Prefer standard library, native Intl behavior, generated accessors, and existing helpers before custom code.
+- Keep edits surgical and behavior-preserving unless the SPEC calls for a break.
+- Verify the changed contract with the narrowest meaningful command, then widen when shared behavior moves.
+- Treat tests as behavior evidence, not mirrors for prose.
+- Do not add policy-only gates that restate README, SPECS, or AGENTS/CLAUDE rules.
+- Fail loudly with useful context; do not hide constructor, locale, option, data, or dependency failures.
+- Leave unrelated user changes untouched.
 
 ## Agent Workflow
 
@@ -199,8 +212,9 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep shared string and integer option validation in `internal/ecma402`. Formatter packages pass formatter-owned allowed values through helpers such as `RequiredStringOption`, `OptionalStringOption`, `InvalidStringOption`, and `InvalidIntegerOption`; do not hand-roll equivalent `switch` or `slices.Contains` loops.
 - Keep root supported-value accessors in the root package, conventionally in `supported.go`, backed by CLDR/tz data, active collation capability, or ECMA-402 sanctioned constants. Do not create public `cldr`, `ecma402`, or `supported` packages for this data. Calendars must include `iso8601`; numbering systems must include the ECMA-402 simple digit table; do not add ad hoc runtime lists.
 - Keep `DateTimeFormat` calendar support tied to `internal/cldr/date.SupportedCalendars()` and generated date data; do not copy calendar allow-lists into constructors.
+- Keep time-zone canonical links generated from pinned CLDR `zoneAlias` replacements plus the documented legacy IANA fallback list; do not hand-write ad hoc alias switches.
 - Keep `Segmenter` supported locales honest. Do not advertise dictionary or CJK-tailored locales such as `ja`, `th`, or `zh-Hant` until the active segmentation backend supports their word-boundary behavior.
-- Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it resolved digit options and consume the rounded numeric value.
+- Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it resolved digit options, while range equality compares final visible endpoint text instead of rounded decimals.
 - Freeze constructor-derived hot-path state on formatter instances. Cached method calls must not redo locale negotiation, option validation, digit-option resolution, plural-rule lookup, or embedded formatter construction. `DurationFormat` composes constructor-resolved `NumberFormat` and `ListFormat` instances.
 - Keep constructor and `SupportedLocalesOf` options aligned with the JavaScript single-options-object model. Public Go entrypoints receive exactly one typed `Options` value; use `Options{}` for omitted or empty JS options instead of variadic `Options`.
 - Keep NumberFormat unit identifiers exact and case-sensitive. `Unit("METER")` must not silently become `"meter"`; native `Intl.NumberFormat` rejects non-canonical unit casing.
@@ -243,7 +257,7 @@ When you encounter a bug, limitation, or unexpected behavior in a dependency:
 - Run `task test` for the race-detector gate.
 - Put FormatJS-derived cases in formatter `testdata/` as JSON fixtures and assert byte-equal output.
 - Generate FormatJS-derived fixtures with `tools/gen-fixtures-from-formatjs`; generated files live under `<package>/testdata/conformance/formatjs/`. The active generated gate covers statically reducible NumberFormat `format`, `formatToParts`, `formatRange`, and `formatRangeToParts`; DateTimeFormat `format`, `formatToParts`, `formatRange`, and `formatRangeToParts`; PluralRules `select` and `selectRange`; Locale `toString`, `maximize`, `minimize`, and `Intl.getCanonicalLocales`; ListFormat `format`; RelativeTimeFormat `format`; DurationFormat `format`.
-- Unextracted or partially extracted FormatJS sources must appear in root `.skip-list.json` with `source`, `category`, and `reason`.
+- Unextracted or partially extracted FormatJS sources must appear in root `.skip-list.json` with `source`, `category`, `route`, and `reason`.
 - `.skip-list.json` is extraction audit only. A generated fixture that fails must be handled through `testdata/divergences.md` or `testdata/xfail.json`, never by removing it from testdata.
 - Record accepted reference mismatches in `<package>/testdata/divergences.md` only when that package has active or resolved divergence entries; empty placeholder files are not required. Keep IDs auditable by `task conformance:verify`.
 - Run `task conformance:verify` after fixture, skip-list, XFAIL, divergence, or Node witness changes; the unified checker validates schema, source ownership, expiration, divergence references, coverage health, and the Node witness matrix.

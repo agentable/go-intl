@@ -215,7 +215,7 @@ roundingIncrement!=1 ⇒ roundingType forces fractionDigits and mnfd=mxfd
 
 1. `DigitOptions` **MUST** contain the resolved status of `minimumIntegerDigits`, fraction digits, significant digits, `roundingIncrement`, `roundingMode`, `roundingPriority`, `trailingZeroDisplay`; the public formatter package is only responsible for mapping its own config to this structure.
 2. `FormatNumericToString` **MUST** return an unlocalized, ungrouped ASCII decimal string, retaining the trailing zeros forced by digit options. Grouping, local numeric notation, currency/unit/percent/compact wrapping can only be done in the formatter package.
-3. `FormatNumericToString` **MUST** also return rounded numeric value for use by compact plural, range equality, and PluralRules operands.
+3. `FormatNumericToString` **MUST** also return rounded numeric value for compact plural selection and PluralRules operands. NumberFormat range equality is decided later from the fully partitioned visible endpoint text, not from this rounded decimal value.
 4. NumberFormat and PluralRules are **FORBIDDEN** to each duplicate fixed/significant/priority rounding code; any rounding or zero-padding fixes must fall in `internal/ecma402/numberformat` and be shared by both formatters.
 5. `FormatNumericToString` **disables** decimal rounding or exponential scaling via `float64`, `strconv.ParseFloat`, `math.Log10`, `math.Pow10`; these operations must be done via [SPEC 21 §Decimal API](./21-number-math.md#decimal-api).
 
@@ -347,14 +347,14 @@ MaximumSignificantDigits *int // Same as above
 
 **MUST** Rules:
 
-1. `FormatRange(a, b)` **MUST** implement ECMA-402 §15.5.7 `FormatNumericRange`: First format both ends separately, and then call `CollapseNumberRange` to merge the same prefix/suffix.
-2. `CollapseNumberRange` **MUST** consume the `NumberFormatPart{Type, Value}` sequence, and the equality is determined one by one; the criterion for equality is the **per-package field** (`Type` and `Value` are both equal). **BANNED** The abstract generic `CollapseRange[T]` is shared with DateTimeFormat.
-3. Both ends of `Decimal` comparison **MUST** pass [SPEC 21 §Decimal.Cmp](./21-number-math.md#decimal-cmp); **FORBIDDEN** to pass `float64` conversion.
+1. `FormatRange(a, b)` **MUST** implement ECMA-402 §15.5.7 `FormatNumericRange`: first format both ends separately, then use the endpoint visible text to decide the approximate branch, and only then call `CollapseNumberRange` to merge the same prefix/suffix for visibly different endpoints.
+2. Approximate range equality **MUST** compare the final visible endpoint text produced by the NumberFormat partition pipeline. A rounded-decimal shortcut is forbidden because notation, exponent, sign, currency, unit, compact, and literal parts can make two equal rounded numeric values visibly different.
+3. `CollapseNumberRange` **MUST** consume the `NumberFormatPart{Type, Value}` sequence after approximate equality has failed. Prefix/suffix collapse remains package-local; **BANNED** sharing an abstract generic `CollapseRange[T]` with DateTimeFormat.
 4. The shared range literal **MUST** come from the constructor-resolved CLDR number symbols `rangeSign`; formatter code must not hard-code the English en dash. When the start range already carries a sign part, the literal may insert spacing around the locale range sign to match native ICU readability.
 5. Range source **MUST** be limited to ECMA-402 three values: `"startRange" | "shared" | "endRange"`;`approximatelySign` is a part type, not a source.
 6. `FormatRange` / `FormatRangeToParts` **MUST** return `ErrInvalidValue` for `NaN` endpoints instead of signaling errors with empty strings or nil parts. Positive and negative infinity remain valid ECMA-402 mathematical values and must format through the normal parts pipeline.
 7. `a > b` **MUST NOT** be locally normalized, transposed, rejected, or added `~`; numeric ranges are formatted in input order and then collapsed.
-8. When `FormatNumeric(a) == FormatNumeric(b)`, output shared `approximatelySign` part + shared digital parts (for example, when the maximum fraction digits is 0, `1.1–1.2` outputs `~1`).
+8. When the formatted endpoint visible text is the same, output shared `approximatelySign` part + shared digital parts (for example, when the maximum fraction digits is 0, `1.1–1.2` outputs `~1`).
 
 > **Why**: NumberFormatPart and DateTimeFormatPart have different fields (`unit | currency | percentSign | exponentInteger` vs `era | year | month | ...`). Although the collapse algorithm has the same structure (removing suffixes), it works on different part fields; Generated references are also implemented separately.
 >

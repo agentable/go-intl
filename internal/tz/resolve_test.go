@@ -90,6 +90,9 @@ func TestCanonicalLink(t *testing.T) {
 	if got, want := CanonicalLink("US/Eastern"), "America/New_York"; got != want {
 		t.Fatalf("CanonicalLink(US/Eastern) = %q, want %q", got, want)
 	}
+	if got, want := CanonicalLink("America/Montreal"), "America/Toronto"; got != want {
+		t.Fatalf("CanonicalLink(America/Montreal) = %q, want %q", got, want)
+	}
 	if got, want := CanonicalLink("America/New_York"), "America/New_York"; got != want {
 		t.Fatalf("CanonicalLink(America/New_York) = %q, want %q", got, want)
 	}
@@ -125,6 +128,22 @@ func TestResolveIanaLinkUsesCanonicalCache(t *testing.T) {
 	}
 	if link != canonical {
 		t.Fatal("Resolve(US/Eastern) and Resolve(America/New_York) returned different cached locations")
+	}
+}
+
+func TestResolveCLDRTimeZoneAliasUsesCanonicalCache(t *testing.T) {
+	t.Parallel()
+
+	link, err := Resolve("America/Montreal")
+	if err != nil {
+		t.Fatalf("Resolve(America/Montreal) error = %v", err)
+	}
+	canonical, err := Resolve("America/Toronto")
+	if err != nil {
+		t.Fatalf("Resolve(America/Toronto) error = %v", err)
+	}
+	if link != canonical {
+		t.Fatal("Resolve(America/Montreal) and Resolve(America/Toronto) returned different cached locations")
 	}
 }
 

@@ -290,6 +290,35 @@ for _, part := range format.FormatToParts(numberformat.Float(1234.5)) {
 }
 ```
 
+### Format Number Ranges
+
+`FormatRange` and `FormatRangeToParts` preserve input order and use native Intl
+range semantics. When both endpoints render to the same visible text, the result
+uses the locale approximate sign; when notation or suffixes render differently,
+the endpoints remain a real range.
+
+```go
+format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
+	MaximumFractionDigits: gointl.Int(0),
+})
+if err != nil {
+	return err
+}
+
+text, err := format.FormatRange(numberformat.Float(1.1), numberformat.Float(1.2))
+if err != nil {
+	return err
+}
+
+fmt.Println(text)
+```
+
+Output:
+
+```text
+~1
+```
+
 ### Marshal Records for Host Boundaries
 
 Public ECMA-402 records use camelCase JSON keys, so API adapters and JavaScript
@@ -361,6 +390,10 @@ for _, n := range []int64{1, 2, 3, 4} {
 	fmt.Println(category)
 }
 ```
+
+`SelectRange` follows the same digit-option formatting path as `Select`: if two
+decimal endpoints format to different strings, they fall through to CLDR plural
+range data even when their mathematical rounded values compare equal.
 
 Output:
 
@@ -507,6 +540,11 @@ ECMA-402, units come from the sanctioned unit list, currencies and time zones
 come from generated CLDR / tz data, and collations come from the active
 collation backend.
 
+DateTimeFormat accepts canonical IANA time zones and generated alias links such
+as `America/Montreal`, resolving them to canonical names from the pinned CLDR
+alias data plus documented legacy IANA links. `SupportedTimeZones` advertises
+canonical names, not aliases.
+
 ## Known Divergences
 
 `go-intl` matches observable ECMA-402 output where it can and documents every accepted difference. Two categories exist:
@@ -580,6 +618,9 @@ the error kind and field name. The wrapped sentinel remains the source of truth
 for branching with `errors.Is`.
 
 ## Development
+
+Development guidance for coding agents lives in [`CLAUDE.md`](CLAUDE.md), with
+[`AGENTS.md`](AGENTS.md) kept as the same entrypoint.
 
 ```bash
 task deps                 # Download modules and tidy go.mod/go.sum

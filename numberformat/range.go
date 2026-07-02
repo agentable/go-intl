@@ -2,7 +2,6 @@ package numberformat
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -59,7 +58,7 @@ func rangeEndpointParts(start, end decimal.Decimal, formatState *decimalFormatSt
 	}
 	startParts := formatDecimalToPartsAppend(nil, start, formatState)
 	endParts := formatDecimalToPartsAppend(nil, end, formatState)
-	if roundedRangeEqual(start, end, formatState) || slices.Equal(startParts, endParts) {
+	if partValuesEqual(startParts, endParts) {
 		return startParts, endParts, true, nil
 	}
 	return startParts, endParts, false, nil
@@ -68,15 +67,6 @@ func rangeEndpointParts(start, end decimal.Decimal, formatState *decimalFormatSt
 func invalidNumberRange(start, end decimal.Decimal, loc string) error {
 	value := fmt.Sprintf("start=%s end=%s", start.String(), end.String())
 	return ecma402.InvalidValueErrorExpected(numberFormatOwner, "range", value, loc, "numeric range values that are not NaN", decimal.ErrInvalidDecimal)
-}
-
-func roundedRangeEqual(start, end decimal.Decimal, state *decimalFormatState) bool {
-	startRounded, ok := roundedForRange(start, state.resolved.Style, state.resolved.Notation, state.digitOptions, state.compact)
-	if !ok {
-		return false
-	}
-	endRounded, ok := roundedForRange(end, state.resolved.Style, state.resolved.Notation, state.digitOptions, state.compact)
-	return ok && startRounded.Cmp(endRounded) == 0
 }
 
 func numberRangeSeparator(startParts []Part, sign string) string {
@@ -93,10 +83,27 @@ func isSignPart(typ PartType) bool {
 	return typ == PartMinusSign || typ == PartPlusSign
 }
 
+func partValuesEqual(startParts, endParts []Part) bool {
+	return partsText(startParts) == partsText(endParts)
+}
+
 func fillRangeParts(out []RangePart, parts []Part, source RangeSource) {
 	for i, part := range parts {
 		out[i] = RangePart{Type: part.Type, Value: part.Value, Source: source}
 	}
+}
+
+func partsText(parts []Part) string {
+	size := 0
+	for _, part := range parts {
+		size += len(part.Value)
+	}
+	var b strings.Builder
+	b.Grow(size)
+	for _, part := range parts {
+		b.WriteString(part.Value)
+	}
+	return b.String()
 }
 
 func formatApproximateRangeText(sign string, parts []Part) string {
