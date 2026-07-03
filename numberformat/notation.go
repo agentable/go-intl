@@ -53,32 +53,12 @@ func formatCompactText(d decimal.Decimal, state *decimalFormatState) (string, de
 }
 
 func resolveCompactPattern(d decimal.Decimal, digitOptions ecma402nf.DigitOptions, compact compactPatternSet) (decimal.Decimal, compactPatternEntry) {
-	magnitude, err := decimal.Log10Floor(decimal.Abs(d))
-	if err != nil || magnitude < minCompactExponent {
-		return d, compactPatternEntry{}
-	}
-	entry, ok := compact.patternForMagnitude(int(magnitude))
+	scaled, magnitude, _, ok := ecma402nf.ResolveCompactMagnitude(d, digitOptions, compact.exponentForMagnitude)
 	if !ok {
 		return d, compactPatternEntry{}
 	}
-	scaled := decimal.Scale10(d, -int32(entry.exponent)) // #nosec G115 -- compact exponents are small generated data keys.
-	result := ecma402nf.FormatNumericToString(scaled, digitOptions)
-	rounded := decimal.Abs(result.Rounded)
-	if rounded.IsZero() {
-		return scaled, entry
-	}
-	roundedMagnitude, err := decimal.Log10Floor(rounded)
-	if err != nil {
-		return scaled, entry
-	}
-	if int(roundedMagnitude) == int(magnitude)-entry.exponent {
-		return scaled, entry
-	}
-	next, ok := compact.patternForMagnitude(int(magnitude) + 1)
-	if !ok {
-		return scaled, entry
-	}
-	return decimal.Scale10(d, -int32(next.exponent)), next // #nosec G115 -- compact exponents are small generated data keys.
+	entry, _ := compact.patternForMagnitude(magnitude)
+	return scaled, entry
 }
 
 func compactPatternForFormatted(entry compactPatternEntry, formatted string, cardinalRule pluralRuleFunc) compactAffixPattern {
@@ -151,11 +131,6 @@ func localizeExponentText(text, numberingSystem string) string {
 	return ecma402.LocalizeDigits(text, numberingSystem)
 }
 
-const (
-	minCompactExponent = 3
-	maxCompactExponent = 14
-)
-
 type compactPatternSet struct {
 	entries []compactPatternEntry
 }
@@ -170,15 +145,15 @@ func compactPatternsForNumberFormat(loc cldrnumber.Locale, opts ResolvedOptions)
 		return compactPatternSet{}
 	}
 	display := string(ecma402.ResolvedScalarValue(opts.CompactDisplay))
-	entries := make([]compactPatternEntry, 0, maxCompactExponent-minCompactExponent+1)
-	for exponent := maxCompactExponent; exponent >= minCompactExponent; exponent-- {
+	entries := make([]compactPatternEntry, 0, ecma402nf.MaxCompactMagnitude-ecma402nf.MinCompactMagnitude+1)
+	for exponent := ecma402nf.MaxCompactMagnitude; exponent >= ecma402nf.MinCompactMagnitude; exponent-- {
 		other := loc.CompactPattern(opts.NumberingSystem, display, exponent, "other")
 		if other == "" {
 			continue
 		}
 		entry := compactPatternEntry{
 			magnitude: exponent,
-			exponent:  compactExponentForPattern(exponent, other),
+			exponent:  ecma402nf.CompactExponentForPattern(exponent, other),
 		}
 		for _, category := range numberPluralCategories {
 			entry.patterns[category] = compileCompactAffixPattern(loc.CompactPattern(opts.NumberingSystem, display, exponent, category.String()))
@@ -198,33 +173,12 @@ func (p compactPatternSet) patternForMagnitude(magnitude int) (compactPatternEnt
 	return compactPatternEntry{}, false
 }
 
-func compactExponentForPattern(magnitude int, pattern string) int {
-	if pattern == "0" {
-		return 0
+func (p compactPatternSet) exponentForMagnitude(magnitude int) (int, bool) {
+	entry, ok := p.patternForMagnitude(magnitude)
+	if !ok {
+		return 0, false
 	}
-	zeroCount := compactPatternZeroCount(pattern)
-	if zeroCount == 0 {
-		return magnitude
-	}
-	return magnitude + 1 - zeroCount
-}
-
-func compactPatternZeroCount(pattern string) int {
-	start, end := numberPatternBounds(pattern)
-	if start < 0 {
-		return 0
-	}
-	count := 0
-	for _, r := range pattern[start:end] {
-		if r == '0' {
-			count++
-			continue
-		}
-		if count > 0 {
-			return count
-		}
-	}
-	return count
+	return entry.exponent, true
 }
 
 func (p compactPatternEntry) pattern(plural ecma402pr.Category) compactAffixPattern {

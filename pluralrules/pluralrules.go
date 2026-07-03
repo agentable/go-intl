@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	"github.com/agentable/go-intl/internal/cldr/plural"
 	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/ecma402"
@@ -37,6 +38,7 @@ func (c Category) MarshalText() ([]byte, error) {
 type PluralRules struct {
 	dataLocale      string
 	digitOptions    ecma402nf.DigitOptions
+	compact         compactExponentSet
 	integerOperands bool
 	rule            pluralRuleFunc
 	resolved        ResolvedOptions
@@ -75,6 +77,7 @@ func New(locales locale.List, opts Options) (*PluralRules, error) {
 	return &PluralRules{
 		dataLocale:      dataLocale,
 		digitOptions:    resolvedDigits.DigitOptions,
+		compact:         compactExponentsForPluralRules(ecma402.ResolveDataLocale(resolution, cldrnumber.ResolveLocale), cfg),
 		integerOperands: resolvedDigits.CanUseIntegerOperands(cfg.notation),
 		rule:            rule,
 		resolved:        resolvedOptionsForPluralRules(resolution.Locale, cfg, resolvedDigits, dataLocale),
@@ -96,7 +99,7 @@ func (f *PluralRules) Select(v Value) (Category, error) {
 	if err := ecma402.RequireFiniteDecimalInput(numeric.Decimal); err != nil {
 		return Other, invalidValue("value", numeric.Decimal.String(), f.resolved.Locale.String(), err)
 	}
-	_, _, category := resolveDecimal(numeric.Decimal, f.resolved.Notation, f.digitOptions, f.rule)
+	_, _, category := resolveDecimal(numeric.Decimal, f.resolved.Notation, f.digitOptions, f.compact, f.rule)
 	return category, nil
 }
 
@@ -132,9 +135,10 @@ func (f *PluralRules) SelectRange(start, end Value) (Category, error) {
 func selectRangeDecimal(start, end decimal.Decimal, f *PluralRules) Category {
 	notation := f.resolved.Notation
 	digitOptions := f.digitOptions
+	compact := f.compact
 	rule := f.rule
-	startFormatted, _, startCategory := resolveDecimal(start, notation, digitOptions, rule)
-	endFormatted, _, endCategory := resolveDecimal(end, notation, digitOptions, rule)
+	startFormatted, _, startCategory := resolveDecimal(start, notation, digitOptions, compact, rule)
+	endFormatted, _, endCategory := resolveDecimal(end, notation, digitOptions, compact, rule)
 	return selectRangeResolved(startFormatted, startCategory, endFormatted, endCategory, f)
 }
 
@@ -167,9 +171,13 @@ func selectUnsignedInteger(n uint64, rule pluralRuleFunc) Category {
 	return Category(rule(ecma402pr.GetUnsignedIntegerOperands(n)))
 }
 
-func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf.DigitOptions, rule pluralRuleFunc) (string, decimal.Decimal, Category) {
-	exponent := pluralExponent(d, notation)
-	if exponent != 0 {
+func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf.DigitOptions, compact compactExponentSet, rule pluralRuleFunc) (string, decimal.Decimal, Category) {
+	exponent := 0
+	if notation == CompactNotation {
+		if _, _, compactExponent, ok := ecma402nf.ResolveCompactMagnitude(d, digitOptions, compact.exponentForMagnitude); ok {
+			exponent = compactExponent
+		}
+	} else if exponent = pluralExponent(d, notation); exponent != 0 {
 		d = decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent is derived from decimal.Log10Floor int32.
 	}
 	result := ecma402nf.FormatNumericToString(d, digitOptions)
@@ -187,13 +195,46 @@ func pluralExponent(d decimal.Decimal, notation Notation) int {
 		exponent, _ := ecma402nf.ScientificExponent(d, true)
 		return exponent
 	default:
-		// Compact notation is not exposed via the plural operand c/e: ICU and V8
-		// derive plural operands from the source value (e.g. 1_200_000) rather
-		// than the compact significand (1.2). See pluralrules-formatjs-index-test-ts-{039..046}.
 		return 0
 	}
 }
 
 func invalidValue(name, value, loc string, err error) error {
 	return ecma402.InvalidFiniteNumericValueError(pluralRulesOwner, name, value, loc, err)
+}
+
+type compactExponentSet struct {
+	entries []compactExponentEntry
+}
+
+type compactExponentEntry struct {
+	magnitude int
+	exponent  int
+}
+
+func compactExponentsForPluralRules(loc cldrnumber.Locale, cfg config) compactExponentSet {
+	if cfg.notation != string(CompactNotation) {
+		return compactExponentSet{}
+	}
+	entries := make([]compactExponentEntry, 0, ecma402nf.MaxCompactMagnitude-ecma402nf.MinCompactMagnitude+1)
+	for exponent := ecma402nf.MaxCompactMagnitude; exponent >= ecma402nf.MinCompactMagnitude; exponent-- {
+		other := loc.CompactPattern("", cfg.compactDisplay, exponent, "other")
+		if other == "" {
+			continue
+		}
+		entries = append(entries, compactExponentEntry{
+			magnitude: exponent,
+			exponent:  ecma402nf.CompactExponentForPattern(exponent, other),
+		})
+	}
+	return compactExponentSet{entries: entries}
+}
+
+func (p compactExponentSet) exponentForMagnitude(magnitude int) (int, bool) {
+	for _, entry := range p.entries {
+		if magnitude >= entry.magnitude {
+			return entry.exponent, true
+		}
+	}
+	return 0, false
 }

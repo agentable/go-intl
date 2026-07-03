@@ -191,7 +191,7 @@ End int64 //, MaxInt64 means +∞
 
 **MUST** Rules:
 
-1. Active scope calendar pattern data currently only generates Gregorian. `SupportedCalendars()` **MUST** derive values from generated calendar payload keys, expose CLDR `"gregorian"` as ECMA-402 `"gregory"`, and add ECMA-402 required `"iso8601"` only while Gregorian data is present; other well-formed calendar requests return errors matching `gointl.ErrUnsupportedOption` during construction and must not silently fall back to Gregorian behavior.
+1. Active scope calendar pattern data currently only generates Gregorian. `SupportedCalendars()` **MUST** derive values from generated calendar payload keys, expose CLDR `"gregorian"` as ECMA-402 `"gregory"`, and add ECMA-402 required `"iso8601"` only while Gregorian data is present. Well-formed unsupported calendar requests are locale-negotiation inputs: they fail to match active calendar locale data and resolve to the generated fallback calendar instead of returning `gointl.ErrUnsupportedOption`. Malformed calendar syntax remains `gointl.ErrInvalidOption`.
 2. The codegen tool (`tools/gen-cldr/`) **MUST** skip non-Gregorian pattern payload until the formatter has a real local-time projection, pattern / part behavior, and fixtures for that calendar. If non-Gregorian payload is generated without a consumer, build or tests must fail.
 3. Calendar data storage path **MUST** be the `internal/cldr/date` domain package, with generated const blobs in `internal/cldr/date/data.go`.
 4. The consumer-driven expansion calendar pattern can only be added when there is consumer demand; when adding, the corresponding generated schema and test will be introduced, and the `//go:build future` placeholder file shall not be reserved in the active scope.

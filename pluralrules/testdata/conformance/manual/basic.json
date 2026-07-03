@@ -22,14 +22,14 @@
     "expected": "other"
   },
   {
-    "id": "pluralrules-manual-compact-french-fallback",
+    "id": "pluralrules-manual-compact-french-native-contract",
     "source": "manual",
     "locale": "fr",
     "options": {
       "notation": "compact"
     },
     "input": 1200000,
-    "expected": "other"
+    "expected": "many"
   },
   {
     "id": "pluralrules-manual-significant-rounding",

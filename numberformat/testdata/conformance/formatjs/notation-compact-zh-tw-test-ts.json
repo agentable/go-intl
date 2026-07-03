@@ -1,0 +1,222 @@
+[
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-000",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact"
+    },
+    "input": 987654321,
+    "expected": "9.9億"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-001",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact"
+    },
+    "input": 98765432,
+    "expected": "9877萬"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-002",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact"
+    },
+    "input": 98765,
+    "expected": "9.9萬"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-003",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact"
+    },
+    "input": 9876,
+    "expected": "9876"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-004",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact"
+    },
+    "input": 159,
+    "expected": "159"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-005",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact"
+    },
+    "input": 15.9,
+    "expected": "16"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-006",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact"
+    },
+    "input": 1.59,
+    "expected": "1.6"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-007",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact"
+    },
+    "input": 0.159,
+    "expected": "0.16"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-008",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact"
+    },
+    "input": 0.0159,
+    "expected": "0.016"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-009",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact"
+    },
+    "input": 0.00159,
+    "expected": "0.0016"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-010",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 987654321,
+    "expected": "9.9億"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-011",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 98765432,
+    "expected": "9877萬"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-012",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 98765,
+    "expected": "9.9萬"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-013",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 9876,
+    "expected": "9876"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-014",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 159,
+    "expected": "159"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-015",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 15.9,
+    "expected": "16"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-016",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 1.59,
+    "expected": "1.6"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-017",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 0.159,
+    "expected": "0.16"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-018",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 0.0159,
+    "expected": "0.016"
+  },
+  {
+    "id": "numberformat-formatjs-notation-compact-zh-tw-test-ts-019",
+    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
+    "locale": "zh-TW",
+    "options": {
+      "compactDisplay": "long",
+      "notation": "compact"
+    },
+    "input": 0.00159,
+    "expected": "0.0016"
+  }
+]

@@ -125,12 +125,12 @@ type Options struct {
 
 #### 1.2.1 Digit option pipeline
 
-The digit options of PluralRules are a subset of the NumberFormat digit pipeline. The `pluralrules` package **MUST** map integer/fraction/significant digits and rounding options to `internal/ecma402/numberformat.DigitOptions`, and call `internal/ecma402/numberformat.FormatNumericToString` to get the formatted string and rounded numeric value used by `ResolvePlural`.
+The digit options of PluralRules are a subset of the NumberFormat digit pipeline. The `pluralrules` package **MUST** map integer/fraction/significant digits and rounding options to `internal/ecma402/numberformat.DigitOptions`, and call `internal/ecma402/numberformat.FormatNumericToString` to get the source decimal string and rounded numeric value used by `ResolvePlural`.
 
 **MUST** Rules:
 
 1. PluralRules default digit options **MUST** be `minimumIntegerDigits=1`, `minimumFractionDigits=0`, `maximumFractionDigits=3`, `roundingIncrement=1`, `roundingMode="halfExpand"`, `roundingPriority="auto"`, `trailingZeroDisplay="auto"`.
-2. `Select` / `SelectRange` **MUST** compute operands from the output string of a shared digit formatter; **MUST NOT** copy `trimFraction`, `padMinimumIntegerDigits` or fixed rounding logic within the `pluralrules` package.
+2. `Select` / `SelectRange` **MUST** compute operands from the source output string of a shared digit formatter; **MUST NOT** copy `trimFraction`, `padMinimumIntegerDigits` or fixed rounding logic within the `pluralrules` package.
 3. When selecting category with a negative number, the format string prefix `-` must be removed because ECMA-402 operands are based on absolute values; zero scale and trailing zero are still retained by the shared formatter.
 
 > **Why**: The observable surface of PluralRules for digit options is not the final string, but the `v/w/f/t` of operands. These fields rely on the same set of trailing-zero rules; the shared formatter is the minimum boundary that prevents NumberFormat from bifurcating the semantics of PluralRules.
@@ -184,7 +184,7 @@ V int // number of fraction digits (including trailing 0)
 W int // number of fraction digits (go to trailing 0)
 F OperandValue // fraction digits as integer (including trailing 0)
 T OperandValue // fraction digits as integer (go to trailing 0)
-    C int      // compact exponent(== E)
+    C int      // compact exponent (== E)
     E int      // compact/scientific exponent
 }
 ```
@@ -359,7 +359,12 @@ func renderCategoriesFile(cardinal, ordinal map[string][]Rule) string
 
 ## 4. Compact Operand Contract <a id="compact-operand-contract"></a> <a id="selectformatted"></a>
 
-NumberFormat compact-notation paths are not passed through exposed `pluralrules.PluralRules` instances. It directly reuses `internal/ecma402/pluralrules.GetOperands` and `internal/cldr/plural.CardinalRule` output by codegen to avoid loops or false internal slot APIs between public packages.
+Public `PluralRules` compact notation and NumberFormat compact suffix selection are separate observable contracts.
+
+- Public `pluralrules.PluralRules.Select` uses the source decimal string plus the selected compact exponent.
+- NumberFormat compact suffix selection uses the scaled display decimal plus the selected compact exponent; see [SPEC 20 §4.1 Compact Notation and Plural Operand Contract](./20-numberformat.md#41-compact-notation-and-plural-operand-contract).
+
+Both contracts share `internal/ecma402/pluralrules.GetOperands` for operand construction, but they pass different formatted decimal strings by design.
 
 ### 4.1 Signature
 
@@ -379,7 +384,15 @@ func CardinalRule(loc string) (func(ecma402pr.OperandsRecord) ecma402pr.Category
 
 **MUST** Rules:
 
-1. NumberFormat compact suffix selection **required**:
+1. Public PluralRules compact selection **required**:
+   ```text
+   1. exponent       := ComputeCompactExponent(locale, compactDisplay, sourceValue, digitOptions)
+   2. formatted      := FormatNumericToString(sourceValue).String
+   3. ops            := GetOperands(formatted, exponent)
+   4. category       := PluralRuleSelect(localeTag, type, ops)
+   ```
+2. Public PluralRules compact selection **MUST** follow native Node/V8 behavior when FormatJS diverges. Node v26 compact fixtures are the product witness for this boundary.
+3. NumberFormat compact suffix selection **required**:
    ```text
    1. value, exponent := ComputeExponent(...)
    2. formatted      := FormatNumericToString(value / 10^exponent).String
@@ -388,13 +401,10 @@ func CardinalRule(loc string) (func(ecma402pr.OperandsRecord) ecma402pr.Category
    5. category       := rule(ops)
    6. pattern        := CompactPattern(numberingSystem, compactDisplay, exponent, category)
    ```
-2. `formatted` **MUST** be a rounded decimal string of the display number, retaining trailing zero; `GetOperands` derives `n / i / v / w / f / t` from it, and sets `c/e` to compact exponent.
-3. **MUST** be consistent with the text of [SPEC 20 §4.1 Compact Notation and PluralRules Contract](./20-numberformat.md):
-- Input: `(formattedDisplayDecimal, exponent)` - `formattedDisplayDecimal` is the "display number" (divided by `10^exponent`), `exponent` is the compact exponent.
-- `OperandsRecord.C` and `OperandsRecord.E` must be equal to `exponent`.
-4. **Public API does not increase**: `SelectFormatted` / `ResolvePlural` do not appear as public surface; NumberFormat completes the selection through the combination of internal package and generated rule function.
+4. In every compact path, `OperandsRecord.C` and `OperandsRecord.E` **MUST** equal the selected compact exponent.
+5. **Public API does not increase**: `SelectFormatted` / `ResolvePlural` do not appear as public surface; NumberFormat completes suffix selection through the combination of internal package and generated rule function.
 
-> **Why**: The stable point of compact plural is operand generation and generated CLDR rule, not a JS-style `SelectFormatted` method. Wrapping a public formatter instance back to another public formatter in Go only creates a false dependency on state and caching.
+> **Why**: The stable point is operand generation and generated CLDR rule evaluation, not a JS-style `SelectFormatted` method. Public PluralRules and NumberFormat compact formatting pass different decimal strings because they expose different observable operations.
 >
 > **Rejected**: Public `PluralRules.SelectFormatted` - This is not an ECMA-402 public API, nor is it a language that Go users need.
 > **Rejected**: Let NumberFormat copy plural DSL or rules table - rules are only allowed from `internal/cldr/plural` codegen.
@@ -539,6 +549,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - [ ] `pluralrules.New(mustLocaleList("en")).SelectRange(pluralrules.Int(1), pluralrules.Int(5)) == Other`.
 - [ ] `pluralrules.New(mustLocaleList("en")).SelectRange(pluralrules.Int(1), pluralrules.Int(1)) == One`(step 1 string equality short circuit).
 - [ ] `pluralrules.New(mustLocaleList("zh")).SelectRange(pluralrules.Int(1), pluralrules.Int(5)) == Other`(zh cardinal only Other, all range falls back to Other).
+- [ ] Public PluralRules compact notation has Node v26 fixtures for native compact exponent behavior, including French million-scale inputs that select `many`.
 - [ ] NumberFormat compact path selects plural category through `internal/ecma402/pluralrules.GetOperands` + `internal/cldr/plural.CardinalRule`, which is equal to generated-reference `format_to_parts.ts:262/304/316/331` behavior bytes (use `numberformat.New(mustLocaleList("pl-PL"), numberformat.Options{Notation: gointl.String(numberformat.CompactNotation)}).Format(numberformat.Int(1500))` for end-to-end testing).
 - [ ] Neither `pluralrules.New(locales, pluralrules.Options{}).SelectFormatted(...)` nor `internal/ecma402/pluralrules.ResolvePlural` exists; the compact plural option is not a public API.
 - [ ] The `OperandsRecord` type is located in `internal/ecma402/pluralrules/operands.go` (single file record); the `pluralrules` package is not redefined.

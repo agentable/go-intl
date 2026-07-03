@@ -1,0 +1,24 @@
+[
+  {
+    "id": "pluralrules-node-v26-compact-fr-million",
+    "source": "node:v26.0.0:pluralrules:compact",
+    "locale": "fr",
+    "feature": "select",
+    "options": {
+      "notation": "compact"
+    },
+    "input": 1200000,
+    "expected": "many"
+  },
+  {
+    "id": "pluralrules-node-v26-compact-pt-pt-million",
+    "source": "node:v26.0.0:pluralrules:compact",
+    "locale": "pt-PT",
+    "feature": "select",
+    "options": {
+      "notation": "compact"
+    },
+    "input": 1200000,
+    "expected": "many"
+  }
+]

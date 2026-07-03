@@ -395,6 +395,11 @@ for _, n := range []int64{1, 2, 3, 4} {
 decimal endpoints format to different strings, they fall through to CLDR plural
 range data even when their mathematical rounded values compare equal.
 
+Compact plural selection follows native Intl behavior. Public `PluralRules`
+compact notation selects from the source decimal string plus the selected
+compact exponent; `NumberFormat` compact formatting separately chooses its
+compact suffix from the visible compact display decimal plus that exponent.
+
 Output:
 
 ```text
@@ -539,6 +544,11 @@ and `iso8601`, numbering systems include the simple digit systems from
 ECMA-402, units come from the sanctioned unit list, currencies and time zones
 come from generated CLDR / tz data, and collations come from the active
 collation backend.
+
+DateTimeFormat currently formats Gregorian/ISO calendar data. Well-formed but
+unsupported calendar requests participate in locale negotiation and fall back to
+the generated calendar data; malformed calendar identifiers return constructor
+errors.
 
 DateTimeFormat accepts canonical IANA time zones and generated alias links such
 as `America/Montreal`, resolving them to canonical names from the pinned CLDR

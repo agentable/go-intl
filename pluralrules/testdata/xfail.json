@@ -1,0 +1,20 @@
+[
+  {
+    "id": "pluralrules-formatjs-index-test-ts-040",
+    "reason": "FormatJS compact PluralRules selects from the compact display decimal; Node v26 selects from the source decimal with the compact exponent",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-40"
+  },
+  {
+    "id": "pluralrules-formatjs-index-test-ts-041",
+    "reason": "FormatJS compact PluralRules selects from the compact display decimal; Node v26 selects from the source decimal with the compact exponent",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-40"
+  },
+  {
+    "id": "pluralrules-formatjs-index-test-ts-044",
+    "reason": "FormatJS compact PluralRules selects from the compact display decimal; Node v26 selects from the source decimal with the compact exponent",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-40"
+  }
+]

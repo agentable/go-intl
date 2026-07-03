@@ -311,23 +311,26 @@ MaximumSignificantDigits *int // Same as above
 
 > **Why**: This is the key operator for conformance byte equality; any step skipped will be detected by the `generated-reference` `format_to_parts.test.ts` fixture.
 
-### 4.1 Compact Notation and PluralRules Contract
+### 4.1 Compact Notation and Plural Operand Contract
 
-**MUST (Same text as [SPEC 40 §Compact Operand Contract](./40-pluralrules.md#compact-operand-contract))**:
+NumberFormat has a narrower compact-plural contract than public
+`Intl.PluralRules`. It selects the compact suffix for the visible NumberFormat
+output; it does not call a public `pluralrules.PluralRules` instance.
 
-1. NumberFormat Under the `notation = compact` path, **MUST** use the rounded string showing the number and compact exponent to select the plural category:
+**MUST** Rules:
+
+1. Under `notation = compact`, NumberFormat **MUST** use the rounded display decimal and compact exponent to select the CLDR compact suffix category:
    ```go
    ops := ecma402pr.GetOperands(formattedDisplayDecimal, exponent)
    rule, ok := plural.CardinalRule(localeTag)
    cat := rule(ops)
    ```
-2. The semantics of the passed-in parameter `(formattedDisplayDecimal string, exponent int)` **MUST** be:
-- `formattedDisplayDecimal` = `FormatNumericToString` The rounded decimal string output has been divided by `10^exponent` (the "display number"), and trailing zero is retained.
-- compact/scientific exponent determined by `exponent` = `ComputeExponent`.
-3. **FORBIDDEN** NumberFormat parses plural DSL itself or holds a public `pluralrules.PluralRules` instance; rule functions only come from `internal/cldr/plural`.
-4. `internal/ecma402/pluralrules.GetOperands` is the implementation of operand records: derive `n / i / v / w / f / t` from `formattedDisplayDecimal`, and set `c / e` to `exponent` (see [SPEC 40 §Compact Operand Contract](./40-pluralrules.md#compact-operand-contract)).
+2. `formattedDisplayDecimal` is the unlocalized decimal string after scaling the source value by `10^exponent` and applying the resolved digit options. Forced trailing zeros are retained.
+3. `exponent` is the compact exponent selected from generated compact pattern data, including the rounded-carry case where a value moves into the next compact magnitude.
+4. NumberFormat **MUST NOT** parse the plural DSL, copy generated plural rules, or hold a public `pluralrules.PluralRules` instance. Rule functions come only from `internal/cldr/plural`.
+5. Public `pluralrules.PluralRules` compact notation is a different observable operation: it selects the public plural category from the source decimal string plus the compact exponent. That contract is owned by [SPEC 40 §Compact Operand Contract](./40-pluralrules.md#compact-operand-contract).
 
-> **Why**: Cross-package contract. The stable boundary of compact formatting is "display number + compact exponent + generated CLDR rule"; this preserves the CLDR `c/e` operand while avoiding exposing interdependencies between formatters.
+> **Why**: Compact suffix selection is a NumberFormat-internal formatting step. The stable boundary is "display decimal + compact exponent + generated CLDR rule"; public PluralRules has its own native-observable compact selection semantics.
 >
 > **Rejected**: Expose `SelectFormatted` or let NumberFormat hold `pluralrules.PluralRules` - this is a shadow of JS internal slot, not Go API.
 
@@ -447,7 +450,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - [ ] `roundingPriority = "morePrecision" | "lessPrecision"` is observable when the fraction and significant digit options are passed in at the same time, and is not treated as an unsupported option.
 - [ ] `Options{CurrencySign: gointl.String(AccountingCurrencySign)}` negative USD output `($12.00)` for `en-US`.
 - [ ] `Options{CompactDisplay: gointl.String(LongCompactDisplay)}` outputs `1.5 thousand` for `en` `1500` + `MaximumFractionDigits: gointl.Int(1)`.
-- [ ] compact plural contract use case: `numberformat.New(mustLocaleList("pl-PL"), numberformat.Options{Notation: gointl.String(numberformat.CompactNotation)}).Format(numberformat.Int(1500))` is consistent with `generated-reference` output under `pl-PL` (plural category `few` suffix).
+- [ ] compact suffix contract use case: `numberformat.New(mustLocaleList("pl-PL"), numberformat.Options{Notation: gointl.String(numberformat.CompactNotation)}).Format(numberformat.Int(1500))` is consistent with generated reference output under `pl-PL` (plural category `few` suffix), while public PluralRules compact behavior is verified separately by SPEC 40's Node compact fixtures.
 - [ ] The sequence of options pipeline steps passes the `internal/ecma402/numberformat.TestInitializeNumberFormat_StepOrder` test (a trace is generated at each step, aligned with the Generated reference call sequence).
 - [ ] `BenchmarkNumberFormat_Decimal_Cached` and `BenchmarkNumberFormat_New` appear in non-blocking `task bench` telemetry.
 - [ ] Benchmark reports label NumberFormat as a per-surface package, not root facade cost.

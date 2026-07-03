@@ -2243,6 +2243,7 @@ func TestCommittedNodeFixturesAreGeneratedOrExplicitlyManual(t *testing.T) {
 	manual := map[string]string{
 		filepath.Join("datetimeformat", "testdata", "conformance", nodeDir, "deep-contract.json"): "deep DateTimeFormat range/parts contracts are still hand-curated",
 		filepath.Join("locale", "testdata", "conformance", nodeDir, "errors.json"):                "Locale constructor errors are still hand-curated",
+		filepath.Join("pluralrules", "testdata", "conformance", nodeDir, "compact.json"):          "compact PluralRules Node witness is hand-curated until node-witness owns compact groups",
 	}
 
 	var unexpected []string
@@ -2342,7 +2343,7 @@ describe('direct mechanical cases', () => {
     expect(new Intl.NumberFormat('en', {style: 'currency', currency: 'USD'}).format(42)).toBe('$42.00')
   })
 
-  it('parts and range assertions', () => {
+	it('parts and range assertions', () => {
     expect(nf.formatToParts(0)).toEqual([{type: 'integer', value: '0'}])
     expect(nf.formatRange(1, 2)).toBe('1–2')
     expect(nf.formatRangeToParts(1, 2)).toEqual([
@@ -2354,6 +2355,32 @@ describe('direct mechanical cases', () => {
 })
 `
 	mustWriteFile(t, filepath.Join(numberTestsRoot, "direct.test.ts"), directTest)
+	compactZhTWTest := `import {describe, it, expect} from 'vitest'
+import {NumberFormat} from '#packages/intl-numberformat/core'
+
+describe('notation-compact-zh-TW', function () {
+  it('short', function () {
+    const nfShort = new NumberFormat('zh-TW', {
+      notation: 'compact',
+      compactDisplay: 'short',
+    })
+    expect(nfShort.format(987654321)).toBe('9.9億')
+    expect(nfShort.format(9876_5432)).toBe('9877萬')
+    expect(nfShort.format(98765)).toBe('9.9萬')
+  })
+
+  it('long', function () {
+    const nfLong = new NumberFormat('zh-TW', {
+      notation: 'compact',
+      compactDisplay: 'long',
+    })
+    expect(nfLong.format(987654321)).toBe('9.9億')
+    expect(nfLong.format(98765432)).toBe('9877萬')
+    expect(nfLong.format(98765)).toBe('9.9萬')
+  })
+})
+`
+	mustWriteFile(t, filepath.Join(numberTestsRoot, "notation-compact-zh-TW.test.ts"), compactZhTWTest)
 	mustWriteFile(t, filepath.Join(numberTestsRoot, "format_to_parts.test.ts"), `expect(parts).toEqual([{type: 'integer', value: '0'}])`)
 	mustWriteFile(t, filepath.Join(numberTestsRoot, "decimal", "__snapshots__", "en.test.ts.snap"), "exports[`snapshot 1`] = `\"1\"`;")
 	pluralTest := `import {describe, it, expect} from 'vitest'
@@ -2476,6 +2503,16 @@ describe('duration mechanical cases', () => {
 		`"expectedRangeParts"`,
 		`"$42.00"`,
 	)
+	assertFileContainsAll(t, "formatjs zh-TW compact number fixtures", filepath.Join(out, "numberformat", "testdata", "conformance", "formatjs", "notation-compact-zh-tw-test-ts.json"),
+		`"source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts"`,
+		`"locale": "zh-TW"`,
+		`"notation": "compact"`,
+		`"compactDisplay": "short"`,
+		`"compactDisplay": "long"`,
+		`"expected": "9.9億"`,
+		`"expected": "9877萬"`,
+		`"expected": "9.9萬"`,
+	)
 	assertFileContainsAll(t, "formatjs plural fixtures", filepath.Join(out, "pluralrules", "testdata", "conformance", "formatjs", "index-test-ts.json"),
 		`"source": "formatjs:packages/intl-pluralrules/tests/index.test.ts"`,
 		`"type": "ordinal"`,
@@ -2537,6 +2574,7 @@ describe('duration mechanical cases', () => {
 	for _, retired := range []string{
 		`decimal/__snapshots__/en.test.ts.snap`,
 		`"category": "snapshot-source"`,
+		`notation-compact-zh-TW.test.ts`,
 	} {
 		if strings.Contains(string(skipData), retired) {
 			t.Fatalf("skip list = %s, want retired snapshot-only source %s absent", skipData, retired)

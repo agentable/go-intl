@@ -651,6 +651,9 @@ func formatJSFixtureFile(targetRoot, rel string, slug func(string) string) strin
 }
 
 func supportsGeneratedNumberFormatFixture(f fixture) bool {
+	if supportsGeneratedNumberFormatCompactZhTWFixture(f) {
+		return true
+	}
 	if f.Locale != "en" {
 		return false
 	}
@@ -700,6 +703,29 @@ func supportsGeneratedNumberFormatFixture(f fixture) bool {
 		return false
 	}
 	return true
+}
+
+func supportsGeneratedNumberFormatCompactZhTWFixture(f fixture) bool {
+	if f.Source != formatJSNumberFormatTestSourcePrefix+"notation-compact-zh-TW.test.ts" {
+		return false
+	}
+	if f.Locale != "zh-TW" || f.Feature != "" || f.Expected == nil {
+		return false
+	}
+	switch f.Input.(type) {
+	case int64, uint64, float64:
+	default:
+		return false
+	}
+	if len(f.Options) != 2 {
+		return false
+	}
+	notation, ok := stringValueOneOf(f.Options["notation"], "compact")
+	if !ok || notation != "compact" {
+		return false
+	}
+	_, ok = stringValueOneOf(f.Options["compactDisplay"], "short", "long")
+	return ok
 }
 
 type formatJSConstructorDeclaration struct {

@@ -215,7 +215,7 @@ func TestResolveDecimalUsesExplicitConstructorState(t *testing.T) {
 			t.Parallel()
 
 			var gotOps ecma402pr.OperandsRecord
-			formatted, rounded, category := resolveDecimal(d, tc.notation, digitOptions, func(ops ecma402pr.OperandsRecord) ecma402pr.Category {
+			formatted, rounded, category := resolveDecimal(d, tc.notation, digitOptions, compactExponentSet{}, func(ops ecma402pr.OperandsRecord) ecma402pr.Category {
 				gotOps = ops
 				return ecma402pr.Many
 			})

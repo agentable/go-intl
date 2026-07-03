@@ -114,12 +114,6 @@
     "reason": "unsupported Vitest assertion shape"
   },
   {
-    "source": "formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts",
-    "category": "partial-extraction",
-    "route": "extractor",
-    "reason": "mechanical assertions outside current generated fixture gate"
-  },
-  {
     "source": "formatjs:packages/intl-numberformat/tests/percent/percentTest.ts",
     "category": "unsupported-extractor-shape",
     "route": "extractor",

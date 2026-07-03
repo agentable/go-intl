@@ -119,21 +119,22 @@ The generated-fixture extractor **Required**:
 4. Mechanical extraction **MUST** only cover assertion forms that can determine `{locale, options, input, expected}` losslessly. Currently active extractor supports:
    - `const nf = new NumberFormat("en", {...}); expect(nf.format(42)).toBe("42")`
    - `expect(new Intl.NumberFormat("en", {...}).format(42)).toEqual("42")`
-- `NumberFormat`'s `formatToParts` / `formatRange` / `formatRangeToParts` direct string or parts array assertions.
+   - `NumberFormat`'s `formatToParts` / `formatRange` / `formatRangeToParts` direct string or parts array assertions.
+   - `formatjs:packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts` compact decimal format assertions for `zh-TW` short and long compact display.
    - `const pr = new PluralRules("en", {...}); expect(pr.select(1)).toBe("one")`
    - `expect(new Intl.PluralRules("fr").select(1000000n)).toBe("many")`
-- Static numeric/BigInt literal assertion of `PluralRules.selectRange(start, end)`.
+   - Static numeric/BigInt literal assertion of `PluralRules.selectRange(start, end)`.
    - `const dtf = new DateTimeFormat("en-US", {...}); expect(dtf.format(date)).toBe("...")`
-- `Date` input in `DateTimeFormat.formatRange` / `formatRangeToParts` that is statically reducible to an RFC3339 string.
-- `toString` / `maximize` / `minimize` / canonicalization string assertions for `Intl.Locale` / `Intl.getCanonicalLocales`.
-- Static locale, options, string array input and string expectation assertions in `ListFormat.format`.
-- Static locale, options, numeric input, unit string and string expectation assertions in `RelativeTimeFormat.format`.
-- Static locale, options, duration object input and string expectation assertions in `DurationFormat.format`.
-- Simple JS object literal options: string / number / boolean values.
-- PluralRules BigInt input is written to the fixture as a decimal string to avoid using float64 to carry integer semantics on the Go side.
+   - `Date` input in `DateTimeFormat.formatRange` / `formatRangeToParts` that is statically reducible to an RFC3339 string.
+   - `toString` / `maximize` / `minimize` / canonicalization string assertions for `Intl.Locale` / `Intl.getCanonicalLocales`.
+   - Static locale, options, string array input and string expectation assertions in `ListFormat.format`.
+   - Static locale, options, numeric input, unit string and string expectation assertions in `RelativeTimeFormat.format`.
+   - Static locale, options, duration object input and string expectation assertions in `DurationFormat.format`.
+   - Simple JS object literal options: string / number / boolean values.
+   - PluralRules BigInt input is written to the fixture as a decimal string to avoid using float64 to carry integer semantics on the Go side.
 5. The following `.test.ts` source **MUST** be written to `.skip-list.json`, each contains `source`, `category`, `route`, and `reason`, and silent discarding is prohibited:
 - Table-driven arrays, callbacks, variable expected values, and other test shapes that cannot be restored statically without loss.
-- Assertions that have been mechanically discovered but are outside the current generated fixture gate (e.g. locale/unit/compact/currency-name/selectRange behavior has not yet entered that gate).
+- Assertions that have been mechanically discovered but are outside the current generated fixture gate (e.g. locale/unit/currency-name behavior has not yet entered that gate).
 - When only some assertions in the same source can be extracted losslessly, the source must still enter `.skip-list.json`, and the reason must explain why the remaining assertions do not enter the gate.
 6. The error use case (`expect(...).toThrow(...)`) must be written into `errors.json` and separated from the success fixture.
 
@@ -172,6 +173,7 @@ The new category must be implemented in the same PR of extractor, `tools/check-c
 5. `task conformance:verify` **MUST** output coverage health: the number of fixture sources for each package, the number of manual / generated-reference / native fixtures, the number of active divergence, the number of xfail, and the skip-list category and route counts.
 6. `task conformance:verify` **MUST** validate the native witness matrix for every active package passed to `tools/check-conformance`; a missing required topic is a conformance audit failure, and an intentional gap without a reason is invalid.
 7. Non-mechanizable fixtures, such as Date literals, callbacks, and complex error assertions, must be migrated manually; silently skipping is prohibited.
+8. Removing a source from `.skip-list.json` **MUST** land a generated fixture file that records the exact `formatjs:` source path and observable expected output. Existing generated fixture files must remain byte-stable unless their source family is intentionally regenerated in the same change.
 
 > **Why**: The extraction script is the only trusted bridge between reference tests and go-intl; idempotence ensures that diff is readable when upgrading references.
 > **Rejected**: Blind AST full porting - Incomplete AST rules can generate fixtures that look formal but have incorrect input/options. Rather write complex sources into the source/reason skip-list than generate untrusted fixtures.
