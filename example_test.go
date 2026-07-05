@@ -38,9 +38,10 @@ func Example_numberFormat() {
 
 func Example_dateTimeFormat() {
 	format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
-		Year:  gointl.String(string(datetimeformat.NumericFieldStyle)),
-		Month: gointl.String(string(datetimeformat.ShortMonthStyle)),
-		Day:   gointl.String(string(datetimeformat.NumericFieldStyle)),
+		Year:     gointl.String(string(datetimeformat.NumericFieldStyle)),
+		Month:    gointl.String(string(datetimeformat.ShortMonthStyle)),
+		Day:      gointl.String(string(datetimeformat.NumericFieldStyle)),
+		TimeZone: gointl.String("UTC"),
 	})
 	if err != nil {
 		panic(err)

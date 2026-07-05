@@ -16,7 +16,8 @@ task vuln                 # govulncheck ./...
 task deps                 # go mod download && go mod tidy
 task deps:update          # update root and nested module dependencies
 task codegraph:source        # build ignored source-only CodeGraph mirror under .tmp/codegraph-source
-task codegraph:source:status # show source-only CodeGraph mirror status
+task codegraph:source:status # verify mirror/worktree sync, then show CodeGraph index status
+task codegraph:source:sync-check # verify source-only mirror matches the current worktree
 task codegraph:source:clean  # remove the source-only CodeGraph mirror
 task conformance:verify   # fixture schema + XFAIL + skip-list + divergence audit + coverage + Node witness matrix
 task data                 # regenerate CLDR data from local npm CLDR checkout
@@ -100,6 +101,9 @@ index. For current-source exploration, run `task codegraph:source` and query the
 ignored mirror at `.tmp/codegraph-source` with commands such as
 `codegraph explore -p .tmp/codegraph-source "<question>"` or
 `codegraph node -p .tmp/codegraph-source <symbol-or-file>`.
+Use `task codegraph:source:sync-check` when you only need to verify that the
+mirror still matches the working tree; `task codegraph:source:status` runs the
+same sync check before showing CodeGraph's index status.
 
 Do not initialize a root CodeGraph index that includes `.references/`; it makes
 source answers noisy and can index huge reference trees. Reference repositories
@@ -304,6 +308,7 @@ GitHub Actions runs on pushes to `main` and pull requests:
 
 - `test`: `task deps`, then `task test`
 - `lint`: `task deps`, then `task lint`
+- `conformance`: `task conformance:verify`
 - `security`: installs `govulncheck`, then runs `govulncheck ./...`
 
 ## Agent Skills

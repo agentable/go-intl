@@ -639,7 +639,8 @@ task vet                  # Run go vet
 task test                 # Run go test -race -p 1 ./...
 task lint                 # Run go mod tidy check and golangci-lint
 task codegraph:source        # Build a source-only CodeGraph mirror under .tmp/codegraph-source
-task codegraph:source:status # Show the current source-only CodeGraph mirror status
+task codegraph:source:status # Verify mirror/worktree sync, then show CodeGraph index status
+task codegraph:source:sync-check # Verify source-only mirror matches the current worktree
 task conformance:verify   # Validate fixtures, skip-list, coverage, Node witness matrix, and divergence audit
 task conformance:witness  # Refresh generated Node Intl witness fixtures with the active node binary
 task data                 # Regenerate CLDR data into internal/cldr/ (writes back)
@@ -660,7 +661,10 @@ depend on.
 Use `task codegraph:source` before structural exploration. The generated mirror
 excludes `.references/` and lives under ignored `.tmp/codegraph-source`, so
 current-source questions do not accidentally traverse the vendored reference
-trees. Reference projects keep their own CodeGraph indexes when a comparison
+trees. `task codegraph:source:status` checks that the mirror still matches the
+working tree before reporting the CodeGraph index status; use
+`task codegraph:source:sync-check` when you only need the mirror freshness
+check. Reference projects keep their own CodeGraph indexes when a comparison
 needs implementation evidence.
 
 Measure aggregate root facade cost separately from per-surface formatter cost.

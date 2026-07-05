@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
 	cat <<'USAGE'
-usage: scripts/codegraph-source.sh [init|status|path|clean]
+usage: scripts/codegraph-source.sh [init|status|sync-check|path|clean]
 
 Build and index a source-only CodeGraph mirror for go-intl.
 
@@ -40,14 +40,9 @@ ensure_safe_mirror() {
 	esac
 }
 
-copy_source() {
-	local root mirror
+source_paths() {
+	local root path
 	root=$(repo_root)
-	mirror=$(mirror_dir)
-
-	ensure_safe_mirror
-	rm -rf "$mirror"
-	mkdir -p "$mirror"
 
 	git -C "$root" ls-files -z -co --exclude-standard |
 		while IFS= read -r -d '' path; do
@@ -62,10 +57,88 @@ copy_source() {
 			if [[ ! -e "$root/$path" && ! -L "$root/$path" ]]; then
 				continue
 			fi
+			printf '%s\0' "$path"
+		done
+}
 
+mirror_paths() {
+	local mirror path rel
+	mirror=$(mirror_dir)
+
+	[[ -d "$mirror" ]] || return 0
+	find "$mirror" \
+		\( -path "$mirror/.codegraph" -o -path "$mirror/.codegraph/*" \) -prune -o \
+		\( -type f -o -type l \) -print0 |
+		while IFS= read -r -d '' path; do
+			rel=${path#"$mirror"/}
+			printf '%s\0' "$rel"
+		done
+}
+
+copy_source() {
+	local root mirror
+	root=$(repo_root)
+	mirror=$(mirror_dir)
+
+	ensure_safe_mirror
+	rm -rf "$mirror"
+	mkdir -p "$mirror"
+
+	source_paths |
+		while IFS= read -r -d '' path; do
 			mkdir -p "$mirror/$(dirname "$path")"
 			cp -pP "$root/$path" "$mirror/$path"
 		done
+}
+
+sync_check() {
+	local root mirror expected actual path mismatch
+	root=$(repo_root)
+	mirror=$(mirror_dir)
+	expected=$(mktemp)
+	actual=$(mktemp)
+	mismatch=0
+
+	ensure_safe_mirror
+	if [[ ! -d "$mirror" ]]; then
+		echo "codegraph source mirror missing: $mirror" >&2
+		rm -f "$expected" "$actual"
+		return 1
+	fi
+
+	source_paths | LC_ALL=C sort -z >"$expected"
+	mirror_paths | LC_ALL=C sort -z >"$actual"
+	if ! cmp -s "$expected" "$actual"; then
+		echo "codegraph source mirror file list differs: $mirror" >&2
+		diff -u <(tr '\0' '\n' <"$expected") <(tr '\0' '\n' <"$actual") >&2 || true
+		rm -f "$expected" "$actual"
+		return 1
+	fi
+
+	while IFS= read -r -d '' path; do
+		if [[ -L "$root/$path" ]]; then
+			if [[ ! -L "$mirror/$path" ]]; then
+				echo "codegraph source mirror type differs: $path" >&2
+				mismatch=1
+				continue
+			fi
+			if [[ "$(readlink "$root/$path")" != "$(readlink "$mirror/$path")" ]]; then
+				echo "codegraph source mirror symlink target differs: $path" >&2
+				mismatch=1
+			fi
+			continue
+		fi
+		if ! cmp -s "$root/$path" "$mirror/$path"; then
+			echo "codegraph source mirror content differs: $path" >&2
+			mismatch=1
+		fi
+	done <"$expected"
+
+	rm -f "$expected" "$actual"
+	if ((mismatch)); then
+		return 1
+	fi
+	echo "codegraph source mirror is in sync: $mirror"
 }
 
 require_codegraph() {
@@ -84,7 +157,11 @@ init)
 	;;
 status)
 	require_codegraph
+	sync_check
 	codegraph status "$(mirror_dir)"
+	;;
+sync-check)
+	sync_check
 	;;
 path)
 	mirror_dir

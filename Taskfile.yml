@@ -63,6 +63,11 @@ tasks:
     cmds:
       - scripts/codegraph-source.sh status
 
+  codegraph:source:sync-check:
+    desc: Verify source-only CodeGraph mirror matches the current worktree
+    cmds:
+      - scripts/codegraph-source.sh sync-check
+
   codegraph:source:clean:
     desc: Remove the source-only CodeGraph mirror
     cmds:
@@ -421,7 +426,7 @@ tasks:
         echo "  task conformance:verify"
 
   verify:
-    desc: Run all verification steps (deps, format, vet, lint, test, vuln)
+    desc: Run all verification steps (deps, format, vet, lint, test, conformance, data contract, vuln)
     cmds:
       - task: deps
       - task: fmt

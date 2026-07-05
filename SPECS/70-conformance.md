@@ -333,55 +333,57 @@ XFAIL entry **MUST** be located in `<package>/testdata/xfail.json`, field:
 
 ---
 
-## 7. Acceptance Criteria
+## 7. Acceptance Ledger
 
-### Fixture Schema
+SPEC 70 is accepted by the unified conformance gate plus the product workflow
+rules in AGENTS/CLAUDE. The ledger separates repo-local evidence from
+governance rules that cannot be proven by a Go test.
 
-- [ ] `<package>/testdata/conformance/<source>/*.json` exists; each file is a JSON array conforming to the SPEC §1.1 schema.
-- [ ] `tools/check-conformance/` check `id` is globally unique; violates block CI.
-- [ ] The error case is located independently in `errors.json` and passes the `errors.Is` verification.
-- [ ] `tools/check-conformance/` Verify that the fixture `source` field is consistent with the source directory.
+### Fixture Schema And Sources
 
-### Fixture Sources
+| Contract | Evidence | Status |
+|----------|----------|--------|
+| Conformance fixture files are JSON arrays matching §1.1, with globally unique IDs and source-directory consistency. | `tools/conformance/fixtures.go`; `tools/conformance/skip_test.go`; `tools/check-conformance/main.go`; `task conformance:verify` | Satisfied |
+| Error fixtures live in `errors.json` lanes and assert sentinel behavior through package runners. | `*/testdata/conformance/node-v26/errors.json`; package `conformance_unified_test.go` files | Satisfied |
+| `tools/gen-fixtures-from-formatjs/` is a standalone module and owns generated FormatJS lanes for currently extractable surfaces. | `tools/gen-fixtures-from-formatjs/go.mod`; `tools/gen-fixtures-from-formatjs/main.go`; generated `testdata/conformance/formatjs` fixtures | Satisfied |
+| Native witness validation enforces required topics, constructor error/refusal coverage, and explicit intentional gaps. | `tools/conformance/node_witness.go`; `tools/conformance/node_witness_test.go`; `tools/conformance/product_contract_test.go`; `task conformance:verify` | Satisfied |
+| `.skip-list.json` audits non-extracted and partially extracted reference sources with `source`, `category`, `route`, and `reason`. | `.skip-list.json`; `tools/conformance/coverage.go`; `tools/conformance/coverage_test.go` | Satisfied |
+| Generated-reference versions remain pinned and visible to fixture regeneration. | `tools/.gen-versions`; `Taskfile.yml` `conformance:witness` | Satisfied |
+| The active JS host consumer profile protects cross-surface supported-set and reversed-range boundaries without replacing formatter fixtures. | `testdata/consumer/go-typescript/intl-profile.json`; `consumer_profile_test.go`; `SPECS/00-vision-and-scope.md` | Satisfied |
 
-- [ ] `tools/gen-fixtures-from-formatjs/` is a standalone Go module; currently generated gate outputs at least NumberFormat format / parts / range, DateTimeFormat format / range, PluralRules select / selectRange, Locale canonicalization, ListFormat format, RelativeTimeFormat format, and DurationFormat format fixtures. DisplayNames, Collator, and Segmenter retain native contract fixtures until generated extraction covers a more complete matrix.
-- [ ] The native witness validator enforces the witness matrix: required native topics exist as fixtures, every active constructor has a native constructor error/refusal fixture, and intentional gaps are explicitly reasoned.
-- [ ] The root directory `.skip-list.json` exists, each record contains `source`, `category`, `route`, and `reason`, and covers reference `.test.ts` sources / partial sources that cannot be mechanically extracted or exceed the current generated gate.
-- [ ] The generated-reference revision is pinned to `tools/.gen-versions`; CI check exists.
-- [ ] A host consumer profile is loaded by a root consumer-profile test and covers supported-set boundaries plus reversed ranges.
+### Divergences And XFAIL
 
-### Divergences
+| Contract | Evidence | Status |
+|----------|----------|--------|
+| Packages with active or resolved divergence history keep `testdata/divergences.md`; packages without divergence history may omit it. | `datetimeformat/testdata/divergences.md`; `tools/conformance/divergences.go` | Satisfied |
+| Active divergence records name an existing fixture, source, owner, legal status/review date, removal path, and DateTimeFormat native witness when required. | `tools/conformance/divergences.go`; `tools/conformance/coverage_test.go`; `task conformance:verify` | Satisfied |
+| XFAIL records require `id`, `reason`, `expires_at`, and `tracking_issue`; IDs must be unique, real, and unexpired. | `tools/conformance/xfail.go`; `tools/conformance/skip_test.go`; `tools/check-conformance/main_test.go` | Satisfied |
+| XFAIL growth must be reviewed toward zero as implementation matures. | `task conformance:verify` reports xfail totals; human review decides whether growth is justified | Governance |
 
-- [ ] Formatter packages containing active or resolved divergence history retain `<package>/testdata/divergences.md`; packages without divergence history may omit this file.
-- [ ] `tools/check-conformance/` verifies active divergence `id` can be located in the fixture, `source` is consistent with the fixture, `status` / `review_after` is legal, and DateTimeFormat active divergences point `native_witness` at an observable native fixture; violates block CI.
-- [ ] divergences.md modification PR requires ≥ 1 maintainer review on GitHub.
+### Gates And Drift Rules
 
-### CI Gates
+| Contract | Evidence | Status |
+|----------|----------|--------|
+| `task verify` runs the conformance gate with the other correctness/security checks. | `Taskfile.yml` `verify` and `conformance:verify` tasks | Satisfied |
+| PR/main CI runs conformance as a blocking correctness gate. | `.github/workflows/ci.yml` | Satisfied |
+| Performance telemetry is non-blocking and separated from conformance correctness. | `SPECS/71-benchmark.md`; `Taskfile.yml` benchmark tasks | Satisfied |
+| Generated fixtures must pass in their package runner except known divergence/XFAIL records. | Package `conformance_unified_test.go` files; `tools/conformance/SkipReason` | Satisfied |
+| Public API, option, resolved-option, part, and range-source changes must first locate the ECMA-402 owner or a narrow Go typed bridge. | `AGENTS.md`; `SPECS/72-operation-ledger.md`; relevant surface specs | Governance |
+| Mechanically extractable reference cases enter fixtures; non-extractable sources enter `.skip-list.json`; failing generated fixtures are handled only by implementation repair, divergence records, or XFAIL. | `tools/conformance/coverage.go`; `.skip-list.json`; package fixture runners | Satisfied |
 
-- [ ] `task verify` serially executes Gate 1 → Gate 2 and other correctness/security checks, failing short circuit.
-- [ ] Gate 1 + Gate 2 blocks both PR and main.
-- [ ] Performance telemetry can comment or upload artifacts, but cannot be blocked individually based on benchmark numbers.
-- [ ] The testdata output by `tools/gen-fixtures-from-formatjs/` passes 100% in the corresponding formatter package (except for known divergence and XFAIL).
+### Toolchain Constraints
 
-### XFAIL
+| Contract | Evidence | Status |
+|----------|----------|--------|
+| Snapshot/assertion dependencies such as `testify`, `go-snaps`, `cupaloy`, and `goldie` are absent. | `go.mod` | Satisfied |
+| No test-only dependency is required for conformance fixtures; the old `google/go-cmp` allowance is no longer part of the active toolchain. | `go.mod`; stdlib package tests | Satisfied |
 
-- [ ] `<package>/testdata/xfail.json` schema verification passed (each contains `id`, `reason`, `expires_at`, `tracking_issue`).
-- [ ] XFAIL `id` is unique and points to a real fixture; violates block CI.
-- [ ] CI automatically fails the corresponding fixture after `expires_at` expires.
-- [ ] The total number of XFAILs does not grow in the main branch (monthly review; active scope should → 0 when nearing completion).
+### Open Governance Notes
 
-### SPEC / Code Drift Checklist
-
-- [ ] Before adding or modifying any exported API, first locate the owner (`Intl` / `Intl.Locale` / `Intl.NumberFormat` / `Intl.DateTimeFormat` / `Intl.PluralRules` / `Intl.ListFormat` / `Intl.RelativeTimeFormat` / `Intl.DurationFormat`) in ECMA-402 or specify it as Go typed bridge; without owner, you are not allowed to enter the public surface.
-- [ ] When adding or modifying option / resolved option / part type / range source, check the ECMA-402 field name, allowed value, default value and error boundary simultaneously.
-- [ ] When local SPEC conflicts with ECMA-402, change SPEC first and then change the code or fixture.
-- [ ] Reference cases that can be mechanically extracted must enter the fixture; non-extractable sources must enter `.skip-list.json` with category and route.
-- [ ] When a generated fixture fails, it can only be processed through implementation repair, `testdata/divergences.md` or `testdata/xfail.json`, and must not be removed from the fixture or written to skip-list.
-
-### Tool chain constraints
-
-- [ ] `go.mod` does not contain `stretchr/testify`, `gkampitakis/go-snaps`, `bradleyjkemp/cupaloy`, `sebdah/goldie`.
-- [ ] `go.mod` test depends only on `google/go-cmp` (SPEC 70 only test-only direct dependency).
+The maintainer-review requirement for `divergences.md` changes cannot be
+verified from repository-local Go tests; it belongs in branch protection or PR
+review policy. The active host consumer profile is a narrow cross-surface
+contract gate, not a substitute for per-formatter conformance fixtures.
 
 ---
 

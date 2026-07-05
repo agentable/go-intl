@@ -436,24 +436,26 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 
 ---
 
-## 11. Acceptance Criteria
+## 11. Acceptance Ledger
 
-- [ ] `formatjs/packages/intl-numberformat/tests/format_to_parts.test.ts` All fixtures in `numberformat/conformance_unified_test.go` pass (byte-equality).
-- [ ] `formatjs/packages/intl-numberformat/tests/notation-compact-zh-TW.test.ts` passes (`format(98765) == "9.9\u842c"`).
-- [ ] `formatjs/packages/intl-numberformat/tests/format_range.test.ts` All fixtures passed in `FormatRange`.
-- [ ] `go test -race ./numberformat/...` passed (including `TestNumberFormat_ConcurrentFormat` 100 goroutine × 1000 calls).
-- [ ] `go vet ./numberformat/...` clean.
-- [ ] `New(...)` returns `ErrInvalidOption` wrapped error for unknown currency, the message contains currency + locale.
-- [ ] `Format(numberformat.Float(math.NaN()))` returns locale-specific NaN string, does not return error, and does not panic.
-- [ ] `numberformat.Decimal("abc")` returns `ErrInvalidValue`.
-- [ ] `ResolvedOptions().MinimumFractionDigits` when `Options{MinimumSignificantDigits: gointl.Int(2)}` is passed in alone `== nil`(roundingType=="significantDigits" hides frac); symmetrically, `Options{MaximumFractionDigits: gointl.Int(2)}` when passed in alone is `MinimumSignificantDigits == nil`. Pointer types are unambiguous between the two states.
-- [ ] `roundingPriority = "morePrecision" | "lessPrecision"` is observable when the fraction and significant digit options are passed in at the same time, and is not treated as an unsupported option.
-- [ ] `Options{CurrencySign: gointl.String(AccountingCurrencySign)}` negative USD output `($12.00)` for `en-US`.
-- [ ] `Options{CompactDisplay: gointl.String(LongCompactDisplay)}` outputs `1.5 thousand` for `en` `1500` + `MaximumFractionDigits: gointl.Int(1)`.
-- [ ] compact suffix contract use case: `numberformat.New(mustLocaleList("pl-PL"), numberformat.Options{Notation: gointl.String(numberformat.CompactNotation)}).Format(numberformat.Int(1500))` is consistent with generated reference output under `pl-PL` (plural category `few` suffix), while public PluralRules compact behavior is verified separately by SPEC 40's Node compact fixtures.
-- [ ] The sequence of options pipeline steps passes the `internal/ecma402/numberformat.TestInitializeNumberFormat_StepOrder` test (a trace is generated at each step, aligned with the Generated reference call sequence).
-- [ ] `BenchmarkNumberFormat_Decimal_Cached` and `BenchmarkNumberFormat_New` appear in non-blocking `task bench` telemetry.
-- [ ] Benchmark reports label NumberFormat as a per-surface package, not root facade cost.
+SPEC 20 is accepted by observable behavior, not by step-order traces. The
+implementation can simplify internal sequencing when these contracts remain
+green.
+
+| Contract | Evidence | Status |
+|----------|----------|--------|
+| FormatJS `format`, `formatToParts`, `formatRange`, and `formatRangeToParts` fixtures are byte-equal except accepted divergence/XFAIL records. | `numberformat/conformance_unified_test.go`; `numberformat/testdata/conformance/formatjs/*.json`; `task conformance:verify` | Satisfied |
+| Compact `zh-TW` output stays source-owned by the generated FormatJS lane, including `format(98765) == "9.9\u842c"`. | `numberformat/testdata/conformance/formatjs/notation-compact-zh-tw-test-ts.json` | Satisfied |
+| Constructor, invalid option, NaN, decimal parse, accounting sign, compact long, and rounding-priority behavior are covered by package tests and Node/manual fixtures. | `numberformat/format_test.go`; `numberformat/resolved_options_test.go`; `numberformat/range_test.go`; `numberformat/testdata/conformance/node-v26/*.json`; `numberformat/testdata/conformance/manual/*.json` | Satisfied |
+| Resolved optional scalar fields preserve ECMA-402 absence semantics with pointers. | `numberformat/resolved_options_test.go`; `numberformat/conformance_unified_test.go` | Satisfied |
+| NumberFormat compact suffix selection is independent from public PluralRules compact source-decimal selection. | `compact_contract_test.go`; SPEC 40 Node compact fixtures | Satisfied |
+| NumberFormat keeps decimal rounding centralized in `internal/ecma402/numberformat` and does not expose public compact-plural helpers. | `internal/ecma402/numberformat/*`; absence of `SelectFormatted` / `ResolvePlural` in Go source | Satisfied |
+| Race and vet gates pass for the package. | `go test -race ./numberformat/...`; `go vet ./numberformat/...` | Required verification |
+| Benchmark telemetry remains per-surface and non-blocking. | `numberformat/benchmark_test.go`; `SPECS/71-benchmark.md`; `task bench` | Satisfied |
+
+The older `TestInitializeNumberFormat_StepOrder` acceptance item is not
+retained: no such test exists, and a trace of internal option steps would lock
+implementation mechanics rather than ECMA-402-observable behavior.
 
 ---
 
