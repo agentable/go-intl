@@ -70,11 +70,10 @@ func resolveRelativeTimePattern(value Value, unit Unit, f *RelativeTimeFormat) (
 	if value.past {
 		patterns = field.past
 	}
-	pattern := patterns.pattern(category)
-	if len(pattern) == 0 {
-		return relativeTimePatternSelection{}, invalidRelativeTimeUnit(unit, f.resolved.Locale.String())
-	}
-	return relativeTimePatternSelection{unit: resolvedUnit, pattern: pattern}, nil
+	// pattern is always non-empty: compileRelativeTimePatternSet requires a
+	// non-empty "other" pattern at construction and backfills every category from
+	// it, so no format-time empty-pattern check is needed.
+	return relativeTimePatternSelection{unit: resolvedUnit, pattern: patterns.pattern(category)}, nil
 }
 
 type relativeTimeField struct {
@@ -179,18 +178,9 @@ func compileRelativeTimePattern(pattern string) (ecma402.Pattern, error) {
 }
 
 func (p relativeTimePatternSet) pattern(category pluralrules.Category) ecma402.Pattern {
-	if int(category) < len(p) {
-		return p[category]
-	}
-	return p[pluralrules.Other]
-}
-
-func decimalRelativeLiteralKey(value string) string {
-	d, err := ecma402.ParseFiniteDecimalInput(value)
-	if err != nil {
-		return value
-	}
-	return d.String()
+	// category is always in 0..Other and the set is sized Other+1, so the index
+	// is always valid.
+	return p[category]
 }
 
 func relativeTimePatternParts(pattern ecma402.Pattern, unit Unit, numberParts []numberformat.Part) []Part {

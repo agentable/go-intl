@@ -348,6 +348,18 @@ base distance, then compares the result against `DefaultMatchingThreshold`.
 
 > **Why no generated languageMatching table**: ECMA-402 leaves best-fit matching implementation-defined. The active product profile needs stable, auditable behavior for the supported locale set, not an unused generated table that suggests broader ICU parity than the runtime can verify.
 
+#### Known gap — related-language requests fall to default
+
+Because the base distance is a bounded override table plus a `same-language → 40 / else → 840` fallback, linguistically close requests whose CLDR `languageMatching` distance is below the 838 threshold still exceed the bounded fallback and resolve to the default locale instead of their CLDR neighbour:
+
+| Request | CLDR `languageMatching` neighbour (distance) | Active result |
+|---------|----------------------------------------------|---------------|
+| `nn` | `nb` (20) | default |
+| `gsw` | `de` (4) | default |
+| `wuu` | `zh` (10) | default |
+
+This gap is tracked by the self-activating skip test `internal/localematcher/language_distance_gap_test.go`, which names the CLDR neighbours and asserts the correct behaviour. It stays skipped until the generated CLDR `languageMatching` distance table (wildcards / territory groups) lands, then turns green automatically. Generating that table is the remaining observable-correctness item for best-fit matching and is deferred as a large generator feature that needs Node/ICU distance witnesses before it can ship.
+
 ### 3.5 Performance Targets
 
 | Scenario | Target |

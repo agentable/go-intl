@@ -48,12 +48,6 @@ func (d Decimal) Cmp(other Decimal) int {
 	return d.inner.Cmp(&other.inner)
 }
 
-func AbsDiffCmp(base, a, b Decimal) int {
-	left := Abs(sub(base, a))
-	right := Abs(sub(base, b))
-	return left.Cmp(right)
-}
-
 func (d Decimal) String() string {
 	if d.IsNaN() {
 		return "NaN"

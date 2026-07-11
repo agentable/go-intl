@@ -6,7 +6,6 @@ package relativetime
 
 import (
 	"maps"
-	"slices"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 )
@@ -67,6 +66,5 @@ func cloneField(field RelativeTimeField) RelativeTimeField {
 // sorted-locale order. It reads only the narrow supported blob and never
 // triggers the field blob decode.
 func SupportedLocales() []string {
-	supportedOnce.Do(loadSupported)
-	return slices.Clone(supportedTags)
+	return supported.Get()
 }

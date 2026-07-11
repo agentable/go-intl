@@ -7,6 +7,17 @@ func Abs(d Decimal) Decimal {
 	return d
 }
 
+// Neg returns d with its sign flipped. Zero is returned unchanged, so no
+// negative zero is produced.
+func Neg(d Decimal) Decimal {
+	if d.IsZero() {
+		return d
+	}
+	d.negative = !d.negative
+	d.inner.Negative = !d.inner.Negative
+	return d
+}
+
 // MulInt returns d multiplied by n.
 func MulInt(d Decimal, n int64) Decimal {
 	if !d.IsFinite() {

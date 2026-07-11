@@ -16,3 +16,24 @@ func TestDecimalOps(t *testing.T) {
 		t.Fatalf("Scale10(%s, -2) = %s, want %s", d.String(), got, want)
 	}
 }
+
+func TestNeg(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{in: "1.5", want: "-1.5"},
+		{in: "-2.25", want: "2.25"},
+		{in: "0", want: "0"},
+		{in: "100", want: "-100"},
+		{in: "-0.001", want: "0.001"},
+	}
+	for _, tc := range tests {
+		got := Neg(mustParseDecimal(t, tc.in)).String()
+		if got != tc.want {
+			t.Errorf("Neg(%s) = %s, want %s", tc.in, got, tc.want)
+		}
+	}
+}

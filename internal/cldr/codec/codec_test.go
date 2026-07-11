@@ -668,3 +668,30 @@ func TestStringRefOutOfRangePanics(t *testing.T) {
 		})
 	}
 }
+
+func TestLazyStrings(t *testing.T) {
+	t.Parallel()
+
+	// Build a StringRefSlice blob: two (offset, length) refs into a shared pool.
+	data := "abcd"
+	var blob []byte
+	blob = appendUvarint(blob, 2)      // count
+	blob = appendStringRef(blob, 0, 2) // "ab"
+	blob = appendStringRef(blob, 2, 2) // "cd"
+
+	lazy := NewLazyStrings(string(blob), data)
+	got := lazy.Get()
+	if want := []string{"ab", "cd"}; !slices.Equal(got, want) {
+		t.Fatalf("Get() = %v, want %v", got, want)
+	}
+
+	// Second call returns an equal but independent (cloned) slice.
+	again := lazy.Get()
+	if !slices.Equal(again, got) {
+		t.Fatalf("second Get() = %v, want %v", again, got)
+	}
+	again[0] = "mutated"
+	if lazy.Get()[0] != "ab" {
+		t.Fatal("Get() did not return a defensive clone")
+	}
+}

@@ -1,6 +1,7 @@
 package listformat
 
 import (
+	"fmt"
 	"strings"
 
 	cldrlist "github.com/agentable/go-intl/internal/cldr/list"
@@ -28,32 +29,33 @@ func compileListTemplates(pattern cldrlist.ListPattern) listTemplates {
 	}
 }
 
+// compileListTemplate parses a generated CLDR list pattern at construction. The
+// generator validates every pattern (tools/gen-cldr/cldr/list_patterns.go
+// validateListPattern), so a parse failure means the embedded data is corrupt —
+// a broken invariant we fail loudly on (Must* idiom) rather than silently
+// degrading to empty output.
 func compileListTemplate(text string) ecma402.Pattern {
 	parts, err := ecma402.PartitionPattern(text)
 	if err != nil {
-		return nil
+		panic(fmt.Sprintf("listformat: malformed embedded CLDR list pattern %q: %v", text, err))
 	}
 	return parts
 }
 
+// Format is the concatenation of FormatToParts' values. ECMA-402 defines one
+// partition per formatter and derives the string from it; a second recursive
+// text traversal would be a byte-for-byte drift liability.
 func (f *ListFormat) Format(list []string) string {
-	templates := f.templates
-	switch len(list) {
-	case 0:
-		return ""
-	case 1:
-		return list[0]
-	case 2:
-		var b strings.Builder
-		b.Grow(listPatternTextSize(templates.pair, len(list[0]), len(list[1])))
-		writeListPatternText(&b, templates.pair, list[0], list[1])
-		return b.String()
+	parts := f.FormatToParts(list)
+	size := 0
+	for _, p := range parts {
+		size += len(p.Value)
 	}
-
-	lastPairIndex := len(list) - 2
 	var b strings.Builder
-	b.Grow(listTextSize(templates, list, 0, lastPairIndex))
-	writeListText(&b, templates, list, 0, lastPairIndex)
+	b.Grow(size)
+	for _, p := range parts {
+		b.WriteString(p.Value)
+	}
 	return b.String()
 }
 
@@ -61,7 +63,8 @@ func (f *ListFormat) FormatToParts(list []string) []Part {
 	templates := f.templates
 	switch len(list) {
 	case 0:
-		return nil
+		// Empty, non-nil so it marshals to "[]" (matching native), never "null".
+		return []Part{}
 	case 1:
 		return []Part{{Type: PartElement, Value: list[0]}}
 	case 2:
@@ -104,68 +107,4 @@ func listPatternParts(pattern ecma402.Pattern, first string, second []Part) []Pa
 		}
 	}
 	return out
-}
-
-func writeListText(b *strings.Builder, templates listTemplates, list []string, index, lastPairIndex int) {
-	pattern := listNestedTemplate(templates, index, lastPairIndex)
-	for _, part := range pattern {
-		switch part.Type {
-		case ecma402.PatternPartPlaceholder0:
-			b.WriteString(list[index])
-		case ecma402.PatternPartPlaceholder1:
-			if index == lastPairIndex {
-				b.WriteString(list[index+1])
-			} else {
-				writeListText(b, templates, list, index+1, lastPairIndex)
-			}
-		case ecma402.PatternPartLiteral:
-			b.WriteString(part.Value)
-		}
-	}
-}
-
-func writeListPatternText(b *strings.Builder, pattern ecma402.Pattern, first, second string) {
-	for _, part := range pattern {
-		switch part.Type {
-		case ecma402.PatternPartPlaceholder0:
-			b.WriteString(first)
-		case ecma402.PatternPartPlaceholder1:
-			b.WriteString(second)
-		case ecma402.PatternPartLiteral:
-			b.WriteString(part.Value)
-		}
-	}
-}
-
-func listTextSize(templates listTemplates, list []string, index, lastPairIndex int) int {
-	secondLen := len(list[index+1])
-	if index < lastPairIndex {
-		secondLen = listTextSize(templates, list, index+1, lastPairIndex)
-	}
-	return listPatternTextSize(listNestedTemplate(templates, index, lastPairIndex), len(list[index]), secondLen)
-}
-
-func listPatternTextSize(pattern ecma402.Pattern, firstLen, secondLen int) int {
-	size := 0
-	for _, part := range pattern {
-		switch part.Type {
-		case ecma402.PatternPartPlaceholder0:
-			size += firstLen
-		case ecma402.PatternPartPlaceholder1:
-			size += secondLen
-		case ecma402.PatternPartLiteral:
-			size += len(part.Value)
-		}
-	}
-	return size
-}
-
-func listNestedTemplate(templates listTemplates, index, lastPairIndex int) ecma402.Pattern {
-	if index == lastPairIndex {
-		return templates.end
-	}
-	if index == 0 {
-		return templates.start
-	}
-	return templates.middle
 }

@@ -59,9 +59,6 @@ var (
 
 	formatsOnce             sync.Once
 	timeZoneFormatsByLocale map[Locale]timeZoneFormatRefs
-
-	supportedOnce sync.Once
-	supportedTags []string
 )
 
 func loadMetazonePeriods() {
@@ -136,6 +133,4 @@ func decodeTimeZoneFormatRefs(r *codec.Reader) timeZoneFormatRefs {
 	}
 }
 
-func loadSupported() {
-	supportedTags = codec.StringRefSlice(_tzSupportedBlob, _data)
-}
+var supported = codec.NewLazyStrings(_tzSupportedBlob, _data)

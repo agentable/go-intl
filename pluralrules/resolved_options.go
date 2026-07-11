@@ -6,21 +6,24 @@ import (
 	"github.com/agentable/go-intl/internal/cldr/plural"
 	"github.com/agentable/go-intl/internal/ecma402"
 	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
-	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
+	pluralop "github.com/agentable/go-intl/internal/plural"
 	"github.com/agentable/go-intl/locale"
 )
 
+// ResolvedOptions mirrors the ECMA-402 §16.4.5 "Resolved Options of PluralRules
+// Instances" table; field declaration order is the observable JSON key order and
+// must match that table.
 type ResolvedOptions struct {
 	Locale                   locale.Locale       `json:"locale"`
 	Type                     Type                `json:"type"`
+	Notation                 Notation            `json:"notation"`
+	CompactDisplay           *CompactDisplay     `json:"compactDisplay,omitempty"`
 	MinimumIntegerDigits     int                 `json:"minimumIntegerDigits"`
 	MinimumFractionDigits    *int                `json:"minimumFractionDigits,omitempty"`
 	MaximumFractionDigits    *int                `json:"maximumFractionDigits,omitempty"`
 	MinimumSignificantDigits *int                `json:"minimumSignificantDigits,omitempty"`
 	MaximumSignificantDigits *int                `json:"maximumSignificantDigits,omitempty"`
 	PluralCategories         []Category          `json:"pluralCategories"`
-	Notation                 Notation            `json:"notation"`
-	CompactDisplay           *CompactDisplay     `json:"compactDisplay,omitempty"`
 	RoundingIncrement        int                 `json:"roundingIncrement"`
 	RoundingMode             RoundingMode        `json:"roundingMode"`
 	RoundingPriority         RoundingPriority    `json:"roundingPriority"`
@@ -44,14 +47,14 @@ func resolvedOptionsForPluralRules(loc locale.Locale, cfg config, digits ecma402
 	return ResolvedOptions{
 		Locale:                   loc,
 		Type:                     Type(cfg.typ),
+		Notation:                 Notation(cfg.notation),
+		CompactDisplay:           resolvedCompactDisplay(cfg),
 		MinimumIntegerDigits:     digits.MinimumIntegerDigits,
 		MinimumFractionDigits:    digitProperties.MinimumFractionDigits,
 		MaximumFractionDigits:    digitProperties.MaximumFractionDigits,
 		MinimumSignificantDigits: digitProperties.MinimumSignificantDigits,
 		MaximumSignificantDigits: digitProperties.MaximumSignificantDigits,
 		PluralCategories:         categories,
-		Notation:                 Notation(cfg.notation),
-		CompactDisplay:           resolvedCompactDisplay(cfg),
 		RoundingIncrement:        digits.RoundingIncrement,
 		RoundingMode:             RoundingMode(digits.RoundingMode),
 		RoundingPriority:         RoundingPriority(digits.RoundingPriority),
@@ -66,7 +69,7 @@ func resolvedCompactDisplay(cfg config) *CompactDisplay {
 	return ecma402.ResolvedScalar(CompactDisplay(cfg.compactDisplay))
 }
 
-func publicCategories(categories []ecma402pr.Category) []Category {
+func publicCategories(categories []pluralop.Category) []Category {
 	out := make([]Category, len(categories))
 	for i, category := range categories {
 		out[i] = Category(category)

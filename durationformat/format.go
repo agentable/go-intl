@@ -47,18 +47,19 @@ func durationValuesOf(duration Duration) durationValues {
 	}
 }
 
+// Format is the concatenation of FormatToParts' values. ECMA-402 defines one
+// partition per formatter and derives the string from it; keeping a second
+// parallel text partition here would be a byte-for-byte drift liability.
 func (f *DurationFormat) Format(duration Duration) (string, error) {
-	values := durationValuesOf(duration)
-	loc := f.resolved.Locale
-	sign, err := validateDuration(values, loc)
+	parts, err := f.FormatToParts(duration)
 	if err != nil {
 		return "", err
 	}
-	groups, err := partitionDurationFormatText(values, f, sign, loc)
-	if err != nil {
-		return "", err
+	var b strings.Builder
+	for _, part := range parts {
+		b.WriteString(part.Value)
 	}
-	return f.listFormatter.Format(groups), nil
+	return b.String(), nil
 }
 
 func (f *DurationFormat) FormatToParts(duration Duration) ([]Part, error) {
@@ -73,58 +74,6 @@ func (f *DurationFormat) FormatToParts(duration Duration) ([]Part, error) {
 		return nil, err
 	}
 	return durationListFormatParts(f.listFormatter, groups), nil
-}
-
-func partitionDurationFormatText(values durationValues, f *DurationFormat, sign int, loc locale.Locale) ([]string, error) {
-	result := make([]string, 0, len(durationUnitSpecs))
-	signAvailable := true
-	for _, spec := range durationUnitSpecs[:] {
-		opt := f.unitOptions[spec.index]
-		switch opt.style {
-		case NumericUnitStyle, TwoDigitUnitStyle:
-			text, err := formatDurationNumericUnitsText(values, f, spec.index, sign, signAvailable, loc)
-			if err != nil {
-				return nil, err
-			}
-			if text != "" {
-				result = append(result, text)
-			}
-			return result, nil
-		case LongUnitStyle, ShortUnitStyle, NarrowUnitStyle:
-			value := values[spec.index]
-			fractional := durationNextUnitFractional(f.unitOptions, spec)
-			if !durationUnitShown(value, opt.display) && !fractional {
-				continue
-			}
-
-			formatters := f.unitFormatters[spec.index]
-			if fractional {
-				formatters = f.unitFractionFormatters[spec.index]
-			}
-			showNegativeSign := sign < 0 && signAvailable
-
-			var text string
-			if fractional {
-				valueString := durationFractionalValueString(values, spec.index, showNegativeSign)
-				var err error
-				text, err = formatDurationDecimalNumberText(formatters, spec.unit, valueString, signAvailable, loc)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				numberValue := durationIntegerNumberValue(value, showNegativeSign)
-				text = durationNumberFormatter(formatters, signAvailable).Format(numberValue)
-			}
-			result = append(result, text)
-			signAvailable = false
-			if fractional {
-				return result, nil
-			}
-		case fractionalUnitStyle:
-			continue
-		}
-	}
-	return result, nil
 }
 
 func partitionDurationFormatPattern(values durationValues, f *DurationFormat, sign int, loc locale.Locale) ([][]Part, error) {
@@ -175,36 +124,6 @@ func partitionDurationFormatPattern(values durationValues, f *DurationFormat, si
 		}
 	}
 	return result, nil
-}
-
-func formatDurationNumericUnitsText(values durationValues, f *DurationFormat, first unitIndex, sign int, signAvailable bool, loc locale.Locale) (string, error) {
-	layout := durationNumericLayoutFor(values, f.unitOptions, first)
-	if layout.count == 0 {
-		return "", nil
-	}
-
-	var b strings.Builder
-	for i := range layout.count {
-		index := layout.units[i]
-		if i > 0 {
-			b.WriteString(f.separator)
-		}
-
-		if index != secondsIndex {
-			numericValue := durationIntegerNumberValue(values[index], sign < 0 && signAvailable)
-			b.WriteString(durationNumberFormatter(f.numericFormatters[index], signAvailable).Format(numericValue))
-			signAvailable = false
-			continue
-		}
-		secondsValue := durationFractionalValueString(values, secondsIndex, sign < 0 && signAvailable)
-		text, err := formatDurationDecimalNumberText(f.secondsNumericFractionFormatter, string(Second), secondsValue, signAvailable, loc)
-		if err != nil {
-			return "", err
-		}
-		b.WriteString(text)
-		signAvailable = false
-	}
-	return b.String(), nil
 }
 
 func formatDurationNumericUnits(values durationValues, f *DurationFormat, first unitIndex, sign int, signAvailable bool, loc locale.Locale) ([]Part, error) {
@@ -296,14 +215,6 @@ func formatDurationDecimalNumberParts(formatters durationNumberFormatters, unit 
 		return nil, err
 	}
 	return formatDurationNumberParts(formatters, unit, numericValue, signVisible), nil
-}
-
-func formatDurationDecimalNumberText(formatters durationNumberFormatters, errorName, value string, signVisible bool, loc locale.Locale) (string, error) {
-	numericValue, err := durationDecimalNumberValue(errorName, value, signVisible, loc)
-	if err != nil {
-		return "", err
-	}
-	return durationNumberFormatter(formatters, signVisible).Format(numericValue), nil
 }
 
 func durationNumberFormatter(formatters durationNumberFormatters, signVisible bool) *numberformat.NumberFormat {

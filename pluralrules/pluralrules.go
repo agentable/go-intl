@@ -10,8 +10,8 @@ import (
 	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/ecma402"
 	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
-	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 	"github.com/agentable/go-intl/internal/localematcher"
+	pluralop "github.com/agentable/go-intl/internal/plural"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -28,11 +28,11 @@ const (
 )
 
 func (c Category) String() string {
-	return ecma402pr.Category(c).String()
+	return pluralop.Category(c).String()
 }
 
 func (c Category) MarshalText() ([]byte, error) {
-	return ecma402pr.Category(c).MarshalText()
+	return pluralop.Category(c).MarshalText()
 }
 
 type PluralRules struct {
@@ -44,7 +44,7 @@ type PluralRules struct {
 	resolved        ResolvedOptions
 }
 
-type pluralRuleFunc func(ecma402pr.OperandsRecord) ecma402pr.Category
+type pluralRuleFunc func(pluralop.OperandsRecord) pluralop.Category
 
 var pluralRulesLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
 	return localematcher.NewMatcher(plural.SupportedLocales(), cldrlocale.Maximize)
@@ -155,8 +155,8 @@ func selectRangeCategories(startCategory Category, endCategory Category, f *Plur
 	}
 	if category, ok := plural.CardinalRange(
 		f.dataLocale,
-		ecma402pr.Category(startCategory),
-		ecma402pr.Category(endCategory),
+		pluralop.Category(startCategory),
+		pluralop.Category(endCategory),
 	); ok {
 		return Category(category)
 	}
@@ -164,11 +164,11 @@ func selectRangeCategories(startCategory Category, endCategory Category, f *Plur
 }
 
 func selectInteger(n int64, rule pluralRuleFunc) Category {
-	return Category(rule(ecma402pr.GetIntegerOperands(n)))
+	return Category(rule(pluralop.GetIntegerOperands(n)))
 }
 
 func selectUnsignedInteger(n uint64, rule pluralRuleFunc) Category {
-	return Category(rule(ecma402pr.GetUnsignedIntegerOperands(n)))
+	return Category(rule(pluralop.GetUnsignedIntegerOperands(n)))
 }
 
 func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf.DigitOptions, compact compactExponentSet, rule pluralRuleFunc) (string, decimal.Decimal, Category) {
@@ -177,22 +177,22 @@ func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf
 		if _, _, compactExponent, ok := ecma402nf.ResolveCompactMagnitude(d, digitOptions, compact.exponentForMagnitude); ok {
 			exponent = compactExponent
 		}
-	} else if exponent = pluralExponent(d, notation); exponent != 0 {
+	} else if exponent = pluralExponent(d, notation, digitOptions); exponent != 0 {
 		d = decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent is derived from decimal.Log10Floor int32.
 	}
 	result := ecma402nf.FormatNumericToString(d, digitOptions)
 	formatted := strings.TrimPrefix(result.Formatted, "-")
-	ops := ecma402pr.GetOperands(formatted, exponent)
+	ops := pluralop.GetOperands(formatted, exponent)
 	return formatted, result.Rounded, Category(rule(ops))
 }
 
-func pluralExponent(d decimal.Decimal, notation Notation) int {
+func pluralExponent(d decimal.Decimal, notation Notation, digitOptions ecma402nf.DigitOptions) int {
 	switch notation {
 	case ScientificNotation:
-		exponent, _ := ecma402nf.ScientificExponent(d, false)
+		exponent, _ := ecma402nf.ScientificExponent(d, digitOptions, false)
 		return exponent
 	case EngineeringNotation:
-		exponent, _ := ecma402nf.ScientificExponent(d, true)
+		exponent, _ := ecma402nf.ScientificExponent(d, digitOptions, true)
 		return exponent
 	default:
 		return 0

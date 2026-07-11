@@ -25,8 +25,7 @@ func ResolveLocale(tag string) (Locale, bool) {
 // order. It reads only the narrow supported blob and never triggers the
 // gregorian or day-period blob decode.
 func SupportedLocales() []string {
-	supportedOnce.Do(loadSupported)
-	return slices.Clone(supportedTags)
+	return supported.Get()
 }
 
 // SupportedCalendars returns the canonical ECMA-402 calendar identifiers backed

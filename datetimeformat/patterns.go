@@ -195,11 +195,8 @@ func styleTimeIntervalFormat(patterns *patternData, style Style, formatMatcher F
 func timeStylePatternOptions(pattern string) ecma402dtf.Options {
 	opts := stylePatternOptions(pattern)
 	opts.DayPeriod = ""
-	switch opts.HourCycle {
-	case ecma402dtf.HourCycleH11, ecma402dtf.HourCycleH12:
-		opts.Hour12 = ecma402.ResolvedScalar(true)
-	case ecma402dtf.HourCycleH23, ecma402dtf.HourCycleH24:
-		opts.Hour12 = ecma402.ResolvedScalar(false)
+	if implied := hourCycleImpliesHour12(HourCycle(opts.HourCycle)); implied != nil {
+		opts.Hour12 = implied
 	}
 	return opts
 }
@@ -226,12 +223,8 @@ func matcherOptions(resolved ResolvedOptions, uses24Hour bool) ecma402dtf.Option
 	hour12 := resolved.Hour12
 	hourCycle := ecma402.ResolvedScalarValue(resolved.HourCycle)
 	if hour12 == nil {
-		switch hourCycle {
-		case H11HourCycle, H12HourCycle:
-			hour12 = ecma402.ResolvedScalar(true)
-		case H23HourCycle, H24HourCycle:
-			hour12 = ecma402.ResolvedScalar(false)
-		default:
+		hour12 = hourCycleImpliesHour12(HourCycle(hourCycle))
+		if hour12 == nil {
 			hour12 = ecma402.ResolvedScalar(!uses24Hour)
 		}
 	}

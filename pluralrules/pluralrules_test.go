@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
-	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 	"github.com/agentable/go-intl/internal/intlerr"
+	pluralop "github.com/agentable/go-intl/internal/plural"
 
 	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/intltest"
@@ -21,14 +21,14 @@ func TestCategoryMatchesInternalOrder(t *testing.T) {
 
 	tests := []struct {
 		public   Category
-		internal ecma402pr.Category
+		internal pluralop.Category
 	}{
-		{Zero, ecma402pr.Zero},
-		{One, ecma402pr.One},
-		{Two, ecma402pr.Two},
-		{Few, ecma402pr.Few},
-		{Many, ecma402pr.Many},
-		{Other, ecma402pr.Other},
+		{Zero, pluralop.Zero},
+		{One, pluralop.One},
+		{Two, pluralop.Two},
+		{Few, pluralop.Few},
+		{Many, pluralop.Many},
+		{Other, pluralop.Other},
 	}
 	for _, tc := range tests {
 		t.Run(tc.public.String(), func(t *testing.T) {
@@ -37,8 +37,8 @@ func TestCategoryMatchesInternalOrder(t *testing.T) {
 			if Category(tc.internal) != tc.public {
 				t.Fatalf("Category(%s) = %s, want %s", tc.internal, Category(tc.internal), tc.public)
 			}
-			if ecma402pr.Category(tc.public) != tc.internal {
-				t.Fatalf("internal Category(%s) = %s, want %s", tc.public, ecma402pr.Category(tc.public), tc.internal)
+			if pluralop.Category(tc.public) != tc.internal {
+				t.Fatalf("internal Category(%s) = %s, want %s", tc.public, pluralop.Category(tc.public), tc.internal)
 			}
 		})
 	}
@@ -214,10 +214,10 @@ func TestResolveDecimalUsesExplicitConstructorState(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			var gotOps ecma402pr.OperandsRecord
-			formatted, rounded, category := resolveDecimal(d, tc.notation, digitOptions, compactExponentSet{}, func(ops ecma402pr.OperandsRecord) ecma402pr.Category {
+			var gotOps pluralop.OperandsRecord
+			formatted, rounded, category := resolveDecimal(d, tc.notation, digitOptions, compactExponentSet{}, func(ops pluralop.OperandsRecord) pluralop.Category {
 				gotOps = ops
-				return ecma402pr.Many
+				return pluralop.Many
 			})
 			if formatted != tc.wantFormatted {
 				t.Fatalf("resolveDecimal formatted = %q, want %q", formatted, tc.wantFormatted)

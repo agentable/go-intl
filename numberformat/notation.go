@@ -8,8 +8,8 @@ import (
 	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/ecma402"
 	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
-	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 	"github.com/agentable/go-intl/internal/numbering"
+	pluralop "github.com/agentable/go-intl/internal/plural"
 )
 
 func formatCompactAppend(parts []Part, d decimal.Decimal, state *decimalFormatState) ([]Part, decimal.Decimal) {
@@ -62,7 +62,7 @@ func resolveCompactPattern(d decimal.Decimal, digitOptions ecma402nf.DigitOption
 }
 
 func compactPatternForFormatted(entry compactPatternEntry, formatted string, cardinalRule pluralRuleFunc) compactAffixPattern {
-	if !entry.patterns[ecma402pr.Other].set {
+	if !entry.patterns[pluralop.Other].set {
 		return compactAffixPattern{}
 	}
 	category := pluralCategoryWithExponent(cardinalRule, strings.TrimPrefix(formatted, "-"), entry.exponent)
@@ -75,7 +75,7 @@ func formatScientificAppend(parts []Part, d decimal.Decimal, notation Notation, 
 	signDisplay := resolved.SignDisplay
 	grouping := state.grouping
 	digitOptions := state.digitOptions
-	exponent, ok := ecma402nf.ScientificExponent(d, notation == EngineeringNotation)
+	exponent, ok := ecma402nf.ScientificExponent(d, digitOptions, notation == EngineeringNotation)
 	if !ok {
 		return append(parts, Part{Type: PartNaN, Value: symbols.NaN}), decimal.NaNValue
 	}
@@ -103,7 +103,7 @@ func formatScientificText(d decimal.Decimal, notation Notation, state *decimalFo
 	signDisplay := resolved.SignDisplay
 	grouping := state.grouping
 	digitOptions := state.digitOptions
-	exponent, ok := ecma402nf.ScientificExponent(d, notation == EngineeringNotation)
+	exponent, ok := ecma402nf.ScientificExponent(d, digitOptions, notation == EngineeringNotation)
 	if !ok {
 		return symbols.NaN, decimal.NaNValue
 	}
@@ -158,7 +158,7 @@ func compactPatternsForNumberFormat(loc cldrnumber.Locale, opts ResolvedOptions)
 		for _, category := range numberPluralCategories {
 			entry.patterns[category] = compileCompactAffixPattern(loc.CompactPattern(opts.NumberingSystem, display, exponent, category.String()))
 		}
-		entry.patterns[ecma402pr.Other] = compileCompactAffixPattern(other)
+		entry.patterns[pluralop.Other] = compileCompactAffixPattern(other)
 		entries = append(entries, entry)
 	}
 	return compactPatternSet{entries: entries}
@@ -181,13 +181,13 @@ func (p compactPatternSet) exponentForMagnitude(magnitude int) (int, bool) {
 	return entry.exponent, true
 }
 
-func (p compactPatternEntry) pattern(plural ecma402pr.Category) compactAffixPattern {
+func (p compactPatternEntry) pattern(plural pluralop.Category) compactAffixPattern {
 	if int(plural) < len(p.patterns) {
 		if pattern := p.patterns[plural]; pattern.set {
 			return pattern
 		}
 	}
-	return p.patterns[ecma402pr.Other]
+	return p.patterns[pluralop.Other]
 }
 
 type compactAffixPattern struct {

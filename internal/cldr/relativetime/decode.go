@@ -30,9 +30,6 @@ type RelativeTimeFields map[string]map[string]RelativeTimeField
 var (
 	fieldOnce      sync.Once
 	fieldsByLocale map[Locale]RelativeTimeFields
-
-	supportedOnce sync.Once
-	supportedTags []string
 )
 
 func loadFields() {
@@ -56,6 +53,4 @@ func decodeRelativeTimeField(r *codec.Reader) RelativeTimeField {
 	}
 }
 
-func loadSupported() {
-	supportedTags = codec.StringRefSlice(_relativeTimeSupportedBlob, _data)
-}
+var supported = codec.NewLazyStrings(_relativeTimeSupportedBlob, _data)

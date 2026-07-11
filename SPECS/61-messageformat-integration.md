@@ -145,10 +145,10 @@ nfOpts, err := mapNumberOptions(opts) // LDML 48 → ECMA-402 named mapping
 
 **Rules**:
 
-1. `OperandsRecord` **MUST** be located in `internal/ecma402/pluralrules/operands.go`, **not** as a public API.
+1. `OperandsRecord` **MUST** be located in `internal/plural/plural.go`, **not** as a public API.
 2. NumberFormat compact path **MUST** consume OperandsRecord through go-intl internal operand builder and generated CLDR plural rule; **FORBIDDEN** messageformat-go to construct OperandsRecord by itself.
 3. messageformat-go indirectly obtains the plural selection result through `pluralrules.PluralRules.Select`; it is **FORBIDDEN** to obtain the internal fields of OperandsRecord through reflection or unsafe.
-4. SPEC 40 owns operands field set and calculation algorithm; if messageformat-go proposes new field requirements (such as `e2`), you must first follow the dependency issue feedback process (SPEC §5), and you must not PR `internal/ecma402/pluralrules` directly.
+4. SPEC 40 owns operands field set and calculation algorithm; if messageformat-go proposes new field requirements (such as `e2`), you must first follow the dependency issue feedback process (SPEC §5), and you must not PR `internal/plural` directly.
 
 > **Why**: OperandsRecord is an ECMA-402 internal data structure. After exposure, messageformat-go is equivalent to getting the spec internal slot; subsequent spec evolution (such as adding a new operand to LDML) will destroy both projects at the same time.
 > **Rejected**: `pluralrules.Operands(value any) OperandsRecord` public function - meets the requirement of "messageformat-go wants to see operand", but at the cost of promoting the internal type to a public surface, which violates SPEC 60 §5.

@@ -5,7 +5,6 @@
 package displaynames
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/agentable/go-intl/internal/cldr/currency"
@@ -67,8 +66,7 @@ func dateTimeFieldLookupCode(code string) string {
 // SupportedLocales returns the locale tags with display-name data. It reads only
 // the narrow supported blob and never triggers any names blob decode.
 func SupportedLocales() []string {
-	supportedOnce.Do(loadSupported)
-	return slices.Clone(supportedTags)
+	return supported.Get()
 }
 
 func parentTag(tag string) string {

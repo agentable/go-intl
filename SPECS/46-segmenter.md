@@ -10,6 +10,30 @@ References:
 
 ---
 
+## 0. Backend Dependency Boundary
+
+Current public MIT releases keep the Segmenter backend license-compatible with
+go-intl distribution. go-segment may become the segmentation substrate only
+after one of these is true:
+
+- go-segment is available under a license compatible with go-intl's public MIT
+  distribution;
+- the integration is explicitly internal or optional and does not become a
+  mandatory public `go.mod` dependency;
+- the shared boundary substrate moves to a separately licensed module.
+
+go-intl owns ECMA-402 locale resolution, option validation, `intlerr` error
+shape, JSON segment record policy, conformance fixtures, and
+`SupportedLocalesOf`. go-segment must not import go-intl. go-intl must not add a
+mandatory `github.com/agentable/go-segment` dependency while go-segment remains
+commercial-only.
+
+Backend parity work may use go-segment's `boundary` package as evidence or in
+internal builds, but the public Segmenter API must not lose `All`,
+`Containing`, `ContainingByte`, UTF-16 code-unit indexes, byte indexes, invalid
+UTF-8 behavior, empty-input behavior, word-like presence semantics, or the
+tailored-locale support gate.
+
 ## 1. Public Surface
 
 ```go
@@ -75,11 +99,15 @@ Current tier: **narrowed implementation gap**.
 
 | Field | Value |
 |-------|-------|
-| Current behavior | Locale-sensitive dictionary/CJK tailoring is not advertised by `SupportedLocalesOf`; default UAX #29 boundaries remain available only for locales whose behavior is actively verified. |
-| Rationale | Returning a locale as supported means word and sentence boundaries are trustworthy for that locale, not merely parseable as BCP 47. |
-| Guardrail | `internal/segmentation.SupportedLocales()` is an explicit allowlist and returns a snapshot. It must not be generated from CLDR locale-profile data or exposed as mutable package storage. |
+| Current behavior | Locale-sensitive dictionary/CJK tailoring is not advertised by `SupportedLocalesOf`. The advertised set is an explicit 11-locale snapshot (`ar de en en-GB en-US es fr hi it pt ru`) whose UAX #29 word/sentence boundaries are backed by native-engine witness fixtures. |
+| Rationale | Advertising a locale as supported is a **capability + witness** claim: the active `uniseg` backend produces trustworthy word and sentence boundaries for that locale and a native-engine fixture proves it, not merely that the tag parses as BCP 47. The rationale is capability, not "the locales we happen to conformance-test": witnessed non-dictionary locales that are not yet in the snapshot (see future work) are withheld only until their fixtures land. |
+| Guardrail | `internal/segmentation.SupportedLocales()` is an explicit allowlist that returns a snapshot. It must not be generated from CLDR locale-profile data, must not be auto-derived as "all CLDR minus dictionary/CJK" (V8 and FormatJS disagree on that boundary), and must not be exposed as mutable package storage. |
 | review_after | 2026-09-30 or the next segmentation backend evaluation, whichever comes first. |
 | Removal path | Add or select a segmentation backend with dictionary/CJK tailoring, generate native engine fixtures for affected locales, then expand `internal/segmentation.SupportedLocales()`. |
+
+**Future work (D2) — widen the non-dictionary snapshot.** `uniseg` segments the non-dictionary locales `nl`, `pl`, and `tr` byte-for-byte as native does, but they are withheld from the snapshot until word and sentence native-engine witness fixtures are generated for them. Widening is fixture-gated expansion of the allowlist, not auto-derivation. The dictionary/CJK guardrail below is separate and stays: `ja`, `th`, and `zh-Hant` must not be advertised until tailored segmentation lands.
+
+**Divergence — `ResolvedOptions().Locale` for withheld locales.** When a constructor request resolves to a withheld locale, `ResolvedOptions().Locale` falls back to `en` rather than echoing the requested tag. Native V8 reflects the requested locale here even when its segmentation is untailored, so this is an accepted, currently unrecorded V8 divergence; it resolves as the snapshot widens and tailored locales are added.
 
 This gap is not an accepted divergence from ECMA-402. It is an honest supported-locale boundary until go-intl can implement locale-tailored segmentation.
 The dependency evidence lives in `reports/github.com-rivo-uniseg.md`. native-engine

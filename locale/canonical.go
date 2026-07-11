@@ -16,6 +16,11 @@ func (l Locale) Maximize() Locale {
 	return l
 }
 
+// Minimize is a two-tier lookup, not two competing algorithms: a precomputed
+// CLDR minimize table for known subtag triples, falling back to the general
+// ECMA-402 RemoveLikelySubtags trial below for arbitrary user input. Both tiers
+// are driven by the same generated CLDR data (the fallback via Maximize), so they
+// are consistent by construction and cannot drift.
 func (l Locale) Minimize() Locale {
 	lang, script, region := localeid.Parts(l.tag)
 	if minLang, minScript, minRegion, ok := cldrlocale.MinimizeSubtags(lang, script, region); ok {

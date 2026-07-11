@@ -87,9 +87,6 @@ var (
 	dayPeriodOnce  sync.Once
 	dayPeriodRules map[Locale][]DayPeriodRange
 
-	supportedOnce sync.Once
-	supportedTags []string
-
 	calendarsOnce sync.Once
 	calendarIDs   []string
 )
@@ -156,9 +153,7 @@ func decodeDayPeriodRule(r *codec.Reader) DayPeriodRange {
 	return DayPeriodRange{From: from, To: to, Type: r.StringRef(_data)}
 }
 
-func loadSupported() {
-	supportedTags = codec.StringRefSlice(_dateSupportedBlob, _data)
-}
+var supported = codec.NewLazyStrings(_dateSupportedBlob, _data)
 
 func loadCalendars() {
 	calendarIDs = codec.StringRefSlice(_dateCalendarBlob, _data)

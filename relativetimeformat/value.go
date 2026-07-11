@@ -24,15 +24,15 @@ type Value struct {
 
 // Int returns a signed integer relative-time value.
 func Int(value int64) Value {
-	text := strconv.FormatInt(value, 10)
-	past := value < 0
+	canonical := strconv.FormatInt(value, 10)
+	past, literalKey := relativeCanonical(canonical)
 	numberValue := numberformat.Int(value)
 	if past {
 		numberValue = numberformat.Uint(ecma402.Int64Magnitude(value))
 	}
 	return Value{
-		literalKey:  text,
-		errValue:    text,
+		literalKey:  literalKey,
+		errValue:    canonical,
 		past:        past,
 		numberValue: numberValue,
 		pluralValue: pluralrules.Int(value),
@@ -41,10 +41,12 @@ func Int(value int64) Value {
 
 // Uint returns an unsigned integer relative-time value.
 func Uint(value uint64) Value {
-	text := strconv.FormatUint(value, 10)
+	canonical := strconv.FormatUint(value, 10)
+	past, literalKey := relativeCanonical(canonical)
 	return Value{
-		literalKey:  text,
-		errValue:    text,
+		literalKey:  literalKey,
+		errValue:    canonical,
+		past:        past,
 		numberValue: numberformat.Uint(value),
 		pluralValue: pluralrules.Uint(value),
 	}
@@ -56,10 +58,11 @@ func Float(value float64) Value {
 	if math.IsNaN(value) || math.IsInf(value, 0) {
 		return Value{errValue: text, invalidErr: decimal.ErrInvalidDecimal}
 	}
+	past, literalKey := relativeCanonical(strconv.FormatFloat(value, 'f', -1, 64))
 	return Value{
-		literalKey:  strconv.FormatFloat(value, 'f', -1, 64),
+		literalKey:  literalKey,
 		errValue:    text,
-		past:        math.Signbit(value),
+		past:        past,
 		numberValue: numberformat.Float(math.Abs(value)),
 		pluralValue: pluralrules.Float(value),
 	}
@@ -76,11 +79,33 @@ func Decimal(value string) (Value, error) {
 	if err != nil {
 		return Value{}, invalidRelativeTimeValue(value, "", err)
 	}
+	past, literalKey := relativeCanonical(value)
 	return Value{
-		literalKey:  decimalRelativeLiteralKey(value),
+		literalKey:  literalKey,
 		errValue:    value,
-		past:        strings.HasPrefix(value, "-"),
+		past:        past,
 		numberValue: numberValue,
 		pluralValue: pluralValue,
 	}, nil
+}
+
+// relativeCanonical derives, from a value's sign-preserving canonical string,
+// the ECMA-402 tense flag and the numeric=auto literal lookup key — the one
+// derivation shared by every numeric bridge. past follows the spec rule "value
+// is -0 or value < -0"; literalKey is ToString(value): -0 collapses to "0" and
+// trailing fraction zeros drop, so "1.0" matches CLDR's "1" entry.
+func relativeCanonical(canonical string) (past bool, literalKey string) {
+	past = strings.HasPrefix(canonical, "-")
+	d, err := ecma402.ParseFiniteDecimalInput(canonical)
+	if err != nil {
+		return past, canonical
+	}
+	return past, trimTrailingFractionZeros(d.String())
+}
+
+func trimTrailingFractionZeros(s string) string {
+	if !strings.ContainsRune(s, '.') {
+		return s
+	}
+	return strings.TrimSuffix(strings.TrimRight(s, "0"), ".")
 }

@@ -13,34 +13,25 @@ const (
 
 type CompactExponentLookup func(magnitude int) (exponent int, ok bool)
 
+// ResolveCompactMagnitude scales d into its compact mantissa via the shared
+// computeExponent engine (which owns the post-rounding carry recheck) and returns
+// the scaled value, its magnitude, the compact exponent, and whether compact
+// notation applies. Below MinCompactMagnitude it does not apply.
 func ResolveCompactMagnitude(d decimal.Decimal, digitOptions DigitOptions, lookup CompactExponentLookup) (decimal.Decimal, int, int, bool) {
-	magnitude, err := decimal.Log10Floor(decimal.Abs(d))
-	if err != nil || magnitude < MinCompactMagnitude || lookup == nil {
-		return d, 0, 0, false
-	}
-	exponent, ok := lookup(int(magnitude))
+	exponent, magnitude, ok := computeExponent(d, digitOptions, compactExponentForMagnitude(lookup))
 	if !ok {
 		return d, 0, 0, false
 	}
-	scaled := decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- compact exponents are small generated data keys.
-	result := FormatNumericToString(scaled, digitOptions)
-	rounded := decimal.Abs(result.Rounded)
-	if rounded.IsZero() {
-		return scaled, int(magnitude), exponent, true
+	return decimal.Scale10(d, -int32(exponent)), magnitude, exponent, true // #nosec G115 -- compact exponents are small generated data keys.
+}
+
+func compactExponentForMagnitude(lookup CompactExponentLookup) exponentForMagnitude {
+	return func(magnitude int) (int, bool) {
+		if magnitude < MinCompactMagnitude || lookup == nil {
+			return 0, false
+		}
+		return lookup(magnitude)
 	}
-	roundedMagnitude, err := decimal.Log10Floor(rounded)
-	if err != nil {
-		return scaled, int(magnitude), exponent, true
-	}
-	if int(roundedMagnitude) == int(magnitude)-exponent {
-		return scaled, int(magnitude), exponent, true
-	}
-	nextMagnitude := int(magnitude) + 1
-	nextExponent, ok := lookup(nextMagnitude)
-	if !ok {
-		return scaled, int(magnitude), exponent, true
-	}
-	return decimal.Scale10(d, -int32(nextExponent)), nextMagnitude, nextExponent, true // #nosec G115 -- compact exponents are small generated data keys.
 }
 
 func CompactExponentForPattern(magnitude int, pattern string) int {

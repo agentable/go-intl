@@ -351,7 +351,7 @@ MUST rules:
 
 ### 6.1 Per-domain accessors
 
-Each domain package exposes its own accessors; the formatter packages consume the owning domain, not a root `cldr` package. Accessors **MUST** be O(1) after the domain's `sync.Once` decode and **MUST NOT** allocate on the hot path (a returned `string` is a slice into the domain `_data`; a returned map/slice is a read-only reference).
+Each domain package exposes its own accessors; the formatter packages consume the owning domain, not a root `cldr` package. Accessors **MUST** be O(1) after the domain's `sync.Once` decode. A returned scalar `string` is a slice into the domain `_data` and allocates nothing. Composite accessors that hand back a map or slice (for example `date.AvailableFormats` / `date.IntervalFormats` via `maps.Clone`, or `relativetime` field records) **MUST** return a defensive clone so callers cannot mutate cached domain state. The eight supported-locale index accessors (`number`/`date`/`currency`/`unit`/`list`/`relativetime`/`timezone`/`displaynames`) share one `codec.LazyStrings` owner, which decodes its `StringRefSlice` blob once and returns a `slices.Clone` on every `Get`, replacing the former per-domain `(sync.Once, []string, loader, clone-accessor)` quadruple.
 
 Representative surface:
 

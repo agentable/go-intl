@@ -280,6 +280,19 @@ func TestCollator_IgnorePunctuation(t *testing.T) {
 	if got := withPunctuation.Compare("a-b", "ab"); got != 0 {
 		t.Errorf("ignore punctuation Compare(a-b,ab) = %d, want 0", got)
 	}
+	// Ordering of non-punctuation content must still be honored — the bug was
+	// that routing to ka=shifted skipped the primary level and returned 0 for
+	// every comparison, turning sorts into silent no-ops.
+	if got := withPunctuation.Compare("zebra", "apple"); got <= 0 {
+		t.Errorf("ignore punctuation Compare(zebra,apple) = %d, want > 0", got)
+	}
+	if got := withPunctuation.Compare("apple", "zebra"); got >= 0 {
+		t.Errorf("ignore punctuation Compare(apple,zebra) = %d, want < 0", got)
+	}
+	// Punctuation is ignored but surrounding content still orders.
+	if got := withPunctuation.Compare("re-sort", "reser"); got <= 0 {
+		t.Errorf("ignore punctuation Compare(re-sort,reser) = %d, want > 0", got)
+	}
 	if !withPunctuation.ResolvedOptions().IgnorePunctuation {
 		t.Error("ResolvedOptions().IgnorePunctuation = false, want true")
 	}

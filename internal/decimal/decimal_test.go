@@ -91,21 +91,3 @@ func TestErrors(t *testing.T) {
 		}
 	}
 }
-
-func TestAbsDiffCmp(t *testing.T) {
-	t.Parallel()
-
-	base := mustParseDecimal(t, "1.2345")
-	closer := mustParseDecimal(t, "1.235")
-	farther := mustParseDecimal(t, "1.23")
-	if got := AbsDiffCmp(base, closer, farther); got >= 0 {
-		t.Fatalf("AbsDiffCmp(base, closer, farther) = %d, want closer first", got)
-	}
-
-	base = mustParseDecimal(t, "-1.2345")
-	closer = mustParseDecimal(t, "-1.235")
-	farther = mustParseDecimal(t, "-1.23")
-	if got := AbsDiffCmp(base, closer, farther); got >= 0 {
-		t.Fatalf("AbsDiffCmp(negative base, closer, farther) = %d, want closer first", got)
-	}
-}

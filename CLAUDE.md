@@ -59,6 +59,7 @@ go-intl/
 ├── displaynames/          # Intl.DisplayNames code-to-name lookup
 ├── collator/              # Intl.Collator locale-sensitive compare/sort
 ├── segmenter/             # Intl.Segmenter grapheme/word/sentence segmentation
+├── option/                # Zero-dependency leaf: Int/Bool/String pointer helpers for optional scalar options; re-exported by root as gointl.Int/Bool/String
 ├── internal/
 │   ├── ecma402/           # Shared ECMA-402 abstract operations
 │   ├── cldr/              # Per-domain CLDR packages (number/date/currency/unit/list/relativetime/timezone/displaynames/plural) + locale kernel + codec; const-only data.go, hand-written decode.go/accessors.go
@@ -208,7 +209,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Every exported symbol must map to an ECMA-402 constructor, method, option, resolved option, part record, range source, static `Intl` function, or a Go-only typed bridge for one of those items.
 - Keep active root constructor aliases in place for ECMA-402 constructor-property parity; root import cost is aggregate facade cost, not grounds for API deletion.
 - Validate formatter options in constructors. After construction, method error behavior must match the corresponding ECMA-402 operation: invalid typed inputs return errors where JavaScript would throw `TypeError` or `RangeError`; ordinary formatting does not hide constructor failures.
-- Wrap user-fixable errors with package context and a sentinel error so callers can use `errors.Is` / `errors.As`.
+- Wrap user-fixable errors with package context and a sentinel error so callers can use `errors.Is` / `errors.AsType`.
 - Keep generated CLDR/runtime data out of hot-path file I/O. Runtime data lives in generated Go source under `internal/cldr`.
 - Keep locale-list canonicalization and constructor locale negotiation internal. Public callers use root `GetCanonicalLocales`; formatter packages use `internal/ecma402.CanonicalLocaleList`, `RequestedLocaleStrings`, `ResolveConstructorLocale`, and `SupportedLocalesOf`. Do not expose formatter-independent canonicalize-list helpers or any other public abstract-operation helper.
 - Keep `ResolveConstructorLocale` narrow. It owns shared requested-locale preparation, `localeMatcher` dispatch, default-locale fallback, and relevant-extension merging only; formatter packages still own CLDR data fallback, unsupported-option errors, pattern/data selection, numbering-system defaults, and embedded formatter construction.
@@ -218,6 +219,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep `DateTimeFormat` calendar support tied to `internal/cldr/date.SupportedCalendars()` and generated date data; do not copy calendar allow-lists into constructors.
 - Keep time-zone canonical links generated from pinned CLDR `zoneAlias` replacements plus the documented legacy IANA fallback list; do not hand-write ad hoc alias switches.
 - Keep `Segmenter` supported locales honest. Do not advertise dictionary or CJK-tailored locales such as `ja`, `th`, or `zh-Hant` until the active segmentation backend supports their word-boundary behavior.
+- Keep `Segmenter` backend dependencies license-compatible. Do not add a mandatory `github.com/agentable/go-segment` dependency to the public MIT module while go-segment remains commercial-only; use an internal, optional, relicensed, or separately licensed integration and preserve the existing Segmenter API and fixtures.
 - Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it resolved digit options, while range equality compares final visible endpoint text instead of rounded decimals.
 - Keep compact plural contracts split: NumberFormat compact suffix selection uses the scaled visible display decimal plus compact exponent, while public PluralRules compact selection uses the source decimal string plus compact exponent.
 - Freeze constructor-derived hot-path state on formatter instances. Cached method calls must not redo locale negotiation, option validation, digit-option resolution, plural-rule lookup, or embedded formatter construction. `DurationFormat` composes constructor-resolved `NumberFormat` and `ListFormat` instances.
@@ -283,7 +285,7 @@ Add runtime dependencies only when an active SPEC requires them.
 
 - Root `gointl` owns the public error categories: `ErrInvalidOption`, `ErrUnsupportedOption`, `ErrInvalidValue`, `ErrInvalidCode`, `ErrInvalidKey`, `ErrUnsupportedLocale`, and `ErrUnsupportedBackend`.
 - Error text should teach the caller what to fix using the three-part shape: owner/name/value/locale, `expected ...`, and `got ...`.
-- Public caller-fixable errors should expose `*gointl.Error` through `errors.As`; formatter packages build those errors through `internal/intlerr` to avoid root import cycles.
+- Public caller-fixable errors should expose `*gointl.Error` through `errors.AsType`; formatter packages build those errors through `internal/intlerr` to avoid root import cycles.
 - Do not expose ECMA-402 abstract operation names such as `GetOption`, `PartitionPattern`, or `ResolveLocale` in public error text; those names belong in SPECS and internal code only.
 - Use `%w` wrapping for underlying dependency errors; never match errors by string.
 - Root namespace helpers do not own formatter construction semantics. Constructor failures remain produced by formatter packages but classify through root sentinels and must not be hidden behind fallback output.

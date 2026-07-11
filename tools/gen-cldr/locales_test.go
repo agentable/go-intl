@@ -197,6 +197,10 @@ func writeBaseCLDRFixture(t *testing.T, root string) {
 	if err := os.WriteFile(filepath.Join(supp, "likelySubtags.json"), []byte(likely), 0o666); err != nil {
 		t.Fatalf("write likelySubtags: %v", err)
 	}
+	aliases := `{"supplemental":{"metadata":{"alias":{"zoneAlias":{"EST5EDT":{"_reason":"deprecated","_replacement":"America/New_York"}}}}}}`
+	if err := os.WriteFile(filepath.Join(supp, "aliases.json"), []byte(aliases), 0o666); err != nil {
+		t.Fatalf("write aliases: %v", err)
+	}
 }
 
 func writeLocaleProfileFixture(t *testing.T, dir string) string {

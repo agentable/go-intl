@@ -8,7 +8,7 @@ import (
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	cldrunit "github.com/agentable/go-intl/internal/cldr/unit"
 	"github.com/agentable/go-intl/internal/ecma402"
-	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
+	pluralop "github.com/agentable/go-intl/internal/plural"
 )
 
 func applyCurrencyPattern(parts []Part, pluralFormatted string, cardinalRule pluralRuleFunc, resolved ResolvedOptions, currencyLoc cldrcurrency.Locale, currency currencyPatternSet) []Part {
@@ -76,11 +76,11 @@ func applyCurrencyPatternForPluralText(text, plural string, resolved ResolvedOpt
 	return out
 }
 
-func applyUnitPatternForPlural(parts []Part, plural ecma402pr.Category, unit unitPatternSet) []Part {
+func applyUnitPatternForPlural(parts []Part, plural pluralop.Category, unit unitPatternSet) []Part {
 	return unit.pattern(plural).append(parts)
 }
 
-func applyUnitPatternForPluralText(text string, plural ecma402pr.Category, unit unitPatternSet) string {
+func applyUnitPatternForPluralText(text string, plural pluralop.Category, unit unitPatternSet) string {
 	return unit.pattern(plural).formatText(text)
 }
 
@@ -106,7 +106,7 @@ func currencyDisplayForNumberFormat(loc cldrcurrency.Locale, opts ResolvedOption
 	return code
 }
 
-func pluralCategory(cardinalRule pluralRuleFunc, formatted string) ecma402pr.Category {
+func pluralCategory(cardinalRule pluralRuleFunc, formatted string) pluralop.Category {
 	return pluralCategoryWithExponent(cardinalRule, formatted, 0)
 }
 
@@ -122,20 +122,20 @@ func pluralNumberString(formatted string) string {
 	return joinDecimalParts(integer, fraction)
 }
 
-func pluralCategoryWithExponent(cardinalRule pluralRuleFunc, formatted string, exponent int) ecma402pr.Category {
-	ops := ecma402pr.GetOperands(formatted, exponent)
+func pluralCategoryWithExponent(cardinalRule pluralRuleFunc, formatted string, exponent int) pluralop.Category {
+	ops := pluralop.GetOperands(formatted, exponent)
 	return cardinalRule(ops)
 }
 
-const numberPluralCategoryCount = int(ecma402pr.Other) + 1
+const numberPluralCategoryCount = int(pluralop.Other) + 1
 
-var numberPluralCategories = [...]ecma402pr.Category{
-	ecma402pr.Zero,
-	ecma402pr.One,
-	ecma402pr.Two,
-	ecma402pr.Few,
-	ecma402pr.Many,
-	ecma402pr.Other,
+var numberPluralCategories = [...]pluralop.Category{
+	pluralop.Zero,
+	pluralop.One,
+	pluralop.Two,
+	pluralop.Few,
+	pluralop.Many,
+	pluralop.Other,
 }
 
 type currencyPatternSet struct {
@@ -242,11 +242,11 @@ func defaultUnitPattern(unit string) string {
 	return b.String()
 }
 
-func (p unitPatternSet) pattern(plural ecma402pr.Category) simpleUnitPattern {
+func (p unitPatternSet) pattern(plural pluralop.Category) simpleUnitPattern {
 	if int(plural) < len(p) {
 		return p[plural]
 	}
-	return p[ecma402pr.Other]
+	return p[pluralop.Other]
 }
 
 type simpleUnitPattern struct {

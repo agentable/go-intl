@@ -195,6 +195,11 @@ func segmentByteEnd(seg Segment) int {
 	return seg.ByteIndex + len(seg.Segment)
 }
 
+// isWordLike reports whether a word-granularity segment is "word-like" per
+// Intl.Segmenter. V8 derives this from ICU rule status; go-intl approximates it
+// with a Unicode category test — a segment is word-like if it contains any
+// letter or number — which matches native for UAX #29 word boundaries on
+// non-dictionary scripts (punctuation/whitespace/symbol runs are not word-like).
 func isWordLike(word string) bool {
 	for _, r := range word {
 		if unicode.IsLetter(r) || unicode.IsNumber(r) {

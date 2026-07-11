@@ -43,9 +43,6 @@ var (
 	calendarByLocale  map[string]styledNames
 	fieldOnce         sync.Once
 	fieldByLocale     map[string]styledNames
-
-	supportedOnce sync.Once
-	supportedTags []string
 )
 
 func languageData() map[string]languageRecord {
@@ -106,6 +103,4 @@ func decodeStyledNames(r *codec.Reader) styledNames {
 	}
 }
 
-func loadSupported() {
-	supportedTags = codec.StringRefSlice(_dnSupportedBlob, _data)
-}
+var supported = codec.NewLazyStrings(_dnSupportedBlob, _data)

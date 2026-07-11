@@ -94,9 +94,9 @@ Display-name data comes from generated CLDR payloads in `internal/cldr/displayna
 | Type | CLDR source | Notes |
 |------|-------------|-------|
 | Language | `cldr-localenames-full/main/<locale>/languages.json` | `-alt-short` keys map to `Style=ShortStyle`, `-alt-narrow` keys map to `Style=NarrowStyle`; both fall back to long. `LanguageDisplay=StandardLanguageDisplay` rebuilds region-suffixed tags (e.g. `en-GB`) by composing the bare language and territory through `localeDisplayPattern`. Script-suffixed tags fall through to the dialect entry. |
-| Region | `cldr-localenames-full/main/<locale>/territories.json` | `-alt-short` mapped to ShortStyle; numeric region codes resolve to the same name as their alpha-2 form. |
+| Region | `cldr-localenames-full/main/<locale>/territories.json` | `-alt-short` mapped to ShortStyle. Numeric UN M.49 region codes are returned as-is when they are not a CLDR-carried macro-region (e.g. `of("840")` → `"840"`), matching V8/Node — go-intl does not synthesize an M.49→alpha-2 alias table. |
 | Script | `cldr-localenames-full/main/<locale>/scripts.json` | |
-| Currency | `cldr-numbers-full/main/<locale>/currencies.json`. Long uses `displayName` (singular noun, exposed through `cldr.Locale.CurrencyCanonicalName`). Short uses `symbol`. Narrow uses `symbol-alt-narrow` with short→long fallback. | |
+| Currency | `cldr-numbers-full/main/<locale>/currencies.json`. All styles return the localized `displayName` (singular noun, exposed through `cldr.Locale.CurrencyCanonicalName`); `of("USD")` is `"US Dollar"` for long/short/narrow alike, matching V8/Node. Currency *symbols* (`$`, `symbol-alt-narrow`) are not exposed through DisplayNames — that surface belongs to NumberFormat. | |
 | Calendar | `cldr-localenames-full/main/<locale>/localeDisplayNames.json#types.calendar`. ECMA-402 calendar keys are aliased to CLDR keys at lookup time (`gregory` → `gregorian`, `ethioaa` → `ethiopic-amete-alem`). | |
 | DateTimeField | `cldr-dates-full/main/<locale>/dateFields.json` `fields.<field>.displayName`. CLDR field keys are normalized to ECMA-402 names (`week` → `weekOfYear`, `zone` → `timeZoneName`); `-short` and `-narrow` suffixes feed the corresponding styles. | |
 

@@ -33,8 +33,7 @@ func ResolveLocale(tag string) (Locale, bool) {
 // sorted-locale order. It reads only the narrow supported blob and never
 // triggers the main number-data decode.
 func SupportedLocales() []string {
-	supportedOnce.Do(loadSupported)
-	return slices.Clone(supportedTags)
+	return supported.Get()
 }
 
 // SupportedNumberingSystems returns the canonical numbering-system identifiers

@@ -6,5 +6,5 @@
 //	segments := seg.Segment("Hello, world!")
 //	_ = segments
 //
-// See README.md for usage examples and SPECS/46-segmenter.md for the contract.
+// See README.md for usage examples.
 package segmenter

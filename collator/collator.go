@@ -2,7 +2,9 @@ package collator
 
 import (
 	"slices"
+	"strings"
 	"sync"
+	"unicode"
 
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
@@ -15,12 +17,12 @@ import (
 )
 
 // Collator compares strings according to the resolved locale and options.
-// A Collator is safe for concurrent use; Compare serializes access to the
-// cached x/text backend because it mutates private iterators while comparing.
+// A Collator is safe for concurrent use: each Compare borrows a backend from a
+// pool, because an x/text collator mutates private iterators while comparing and
+// cannot be shared across goroutines. Pooling gives lock-free parallel compares.
 type Collator struct {
-	compareMu sync.Mutex
-	resolved  ResolvedOptions
-	backend   *collate.Collator
+	resolved ResolvedOptions
+	backends sync.Pool // of *collate.Collator
 }
 
 var collatorLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
@@ -62,7 +64,7 @@ func New(locales locale.List, opts Options) (*Collator, error) {
 			Numeric:           cfg.numeric,
 			IgnorePunctuation: cfg.ignorePunctuation,
 		},
-		backend: collate.New(tag, collOpts...),
+		backends: sync.Pool{New: func() any { return collate.New(tag, collOpts...) }},
 	}
 	return f, nil
 }
@@ -70,10 +72,43 @@ func New(locales locale.List, opts Options) (*Collator, error) {
 // Compare returns a negative number when x sorts before y, zero when equal,
 // and positive when x sorts after y. The JS bridge for
 // `Intl.Collator.prototype.compare`.
+//
+// When ignorePunctuation is set, punctuation and whitespace are removed from
+// both operands before comparison. x/text v0.40.0 stubs UCA alternate-shifted
+// handling (collate/collate.go:164-166, "TODO: handle shifted"), which would
+// skip the primary level and collapse every comparison to zero, so go-intl
+// implements the option directly rather than delegating to the backend.
 func (f *Collator) Compare(x, y string) int {
-	f.compareMu.Lock()
-	defer f.compareMu.Unlock()
-	return f.backend.CompareString(x, y)
+	if f.resolved.IgnorePunctuation {
+		x = stripIgnorablePunctuation(x)
+		y = stripIgnorablePunctuation(y)
+	}
+	backend := f.backends.Get().(*collate.Collator)
+	defer f.backends.Put(backend)
+	return backend.CompareString(x, y)
+}
+
+// stripIgnorablePunctuation removes Unicode punctuation and whitespace, the
+// characters ignorePunctuation makes ignorable for sorting (so "black bird"
+// and "blackbird", or "a-b" and "ab", compare equal while other content still
+// orders normally).
+func stripIgnorablePunctuation(s string) string {
+	if strings.IndexFunc(s, isIgnorablePunctuation) < 0 {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if isIgnorablePunctuation(r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func isIgnorablePunctuation(r rune) bool {
+	return unicode.IsPunct(r) || unicode.IsSpace(r)
 }
 
 func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, string, config) {
@@ -140,15 +175,7 @@ func collateTag(dataLocale string, cfg config) language.Tag {
 			tag = collated
 		}
 	}
-	if !cfg.ignorePunctuation {
-		return tag
-	}
-	// x/text exposes UCA alternate-shifted handling through the BCP 47 "ka" key.
-	shifted, err := tag.SetTypeForKey("ka", "shifted")
-	if err != nil {
-		return tag
-	}
-	return shifted
+	return tag
 }
 
 func buildCollateOptions(cfg config) []collate.Option {

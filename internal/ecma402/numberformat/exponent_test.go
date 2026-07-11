@@ -12,16 +12,22 @@ func TestScientificExponent(t *testing.T) {
 	tests := []struct {
 		name        string
 		in          string
+		maxFrac     int
 		engineering bool
 		want        int
 	}{
-		{name: "zero", in: "0", want: 0},
-		{name: "scientific positive integer", in: "12345", want: 4},
-		{name: "scientific small decimal", in: "0.0123", want: -2},
-		{name: "scientific negative input", in: "-987", want: 2},
-		{name: "engineering positive integer", in: "12345", engineering: true, want: 3},
-		{name: "engineering small decimal", in: "0.0123", engineering: true, want: -3},
-		{name: "engineering negative magnitude", in: "0.000123", engineering: true, want: -6},
+		{name: "zero", in: "0", maxFrac: 3, want: 0},
+		{name: "scientific positive integer", in: "12345", maxFrac: 3, want: 4},
+		{name: "scientific small decimal", in: "0.0123", maxFrac: 5, want: -2},
+		{name: "scientific negative input", in: "-987", maxFrac: 3, want: 2},
+		{name: "engineering positive integer", in: "12345", maxFrac: 3, engineering: true, want: 3},
+		{name: "engineering small decimal", in: "0.0123", maxFrac: 5, engineering: true, want: -3},
+		{name: "engineering negative magnitude", in: "0.000123", maxFrac: 7, engineering: true, want: -6},
+		// Rounding carry: mantissa rounds up a magnitude, so the exponent is
+		// re-derived from magnitude+1.
+		{name: "scientific carry 999", in: "999", maxFrac: 0, want: 3},
+		{name: "scientific carry 999500", in: "999500", maxFrac: 0, want: 6},
+		{name: "engineering carry 999500", in: "999500", maxFrac: 0, engineering: true, want: 6},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -31,7 +37,15 @@ func TestScientificExponent(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, ok := ScientificExponent(d, tc.engineering)
+			opts := DigitOptions{
+				MinimumIntegerDigits:  1,
+				MaximumFractionDigits: tc.maxFrac,
+				RoundingIncrement:     1,
+				RoundingMode:          "halfExpand",
+				RoundingPriority:      "auto",
+				TrailingZeroDisplay:   "auto",
+			}
+			got, ok := ScientificExponent(d, opts, tc.engineering)
 			if !ok {
 				t.Fatalf("ScientificExponent(%s, %t) ok = false, want true", tc.in, tc.engineering)
 			}
@@ -49,7 +63,7 @@ func TestScientificExponentRejectsNonFinite(t *testing.T) {
 		t.Run(d.String(), func(t *testing.T) {
 			t.Parallel()
 
-			if got, ok := ScientificExponent(d, false); ok {
+			if got, ok := ScientificExponent(d, DigitOptions{MaximumFractionDigits: 3, RoundingIncrement: 1}, false); ok {
 				t.Fatalf("ScientificExponent(%s, false) = %d, true; want ok false", d.String(), got)
 			}
 		})

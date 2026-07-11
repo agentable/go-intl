@@ -59,8 +59,10 @@ func AdjustFieldTypes(format Formats, opts Options) Formats {
 		format.Pattern = adjustPatternFields(format.Pattern, hourPatternFields, numericPatternWidthFor(hourPatternChar(format.HourCycle), opts.Hour))
 		format.Hour = opts.Hour
 	}
-	adjustNumericField(&format, &format.Minute, opts.Minute, 'm')
-	adjustNumericField(&format, &format.Second, opts.Second, 's')
+	// Minute and second widths are deliberately not adjusted: the reference
+	// best-fit matcher skips them (FormatJS BestFitFormatMatcher.ts:109-112,
+	// "Don't mess with minute/second"). Rewriting them corrupts the interval
+	// path, which parses the resolved pattern as its own skeleton.
 	if opts.DayPeriod != "" && format.DayPeriod != opts.DayPeriod {
 		format.Pattern = adjustPatternFields(format.Pattern, dayPeriodPatternFields, fieldPatternWidth('B', opts.DayPeriod))
 		format.DayPeriod = opts.DayPeriod

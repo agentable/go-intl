@@ -4,8 +4,6 @@
 package list
 
 import (
-	"slices"
-
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 )
 
@@ -50,6 +48,5 @@ func Pattern(locale Locale, typ, style string) ListPattern {
 // order. It reads only the narrow supported blob and never triggers the pattern
 // blob decode.
 func SupportedLocales() []string {
-	supportedOnce.Do(loadSupported)
-	return slices.Clone(supportedTags)
+	return supported.Get()
 }

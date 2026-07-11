@@ -121,7 +121,7 @@ Because the root package aliases every active constructor type, it imports every
 
 Rules:
 
-1. Performance-sensitive applications that need one formatter should import that formatter subpackage directly.
+1. Performance-sensitive applications that need one formatter should import that formatter subpackage directly. The optional scalar pointer helpers live in the zero-dependency leaf package `github.com/agentable/go-intl/option` (`option.Int`/`option.Bool`/`option.String`); single-formatter services set options through it without importing the aggregate root. The root re-exports them as `gointl.Int`/`gointl.Bool`/`gointl.String` for namespace fidelity.
 2. Root package benchmarks, build-size reports, and dependency graph reports must label the result as aggregate facade cost.
 3. Per-surface measurements must be reported separately from root package measurements.
 4. Constructor aliases must not be removed from the root package to reduce aggregate import cost or make dependency reports look smaller.
@@ -193,7 +193,7 @@ loc, err := locale.Parse("zh-hans-cn")
 if err != nil {
     return err
 }
-canonical := gointl.GetCanonicalLocales(loc)
+canonical := gointl.GetCanonicalLocales(locale.List{loc})
 ```
 
 > **Why**: ECMA-402 `CanonicalizeLocaleList` handles JavaScript dynamic values, strings, and `Intl.Locale` objects. Go public APIs should not accept `any` to simulate that dynamic boundary. The semantic operation is still the same after `locale.Parse` has converted strings to typed values.

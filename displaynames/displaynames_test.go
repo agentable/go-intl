@@ -277,3 +277,33 @@ func TestSupportedLocalesOfErrors(t *testing.T) {
 		})
 	}
 }
+
+// TestCurrencyAllStylesEqual pins the counter-intuitive invariant that Currency
+// display names are identical across long/short/narrow: DisplayNames returns the
+// localized displayName, never a symbol (matching V8/Node). See SPECS/44.
+func TestCurrencyAllStylesEqual(t *testing.T) {
+	t.Parallel()
+
+	en := locale.List{intltest.Locale(t, "en")}
+	for _, code := range []string{"USD", "EUR", "JPY"} {
+		var long string
+		for _, style := range []displaynames.Style{displaynames.LongStyle, displaynames.ShortStyle, displaynames.NarrowStyle} {
+			dn, err := displaynames.New(en, displaynames.Options{
+				Type:  stringPtr(displaynames.Currency),
+				Style: stringPtr(style),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok, err := dn.Of(code)
+			if err != nil || !ok {
+				t.Fatalf("Of(%s) [%s] ok=%v err=%v", code, style, ok, err)
+			}
+			if style == displaynames.LongStyle {
+				long = got
+			} else if got != long {
+				t.Errorf("Of(%s) [%s] = %q, want %q (all styles must match long)", code, style, got, long)
+			}
+		}
+	}
+}

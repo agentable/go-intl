@@ -220,7 +220,7 @@ func TestListFormatFormatToPartsBoundaryLengths(t *testing.T) {
 		list []string
 		want []Part
 	}{
-		{name: "empty", list: nil, want: nil},
+		{name: "empty", list: nil, want: []Part{}},
 		{
 			name: "single",
 			list: []string{"A"},

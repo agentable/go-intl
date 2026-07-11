@@ -112,7 +112,7 @@ Supported option precedence:
 | `caseFirst = "false"` | (no options) | Default case order. |
 | explicit `caseFirst = "upper" \| "lower"` | constructor error | Returns `ErrUnsupportedOption`; active collation backend cannot apply case-level direction. |
 | locale `kf=upper\|lower` | (no options) | Unsupported locale extension value falls back to default `caseFirst=false`. |
-| `ignorePunctuation = true` | BCP 47 `ka=shifted` on the private `collate` tag | Uses `golang.org/x/text/collate` UCA alternate-shifted handling; does not rewrite input strings. |
+| `ignorePunctuation = true` | Strip Unicode punctuation and whitespace from both operands before `CompareString` | `x/text` v0.40.0 stubs UCA alternate-shifted handling (`collate/collate.go:164-166`, "TODO: handle shifted"), which skips the primary level and zeroes every comparison; go-intl removes ignorable characters directly (`unicode.IsPunct`/`unicode.IsSpace`) so ordering of non-punctuation content is preserved. |
 | `usage = "search"` | constructor error | Current implementation gap; returns `ErrUnsupportedOption` until real search tailoring exists. |
 | backend-supported `collation = "<value>"` | BCP 47 `co=<value>` on the private `collate` tag | Locale-scoped backend support; currently proves German `phonebk` through manual and Node witness fixtures. |
 | well-formed unsupported `collation = "<value>"` | (no options) | Negotiation input; unsupported values fall back to resolved collation `"default"`. |
@@ -180,7 +180,7 @@ MUST rules:
 | `collator.compare(x, y) -> -1 \| 0 \| 1` | `Compare(x, y) int` with any negative / positive value | Typed bridge (matches `slices.SortFunc`). |
 | `caseFirst` reflected in tailoring | `upper` / `lower` rejected with `ErrUnsupportedOption` | Narrowed implementation gap; see §1.1. |
 | `collation` reflected in tailoring | backend-supported locale-scoped values such as German `phonebk` are applied through `co=<value>` | Implemented behavior. |
-| `ignorePunctuation` reflected in comparison | `true` maps to `x/text/collate` alternate-shifted handling through `ka=shifted` | Implemented behavior. |
+| `ignorePunctuation` reflected in comparison | `true` strips punctuation/whitespace from both operands before compare (x/text alternate-shifted is an unimplemented stub) | Implemented behavior. |
 | `usage = "search"` distinct tailoring | rejected with `ErrUnsupportedOption` | Narrowed implementation gap; see §1.1. |
 
 Accepted divergences must be enumerated in `collator/testdata/divergences.md` when they are added.

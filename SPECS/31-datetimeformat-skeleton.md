@@ -25,9 +25,8 @@ This SPEC does not redefine:
 
 ```text
 internal/ecma402/datetimeformat/
-├── skeleton.go # Algorithm: DATE_TIME_REGEX, matchSkeletonPattern, parseDateTimeSkeleton
-├── matcher.go # Algorithm: BasicFormatMatcher, BestFitFormatMatcher, adjustFieldTypes
-└── tokens.go # Type: TokenLabel, Formats, SkeletonField
+├── skeleton.go # Algorithm + types: DATE_TIME_REGEX, Parse, applySkeletonToken, patternHasTimeZoneName, the Formats struct
+└── matcher.go # Algorithm: BasicFormatMatcher, BestFitFormatMatcher, AdjustFieldTypes
 
 internal/cldr/date/
 ├── data.go      # Generated const blobs: per-locale availableFormats / intervalFormats / formats payload
@@ -40,7 +39,7 @@ internal/cldr/date/
 1. The `internal/ecma402/datetimeformat/` algorithm layer **MUST** be stateless (no package-level mutable var, no `init()` side effects).
 2. `internal/ecma402/datetimeformat/` **Must not** directly import `internal/cldr`; CLDR data slices are injected by the caller (`datetimeformat/` package) through parameters when `New`.
 3. `internal/cldr/date/data.go` is a per-locale generated const-blob payload, produced by codegen and decoded through `internal/cldr/date`; handwritten mapping tables are prohibited.
-4. The `Formats` structure (per-skeleton pattern table) in `tokens.go` must be aligned one-to-one with the `Formats` fields output by generated-reference `parseDateTimeSkeleton`.
+4. The `Formats` structure (per-skeleton pattern table) in `skeleton.go` must be aligned one-to-one with the `Formats` fields output by generated-reference `parseDateTimeSkeleton`, plus the go-intl-only `PatternHasTimeZoneName` flag derived from the selected pattern.
 
 > **Why**: Upgrading LDML does not trigger data regeneration (the algorithm is stable); upgrading CLDR does not trigger algorithm modification (the data is stable); the conformance test can independently replace the algorithm or data for difference.
 >
@@ -89,23 +88,24 @@ The character table source **MUST** be an LDML TR35 Date Field Symbol Table. `DA
 | `Y u U r` | `Year` | LDML extended year (`Y` week-of-year, `u` extended, `U` cyclic name, `r` related); the output under active Gregorian path is numeric year |
 | `Q q` | (recognized, no field) | LDML quarter(formatting / standalone). ECMA-402 does not expose `quarter` options; parsers MUST recognize these tokens to avoid silent discarding, but currently `Formats` has no `Quarter` field |
 
-3. `parseDateTimeSkeleton(skeleton string, hour12 *bool, hourCycle string, ...) Formats` **MUST** return the `Formats{...}` structure (corresponding to ECMA-402 §13.1.2):
+3. `Parse(skeleton string, pattern string, hour12 *bool, hourCycle HourCycle) Formats` **MUST** return the `Formats{...}` structure (corresponding to ECMA-402 §13.1.2):
    ```go
    type Formats struct {
-Pattern string // selected active pattern string (including literal quotes)
-Skeleton string // original skeleton
-       Era                   FieldStyle
-       Year                  NumericStyle
-       Month                 FieldStyle
-       Day                   NumericStyle
-       Weekday               FieldStyle
-       Hour                  NumericStyle
-       HourCycle             HourCycle
-       Minute                NumericStyle
-       Second                NumericStyle
-       DayPeriod             FieldStyle
+       Pattern                string // selected active pattern string (including literal quotes)
+       Skeleton               string // original skeleton
+       PatternHasTimeZoneName bool   // set when the selected pattern contains a time-zone field (z/Z/O/v/V/X); go-intl-only
+       Era                    FieldStyle
+       Year                   NumericStyle
+       Month                  FieldStyle
+       Day                    NumericStyle
+       Weekday                FieldStyle
+       Hour                   NumericStyle
+       HourCycle              HourCycle
+       Minute                 NumericStyle
+       Second                 NumericStyle
+       DayPeriod              FieldStyle
        FractionalSecondDigits int
-       TimeZoneName          TimeZoneName
+       TimeZoneName           TimeZoneName
    }
    ```
    `go-intl` does not retain a dormant `Pattern12` slot in the skeleton candidate. ECMA-402 and FormatJS model an optional 12-hour pattern record; this implementation stores the selected active `Pattern` plus `HourCycle`, and carries no field unless runtime code consumes it.
@@ -174,6 +174,7 @@ score -= delta == 2 ? longMore: shortMore // or longLess / shortLess
 
 1. After selecting the best `Formats`, `adjustFieldTypes(format, options)` must be called to modify the character length of the corresponding field in `format.Pattern` according to the field value of `options`. Example: `format.Year = numeric` but `options.Year = 2-digit`, replace `y` in pattern with `yy`.
 2. Replacement rules **MUST** be consistent with generated-reference `BestFitFormatMatcher.ts`: alphabetic pattern can be adjusted to the requested width, but numeric pattern must not be forcibly changed to alphabetic month/day-period form. Example: Chinese `yMEd` patterns keep the numeric month token even when the localized pattern contains year/month/day markers even if `month: "long"` is requested, aligned with Generated reference.
+2a. `AdjustFieldTypes` **MUST** skip `minute` and `second`: it does not rewrite their widths, matching the reference `BestFitFormatMatcher` which `continue`s past minute/second ("Don't mess with minute/second"). Rewriting them corrupts the interval (`FormatRange`) path, which parses the pattern as the skeleton; for example `FormatRange(09:05 → 09:07)` en-US `{hour, minute: numeric}` must render `"9:05 – 9:07 AM"`, not `"9:5 – 9:7 AM"`. `FractionalSecondDigits` width is still adjusted.
 3. Pattern scanning of `adjustFieldTypes` must maintain ASCII byte level: LDML pattern field characters are all ASCII, and field membership can use `strings.IndexByte` and other stdlib byte helpers; it is forbidden to change to rune/regex scanning.
 4. Pattern scanning loop **MUST** retain explicit index advancement, because quoted literal and repeated field width will skip multi-byte segments at one time; it is prohibited to hide index jumps in the loop body after mechanically changing to `for range len(pattern)`.
 5. After `adjustFieldTypes`, `format.Pattern` is the final pattern string and can be directly sent to `FormatDateTimePattern`.
@@ -226,7 +227,7 @@ package skeleton
 
 func Match(opts Options, formats []Formats) Formats           // BestFitFormatMatcher
 func MatchBasic(opts Options, formats []Formats) Formats      // BasicFormatMatcher
-func Parse(skeleton string, hour12 *bool, hc HourCycle) Formats // Separate skeleton string parsing
+func Parse(skeleton string, pattern string, hour12 *bool, hourCycle HourCycle) Formats // Separate skeleton string parsing
 ```
 
 > **Why**: The algorithm layer is stateless and can be tested independently; data slices are injected by the caller, in line with CLAUDE.md "no production Go code beyond signatures" and the KISS principle.

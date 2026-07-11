@@ -8,7 +8,6 @@
 package timezone
 
 import (
-	"slices"
 	"strconv"
 	"strings"
 
@@ -56,8 +55,7 @@ func CanonicalTimeZoneLink(name string) string {
 // sorted order. It reads only the narrow supported blob and never triggers the
 // metazone-period or names blob decode.
 func SupportedTimeZones() []string {
-	supportedOnce.Do(loadSupported)
-	return slices.Clone(supportedTags)
+	return supported.Get()
 }
 
 // TimeZoneMetazone returns the metazone in force for the zone at the given

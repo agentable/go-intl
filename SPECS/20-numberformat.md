@@ -204,6 +204,7 @@ roundingIncrement!=1 ⇒ roundingType forces fractionDigits and mnfd=mxfd
 2. `roundingMode` **MUST** accept all 9 types of ECMA-402: `ceil | floor | expand | trunc | halfCeil | halfFloor | halfExpand | halfTrunc | halfEven` (see [SPEC 21 §Rounding Modes](./21-number-math.md#rounding-modes) for algorithm implementation).
 3. `trailingZeroDisplay` ∈ `auto | stripIfInteger`, default `auto`.
 4. `roundingPriority` ∈ `auto | morePrecision | lessPrecision`, default `auto`.
+5. The `morePrecision` / `lessPrecision` tie-break **MUST** compare the two candidates' ECMA-402 `[[RoundingMagnitude]]` (the decimal place each rounds at), **not** their numeric distance to the source value. The fixed (fraction) candidate is "more precise" when it rounds at a deeper place: `-maximumFractionDigits < e - maximumSignificantDigits + 1`, where `e` is the decimal exponent of the significant candidate's most significant digit. `morePrecision` keeps the fixed candidate exactly when it is more precise, `lessPrecision` when it is not. Result: `NumberFormat(en, {maximumSignificantDigits:2, minimumFractionDigits:3, maximumFractionDigits:3, roundingPriority:"morePrecision"}).Format(1.2)` → `"1.200"`.
 
 > **Why**: The 5-way branch represents the "precision first" semantics of V3 added to ECMA-402. Generated reference resolves `roundingType` according to this branch, and any offset on the Go side will break byte equality.
 
@@ -308,6 +309,7 @@ MaximumSignificantDigits *int // Same as above
 2. The `String` output by `FormatNumericToString` **MUST** retain trailing zero (forced by `mnfd`) for subsequent OperandsRecord calculation of `v / w / f / t` (see [SPEC 40 §Operands](./40-pluralrules.md#operands)).
 3. `NaN / +Inf / -Inf` **MUST** be expressed through `apd.Decimal.Form`, and **FORBIDDEN** to be transferred through `math.IsNaN(float64(...))`.
 4. The `[]Part` element `Type` output by `PartitionDigitParts` **MUST** qualify ECMA-402 §15.5.1 + Generated reference extension for a total of 16 enumeration strings: `integer | group | decimal | fraction | currency | percentSign | minusSign | plusSign | nan | infinity | unit | literal | exponentSeparator | exponentMinusSign | exponentInteger | compact | approximatelySign` (strictly aligned with `.references/formatjs/packages/ecma402-abstract/types/number.ts` `NumberFormatPartTypes`; **FORBIDDEN** to use `exponentSymbol`, the canonical name is `exponentSeparator`;`approximatelySign` only appears as part type when the formatting results of both ends of `FormatRange` are the same).
+5. `ComputeExponent` **MUST** be a single shared engine (`internal/ecma402/numberformat.computeExponent`) behind scientific, engineering, and compact notation. It scales the value into its notation mantissa, rounds with the resolved digit options, and applies the ECMA-402 post-rounding carry recheck: when rounding pushes the mantissa up a magnitude (for example `999` with `maximumFractionDigits:0` rounds to `1000`), the exponent is re-derived from `magnitude + 1`. Scientific/engineering `ScientificExponent` and compact `ResolveCompactMagnitude` **MUST** both route through this engine; **FORBIDDEN** to keep a second exponent routine that computes the pre-rounding magnitude and skips the carry recheck. Result: scientific `Format(999)` with `maximumFractionDigits:0` → `"1E3"`, `999500` → `"1E6"`, engineering `999500` → `"1E6"`.
 
 > **Why**: This is the key operator for conformance byte equality; any step skipped will be detected by the `generated-reference` `format_to_parts.test.ts` fixture.
 
@@ -321,7 +323,7 @@ output; it does not call a public `pluralrules.PluralRules` instance.
 
 1. Under `notation = compact`, NumberFormat **MUST** use the rounded display decimal and compact exponent to select the CLDR compact suffix category:
    ```go
-   ops := ecma402pr.GetOperands(formattedDisplayDecimal, exponent)
+   ops := pluralop.GetOperands(formattedDisplayDecimal, exponent)
    rule, ok := plural.CardinalRule(localeTag)
    cat := rule(ops)
    ```
@@ -427,7 +429,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - **BANNED** Introduce `bojanz/currency` as currency data source - non-CLDR direct output, and comes with ISO 4217 historical data that conflicts with our CLDR nail version.
 - **BANNED** Return `error` (ECMA-402 fallback for invalid input) in `Format` / `FormatToParts` paths.
 - **BANNED** Use `Format` with `fmt.Sprintf("%v", value)` on hot path - trailing-zero behavior is unaligned + ~150 ns per allocation.
-- **FORBIDDEN** NumberFormat parses plural DSL, copies plural rule tables, or selects compact suffix by exposing a `pluralrules.PluralRules` instance; can only call `internal/ecma402/pluralrules.GetOperands` and use `internal/cldr/plural` generated rules.
+- **FORBIDDEN** NumberFormat parses plural DSL, copies plural rule tables, or selects compact suffix by exposing a `pluralrules.PluralRules` instance; can only call `internal/plural.GetOperands` and use `internal/cldr/plural` generated rules.
 - **FORBIDDEN** Extract `CollapseNumberRange` into a cross-package generic - Part fields are different.
 - **FORBIDDEN** Calling CLDR domain accessors on the `Format` path; CLDR data must be materialized on `New`.
 - **BANNED** Builder chaining API(`numberformat.NewBuilder().Currency("USD").Build()`); active scope exposes only `New(mustLocaleList("en-US"), Options{...})` or equivalent `locale.List` variables.
@@ -456,6 +458,28 @@ green.
 The older `TestInitializeNumberFormat_StepOrder` acceptance item is not
 retained: no such test exists, and a trace of internal option steps would lock
 implementation mechanics rather than ECMA-402-observable behavior.
+
+---
+
+## 11.1 Known Divergences and Future Work
+
+**Generated fixture coverage (deferred).** The scientific/engineering rounding-overflow carry (single `computeExponent`, §4 rule 5) and the `roundingPriority` `RoundingMagnitude` tie-break (§2.2 rule 5) are currently locked by hand-written Node-witnessed tests, not yet by generated FormatJS `format` fixtures. Adding the generated rounding-overflow and `roundingPriority` fixtures is deferred Theme-D extractor work; the observable behavior is already correct and tested.
+
+**NF-TZ — decimal-string input preserves trailing zeros (deferred).**
+`Format(Decimal("1.50"))` currently yields `"1.50"` where Node
+`Intl.NumberFormat('en').format("1.50")` yields `"1.5"`. ECMA-402
+`ToIntlMathematicalValue` coerces a decimal-string input to its mathematical
+value, so trailing zeros carry no significance (`"2.00"` → `"2"`); go-intl keeps
+the input's `apd` scale and echoes it through the shared `canUseRoundedString`
+fast path in `internal/ecma402/numberformat`. That fast path is load-bearing and
+**MUST NOT** be changed to strip trailing zeros: PluralRules operands depend on
+the source decimal's `v`/`w`/`f`/`t` trailing-zero view (removing it breaks
+`SelectRange(1, 1.0)` → `other`). The correct isolated fix reduces the
+NumberFormat decimal *input* to its mathematical value at the
+`numberformat.Decimal` boundary, before the shared digit pipeline, without
+touching the shared rounded-string path. It is deferred pending Node-witness
+fixtures across the digit-option matrix rather than shipped as an unverified
+change.
 
 ---
 

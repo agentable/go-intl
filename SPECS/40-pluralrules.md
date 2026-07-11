@@ -1,7 +1,7 @@
 # SPEC 40 — PluralRules
 
 > **Status:** Draft (2026-05-08)
-> **Owner:** `pluralrules/` + `internal/ecma402/pluralrules/` + `tools/gen-plural-rules/`
+> **Owner:** `pluralrules/` + `internal/plural/` + `tools/gen-plural-rules/`
 > **Reference contract:** `.references/ecma402/spec/pluralrules.html` first, then `formatjs/packages/intl-pluralrules/` + `formatjs/packages/ecma402-abstract/PluralRules/`
 
 ## Overview
@@ -139,12 +139,15 @@ The digit options of PluralRules are a subset of the NumberFormat digit pipeline
 
 ```go
 type ResolvedOptions struct {
-    Locale          locale.Locale
-    Type            Type
-    PluralCategories []Category
-    // ... digit options
+    Locale         locale.Locale
+    Type           Type
+    Notation       Notation
+    CompactDisplay *CompactDisplay
+    // ... digit options, then PluralCategories and rounding options
 }
 ```
+
+The full field order is fixed in [§6 ResolvedOptions](#6-resolvedoptions); `notation` and `compactDisplay` sit at ECMA-402 §16.4.5 positions 3-4.
 
 ### 1.3 Calling example
 
@@ -170,12 +173,12 @@ cat, err := pr.SelectRange(pluralrules.Int(1), pluralrules.Int(5)) // Other, nil
 
 ## 2. OperandsRecord <a id="operandsrecord"></a> <a id="operands"></a>
 
-`OperandsRecord` is the ECMA-402 operand representation shared by PluralRules and NumberFormat. The current contract is recorded in this SPEC; the actual Go type definitions are in `internal/ecma402/pluralrules/operands.go`, which this package shares with `internal/ecma402/numberformat/`.
+`OperandsRecord` is the ECMA-402 operand representation shared by PluralRules and NumberFormat. The current contract is recorded in this SPEC; the actual Go type definitions are in `internal/plural/plural.go`, which the `pluralrules`, `numberformat`, and `internal/cldr/plural` packages all import directly (the earlier pure-alias `internal/ecma402/pluralrules` package was removed so one type keeps one import path).
 
 ### 2.1 Type
 
 ```go
-package pluralrules // (actually located at internal/ecma402/pluralrules)
+package plural // (actually located at internal/plural, imported as pluralop)
 
 type OperandsRecord struct {
 N OperandValue // |x| original magnitude value (used for "n" reference in plural rule)
@@ -194,12 +197,12 @@ T OperandValue // fraction digits as integer (go to trailing 0)
 1. The `OperandsRecord` field **MUST** be consistent with ECMA-402 §16.5.1 GetOperands + ES 2024 `c/e` extension.
 2. `C` and `E` **MUST** always be equal (ECMA-402 explicit constraint: c is an alias of e); saving two copies of the field is for readability, but writing them together when assigning values.
 3. `N/I/F/T` **MUST** use exact `OperandValue`; downgrading CLDR discrete rules to `float64`, `uint64`, or public `*big.Int` is prohibited.
-4. The `OperandsRecord` type **MUST** be located in `internal/ecma402/pluralrules/operands.go`;`pluralrules` and the `numberformat` package share the import path.
+4. The `OperandsRecord` type **MUST** be located in `internal/plural/plural.go`;`pluralrules`, `numberformat`, and `internal/cldr/plural` share the same import path (`internal/plural`, aliased `pluralop`).
 
 > **Why**:
 > 1. ECMA-402 OperandsRecord is the input field of plural rule DSL, and the field name and field semantics cannot be changed.
 > 2. `OperandValue` retains the decimal digit view, allowing `%`, integer comparison and interval judgment to remain accurate for inputs exceeding the IEEE-754 safe integer.
-> 3. The shared path `internal/ecma402/pluralrules/operands.go` instead of `pluralrules/operands.go`:NumberFormat’s compact path needs to be accessed from the `internal/` path to avoid circular dependencies.
+> 3. The shared path `internal/plural/plural.go` instead of `pluralrules/operands.go`:NumberFormat’s compact path needs to be accessed from the `internal/` path to avoid circular dependencies.
 >
 > **Rejected**:
 > - `float64` carries `N` - plural rule is a discrete rule, and binary floating point will create errors at the boundaries of large integers and decimals.
@@ -209,7 +212,7 @@ T OperandValue // fraction digits as integer (go to trailing 0)
 ### 2.2 GetOperands
 
 ```go
-// internal/ecma402/pluralrules/operands.go
+// internal/plural/plural.go
 func GetOperands(formatted string, exponent int) OperandsRecord
 ```
 
@@ -236,7 +239,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 
 ### 3.1 Decision: codegen to Go source
 
-**Decision**: active scope PluralRules implementation **MUST** generate Go functions and classification tables from CLDR JSON `cldr-core/supplemental/plurals.json` + `ordinals.json` + `pluralRanges.json` via codegen to `internal/cldr/plural/` and `internal/cldr/plurals.go`.
+**Decision**: active scope PluralRules implementation **MUST** generate Go functions and classification tables from CLDR JSON `cldr-core/supplemental/plurals.json` + `ordinals.json` + `pluralRanges.json` via codegen to `internal/cldr/plural/`.
 
 > **Why**:
 > 1. generated-reference `intl-pluralrules/scripts/plural-rules-compiler.ts` has compiled the plural DSL into a directly executed function on the TS side; the Go side maintains the same product form and does not interpret the DSL at runtime.
@@ -267,12 +270,12 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 1. The codegen entrance **MUST** be located in `tools/gen-plural-rules/main.go`, an independent Go module (independent `go.mod`, which does not pollute the main module dependency graph).
 2. codegen **MUST** remain stdlib-only: read CLDR JSON with `encoding/json`, construct the output with deterministic strings, and finally format it with `go/format`; **disallow** `dave/jennifer` or other codegen frameworks.
 3. The input **MUST** be pinned CLDR JSON: `cldr-core/supplemental/plurals.json` + `ordinals.json` + `pluralRanges.json`, version pinned through [SPEC 50 §Version Pin](./50-cldr-data.md#version-pin).
-4. Output location:
+4. Output location (each emitted with the generated header; hand-written `fallback.go` and `doc.go` in the same package are not generator outputs):
    - `internal/cldr/plural/cardinal_rules.go`
    - `internal/cldr/plural/ordinal_rules.go`
    - `internal/cldr/plural/range_rules.go`
    - `internal/cldr/plural/categories.go`
-   - `internal/cldr/plurals.go`
+   - `internal/cldr/plural/supported.go`
 5. Each locale outputs an independent Go function; `CardinalRule` / `OrdinalRule` switch index to a specific function.
 6. **Disable** output of unused operand expressions (corresponding to generated-reference `should-emit-*.ts`, only the operand judgment actually referenced by rule is generated).
 
@@ -295,7 +298,7 @@ func renderCategoriesFile(cardinal, ordinal map[string][]Rule) string
 2. The function body **MUST** be an if-else chain, directly corresponding to CLDR DSL translation, without runtime analysis:
    ```go
 // cardinal_rules.go (fragment; generated by tools/gen-plural-rules)
-   func CardinalRule(loc string) (func(ecma402pr.OperandsRecord) ecma402pr.Category, bool) {
+   func CardinalRule(loc string) (func(pluralop.OperandsRecord) pluralop.Category, bool) {
        switch loc {
        case "en":
            return cardinalEn, true
@@ -303,24 +306,24 @@ func renderCategoriesFile(cardinal, ordinal map[string][]Rule) string
        return nil, false
    }
 
-   func cardinalEn(o ecma402pr.OperandsRecord) ecma402pr.Category {
+   func cardinalEn(o pluralop.OperandsRecord) pluralop.Category {
        if o.I == 1 && o.V == 0 {
-           return ecma402pr.One
+           return pluralop.One
        }
-       return ecma402pr.Other
+       return pluralop.Other
    }
 
-   func cardinalPl(o ecma402pr.OperandsRecord) ecma402pr.Category {
+   func cardinalPl(o pluralop.OperandsRecord) pluralop.Category {
        if o.I == 1 && o.V == 0 {
-           return ecma402pr.One
+           return pluralop.One
        }
        if o.V == 0 && o.I%10 >= 2 && o.I%10 <= 4 && (o.I%100 < 12 || o.I%100 > 14) {
-           return ecma402pr.Few
+           return pluralop.Few
        }
        if o.V == 0 && o.I != 1 && (o.I%10 == 0 || o.I%10 == 1) {
-           return ecma402pr.Many
+           return pluralop.Many
        }
-       return ecma402pr.Other
+       return pluralop.Other
    }
    ```
 3. Functions **MUST** be fully concurrency safe (pure reading OperandsRecord, no mutable state).
@@ -334,22 +337,22 @@ func renderCategoriesFile(cardinal, ordinal map[string][]Rule) string
 2. Form:
    ```go
    type rangeKey struct {
-       Start, End ecma402pr.Category
+       Start, End pluralop.Category
    }
 
-   func Range(loc, typ string, start, end ecma402pr.Category) (ecma402pr.Category, bool) {
+   func Range(loc, typ string, start, end pluralop.Category) (pluralop.Category, bool) {
        if typ != "cardinal" {
-           return ecma402pr.Other, false
+           return pluralop.Other, false
        }
        ranges, ok := cardinalRanges[loc]
        if !ok {
-           return ecma402pr.Other, false
+           return pluralop.Other, false
        }
        result, ok := ranges[rangeKey{start, end}]
        return result, ok
    }
 
-   var cardinalRanges = map[string]map[rangeKey]ecma402pr.Category{
+   var cardinalRanges = map[string]map[rangeKey]pluralop.Category{
        // ...
    }
    ```
@@ -364,12 +367,12 @@ Public `PluralRules` compact notation and NumberFormat compact suffix selection 
 - Public `pluralrules.PluralRules.Select` uses the source decimal string plus the selected compact exponent.
 - NumberFormat compact suffix selection uses the scaled display decimal plus the selected compact exponent; see [SPEC 20 §4.1 Compact Notation and Plural Operand Contract](./20-numberformat.md#41-compact-notation-and-plural-operand-contract).
 
-Both contracts share `internal/ecma402/pluralrules.GetOperands` for operand construction, but they pass different formatted decimal strings by design.
+Both contracts share `internal/plural.GetOperands` for operand construction, but they pass different formatted decimal strings by design.
 
 ### 4.1 Signature
 
 ```go
-package pluralrules
+package plural // internal/plural, imported as pluralop
 
 func GetOperands(formatted string, exponent int) OperandsRecord
 ```
@@ -377,7 +380,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 ```go
 package plural
 
-func CardinalRule(loc string) (func(ecma402pr.OperandsRecord) ecma402pr.Category, bool)
+func CardinalRule(loc string) (func(pluralop.OperandsRecord) pluralop.Category, bool)
 ```
 
 ### 4.2 Algorithm
@@ -458,14 +461,14 @@ function SelectRange(start, end Value) Category:
 type ResolvedOptions struct {
     Locale                   locale.Locale
     Type                     Type
+    Notation                 Notation
+    CompactDisplay           *CompactDisplay
     MinimumIntegerDigits     int
     MinimumFractionDigits    *int
     MaximumFractionDigits    *int
     MinimumSignificantDigits *int
     MaximumSignificantDigits *int
     PluralCategories         []Category
-    Notation                 Notation
-    CompactDisplay           *CompactDisplay
     RoundingIncrement        int
     RoundingMode             RoundingMode
     RoundingPriority         RoundingPriority
@@ -516,7 +519,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - **FORBIDDEN** Introducing `dave/jennifer` or other codegen frameworks - the current scale uses stdlib JSON reading + deterministic string output + `go/format`.
 - **BANNED** runtime DSL interpreter - must codegen.
 - **BANNED** `OperandsRecord.N/I/F/T` uses `float64` or exposes a big-number type - must use exact `OperandValue`.
-- **BANNED** `OperandsRecord` types placed in `pluralrules/` public package - must be placed in `internal/ecma402/pluralrules/operands.go`.
+- **BANNED** `OperandsRecord` types placed in `pluralrules/` public package - must be placed in `internal/plural/plural.go`.
 - **BANNED** Restore the public `Select(any)` / `SelectRange(any, any)` coercion API.
 - **BANNED** `SelectFormatted` / `ResolvePlural` exposed as public API - NumberFormat compact path selection via internal operand builder and generated cardinal rule.
 - **FORBIDDEN** NumberFormat Copy plural DSL or rule table - plural category is only allowed from `internal/cldr/plural` codegen.
@@ -535,13 +538,13 @@ semantics, and conformance fixtures agree with the ECMA-402/CLDR boundary.
 
 | Contract | Evidence | Status |
 |----------|----------|--------|
-| `tools/gen-plural-rules/` remains an independent module and emits CLDR 48.1.0 generated files with stable headers. | `tools/gen-plural-rules/go.mod`; `tools/gen-plural-rules/main.go`; `internal/cldr/plural/cardinal_rules.go`; `internal/cldr/plural/ordinal_rules.go`; `internal/cldr/plural/range_rules.go`; `internal/cldr/plural/categories.go` | Satisfied |
-| Codegen does not depend on `dave/jennifer`; runtime and codegen do not depend on `golang.org/x/text/feature/plural`. | `rg "dave/jennifer" tools/gen-plural-rules`; `rg "x/text/feature/plural" internal/ecma402/pluralrules tools/gen-plural-rules pluralrules/*.go` | Satisfied |
+| `tools/gen-plural-rules/` remains an independent module and emits CLDR 48.1.0 generated files with stable headers. | `tools/gen-plural-rules/go.mod`; `tools/gen-plural-rules/main.go`; `internal/cldr/plural/cardinal_rules.go`; `internal/cldr/plural/ordinal_rules.go`; `internal/cldr/plural/range_rules.go`; `internal/cldr/plural/categories.go`; `internal/cldr/plural/supported.go` | Satisfied |
+| Codegen does not depend on `dave/jennifer`; runtime and codegen do not depend on `golang.org/x/text/feature/plural`. | `rg "dave/jennifer" tools/gen-plural-rules`; `rg "x/text/feature/plural" internal/plural tools/gen-plural-rules pluralrules/*.go` | Satisfied |
 | The `pluralrules/benchmark_baseline_test.go` `x/text/feature/plural` import is retained only as benchmark comparison evidence and is outside runtime/codegen acceptance. | `pluralrules/benchmark_baseline_test.go` | Accepted exception |
 | Cardinal, ordinal, range, NaN error, reversed range, rounded equality, and resolved category behavior are covered by package tests and generated fixtures. | `pluralrules/pluralrules_test.go`; `pluralrules/range_test.go`; `pluralrules/options_test.go`; `pluralrules/conformance_unified_test.go`; `pluralrules/testdata/conformance/formatjs/index-test-ts.json` | Satisfied |
 | Public PluralRules compact notation follows Node v26 source-decimal-plus-exponent behavior, including million-scale `many` fixtures. | `pluralrules/testdata/conformance/node-v26/compact.json`; `pluralrules/testdata/xfail.json`; `compact_contract_test.go` | Satisfied |
-| NumberFormat compact suffix selection remains internal and generated-rule based; no public `SelectFormatted` or internal `ResolvePlural` helper exists. | `numberformat/notation.go`; `internal/ecma402/pluralrules/operands.go`; absence of `SelectFormatted` / `ResolvePlural` in Go source | Satisfied |
-| `OperandsRecord` remains the single internal operand record bridge. | `internal/ecma402/pluralrules/operands.go`; `internal/plural/operands.go`; `pluralrules/pluralrules_test.go` | Satisfied |
+| NumberFormat compact suffix selection remains internal and generated-rule based; no public `SelectFormatted` or internal `ResolvePlural` helper exists. | `numberformat/notation.go`; `internal/plural/plural.go`; absence of `SelectFormatted` / `ResolvePlural` in Go source | Satisfied |
+| `OperandsRecord` remains the single internal operand record bridge. | `internal/plural/plural.go`; `pluralrules/pluralrules_test.go` | Satisfied |
 | Race, vet, and generated-data byte stability gates pass for the package and generated CLDR output. | `go test -race ./pluralrules/...`; `go vet ./pluralrules/...`; `task data:check` | Required verification |
 | PluralRules cardinal, ordinal, and range benchmarks remain per-surface and non-blocking. | `pluralrules/benchmark_test.go`; `SPECS/71-benchmark.md`; `task bench` | Satisfied |
 | CLDR bumps are visible as generated-data diffs and must be reviewed with source CLDR version changes. | `internal/cldr/plural/*`; `tools/gen-plural-rules/main.go`; `task data:check` | Required on CLDR update |

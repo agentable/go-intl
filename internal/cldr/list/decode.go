@@ -31,9 +31,6 @@ type listPatternRefs struct{ pair, start, middle, end string }
 var (
 	patternOnce      sync.Once
 	patternsByLocale map[Locale]map[string]map[string]listPatternRefs
-
-	supportedOnce sync.Once
-	supportedTags []string
 )
 
 func loadPatterns() {
@@ -58,6 +55,4 @@ func decodeListPatternRefs(r *codec.Reader) listPatternRefs {
 	}
 }
 
-func loadSupported() {
-	supportedTags = codec.StringRefSlice(_listSupportedBlob, _data)
-}
+var supported = codec.NewLazyStrings(_listSupportedBlob, _data)

@@ -165,14 +165,20 @@ func resolveHourCycle(cfg config, resolvedHourCycle string) (HourCycle, *bool) {
 		resolvedHourCycle = string(H23HourCycle)
 	}
 	hourCycle := HourCycle(resolvedHourCycle)
+	return hourCycle, hourCycleImpliesHour12(hourCycle)
+}
+
+// hourCycleImpliesHour12 maps an hour cycle to its implied hour12 value:
+// h11/h12 → true, h23/h24 → false, an unknown cycle → nil (no implication). It
+// is the single in-package hourCycle→hour12 derivation.
+func hourCycleImpliesHour12(hourCycle HourCycle) *bool {
 	switch hourCycle {
 	case H11HourCycle, H12HourCycle:
-		return hourCycle, ecma402.ResolvedScalar(true)
+		return ecma402.ResolvedScalar(true)
 	case H23HourCycle, H24HourCycle:
-		return hourCycle, ecma402.ResolvedScalar(false)
-	default:
-		return hourCycle, nil
+		return ecma402.ResolvedScalar(false)
 	}
+	return nil
 }
 
 func resolveDateData(cldrLoc cldrdate.Locale, cfg config) (cldrdate.Locale, cldrdate.Gregorian) {

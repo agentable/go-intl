@@ -9,8 +9,8 @@ import (
 	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/ecma402"
 	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
-	ecma402pr "github.com/agentable/go-intl/internal/ecma402/pluralrules"
 	"github.com/agentable/go-intl/internal/numbering"
+	pluralop "github.com/agentable/go-intl/internal/plural"
 )
 
 // Format formats a numeric value.
@@ -151,7 +151,7 @@ func applyStylePattern(parts []Part, rounded decimal.Decimal, state *decimalForm
 			plural := pluralCategory(state.cardinalRule, pluralNumberString(rounded.String()))
 			return localizeParts(applyUnitPatternForPlural(parts, plural, state.unit), numberingSystem)
 		}
-		return localizeParts(applyUnitPatternForPlural(parts, ecma402pr.Other, state.unit), numberingSystem)
+		return localizeParts(applyUnitPatternForPlural(parts, pluralop.Other, state.unit), numberingSystem)
 	}
 	return localizeParts(parts, numberingSystem)
 }
@@ -173,7 +173,7 @@ func applyStylePatternText(text string, rounded decimal.Decimal, state *decimalF
 			plural := pluralCategory(state.cardinalRule, pluralNumberString(rounded.String()))
 			return applyUnitPatternForPluralText(text, plural, state.unit)
 		}
-		return applyUnitPatternForPluralText(text, ecma402pr.Other, state.unit)
+		return applyUnitPatternForPluralText(text, pluralop.Other, state.unit)
 	}
 	return text
 }

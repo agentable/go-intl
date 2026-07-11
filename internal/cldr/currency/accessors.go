@@ -4,10 +4,6 @@
 
 package currency
 
-import (
-	"slices"
-)
-
 // Digits returns the fraction-digit metadata for a currency code, falling back
 // to the "DEFAULT" entry when the code is unknown.
 func Digits(code string) Data {
@@ -64,8 +60,7 @@ func NarrowSymbol(loc Locale, code string) string {
 // It reads only the narrow supported blob and never triggers the fraction or
 // names blob decode.
 func SupportedCodes() []string {
-	supportedOnce.Do(loadSupported)
-	return slices.Clone(supportedTags)
+	return supported.Get()
 }
 
 // localeNames resolves the names record for a (locale, code) pair, gating the

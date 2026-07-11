@@ -94,6 +94,7 @@ May 8, 2026
 | `github.com/agentable/go-intl/displaynames` | Localized names for languages, regions, scripts, currencies, calendars, and date-time fields. |
 | `github.com/agentable/go-intl/collator` | Locale-sensitive string comparison for sorting. |
 | `github.com/agentable/go-intl/segmenter` | Unicode grapheme, word, and sentence segmentation for supported locales. |
+| `github.com/agentable/go-intl/option` | Zero-dependency `Int`/`Bool`/`String` pointer helpers for optional scalar options; usable without importing the aggregate root. |
 
 Prefer constructor subpackages in services that need one formatter. Importing `github.com/agentable/go-intl` is an aggregate facade: it mirrors the JavaScript `Intl` namespace and therefore imports every active constructor surface for namespace helpers and type aliases. Use the root package for `GetCanonicalLocales`, root supported-value accessors, or when you intentionally want the full `Intl` namespace shape.
 
@@ -247,6 +248,14 @@ fmt.Println(units[:3])
 Root supported-value accessors cover calendars, collations, currencies, numbering systems, time zones, and units. Collation currently reports only identifiers the active backend can apply truthfully.
 
 Use `gointl.Int`, `gointl.Bool`, and `gointl.String` for optional option fields where ECMA-402 distinguishes omitted from an explicit zero, false, or empty value.
+
+These helpers also live in the zero-dependency leaf package
+`github.com/agentable/go-intl/option` as `option.Int`, `option.Bool`, and
+`option.String`. A service that uses a single formatter package can set its
+optional scalar options through `option` without importing the aggregate root,
+which pulls in every constructor package. The root re-exports the same helpers
+as `gointl.Int`/`gointl.Bool`/`gointl.String` for namespace fidelity, so the
+root-namespace examples above stay the primary documented style.
 
 ### Format Exact Decimals
 

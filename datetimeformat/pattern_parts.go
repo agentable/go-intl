@@ -96,11 +96,8 @@ func resolvedUses24HourTime(resolved ResolvedOptions) bool {
 	if resolved.Hour12 != nil {
 		return !*resolved.Hour12
 	}
-	switch ecma402.ResolvedScalarValue(resolved.HourCycle) {
-	case H23HourCycle, H24HourCycle:
-		return true
-	case H11HourCycle, H12HourCycle:
-		return false
+	if implied := hourCycleImpliesHour12(HourCycle(ecma402.ResolvedScalarValue(resolved.HourCycle))); implied != nil {
+		return !*implied
 	}
 	return false
 }

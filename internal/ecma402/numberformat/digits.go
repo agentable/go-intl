@@ -56,20 +56,33 @@ func FormatDecimal(d decimal.Decimal, opts DigitOptions) string {
 	return FormatNumericToString(d, opts).Formatted
 }
 
+// formatPriorityCandidate resolves ECMA-402 roundingPriority by comparing the two
+// candidates' rounding magnitudes (the decimal place each rounds at), not their
+// numeric distance to the source. Per the spec, the fixed (fraction) candidate is
+// "more precise" when it rounds at a deeper place: fixedMagnitude < sigMagnitude.
+// morePrecision keeps the fixed candidate exactly when it is more precise;
+// lessPrecision when it is not. On a distance tie the magnitudes still discriminate.
 func formatPriorityCandidate(d decimal.Decimal, opts DigitOptions, more bool) (string, decimal.Decimal) {
 	fixedFormatted, fixedRounded := formatFixedCandidate(d, opts)
 	sigFormatted, sigRounded := formatSignificantCandidate(d, opts)
-	cmp := decimal.AbsDiffCmp(d, sigRounded, fixedRounded)
-	if more {
-		if cmp <= 0 {
-			return sigFormatted, sigRounded
-		}
+	fixedIsMorePrecise := -opts.MaximumFractionDigits < significantRoundingMagnitude(sigRounded, opts)
+	if more == fixedIsMorePrecise {
 		return fixedFormatted, fixedRounded
 	}
-	if cmp >= 0 {
-		return sigFormatted, sigRounded
+	return sigFormatted, sigRounded
+}
+
+// significantRoundingMagnitude is ToRawPrecision's [[RoundingMagnitude]] = e-p+1,
+// where p is the maximum significant digits and e is the decimal exponent of the
+// most significant digit of the rounded value (0 when the value rounds to zero).
+func significantRoundingMagnitude(sigRounded decimal.Decimal, opts DigitOptions) int {
+	e := 0
+	if abs := decimal.Abs(sigRounded); !abs.IsZero() {
+		if magnitude, err := decimal.Log10Floor(abs); err == nil {
+			e = int(magnitude)
+		}
 	}
-	return fixedFormatted, fixedRounded
+	return e - opts.MaximumSignificantDigits + 1
 }
 
 func formatFixedCandidate(d decimal.Decimal, opts DigitOptions) (string, decimal.Decimal) {
@@ -107,6 +120,15 @@ func roundingType(opts DigitOptions) decimal.RoundingType {
 	return decimal.ApplyRoundingPriority(opts.MaximumSignificantDigits > 0, true, priority)
 }
 
+// canUseRoundedString is a fast path that returns the input decimal's string
+// verbatim when no digit option requires rounding, padding, or trailing-zero
+// changes and the fraction already fits MaximumFractionDigits.
+//
+// This path is load-bearing for PluralRules: preserving the source decimal's
+// visible fraction digits is what lets the operands (notably v) reflect trailing
+// zeros — e.g. "1.0" must select "other", not "one". It must therefore stay
+// byte-identical to the general fixed path for every input where it fires; that
+// agreement is locked by TestCanUseRoundedStringAgreesWithFullPath.
 func canUseRoundedString(d decimal.Decimal, opts DigitOptions) bool {
 	switch {
 	case opts.MinimumIntegerDigits != 1,
@@ -163,15 +185,7 @@ func roundedFixedString(d decimal.Decimal, maximumFractionDigits int) string {
 }
 
 func unsignedDecimal(d decimal.Decimal) (decimal.Decimal, bool) {
-	negative := d.Negative()
-	if !negative {
-		return d, false
-	}
-	unsigned, err := decimal.ParseString(strings.TrimPrefix(d.String(), "-"))
-	if err != nil {
-		return d, true
-	}
-	return unsigned, true
+	return decimal.Abs(d), d.Negative()
 }
 
 func trimFraction(formatted string, opts DigitOptions) string {
@@ -266,9 +280,5 @@ func signedDecimal(d decimal.Decimal, negative bool) decimal.Decimal {
 	if !negative || d.IsZero() {
 		return d
 	}
-	out, err := decimal.ParseString("-" + strings.TrimPrefix(d.String(), "-"))
-	if err != nil {
-		return d
-	}
-	return out
+	return decimal.Neg(decimal.Abs(d))
 }

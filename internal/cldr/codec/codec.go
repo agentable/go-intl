@@ -2,6 +2,11 @@
 
 package codec
 
+import (
+	"slices"
+	"sync"
+)
+
 // Reader walks a generated blob string by byte index.
 //
 // It is a value type: copy it freely to snapshot a cursor. The advancing methods
@@ -187,4 +192,26 @@ func Uint32DeltaSlice[V any](r *Reader, decode func(uint32, *Reader) V) []V {
 func StringRefSlice(blob, data string) []string {
 	r := NewReader(blob)
 	return r.StringRefSlice(data)
+}
+
+// LazyStrings decodes a StringRefSlice blob on first access and returns a
+// defensive clone on each Get. It replaces the per-domain
+// (sync.Once, []string, loader, clone-accessor) quadruple with one owner.
+type LazyStrings struct {
+	once  sync.Once
+	blob  string
+	data  string
+	value []string
+}
+
+// NewLazyStrings returns a LazyStrings that decodes blob against the shared data
+// pool the first time Get is called.
+func NewLazyStrings(blob, data string) *LazyStrings {
+	return &LazyStrings{blob: blob, data: data}
+}
+
+// Get returns a clone of the decoded strings, decoding once on first use.
+func (l *LazyStrings) Get() []string {
+	l.once.Do(func() { l.value = StringRefSlice(l.blob, l.data) })
+	return slices.Clone(l.value)
 }

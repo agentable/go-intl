@@ -42,9 +42,6 @@ var (
 
 	namesOnce sync.Once
 	byLocale  map[Locale]map[string]currencyNames
-
-	supportedOnce sync.Once
-	supportedTags []string
 )
 
 func loadFractions() {
@@ -78,6 +75,4 @@ func decodeCurrencyNames(r *codec.Reader) currencyNames {
 	}
 }
 
-func loadSupported() {
-	supportedTags = codec.StringRefSlice(_currencySupportedBlob, _data)
-}
+var supported = codec.NewLazyStrings(_currencySupportedBlob, _data)

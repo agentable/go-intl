@@ -276,22 +276,24 @@ fmt.Println(loc.Maximize().Minimize().String())  // "zh-Hant"
 
 ### 4.2 Implementation strategy
 
-`Maximize` / `Minimize` **MUST** use the `MaximizeSubtags` / `MinimizeSubtags` table of `language.Tag.LikelyScript()` / `language.Tag.LikelyRegion()` + `internal/cldr` on the bottom layer (see [SPEC 50 §6](./50-cldr-data.md#6-data-access-api)).
+`Maximize` / `Minimize` **MUST** use the generated CLDR `cldrlocale.MaximizeSubtags` / `cldrlocale.MinimizeSubtags` tables in `internal/cldr/locale` (see [SPEC 50 §6](./50-cldr-data.md#6-data-access-api)). They do **not** call `language.Tag.LikelyScript()` / `LikelyRegion()`, and there is no `internal/cldr/likely_subtags.go` patch layer.
 
 Strategy:
 
-1. First use `language.Tag.LikelyScript()` + `LikelyRegion()` to calculate.
-2. Run generated-reference `tests/likely-subtags.test.ts` for all fixtures.
-3. The failed case is covered with the CLDR data patch of `internal/cldr/likely_subtags.go`.
+1. `Maximize` splits the tag into `(language, script, region)` via `internal/localeid`, looks the triple up in `cldrlocale.MaximizeSubtags`, and rejoins the result. Unknown triples leave the tag unchanged. All seven Unicode extension fields are preserved.
+2. `Minimize` is a deliberate **two-tier** lookup, not two competing algorithms:
+   - Tier 1 is the precomputed CLDR `cldrlocale.MinimizeSubtags` table for known subtag triples.
+   - Tier 2 is the general ECMA-402 `RemoveLikelySubtags` trial: it maximizes the input, then tries the `language`, `language+region`, and `language+script` candidates and keeps the first whose `Maximize` result equals the input's maximized form.
+   Both tiers are driven by the same generated CLDR data (Tier 2 through `Maximize`), so they are consistent by construction and cannot drift; the two-tier design is documented in `locale/canonical.go`.
+3. Conformance is verified against generated-reference `tests/likely-subtags.test.ts` fixtures.
 
 > **Why**:
-> 1. **`language.Tag` 95% hits** - `x/text` The built-in likelySubtags table covers most common cases; use it to avoid 100% data embedding.
-> 2. **CLDR table is hidden** - `x/text` data may lag behind CLDR 48; according to the fixture failure case patch, the accuracy is controllable.
-> 3. **Conformance takes priority** - SPEC 00 §2 requires consistency with fixture byte level, and fixture is a truth table.
+> 1. **Generated CLDR data** - The maximize/minimize tables are generated from pinned CLDR `likelySubtags.json`, keeping them aligned with the CLDR 48.1.0 conformance baseline rather than the possibly-lagging `x/text` built-in tables.
+> 2. **One data source** - Driving Tier 2 through `Maximize` keeps both minimize tiers on the same generated table; collapsing them would drop the authoritative precomputed table for modest gain.
+> 3. **Conformance takes priority** - SPEC 00 §2 requires byte-level fixture consistency, and the fixture is the truth table.
 >
 > **Rejected**:
-> - **Completely comes with CLDR `likelySubtags.json`** instead of `language.Tag`: rewrites 50,000 rows of table data, and the benefits during the development period are not worth the cost.
-> - **Full dependency on `language.Tag`** No patch: fixture failure forces acceptance of divergence, violating SPEC 00 §2.
+> - **Depend on `language.Tag.LikelyScript()` / `LikelyRegion()`**: its data version is not the go-intl CLDR pin, so fixtures would force accepted divergence.
 > - **Self-implemented likelySubtags algorithm**: Violates CLAUDE.md "no reinventing locale parsing".
 
 ### 4.3 Extended fields reserved
@@ -530,9 +532,9 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 - ✅ Do: Internally superimpose `-u-` on top of `language.Parse(s)` for extended processing.
 - ❌ Don't: Write `parseBCP47(s string)` yourself.
 
-- **Comes with likelySubtags full version**: Rewrite the existing 50,000-row table in `x/text`.
-- ✅ Do: `language.Tag.LikelyScript()` + necessary fixture failure case patch.
-- ❌ Don't: Embed complete 50,000 mappings in `internal/cldr/likely_subtags.go`.
+- **Reimplement or fork the likelySubtags algorithm**: reinvent maximize/minimize instead of consuming generated CLDR data.
+- ✅ Do: call the generated `cldrlocale.MaximizeSubtags` / `cldrlocale.MinimizeSubtags` tables (regenerated from pinned CLDR `likelySubtags.json`).
+- ❌ Don't: depend on `language.Tag.LikelyScript()` / `LikelyRegion()` (data version is not the go-intl CLDR pin) or hand-maintain a `likely_subtags.go` patch layer.
 
 - **Construction period panic**: Violation of CLAUDE.md "no panic in production code".
 - ✅ Do: `Parse` / `New` returns `(Locale, error)`.

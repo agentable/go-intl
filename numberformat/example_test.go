@@ -3,16 +3,16 @@ package numberformat_test
 import (
 	"fmt"
 
-	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/numberformat"
+	"github.com/agentable/go-intl/option"
 )
 
 // Example demonstrates Intl.NumberFormat.prototype.format with the 0.5
 // rounding example from ECMA-402 §15.5.
 func Example() {
 	format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
-		MaximumFractionDigits: gointl.Int(0),
+		MaximumFractionDigits: option.Int(0),
 	})
 	if err != nil {
 		panic(err)
@@ -27,8 +27,8 @@ func Example() {
 // Example_options demonstrates the "floor" rounding-mode row from ECMA-402 §15.5.
 func Example_options() {
 	format, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
-		MaximumFractionDigits: gointl.Int(0),
-		RoundingMode:          gointl.String(numberformat.FloorRoundingMode),
+		MaximumFractionDigits: option.Int(0),
+		RoundingMode:          option.String(numberformat.FloorRoundingMode),
 	})
 	if err != nil {
 		panic(err)

@@ -49,8 +49,7 @@ func CompoundUnitPattern(loc Locale, width string) string {
 // order. It reads only the narrow supported blob and never triggers the pattern
 // or compound blob decode.
 func SupportedLocales() []string {
-	unitSupportedOnce.Do(loadUnitSupported)
-	return slices.Clone(unitSupportedTags)
+	return supported.Get()
 }
 
 func makeUnitPatternKey(loc Locale, unitID, width, plural uint32) uint32 {

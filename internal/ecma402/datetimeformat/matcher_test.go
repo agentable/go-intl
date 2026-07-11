@@ -85,6 +85,9 @@ func TestMatchAppliesFieldAdjustment(t *testing.T) {
 func TestAdjustFieldTypesAdjustsCommonFieldWidths(t *testing.T) {
 	t.Parallel()
 
+	// Year/day/hour widen to 2-digit; minute and second are deliberately left
+	// untouched (the reference best-fit matcher skips them), so "m"/"s" stay as
+	// the skeleton carried them.
 	got := AdjustFieldTypes(
 		Parse("yMdHms", "M/d/y, H:m:s", nil, ""),
 		Options{
@@ -96,8 +99,8 @@ func TestAdjustFieldTypesAdjustsCommonFieldWidths(t *testing.T) {
 			Second: Numeric2Digit,
 		},
 	)
-	if got.Pattern != "M/dd/yy, HH:mm:ss" {
-		t.Fatalf("Pattern = %q, want %q", got.Pattern, "M/dd/yy, HH:mm:ss")
+	if got.Pattern != "M/dd/yy, HH:m:s" {
+		t.Fatalf("Pattern = %q, want %q", got.Pattern, "M/dd/yy, HH:m:s")
 	}
 }
 

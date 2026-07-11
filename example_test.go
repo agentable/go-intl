@@ -1,6 +1,7 @@
 package gointl_test
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,29 @@ import (
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/numberformat"
 )
+
+// Example_errorKind classifies a constructor error by category through the
+// exported Error.Kind field and the root ErrorKind constants — the struct-based
+// alternative to errors.Is against a sentinel.
+func Example_errorKind() {
+	_, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
+		Style:    gointl.String(numberformat.CurrencyStyle),
+		Currency: gointl.String("US"), // not a 3-letter ISO 4217 code
+	})
+
+	var intlErr *gointl.Error
+	if errors.As(err, &intlErr) {
+		switch intlErr.Kind {
+		case gointl.InvalidOption:
+			fmt.Println("invalid option:", intlErr.Name)
+		default:
+			fmt.Println("other:", intlErr.Kind)
+		}
+	}
+
+	// Output:
+	// invalid option: currency
+}
 
 func Example_getCanonicalLocales() {
 	locales := mustLocaleList("en-us", "en-US", "zh-Hans-CN-u-nu-latn")

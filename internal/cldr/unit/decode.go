@@ -60,9 +60,6 @@ var (
 
 	compoundUnitOnce sync.Once
 	compoundUnitRows []compoundUnitPatternRecord
-
-	unitSupportedOnce sync.Once
-	unitSupportedTags []string
 )
 
 func loadUnitPatterns() {
@@ -90,6 +87,4 @@ func decodeCompoundUnitPatternRecord(key uint32, r *codec.Reader) compoundUnitPa
 	return compoundUnitPatternRecord{key: key, pattern: r.StringRef(_data)}
 }
 
-func loadUnitSupported() {
-	unitSupportedTags = codec.StringRefSlice(_unitSupportedBlob, _data)
-}
+var supported = codec.NewLazyStrings(_unitSupportedBlob, _data)

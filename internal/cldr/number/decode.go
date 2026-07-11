@@ -52,9 +52,6 @@ var (
 	numbersOnce sync.Once
 	byLocale    map[Locale]numberData
 
-	supportedOnce sync.Once
-	supportedTags []string
-
 	numberingSystemOnce       sync.Once
 	supportedNumberingSystems []string
 )
@@ -139,9 +136,7 @@ func decodeCompactExponents(r *codec.Reader) compactExponentPatterns {
 	return exponents
 }
 
-func loadSupported() {
-	supportedTags = codec.StringRefSlice(_numberSupportedBlob, _data)
-}
+var supported = codec.NewLazyStrings(_numberSupportedBlob, _data)
 
 func loadNumberingSystemExtras() {
 	supportedNumberingSystems = mergeSupportedNumberingSystems(decodeNumberingSystemExtras())
