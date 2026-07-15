@@ -62,16 +62,16 @@ type Options struct {
 }
 
 type Duration struct {
-    Years        int64
-    Months       int64
-    Weeks        int64
-    Days         int64
-    Hours        int64
-    Minutes      int64
-    Seconds      int64
-    Milliseconds int64
-    Microseconds int64
-    Nanoseconds  int64
+    Years        float64
+    Months       float64
+    Weeks        float64
+    Days         float64
+    Hours        float64
+    Minutes      float64
+    Seconds      float64
+    Milliseconds float64
+    Microseconds float64
+    Nanoseconds  float64
 }
 
 type Part struct {
@@ -113,7 +113,7 @@ MUST rules:
 2. `Options{}` defaults to `style="short"`; explicit empty `style` is invalid.
 3. `DurationFormat` is immutable after construction. All methods on `*DurationFormat` must be safe for concurrent callers.
 4. `ResolvedOptions` returns a value snapshot and uses ECMA-402 option names and values.
-5. Go uses a typed `Duration` struct instead of accepting `any` or parsing Temporal strings. Zero-valued `Duration{}` is a valid typed bridge and formats to the result implied by resolved display defaults.
+5. Go uses a typed `Duration` struct whose `float64` fields mirror ECMAScript Number instead of accepting `any` or parsing Temporal strings. Zero-valued `Duration{}` is a valid typed bridge and formats to the result implied by resolved display defaults.
 6. Formatting methods return errors for invalid duration values where JavaScript would throw `TypeError` or `RangeError`.
 7. JSON field names and `omitempty` behavior follow [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors).
 
@@ -147,13 +147,15 @@ MUST rules:
 
 MUST rules:
 
-1. All duration fields must have the same sign after zero fields are ignored. Mixed positive and negative fields return `ErrInvalidValue`.
-2. `years`, `months`, and `weeks` absolute values must be less than 2^32.
-3. The normalized seconds value for days through nanoseconds must be less than 2^53 seconds.
-4. Fractional rollup for milliseconds, microseconds, and nanoseconds must use exact decimal or integer math. Do not use `float64`.
-5. Fractional rollup must carry into the parent unit. For example, `1s + 1000ms` formats as `2s` when milliseconds are fractional.
+1. Each public duration field must be a finite integral ECMAScript Number. NaN, infinities, and non-integral values return `ErrInvalidValue`; negative zero projects to integer zero.
+2. Each field must be projected once at the formatting boundary into the exact integer represented by its `float64`. No later sign, limit, rollup, or NumberFormat path may narrow that value through `int64` or `float64`.
+3. All duration fields must have the same sign after zero fields are ignored. Mixed positive and negative fields return `ErrInvalidValue`.
+4. `years`, `months`, and `weeks` absolute values must be less than 2^32.
+5. The normalized seconds value for days through nanoseconds must be less than 2^53 seconds.
+6. Fractional rollup for milliseconds, microseconds, and nanoseconds must use exact decimal or integer math after boundary projection.
+7. Fractional rollup must carry into the parent unit. For example, `1s + 1000ms` formats as `2s` when milliseconds are fractional.
 
-> **Why**: ECMA-402 computes fractional units as mathematical values. Binary floats and string concatenation both break observable `roundingMode: "trunc"` behavior.
+> **Why**: ECMA-402 accepts Number fields but computes the duration record as mathematical integers. Exact projection preserves represented values such as `2^53 + 2` and `1e20`; binary-float rollup breaks observable `roundingMode: "trunc"` behavior.
 
 ---
 
@@ -177,7 +179,7 @@ MUST rules:
 
 Formatting pipeline:
 
-1. Validate the `Duration`.
+1. Validate each Number field and project it once into the private exact duration record.
 2. Walk units in ECMA-402 order: years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds.
 3. For non-numeric unit styles, use the constructor-resolved `NumberFormat` with `style="unit"` and the resolved unit display.
 4. For the first numeric or two-digit time unit, format the remaining numeric time sequence with CLDR separators.
@@ -242,7 +244,7 @@ The root package must not add `NewDurationFormat`, `FormatDuration`, cache contr
 MUST rules:
 
 1. Use stdlib `testing`, table-driven tests, and `t.Parallel()` unless shared generated-output state prevents it.
-2. Add focused tests for constructor defaults, invalid options, supported locales, default formatting, digital formatting, parts, exact fractional rollup, and invalid duration values.
+2. Add focused tests for constructor defaults, invalid options, supported locales, default formatting, digital formatting, parts, exact fractional rollup, invalid duration values, Number boundaries, and wide integral values.
 3. Add generator tests for CLDR unit extraction, `timeSeparator`, and generated supported locales.
 4. Add generated-reference conformance fixtures under `durationformat/testdata/conformance/formatjs/`.
 5. Accepted output mismatches must go to `durationformat/testdata/divergences.md` or `xfail.json`, never by removing generated fixture cases.
@@ -264,5 +266,5 @@ Acceptance checks:
 - No runtime CLDR JSON loading.
 - No `time.Duration` replacement for the public `Duration` record; ECMA-402 durations include years, months, and weeks.
 - No public `any` duration input or Temporal string parser.
-- No `float64` math for fractional rollup.
+- No `float64` math or `int64` narrowing after the public Number boundary is projected into the private exact record.
 - No hand-written supported-locale list.

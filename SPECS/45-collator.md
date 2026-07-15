@@ -46,7 +46,7 @@ type Options struct {
     Collation         *string
 }
 
-type Collator struct{ /* immutable resolved options + locale tag + collate options */ }
+type Collator struct{ /* pointer to immutable resolved state + private backend pool */ }
 
 func New(locales locale.List, opts Options) (*Collator, error)
 func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error)
@@ -59,8 +59,8 @@ MUST rules:
 1. `Compare` returns a negative, zero, or positive integer, matching `bytes.Compare`, `strings.Compare`, and the comparator shape that `slices.SortFunc` expects.
 2. `LocaleMatcher`, `Usage`, `Sensitivity`, `CaseFirst`, `Numeric`, `IgnorePunctuation`, and `Collation` use pointer presence fields so that zero `Options{}` means "no caller preference", while `LocaleMatcher: gointl.String(collator.LookupLocaleMatcher)` selects lookup, `Usage: gointl.String(collator.SearchUsage)` requests search tailoring, `Sensitivity: gointl.String(collator.BaseSensitivity)` selects a comparison strength, `CaseFirst: gointl.String(collator.FalseCaseFirst)` explicitly overrides locale `kf`, `Numeric: gointl.Bool(false)` can explicitly override locale `kn`, and `Collation: gointl.String("")` is an explicit invalid option instead of omitted input. Constructors copy pointee values into internal config.
 2a. `New` accepts one `Options` value; `Options{}` represents omitted or empty JS options.
-3. `New` MUST construct and freeze one `*collate.Collator` backend from the resolved data locale and options. `Compare` MUST serialize access to that cached backend because `golang.org/x/text/collate.Collator` mutates private iterators while comparing; the wrapping `*Collator` remains safe for concurrent use.
-4. `Collator` is immutable after construction except for the private comparison mutex.
+3. `New` MUST freeze resolved options and a `sync.Pool` factory in one private pointer state. `Compare` borrows one `*collate.Collator` per call because `golang.org/x/text/collate.Collator` mutates private iterators while comparing; calls may proceed concurrently without sharing a mutable backend instance.
+4. A copied `Collator` value, whether copied before or after first use, MUST share the same private pointer state rather than copy `sync.Pool` or another no-copy synchronization primitive. Original and copies remain concurrency-safe and report identical resolved options.
 5. `Collation` and `CaseFirst` are resolved through ECMA-402 locale negotiation. Backend-supported `co` values are applied through the private `collate` tag and reflected in `ResolvedOptions().Collation`; well-formed unsupported `co` and locale `kf` extension values fall back to the active default resolved options. Explicit `Options.CaseFirst = gointl.String(upper|lower)` returns `ErrUnsupportedOption` because it is an option value the active backend cannot apply truthfully.
 
 ### 1.1 Current support tier
@@ -120,6 +120,10 @@ Supported option precedence:
 | malformed `collation = "<value>"` | constructor error | Returns `ErrInvalidOption`; invalid Unicode locale extension type syntax is caller-fixable input. |
 
 Rows marked constructor error are active backend refusals, not accepted divergences. Accepted collation support requires backend behavior, supported-values evidence, and resolved-options fixtures in the same change.
+
+The copy/concurrency contract is verified by `TestCollator_CopiesRemainSafeAfterUse`
+in `collator/collator_test.go`; the race gate must exercise original values,
+pre-use copies, and post-use copies concurrently.
 
 ---
 

@@ -174,10 +174,7 @@ if err != nil {
 	return err
 }
 
-category, err := rules.Select(pluralrules.Int(1))
-if err != nil {
-	return err
-}
+category := rules.Select(pluralrules.Int(1))
 
 fmt.Println(compactFormat.Format(numberformat.Int(1200)))
 fmt.Println(category)
@@ -392,13 +389,14 @@ if err != nil {
 }
 
 for _, n := range []int64{1, 2, 3, 4} {
-	category, err := rules.Select(pluralrules.Int(n))
-	if err != nil {
-		return err
-	}
+	category := rules.Select(pluralrules.Int(n))
 	fmt.Println(category)
 }
 ```
+
+`New` resolves and validates the locale's generated rule family once, so
+`Select` is total and returns a category directly. `SelectRange` still returns
+an error for invalid runtime endpoints such as `NaN`.
 
 `SelectRange` follows the same digit-option formatting path as `Select`: if two
 decimal endpoints format to different strings, they fall through to CLDR plural
@@ -482,6 +480,12 @@ Output:
 ```text
 1:02:03
 ```
+
+Duration fields are `float64` because they mirror ECMAScript Number, but every
+field must be finite and integral. Formatting projects each field to its exact
+integer before validation and rollup, so represented values such as `1e20`
+nanoseconds are not narrowed to `int64`; fractions, NaN, and infinities return
+`gointl.ErrInvalidValue`.
 
 ### Name Codes, Sort Text, and Segment Strings
 

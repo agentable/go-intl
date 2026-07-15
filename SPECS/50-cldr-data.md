@@ -240,9 +240,9 @@ Any CLDR / ICU / tzdata change **requires**:
 
 1. Update the three lines of `internal/cldr/VERSION`.
 2. Update the eight `cldr-*` versions in `tools/gen-cldr/.cldr-json/package.json`, then `npm install --package-lock-only --prefix tools/gen-cldr/.cldr-json` to regenerate the lockfile.
-3. Run `task data` to regenerate every domain `data.go` + kernel data. `data:preflight` catches VERSION ↔ package.json drift before `npm ci`.
+3. Run `task data` to regenerate every domain `data.go` + kernel data. `tools/data-preflight` structurally validates VERSION, all `cldr-*` package pins, the tzdata lock/hash, and the Go transition-data floor before `npm ci`.
 4. Review the field-level diff with `git diff internal/cldr/`.
-5. CI on main blocks unreviewed data increments.
+5. The `Generated data` CI job runs the same `task data:check` gate on main pushes and pull requests, then requires a clean worktree.
 6. Update conformance fixtures (`<package>/testdata/conformance/`) if necessary.
 
 > **Why**: CLDR upgrades introduce hundreds of row-level changes; silent replacement makes a PR unreviewable. `data:preflight` + `git diff` + CI block force review and converge "drift → repair" into an executable instruction.
@@ -331,7 +331,7 @@ Migration safety rests on three independent gates, not on human review of tens o
 
    The migration-era shrink-only exemption table is now **empty**: the root literal renderers it covered retired with the root package, so every generated file satisfies its invariant directly.
 2. **Import-graph gate** (`TestCLDRImportGraphDirection` + `TestNoImportOfRetiredRootCLDR`, in `task data:contract`, reading production imports via `go/build.ImportDir`). Dependencies inside `internal/cldr` may only point down: `codec` imports only stdlib; the `locale` kernel imports `codec` plus stdlib-only utility leaves; each domain imports only `codec`, `locale`, the stdlib-only shared utility leaves (`localeid`, `numbering`, `pattern`, `plural`), and any sanctioned leaf→leaf edge. The single sanctioned leaf→leaf edge is `displaynames → currency` (the CLDR owner shared by NumberFormat and DisplayNames). The retired root `internal/cldr` package may never be imported again; its path is matched exactly so a domain subpackage is never mistaken for it. The leaf→leaf exception table is shrink-only: a listed edge absent from the real import graph fails the gate.
-3. **Generated-byte stability** (`task data:check`): regenerate from the same input and assert byte-equality for every domain plus `internal/localeid/unicode_alias_data.go`, `internal/localematcher/profile_data.go`, and `internal/tz/registry_data.go`.
+3. **Generated path and byte stability** (`task data:check`): regenerate every CLDR, plural, locale-alias, matcher-profile, and time-zone registry output under one repository-shaped temporary `internal/` root. `tools/check-generated-data` uses the two generated-header prefixes as ownership metadata, compares relative paths in both directions, then requires byte equality for every matched path. Hand-written files remain outside the set because they do not carry a generated header.
 
 Behavior byte-stability — every formatter conformance fixture output unchanged to the byte — is enforced by the formatter conformance suites (SPEC 70) and the per-domain decode snapshot tests, not by a separate gate here.
 
@@ -436,7 +436,7 @@ The `internal/` path segment forces every domain package private. Formatter publ
 
 ### 7.2 Snapshot / contract test
 
-`internal/cldr/locale/snapshot_test.go` regenerates every generated file under `internal/cldr` and byte-compares it with the committed payload. `task data:check` extends the byte comparison to the three private identity products in `internal/localeid`, `internal/localematcher`, and `internal/tz`. The locale package also holds the data-shape and import-graph gates (`datashape_test.go`, `importgraph_test.go`), all under `task data:contract`.
+`internal/cldr/locale/snapshot_test.go` regenerates every generated file under `internal/cldr` and byte-compares it with the committed payload. `task data:check` regenerates all products into one temporary `internal/` tree and compares the complete generated-header-owned path set and bytes, including the private identity products in `internal/localeid`, `internal/localematcher`, and `internal/tz`. The locale package also holds the data-shape and import-graph gates (`datashape_test.go`, `importgraph_test.go`), all under `task data:contract`.
 
 ### 7.3 Conformance integration
 

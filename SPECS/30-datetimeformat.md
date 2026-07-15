@@ -357,8 +357,9 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 3. ECMA-402 `ToLocalTime` semantics **MUST** be centralized behind one local-time projection path. Active `gregory` and `iso8601` use Gregorian fields, including ECMA-402 BCE display-year conversion (`year <= 0` formats as `1 - year`); future calendars must extend that projection instead of scattering calendar conditionals through pattern code.
 4. Pattern token → Field formatted lookup table **MUST** pass [SPEC 31 §Skeleton character table](./31-datetimeformat-skeleton.md).
 5. The `Part.Type` output by `FormatField` **MUST** qualify ECMA-402 §15.5.1 Table 9 for a total of 15 spec strings: `era | year | month | day | hour | minute | second | weekday | dayPeriod | timeZoneName | literal | fractionalSecond | relatedYear | yearName | unknown`. The option, resolved property, and pattern field remain `fractionalSecondDigits`; only the emitted part type is `fractionalSecond`, exposed as `PartFractionalSecond`. The AM/PM mark is triggered by the token `a/b/B` inside the pattern, but the output part type is still `"dayPeriod"` (spec §15.5.4), and `"ampm"` must not be emitted directly because it is not an ECMA-402 part type. `relatedYear / yearName / unknown` will not be emitted in Gregorian-only scope, but the constants must exist so consumer switches can stay exhaustive. **It is forbidden** to emit option names or non-spec strings such as `fractionalSecondDigits`, `hour24`, `hour11`, `dayperiod`, or `ampm` as part types.
-6. `DateTimeFormat` **MUST** cache `selectedPattern` when `New` is used, instead of repeatedly selecting the pattern in each `FormatToParts`. `selectedPattern` contains at least kind(`date | time | dateTime | none`) and date/time/dateTime pattern strings; style pattern, component skeleton pattern, and date+time interpolation are all formatted from this structure.
+6. `DateTimeFormat` **MUST** cache `selectedPattern` when `New` is used, instead of repeatedly selecting the pattern in each `FormatToParts`. The selected record owns effective date/time formats, date+time interpolation, and the compiled range record used by both range sinks.
 7. `localeMatcher` and `formatMatcher` **MUST** be kept separate: `localeMatcher` only affects the CLDR data locale selection; `formatMatcher` only affects the component options → pattern selection. **BANNED** Substituting locale fallback results for formatMatcher decisions.
+8. Component-style `ResolvedOptions` **MUST** be projected from the effective selected patterns after matcher adjustments and appended fields, not copied from the caller's requested option bag. Fields absent from the effective pattern remain nil; hour-cycle fields are absent when the selected pattern has no hour.
 
 ```go
 type Part struct {
@@ -377,15 +378,15 @@ Type string // Strict enumeration, not open
 
 **MUST** Rules:
 
-1. `FormatRange(start, end)` **MUST** implement ECMA-402 §13.5.5 `FormatDateTimeRange` three-stage fallback:
+1. `New` **MUST** compile the constructor-resolved interval and fallback data into one immutable `rangePatternRecord`. `FormatRange` and `FormatRangeToParts` only project localized endpoint fields through that record; they do not repeat skeleton lookup, field adjustment, or fallback pattern construction.
    ```text
-   diff := largestFieldDiff(start, end)
-   pattern := intervalFormats[skeleton][diff]
-   if pattern == nil:
-       pattern := "{0} – {1}"  // dateTimeFormats.intervalFormatFallback
-   return apply(pattern, format(start), format(end))
+   record := compile(selectedEffectivePattern, intervalFormats, intervalFallback)
+   relation := record.compare(localStart, localEnd)
+   if relation.equal: return format(start)
+   if relation.pattern != nil: return apply(relation.pattern, start, end)
+   return apply(intervalFallback, distinguishingEndpointPattern, start, end)
    ```
-2. `intervalFormats` data **MUST** be obtained from the constructor-resolved `internal/cldr/date.GregorianFor(loc).IntervalFormats` data (CLDR `ca-gregorian.json` `dateTimeFormats.intervalFormats`).
+2. `intervalFormats` and `intervalFormatFallback` data **MUST** be obtained from the constructor-resolved `internal/cldr/date.GregorianFor(loc)` data (CLDR `ca-gregorian.json` `dateTimeFormats.intervalFormats`).
 3. `FormatRangeToParts` **MUST** return the `[]Part` element with the `Source` field (`"startRange" | "endRange" | "shared"`); the `Part` type is expanded to:
    ```go
    type RangePart struct {
@@ -396,11 +397,12 @@ Type string // Same as Part.Type
    ```
 4. `Source` string constant **MUST** reuse `internal/ecma402.RangeKind` (same as [SPEC 20 §FormatRange](./20-numberformat.md#5-formatrange--formatrangetoparts) `RangeKind`) to avoid spelling drift.
 5. The input of `start.After(end)` must not return an error, nor must the two ends be swapped or `~` added; use the input parameter order according to ECMA-402 `PartitionDateTimeRangePattern`.
-6. When `start == end` and `intervalFormats` hit the "same field", they **MUST** fall back to `Format(start)` single formatting, which **disables** outputting "X – X".
-7. The current generated range fixture gate must at least cover the day-difference interval pattern (`intervalFormats["yMMMd"]["d"]`) of the `yMMMd` skeleton, and retain CLDR literal spacing (e.g. narrow no-break/thin spaces) instead of the handwritten `" – "`.
+6. Equality is defined by the localized semantic fields present in the effective selected range record, not by instant equality and not by rendered label equality. Lower fields after the record's last present field are irrelevant; distinct narrow month labels remain distinct semantic months; fractional seconds compare at the resolved precision; repeated wall times in a DST fold may collapse. Equal selected records return `Format(start)` with shared parts.
+7. Generated and manual range fixtures must cover date, time, date-time, reversed, semantic-equal, flexible/standard day-period, fractional-precision, and cross-date fallback behavior while retaining CLDR literal spacing instead of handwritten separators.
 8. Accepted DateTimeFormat range, range-part-source, time-zone, or resolved-options divergences **MUST** carry a `native_witness` entry in `datetimeformat/testdata/divergences.md` that points to a same-package native fixture. If that native fixture also differs from generated CLDR output, retain it as its own accepted divergence instead of hiding it behind the generated-reference entry.
-9. Interval tokenization, repeated-field occurrence counting, endpoint selection, and literal `source` classification **MUST** compile through one package-private execution-step path. `FormatRange` appends values and `FormatRangeToParts` materializes records from those same decisions; neither sink may maintain an independent start/end or source traversal.
+9. Interval tokenization, repeated-field occurrence counting, endpoint selection, and literal `source` classification **MUST** compile through one package-private execution-step path. `FormatRange` appends values and `FormatRangeToParts` materializes records from the same relation and pattern decisions; neither sink may maintain an independent start/end or source traversal.
 10. The text path must not allocate a `[]RangePart` merely to share decisions. The cross-locale date/time/dateTime/fallback/reversed/equal matrix must prove `FormatRange(start, end) == concat(FormatRangeToParts(start, end).Value)` and legal range sources.
+11. When a time-only or incomplete date-time pattern crosses a local date boundary, fallback endpoints **MUST** add enough omitted date fields to distinguish the endpoints. Larger differences retain missing smaller fields in day → month → year → era order. The fallback is constructor-compiled and shared by text and parts; callers do not configure it.
 
 > **Why**: `intervalFormats` three-stage fallback is a high-risk conformance area; range output must be kept under fixture evidence rather than prose.
 >
@@ -465,6 +467,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - [ ] `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_TimezoneContextPreservation`: the same `time.Time` has different output under different options `TimeZone`).
 - [ ] `go test -race ./datetimeformat/...` passes (including `TestDateTimeFormat_MonotonicClockStripping`:`t.Round(0)` followed by multiple `Format(t)` bytes that are equal).
 - [ ] `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_ConcurrentFormat` 100 goroutine × 1000 calls).
+- [ ] `datetimeformat/range_relation_test.go` proves selected-record semantic equality, flexible and standard day periods, resolved fractional precision, DST-fold local equality, and distinguishing cross-date fallbacks; joined range parts equal `FormatRange` bytes.
 - [ ] `go vet ./datetimeformat/...` clean.
 - [ ] `New(locale.List{loc}, Options{Calendar: gointl.String("buddhist")})` succeeds and `ResolvedOptions().Calendar == "gregory"` unless generated locale data adopts that calendar.
 - [ ] `New(locale.List{loc}, Options{Calendar: gointl.String("")})` returns a wrapped error matching `gointl.ErrInvalidOption`.

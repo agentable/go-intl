@@ -1,8 +1,7 @@
 # SPEC 21 — Number Math & Decimal
 
-> **Status:** Draft (2026-05-08)
-> **Priority:** High(NumberFormat / PluralRules / DateTimeFormat shared math layer across years; blocking SPEC 20 / 40)
-> **Authority:** ECMA-402 number-format algorithms are normative. This SPEC documents the current Go contract for the `internal/decimal` package, `Decimal` type, `ToIntlMathematicalValue`, nine ECMA-402 rounding modes, `RoundingPriority` / `RoundingIncrement` / `TrailingZeroDisplay` algorithms.
+> **Status:** Active
+> **Authority:** ECMA-402 number-format algorithms are normative. This SPEC documents the current Go contract for the `internal/decimal` package, `Decimal` type, `ToIntlMathematicalValue`, nine ECMA-402 rounding modes, exact increment quantization, and trailing-zero arithmetic. ECMA-402 digit-option and rounding-branch resolution is owned by SPEC 20.
 
 ---
 
@@ -17,7 +16,7 @@ This SPEC decides:
 1. Backend selection **`cockroachdb/apd/v3`**; **rejection** `shopspring/decimal` (no NaN/Inf construct panic) and `ericlagergren/decimal` (v3 alpha long-term stagnation).
 2. The `Decimal` type that provides the ECMA-402 abstraction layer narrow interface in `internal/decimal/`; apd as a backend, but does not expose the apd type through the public API (to facilitate future switching).
 3. The nine ECMA-402 rounding modes map to the five unsigned selection rules and are evaluated against exact adjacent values.
-4. `RoundingPriority` / `RoundingIncrement` / `TrailingZeroDisplay` Three ES 2025 V3 algorithms are implemented in this package (SPEC 20 / 40 only for consumption).
+4. Exact rounding-mode selection and increment quantization are implemented in this package. `RoundingPriority` and the resolved rounding branch belong to `internal/ecma402/numberformat`; `internal/decimal` does not own formatter option policy.
 5. Formatter packages carry numeric inputs through `internal/ecma402.NumericValue`; the concrete `internal/decimal.Decimal` value is consumed directly by shared number-format and plural-rules algorithms. There is no active `MathematicalValue` interface layer.
 
 This SPEC **not** defines: NumberFormat option pipeline (SPEC 20), PluralRules rule compilation (SPEC 40), CLDR currency precision data (SPEC 50), or formatter public `Value` wrappers.
@@ -63,14 +62,14 @@ require github.com/cockroachdb/apd/v3 v3.x.x
 
 ```text
 internal/decimal/
-├── decimal.go ← Decimal type (package apd.Decimal) + construction / comparison / arithmetic
-├── from.go           ← ToIntlMathematicalValue(value any) (Decimal, error)
-├── rounding.go ← 9 types of RoundingMode + ApplyUnsignedRoundingMode
-├── quantize.go       ← Quantize / RoundingIncrement
-├── log10.go ← Log10Floor (for ComputeExponent)
-├── trailing_zero.go ← TrailingZeroDisplay algorithm
-├── priority.go       ← RoundingPriority(auto / morePrecision / lessPrecision)
-└── math_value.go ← ToIntlMathematicalValue internal conversion helper
+├── decimal.go    ← Decimal wrapper and read-only value operations
+├── from.go       ← exact typed construction
+├── math_value.go ← NumericValue conversion helpers
+├── ops.go        ← exact arithmetic and sign operations
+├── rounding.go   ← nine RoundingMode values + unsigned selection
+├── quantize.go   ← exact increment quantization
+├── log10.go      ← decimal magnitude
+└── errors.go     ← decimal sentinels
 ```
 
 > **Why private package**: Users **cannot** directly construct Decimal; `internal/` forces the apd dependency to be hidden, making "switching the Decimal backend" a single point of modification.
@@ -332,18 +331,18 @@ The implementation does not delegate these decisions to an apd `Rounder`: ECMA-4
 
 // RoundingMode is one of the nine modes specified in ECMA-402 §15.5.5.
 // String() output spec verbatim name (for ResolvedOptions).
-type RoundingMode int
+type RoundingMode string
 
 const (
-    RoundCeil       RoundingMode = iota // "ceil"
-    RoundFloor                          // "floor"
-    RoundExpand                         // "expand"
-    RoundTrunc                          // "trunc"
-RoundHalfCeil // "halfCeil" ← Self-implemented
-RoundHalfFloor // "halfFloor" ← Self-implemented
-RoundHalfExpand // "halfExpand" (default)
-    RoundHalfTrunc                      // "halfTrunc"
-    RoundHalfEven                       // "halfEven"
+    RoundCeil       RoundingMode = "ceil"
+    RoundFloor      RoundingMode = "floor"
+    RoundExpand     RoundingMode = "expand"
+    RoundTrunc      RoundingMode = "trunc"
+    RoundHalfCeil   RoundingMode = "halfCeil"
+    RoundHalfFloor  RoundingMode = "halfFloor"
+    RoundHalfExpand RoundingMode = "halfExpand"
+    RoundHalfTrunc  RoundingMode = "halfTrunc"
+    RoundHalfEven   RoundingMode = "halfEven"
 )
 
 func (m RoundingMode) String() string
@@ -364,55 +363,51 @@ ECMA-402 §15.5.7 `ApplyUnsignedRoundingMode(x, r1, r2, unsignedRoundingMode)`: 
 // x: decimal to be rounded
 // r1: lower bound (towards zero)
 // r2: upper bound (away from zero direction)
-// m: RoundingMode (converted to unsigned - see GetUnsignedRoundingMode)
+// m: RoundingMode (converted to unsigned - see UnsignedRoundingMode)
 // Return r1 or r2 (one).
 func ApplyUnsignedRoundingMode(x, r1, r2 Decimal, m RoundingMode) Decimal
 
-// GetUnsignedRoundingMode(m, sign) converts signed mode to unsigned(spec §15.5.6).
+// UnsignedRoundingMode(m, sign) converts signed mode to unsigned(spec §15.5.6).
 // - ceil + minus sign → halfDown style unsigned
 // - floor + positive sign → halfDown style
 // - The rest of the modes remain unchanged
-func GetUnsignedRoundingMode(m RoundingMode, isNegative bool) RoundingMode
+func UnsignedRoundingMode(m RoundingMode, isNegative bool) RoundingMode
 ```
 
 > **Why According to spec name `ApplyUnsignedRoundingMode` verbatim**:generated-reference `ecma402-abstract/NumberFormat/ApplyUnsignedRoundingMode.ts` 1:1 implementation; the transplantation cost is the lowest.
 >
 > **Why not use `apd.Decimal.Quantize` + `apd.Rounder`**: The Rounder interface does not expose both ECMA-402 neighbours. `QuantizeToIncrement` therefore derives `r1` and `r2` by exact integer quotient/remainder, and `ApplyUnsignedRoundingMode` compares exact aligned coefficients. This also prevents a backend context from truncating 100+ digit values before the rounding decision.
 
-### 4.4 RoundingPriority
+### 4.4 Rounding branch ownership
 
 ```go
-// internal/decimal/priority.go(signature)
-
-// RoundingPriority is an ES 2025 V3 field; determines minSD/mxSD and minFD/mxFD
-// The priority when setting simultaneously.
-type RoundingPriority int
+// internal/ecma402/numberformat/options.go (signature)
+type RoundingType string
 
 const (
-PriorityAuto RoundingPriority = iota // "auto" (default)
-    PriorityMorePrecision                        // "morePrecision"
-    PriorityLessPrecision                        // "lessPrecision"
+    RoundingTypeFractionDigits    RoundingType = "fractionDigits"
+    RoundingTypeSignificantDigits RoundingType = "significantDigits"
+    RoundingTypeMorePrecision     RoundingType = "morePrecision"
+    RoundingTypeLessPrecision     RoundingType = "lessPrecision"
 )
 
-// ApplyRoundingPriority is called within SetNumberFormatDigitOptions to determine
-// roundingType ∈ {fractionDigits, significantDigits, morePrecision, lessPrecision}.
-//
-// Input:
-// hasSD = mnsd|mxsd At least one is set
-// hasFD = mnfd|mxfd At least one is set
-//   priority = PriorityAuto / MorePrecision / LessPrecision
-// Return RoundingType (for PartitionNumberPattern routing).
-func ApplyRoundingPriority(hasSD, hasFD bool, priority RoundingPriority) RoundingType
-
-type RoundingType int
-const (
-    RoundingFractionDigits    RoundingType = iota
-    RoundingSignificantDigits
-    RoundingMorePrecision
-    RoundingLessPrecision
-RoundingCompact // notation=compact default
-)
+type ResolvedDigitOptions struct {
+    DigitOptions
+    RoundingType RoundingType
+}
 ```
+
+`internal/decimal` owns mathematical rounding modes and exact arithmetic only.
+`internal/ecma402/numberformat.SetNumberFormatDigitOptions` owns the ECMA-402
+option-presence/defaulting algorithm and freezes the chosen branch in
+`ResolvedDigitOptions`. NumberFormat and PluralRules pass that complete record
+to `FormatNumericToString`; runtime code must not reconstruct the branch from
+digit fields or a string priority.
+
+> **Rejected**: a second `internal/decimal.ApplyRoundingPriority` policy layer.
+> Rounding priority is an ECMA-402 option-resolution decision, not decimal
+> arithmetic, and duplicate inference lets constructor state and formatting
+> disagree.
 
 ### 4.5 RoundingIncrement
 
@@ -608,11 +603,12 @@ if !decimal.IsValidRoundingIncrement(inc) {
 ```go
 // ❌ Error: public API leaks apd type
 package numberformat
-func WithRoundingMode(m apd.Rounder) Option
+type Options struct { RoundingMode apd.Rounder }
 
-// ✅ Correct: use decimal.RoundingMode abstraction
+// ✅ Correct: expose the ECMA-402 string vocabulary; parse internally.
 package numberformat
-func WithRoundingMode(m numberformat.RoundingMode) Option  // numberformat.RoundingMode = decimal.RoundingMode
+type RoundingMode string
+type Options struct { RoundingMode *string }
 ```
 
 > **Why**: When switching the Decimal backend, all public APIs are broken; `internal/decimal` provides a layer of isolation to allow transparent replacement of the backend.
@@ -680,21 +676,21 @@ if d1 == d2 { /* compile error or undefined behavior */ }
 if d1.Cmp(d2) == 0 { /* ... */ }
 ```
 
-### 8.7 ❌ Do not put the `RoundingPriority` algorithm in SPEC 20
+### 8.7 ❌ Do not put formatter option policy in `internal/decimal`
 
 ```go
-// ❌ Error: SPEC 20 Repeated implementation of priority decision
-package numberformat
-func setNumberFormatDigitOptions(...) {
-if priority == "morePrecision" { /* ... */ } // Repeat
-}
+// ❌ Wrong owner: decimal math infers an ECMA-402 option branch.
+package decimal
+func ApplyRoundingPriority(...) RoundingType
 
-// ✅ Correct: Call SPEC 21 §4.4 ApplyRoundingPriority
-package numberformat
-rt := decimal.ApplyRoundingPriority(hasSD, hasFD, opts.RoundingPriority)
+// ✅ Correct owner: SetNumberFormatDigitOptions resolves one complete record.
+package ecma402nf
+resolved, invalid, bad := SetNumberFormatDigitOptions(config, mnfd, mxfd, notation)
 ```
 
-> **Why**:`RoundingPriority` The decision algorithm is the focus of the mathematical layer; SPEC 20 is the consumer. Current deeds are recorded in this SPEC.
+> **Why**: Rounding priority depends on option presence, notation defaults, and
+> resolved digit slots. Those are ECMA-402 formatter semantics, while
+> `internal/decimal` only chooses between exact mathematical neighbours.
 
 ### 8.8 ❌ Do not import `internal/ecma402` in `internal/decimal` production code
 
@@ -721,7 +717,7 @@ type NumericValue struct {
 ### Backend
 
 - [ ] `go.mod` contains `github.com/cockroachdb/apd/v3`, **not** contains `github.com/shopspring/decimal` or `github.com/ericlagergren/decimal`.
-- [ ] `internal/decimal/` subdirectory is divided into files `decimal.go` / `from.go` / `rounding.go` / `quantize.go` / `log10.go` / `trailing_zero.go` / `priority.go` / `math_value.go` / `errors.go`.
+- [ ] `internal/decimal/` contains only decimal representation, conversion, arithmetic, magnitude, rounding, quantization, and error ownership; formatter option policy remains in `internal/ecma402/numberformat`.
 - [ ] The public API of the `internal/decimal` package does not expose any `apd.*` types (`grep -r "apd\." | grep -v "internal/decimal/" | grep -v "_test.go"` returns null).
 
 ### Decimal type
@@ -763,13 +759,13 @@ type NumericValue struct {
 - [ ] `RoundingMode` 9 constants; `String()` output spec verbatim name (`"halfCeil"` not `"half-ceil"`).
 - [ ] `ParseRoundingMode("halfExpand") == RoundHalfExpand`,`ParseRoundingMode("HALFEXPAND")` failed (case sensitive).
 - [ ] `ApplyUnsignedRoundingMode` results under `halfCeil` / `halfFloor` with generated-reference `ApplyUnsignedRoundingMode.test.ts` byte-equal.
-- [ ] `GetUnsignedRoundingMode` aligns with spec §15.5.6 verbatim table.
+- [ ] `UnsignedRoundingMode` aligns with spec §15.5.6 verbatim table.
 - [ ] generated-reference `ecma402-abstract/NumberFormat/tests/ApplyUnsignedRoundingMode.test.ts` All fixtures pass.
 
-### RoundingPriority
+### Resolved rounding branch
 
-- [ ] `ApplyRoundingPriority` 5 branches (MorePrecision / LessPrecision / hasSD / hasFD / Compact / default fractionDigits) aligned with generated-reference `SetNumberFormatDigitOptions.ts`.
-- [ ] `RoundingType` 5 values (FractionDigits / SignificantDigits / MorePrecision / LessPrecision / Compact).
+- [ ] `SetNumberFormatDigitOptions` freezes fraction, significant, more-precision, or less-precision routing in `ResolvedDigitOptions` and `FormatNumericToString` executes that field without re-inference.
+- [ ] All nine rounding-mode strings are parsed to `decimal.RoundingMode` during option resolution; no runtime fallback substitutes `halfExpand` for invalid state.
 
 ### RoundingIncrement
 

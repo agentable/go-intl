@@ -210,15 +210,16 @@ roundingIncrement!=1 ⇒ roundingType forces fractionDigits and mnfd=mxfd
 
 ### 2.3 Digit Formatting Record
 
-`internal/ecma402/numberformat.FormatNumericToString(d, DigitOptions)` is the only runtime code path for ECMA-402 digit formatting. Both NumberFormat and PluralRules consume the formatted string and rounded numeric value it returns.
+`internal/ecma402/numberformat.FormatNumericToString(d, ResolvedDigitOptions)` is the only runtime code path for ECMA-402 digit formatting. Both NumberFormat and PluralRules consume the same constructor-resolved record and the formatted string and rounded numeric value it returns.
 
 **MUST** Rules:
 
-1. `DigitOptions` **MUST** contain the resolved status of `minimumIntegerDigits`, fraction digits, significant digits, `roundingIncrement`, `roundingMode`, `roundingPriority`, `trailingZeroDisplay`; the public formatter package is only responsible for mapping its own config to this structure.
+1. `ResolvedDigitOptions` **MUST** contain one `DigitOptions` value plus the resolved `RoundingType`. `DigitOptions` owns the resolved digit bounds, increment, typed `decimal.RoundingMode`, priority, and trailing-zero policy. `SetNumberFormatDigitOptions` parses and validates the rounding mode and selects the branch once during construction; formatting must not infer either value again or fall back from invalid internal state.
 2. `FormatNumericToString` **MUST** return an unlocalized, ungrouped ASCII decimal string, retaining only trailing zeros forced by resolved digit options. Lexical zeros in an input such as `"1.50"` are not part of the Intl mathematical value and must not become a second display owner. Grouping, local numeric notation, currency/unit/percent/compact wrapping can only be done in the formatter package.
 3. `FormatNumericToString` **MUST** also return rounded numeric value for compact plural selection and PluralRules operands. NumberFormat range equality is decided later from the fully partitioned visible endpoint text, not from this rounded decimal value.
 4. NumberFormat and PluralRules are **FORBIDDEN** to each duplicate fixed/significant/priority rounding code; any rounding or zero-padding fixes must fall in `internal/ecma402/numberformat` and be shared by both formatters.
 5. `FormatNumericToString` **disables** decimal rounding or exponential scaling via `float64`, `strconv.ParseFloat`, `math.Log10`, `math.Pow10`; these operations must be done via [SPEC 21 §Decimal API](./21-number-math.md#decimal-api).
+6. The returned rounded mathematical value **MUST** preserve a negative zero sign when a negative input rounds to zero. Text and range partitioning consume that sign; `-0.1` and `-0.2` with zero fraction digits produce the shared approximate result `~-0`, not `~0`.
 
 > **Why**: ECMA-402 PluralRules reuses the semantics of NumberFormat digit options; writing a set of rounding in each package will drift on trailing-zero, `roundingPriority` and zero scale. Converging the display string stage into a function allows the conformance fixture to constrain both the NumberFormat output and the PluralRules operands.
 
@@ -294,7 +295,7 @@ MaximumSignificantDigits *int // Same as above
 3. if notation=scientific|engineering|compact:
        exponent := ComputeExponent(nf, x, localeData)
        x       := x ÷ 10^exponent
-4. n := internal/ecma402/numberformat.FormatNumericToString(x, nf.DigitOptions)
+4. n := internal/ecma402/numberformat.FormatNumericToString(x, nf.ResolvedDigitOptions)
                                                  // String + Rounded
 5. if x.specialValue: // NaN / ±Inf go to symbol map
        formattedString := getNaN(localeData) or getInfinity(localeData)
@@ -324,12 +325,12 @@ output; it does not call a public `pluralrules.PluralRules` instance.
 1. Under `notation = compact`, NumberFormat **MUST** use the rounded display decimal and compact exponent to select the CLDR compact suffix category:
    ```go
    ops := pluralop.GetOperands(formattedDisplayDecimal, exponent)
-   rule, ok := plural.CardinalRule(localeTag)
+   rule, err := plural.Rule(dataLocale, "cardinal") // resolved in New
    cat := rule(ops)
    ```
 2. `formattedDisplayDecimal` is the unlocalized decimal string after scaling the source value by `10^exponent` and applying the resolved digit options. Forced trailing zeros are retained.
 3. `exponent` is the compact exponent selected from generated compact pattern data, including the rounded-carry case where a value moves into the next compact magnitude.
-4. NumberFormat **MUST NOT** parse the plural DSL, copy generated plural rules, or hold a public `pluralrules.PluralRules` instance. Rule functions come only from `internal/cldr/plural`.
+4. NumberFormat **MUST** resolve the exact generated cardinal rule for its constructor data locale in `New`. A missing rule is a constructor/data error; runtime formatting must not substitute English or an always-`other` rule. NumberFormat must not parse the plural DSL, copy generated plural rules, or hold a public `pluralrules.PluralRules` instance.
 5. Public `pluralrules.PluralRules` compact notation is a different observable operation: it selects the public plural category from the source decimal string plus the compact exponent. That contract is owned by [SPEC 40 §Compact Operand Contract](./40-pluralrules.md#compact-operand-contract).
 
 > **Why**: Compact suffix selection is a NumberFormat-internal formatting step. The stable boundary is "display decimal + compact exponent + generated CLDR rule"; public PluralRules has its own native-observable compact selection semantics.
@@ -461,9 +462,14 @@ implementation mechanics rather than ECMA-402-observable behavior.
 
 ---
 
-## 11.1 Known Divergences and Future Work
+## 11.1 Verification Evidence Boundary
 
-**Generated fixture coverage (deferred).** The scientific/engineering rounding-overflow carry (single `computeExponent`, §4 rule 5) and the `roundingPriority` `RoundingMagnitude` tie-break (§2.2 rule 5) are currently locked by hand-written Node-witnessed tests, not yet by generated FormatJS `format` fixtures. Adding the generated rounding-overflow and `roundingPriority` fixtures is deferred Theme-D extractor work; the observable behavior is already correct and tested.
+The scientific/engineering rounding-overflow carry (single `computeExponent`,
+§4 rule 5) and the `roundingPriority` `RoundingMagnitude` tie-break (§2.2 rule
+5) are locked by hand-written Node-witnessed tests because the active FormatJS
+extractor does not structurally reduce those source shapes. These behavior tests
+are the owning evidence; the absence of generated fixtures does not create a
+second implementation or a weaker runtime contract.
 
 ---
 

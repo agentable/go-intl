@@ -150,6 +150,7 @@ fmt.Println(loc2.String())   // "ja-u-ca-japanese"
 | `"en-US-u-kn"`(no value table true) | OK;`Numeric=true` |
 | `"en-US-u-kn-false"` | OK;`Numeric=false` |
 | `"en-US-u-kf-false"` | OK;`CaseFirst="false"` (spec literal is legal) |
+| `"en-US-u-fw-0"` | Returns an error matching `gointl.ErrInvalidValue`; numeric weekday aliases belong to the `FirstDayOfWeek` constructor option and are not well-formed Unicode type subtags |
 
 > **Why**:
 > 1. **Unique boundary** - Parse is BCP 47 boundary, the public API no longer accepts raw `string` locale (SPEC 11 / 20 / 30 / 40 input parameters all `Locale`).
@@ -173,7 +174,7 @@ fmt.Println(loc2.String())   // "ja-u-ca-japanese"
 | `CaseFirst` | When the pointer is non-nil: must ∈ {`"upper"`, `"lower"`, `"false"`} |
 | `Numeric` | `nil` means omitted; non-nil `true` writes `-u-kn`; non-nil `false` writes `-u-kn-false` |
 | `NumberingSystem` | When the pointer is non-nil: the explicit string must be non-empty and match BCP 47 type subtag syntax |
-| `FirstDayOfWeek` | When the pointer is non-nil: the explicit string must be non-empty and ∈ {`"mon"`, `"tue"`, `"wed"`, `"thu"`, `"fri"`, `"sat"`, `"sun"`, `"0"`, `"1"`, `"2"`, `"3"`, `"4"`, `"5"`, `"6"`, `"7"`}; numbers normalize to ECMA-402 `WeekdayToUValue` |
+| `FirstDayOfWeek` | When the pointer is non-nil: the explicit string must be non-empty and ∈ {`"mon"`, `"tue"`, `"wed"`, `"thu"`, `"fri"`, `"sat"`, `"sun"`, `"0"`, `"1"`, `"2"`, `"3"`, `"4"`, `"5"`, `"6"`, `"7"`}; option values normalize through ECMA-402 `WeekdayToUValue`. `Parse` does not perform this option coercion on BCP 47 input. |
 
 Verification failure returns an error matching the root error category. Parsing failed to match `gointl.ErrInvalidValue`; constructor option failed to match `gointl.ErrInvalidOption`.
 
@@ -282,10 +283,10 @@ fmt.Println(loc.Maximize().Minimize().String())  // "zh-Hant"
 
 Strategy:
 
-1. `Maximize` splits the tag into `(language, script, region)` via `internal/localeid`, looks the triple up in `cldrlocale.MaximizeSubtags`, and rejoins the result. Unknown triples leave the tag unchanged. All seven Unicode extension fields are preserved.
+1. `Maximize` splits the tag into `(language, script, region)` via `internal/localeid`, looks the triple up in `cldrlocale.MaximizeSubtags`, and replaces only those three subtags through `internal/localeid.ReplaceLanguageSubtags`. Unknown triples leave the tag unchanged. Variants and every extension, including transformed and private-use extensions, retain canonical order and spelling.
 2. `Minimize` is a deliberate **two-tier** lookup, not two competing algorithms:
    - Tier 1 is the precomputed CLDR `cldrlocale.MinimizeSubtags` table for known subtag triples.
-   - Tier 2 is the general ECMA-402 `RemoveLikelySubtags` trial: it maximizes the input, then tries the `language`, `language+region`, and `language+script` candidates and keeps the first whose `Maximize` result equals the input's maximized form.
+   - Tier 2 is the general ECMA-402 `RemoveLikelySubtags` trial: it maximizes the input, then tries the `language`, `language+region`, and `language+script` candidates and keeps the first whose maximized language/script/region triple equals the input's maximized triple. Suffixes do not participate in that comparison and are restored unchanged on the selected triple.
    Both tiers are driven by the same generated CLDR data (Tier 2 through `Maximize`), so they are consistent by construction and cannot drift; the two-tier design is documented in `locale/canonical.go`.
 3. Conformance is verified against generated-reference `tests/likely-subtags.test.ts` fixtures.
 
@@ -300,7 +301,7 @@ Strategy:
 
 ### 4.3 Extended fields reserved
 
-`Maximize` / `Minimize` **MUST** preserve all 7 extension fields (`Calendar` / `HourCycle` / ...); only modify the `Tag` part.
+`Maximize` / `Minimize` **MUST** preserve the complete language-identifier suffix: variants, transformed extensions, Unicode attributes and keys (including fields not modeled by the seven getters), and private use. Only language, script, and region may change.
 
 ```go
 loc := mustLocale("zh-u-hc-h23-ca-chinese")
@@ -592,6 +593,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 - [ ] `ParseList(tags ...string)` constructs the formatter request list.
 - [ ] If parsing fails, an error with `errors.Is(err, gointl.ErrInvalidValue)` being true is returned.
 - [ ] Canonicalizes Unicode types by key from pinned CLDR BCP47 data: `ca=islamicc` → `islamic-civil`, `ms=imperial` → `uksystem`; `co=islamic-civil` remains unchanged and malformed `ca=gregorian` is rejected before lookup.
+- [ ] `Parse("en-US-u-fw-0")` rejects malformed tag syntax, while `Options{FirstDayOfWeek: gointl.String("0")}` normalizes to `-u-fw-sun`; tag parsing never applies constructor-option coercion.
 - [ ] The 7 extended fields are spec checked during construction (§2.3 table).
 - [ ] Explicit empty string option values (`Calendar`, `Collation`, `HourCycle`, `CaseFirst`, `NumberingSystem`, `FirstDayOfWeek`, and language identifier overrides) return invalid-option errors instead of being treated as omitted.
 
@@ -609,7 +611,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 - [ ] `(Locale).Maximize() Locale` uses the pinned generated CLDR likely-subtag table and preserves caller-supplied subtags.
 - [ ] `(Locale).Minimize() Locale` is the inverse of Maximize.
 - [ ] generated-reference `tests/likely-subtags.test.ts` and `tests/minimize.test.ts` All fixtures pass in `locale/canonical_test.go`.
-- [ ] `Maximize` / `Minimize` 7 extension fields reserved.
+- [ ] `Maximize` / `Minimize` and language/script/region constructor overrides preserve variants, transformed extensions, modeled and unmodeled Unicode extension content, and private use while replacing only language/script/region.
 
 ### Getter
 

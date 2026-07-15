@@ -71,7 +71,7 @@ func Float(v float64) Value
 func BigInt(v *big.Int) Value
 func Decimal(s string) (Value, error)
 
-func (r *PluralRules) Select(v Value) (Category, error)
+func (r *PluralRules) Select(v Value) Category
 func (r *PluralRules) SelectRange(start, end Value) (Category, error)
 func (r *PluralRules) ResolvedOptions() ResolvedOptions
 ```
@@ -81,10 +81,11 @@ func (r *PluralRules) ResolvedOptions() ResolvedOptions
 1. `New` **MUST** complete all option verification during the construction period, and `error` will be returned if it fails.
 2. `New` accepts a `Options` value. `New(locales, Options{})` is equivalent to JS passing an empty options object or omitting options; multiple options objects are not Go API shapes and are rejected by the compiler.
 3. `Select` / `SelectRange` **MUST** accept opaque `Value`; the caller expresses ECMA-402 numeric input through typed constructors.
-4. `Select` **MUST** return `Other, nil` for NaN and positive or negative infinity. `SelectRange` **MUST** return `ErrInvalidValue` only when an endpoint is NaN and **MUST** accept positive or negative infinity. `Decimal` **MUST** accept well-formed decimal strings plus `NaN`, `Infinity`, and `-Infinity`, and **MUST** return `ErrInvalidValue` for malformed strings. Finite decimal spellings denote mathematical values: input-only trailing zeros do not affect category or formatted range equality.
+4. `Select` **MUST** return `Other` for NaN and positive or negative infinity. `SelectRange` **MUST** return `ErrInvalidValue` only when an endpoint is NaN and **MUST** accept positive or negative infinity. `Decimal` **MUST** accept well-formed decimal strings plus `NaN`, `Infinity`, and `-Infinity`, and **MUST** return `ErrInvalidValue` for malformed strings. Finite decimal spellings denote mathematical values: input-only trailing zeros do not affect category or formatted range equality.
 5. `PluralRules` is an immutable value; all methods on `*PluralRules` must be concurrency-safe.
 6. `Options` is the only public configuration value; restoring functional options or multiple options merge is prohibited.
 7. The `Category.String()` return value **MUST** be consistent with the ECMA-402 string representation (to facilitate direct case branching of the `:plural` function of messageformat-go).
+8. `New` **MUST** resolve the exact generated cardinal or ordinal rule for its data locale and freeze that function on the formatter. Missing active-locale data is a constructor failure; `Select` is total only after successful construction and therefore returns `Category` without an error.
 
 > **Rejected**: public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal operands should use `Decimal`.
 
@@ -153,11 +154,11 @@ The full field order is fixed in [§6 ResolvedOptions](#6-resolvedoptions); `not
 
 ```go
 pr, err := pluralrules.New(mustLocaleList("en"), pluralrules.Options{})
-// pr.Select(pluralrules.Int(1)) == pluralrules.One, nil
-// pr.Select(pluralrules.Int(2)) == pluralrules.Other, nil
+// pr.Select(pluralrules.Int(1)) == pluralrules.One
+// pr.Select(pluralrules.Int(2)) == pluralrules.Other
 ordinal, err := pluralrules.New(mustLocaleList("en"),
     pluralrules.Options{Type: gointl.String(pluralrules.Ordinal)})
-// ordinal.Select(pluralrules.Int(1)) == pluralrules.One, nil
+// ordinal.Select(pluralrules.Int(1)) == pluralrules.One
 
 pr, _ := pluralrules.New(mustLocaleList("en"),
     pluralrules.Options{Type: gointl.String(pluralrules.Ordinal)})
@@ -270,7 +271,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 1. The codegen entrance **MUST** be located in `tools/gen-plural-rules/main.go`, an independent Go module (independent `go.mod`, which does not pollute the main module dependency graph).
 2. codegen **MUST** remain stdlib-only: read CLDR JSON with `encoding/json`, construct the output with deterministic strings, and finally format it with `go/format`; **disallow** `dave/jennifer` or other codegen frameworks.
 3. The input **MUST** be pinned CLDR JSON: `cldr-core/supplemental/plurals.json` + `ordinals.json` + `pluralRanges.json`, version pinned through [SPEC 50 §Version Pin](./50-cldr-data.md#version-pin).
-4. Output location (each emitted with the generated header; hand-written `fallback.go` and `doc.go` in the same package are not generator outputs):
+4. Output location (each emitted with the generated header; hand-written `rules.go` and `doc.go` in the same package are not generator outputs):
    - `internal/cldr/plural/cardinal_rules.go`
    - `internal/cldr/plural/ordinal_rules.go`
    - `internal/cldr/plural/range_rules.go`
@@ -278,6 +279,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
    - `internal/cldr/plural/supported.go`
 5. Each locale outputs an independent Go function; `CardinalRule` / `OrdinalRule` switch index to a specific function.
 6. **Disable** output of unused operand expressions (corresponding to generated-reference `should-emit-*.ts`, only the operand judgment actually referenced by rule is generated).
+7. The active locale profile **MUST** have both a cardinal and ordinal source rule after CLDR parent fallback. Generation fails with the missing family and locale when either is absent; it must not silently omit that locale.
 
 ```go
 // Internal form of generator (schematic, no implementation)
@@ -328,6 +330,7 @@ func renderCategoriesFile(cardinal, ordinal map[string][]Rule) string
    ```
 3. Functions **MUST** be fully concurrency safe (pure reading OperandsRecord, no mutable state).
 4. The header of each codegen file **MUST** contain the `// Code generated by tools/gen-plural-rules; DO NOT EDIT.` header + CLDR version number; it is prohibited to generate timestamps to ensure the same input and output byte-stable.
+5. `CardinalRule` and `OrdinalRule` return `(nil, false)` for an unknown data locale. The hand-written `Rule(loc, typ)` wrapper turns that state into a constructor/data error. English or always-`other` fallback is forbidden because it would advertise fabricated locale behavior.
 
 ### 3.5 PluralRanges data <a id="plural-ranges"></a>
 
@@ -541,6 +544,7 @@ semantics, and conformance fixtures agree with the ECMA-402/CLDR boundary.
 | Contract | Evidence | Status |
 |----------|----------|--------|
 | `tools/gen-plural-rules/` remains an independent module and emits CLDR 48.1.0 generated files with stable headers. | `tools/gen-plural-rules/go.mod`; `tools/gen-plural-rules/main.go`; `internal/cldr/plural/cardinal_rules.go`; `internal/cldr/plural/ordinal_rules.go`; `internal/cldr/plural/range_rules.go`; `internal/cldr/plural/categories.go`; `internal/cldr/plural/supported.go` | Satisfied |
+| Every active locale has generated cardinal and ordinal rules; missing generation input and missing runtime rule lookup fail with locale/family context instead of defaulting. | `tools/gen-plural-rules/main_test.go`; `internal/cldr/plural/rules.go`; `internal/cldr/plural/rules_test.go`; constructor tests | Satisfied |
 | Codegen does not depend on `dave/jennifer`; runtime and codegen do not depend on `golang.org/x/text/feature/plural`. | `rg "dave/jennifer" tools/gen-plural-rules`; `rg "x/text/feature/plural" internal/plural tools/gen-plural-rules pluralrules/*.go` | Satisfied |
 | The `pluralrules/benchmark_baseline_test.go` `x/text/feature/plural` import is retained only as benchmark comparison evidence and is outside runtime/codegen acceptance. | `pluralrules/benchmark_baseline_test.go` | Accepted exception |
 | Cardinal, ordinal, range, non-finite select/range behavior, NaN range errors, reversed range, rounded equality, and resolved category behavior are covered by package tests and generated fixtures. | `pluralrules/pluralrules_test.go`; `pluralrules/range_test.go`; `pluralrules/options_test.go`; `pluralrules/conformance_unified_test.go`; `pluralrules/testdata/conformance/formatjs/index-test-ts.json` | Satisfied |

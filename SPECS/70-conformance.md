@@ -171,9 +171,10 @@ The new category must be implemented in the same PR of extractor, `tools/check-c
 3. `.skip-list.json` is an extraction audit, not a test skip mechanism. Generated but failed fixtures must go through divergences.md or xfail.json; ungenerated sources can appear in the skip-list.
 4. `tools/check-conformance` **MUST** verify fixture schema, XFAIL schema, skip-list schema, active skip-list categories, source uniqueness, and divergence-to-fixture consistency.
 5. `task conformance:verify` **MUST** output coverage health: the number of fixture sources for each package, the number of manual / generated-reference / native fixtures, the number of active divergence, the number of xfail, and the skip-list category and route counts.
-6. `task conformance:verify` **MUST** validate the native witness matrix for every active package passed to `tools/check-conformance`; a missing required topic is a conformance audit failure, and an intentional gap without a reason is invalid.
-7. Non-mechanizable fixtures, such as Date literals, callbacks, and complex error assertions, must be migrated manually; silently skipping is prohibited.
-8. Removing a source from `.skip-list.json` **MUST** land a generated fixture file that records the exact `formatjs:` source path and observable expected output. Existing generated fixture files must remain byte-stable unless their source family is intentionally regenerated in the same change.
+6. Package runners **MUST** call `tools/conformance.RunFixtures`, which loads fixtures, divergences, and XFAIL records into one validated suite before starting any fixture subtest. Missing package roots and malformed, expired, unknown, or mismatched ledger entries fail before a formatter callback can run.
+7. `task conformance:verify` **MUST** validate the native witness matrix for every active package passed to `tools/check-conformance`; a missing required topic is a conformance audit failure, and an intentional gap without a reason is invalid.
+8. Non-mechanizable fixtures, such as Date literals, callbacks, and complex error assertions, must be migrated manually; silently skipping is prohibited.
+9. Removing a source from `.skip-list.json` **MUST** land a generated fixture file that records the exact `formatjs:` source path and observable expected output. Existing generated fixture files must remain byte-stable unless their source family is intentionally regenerated in the same change.
 
 > **Why**: The extraction script is the only trusted bridge between reference tests and go-intl; idempotence ensures that diff is readable when upgrading references.
 > **Rejected**: Blind AST full porting - Incomplete AST rules can generate fixtures that look formal but have incorrect input/options. Rather write complex sources into the source/reason skip-list than generate untrusted fixtures.
@@ -230,7 +231,7 @@ trailing partial records are errors.
 
 **Rules**:
 
-1. CI fixture runners **MUST** read the `id` list from divergences.md and skip the assertion for matching accepted divergences.
+1. CI fixture runners **MUST** compile accepted divergence and unexpired XFAIL IDs once while loading the suite, then skip assertions only for those validated IDs. Best-effort per-fixture file reads or swallowed ledger errors are forbidden.
 2. Any failure that is not listed in divergences.md **MUST** block `task verify`.
 3. Modifications to divergences.md **MUST** be explicitly approved by PR (reviewer ≥ 1 maintainer); automatic registration is **disallowed**.
 4. The active `id` in divergences.md **MUST** find the corresponding entry in the fixture file; CI lint(`tools/check-conformance/`) checks the integrity.
@@ -364,6 +365,7 @@ governance rules that cannot be proven by a Go test.
 | Packages with active or resolved divergence history keep `testdata/divergences.md`; packages without divergence history may omit it. | `datetimeformat/testdata/divergences.md`; `tools/conformance/divergences.go` | Satisfied |
 | Divergence records use a closed, unique field set; malformed, duplicate, unknown, incomplete, or invalid-date records fail. Resolved history is fully validated before filtering, while active records also name an existing fixture and DateTimeFormat native witness when required. | `tools/conformance/divergences.go`; `tools/conformance/coverage_test.go`; `task conformance:verify` | Satisfied |
 | XFAIL records require `id`, `reason`, `expires_at`, and `tracking_issue`; IDs must be unique, real, and unexpired. | `tools/conformance/xfail.go`; `tools/conformance/skip_test.go`; `tools/check-conformance/main_test.go` | Satisfied |
+| `RunFixtures` validates the complete suite before callbacks; malformed divergence/XFAIL state, expired entries, unknown IDs, and missing roots fail closed. | `tools/conformance/runner.go`; `tools/conformance/skip_test.go` subprocess witnesses | Satisfied |
 | XFAIL growth must be reviewed toward zero as implementation matures. | `task conformance:verify` reports xfail totals; human review decides whether growth is justified | Governance |
 
 ### Gates And Drift Rules
@@ -373,7 +375,7 @@ governance rules that cannot be proven by a Go test.
 | `task verify` runs the conformance gate with the other correctness/security checks. | `Taskfile.yml` `verify` and `conformance:verify` tasks | Satisfied |
 | PR/main CI runs conformance as a blocking correctness gate. | `.github/workflows/ci.yml` | Satisfied |
 | Performance telemetry is non-blocking and separated from conformance correctness. | `SPECS/71-benchmark.md`; `Taskfile.yml` benchmark tasks | Satisfied |
-| Generated fixtures must pass in their package runner except known divergence/XFAIL records. | Package `conformance_unified_test.go` files; `tools/conformance/SkipReason` | Satisfied |
+| Generated fixtures must pass in their package runner except known divergence/XFAIL records. | Package `conformance_unified_test.go` files; `tools/conformance/RunFixtures` | Satisfied |
 | Public API, option, resolved-option, part, and range-source changes must first locate the ECMA-402 owner or a narrow Go typed bridge. | `AGENTS.md`; `SPECS/72-operation-ledger.md`; relevant surface specs | Governance |
 | Mechanically extractable reference cases enter fixtures; non-extractable sources enter `.skip-list.json`; failing generated fixtures are handled only by implementation repair, divergence records, or XFAIL. | `tools/conformance/coverage.go`; `.skip-list.json`; package fixture runners | Satisfied |
 
