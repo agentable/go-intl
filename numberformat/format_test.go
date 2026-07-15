@@ -228,6 +228,51 @@ func TestNumberFormatPublicIntegerBridges(t *testing.T) {
 	}
 }
 
+func TestNumberFormatDecimalInputUsesMathematicalValue(t *testing.T) {
+	t.Parallel()
+
+	locales := locale.List{intltest.Locale(t, "en")}
+	defaultFormat, err := New(locales, Options{UseGrouping: stringPtr(UseGroupingFalse)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixedFormat, err := New(locales, Options{
+		UseGrouping:           stringPtr(UseGroupingFalse),
+		MinimumFractionDigits: intPtr(2),
+		MaximumFractionDigits: intPtr(2),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		input       string
+		wantDefault string
+		wantFixed   string
+	}{
+		{input: "1", wantDefault: "1", wantFixed: "1.00"},
+		{input: "1.0", wantDefault: "1", wantFixed: "1.00"},
+		{input: "1.00", wantDefault: "1", wantFixed: "1.00"},
+		{input: "1.50", wantDefault: "1.5", wantFixed: "1.50"},
+		{input: "-0.00", wantDefault: "-0", wantFixed: "-0.00"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+			value, err := Decimal(tc.input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := defaultFormat.Format(value); got != tc.wantDefault {
+				t.Errorf("default Format(Decimal(%q)) = %q, want %q", tc.input, got, tc.wantDefault)
+			}
+			if got := fixedFormat.Format(value); got != tc.wantFixed {
+				t.Errorf("fixed Format(Decimal(%q)) = %q, want %q", tc.input, got, tc.wantFixed)
+			}
+		})
+	}
+}
+
 func TestNumberFormatPublicIntegerBridgesUseGroupedLatnFastPath(t *testing.T) {
 	t.Parallel()
 
@@ -535,6 +580,23 @@ func TestNumberFormatPercentPreservesDecimalMagnitude(t *testing.T) {
 	}
 	if got, want := format.formatValue("9007199254740993"), "900719925474099300%"; got != want {
 		t.Fatalf("Format(large percent) = %q, want %q", got, want)
+	}
+}
+
+func TestNumberFormatPercentPreservesArbitraryPrecisionBigInt(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{Style: stringPtr(PercentStyle), UseGrouping: stringPtr(UseGroupingFalse)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputText := "1" + strings.Repeat("0", 99) + "5"
+	input, ok := new(big.Int).SetString(inputText, 10)
+	if !ok {
+		t.Fatalf("SetString(%q) failed", inputText)
+	}
+	if got, want := format.Format(BigInt(input)), inputText+"00%"; got != want {
+		t.Fatalf("Format(%s) = %q, want %q", inputText, got, want)
 	}
 }
 
@@ -997,6 +1059,30 @@ func TestNumberFormatRoundingOptions(t *testing.T) {
 				t.Fatalf("Format(%v) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestNumberFormatRoundingPreservesArbitraryPrecisionBigInt(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{
+		MinimumFractionDigits: intPtr(0),
+		MaximumFractionDigits: intPtr(0),
+		RoundingIncrement:     intPtr(10),
+		RoundingMode:          stringPtr(TruncRoundingMode),
+		UseGrouping:           stringPtr(UseGroupingFalse),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputText := "1" + strings.Repeat("0", 99) + "5"
+	input, ok := new(big.Int).SetString(inputText, 10)
+	if !ok {
+		t.Fatalf("SetString(%q) failed", inputText)
+	}
+	want := "1" + strings.Repeat("0", 100)
+	if got := format.Format(BigInt(input)); got != want {
+		t.Fatalf("Format(%s) = %q, want %q", inputText, got, want)
 	}
 }
 

@@ -115,13 +115,13 @@ Time-zone name and offset validation live in `internal/tz` per [SPEC 32](./32-da
 
 ## 4. Error Model
 
-`internal/ecma402` exposes the root invalid-option category sentinel and wraps structured error details through the root `gointl.Error` type. The implementation uses `internal/intlerr` to avoid import cycles, while public callers see only `gointl` sentinels and `*gointl.Error`:
+`internal/ecma402` exposes the root invalid-option category sentinel and wraps structured error details through the root `gointl.Error` type. The implementation uses `internal/intlerr` to avoid import cycles, while public callers see only the four reachable `gointl` sentinels and `*gointl.Error`:
 
 ```go
 var ErrInvalidOption = intlerr.ErrInvalidOption
 ```
 
-It classifies caller-fixable option failures: invalid enum values, out-of-range numeric options, malformed identifiers, unsupported units, and invalid time-zone names. The public root package exposes the canonical seven category sentinels:
+It classifies caller-fixable option failures: invalid enum values, out-of-range numeric options, malformed identifiers, unsupported units, and invalid time-zone names. The public root package exposes exactly the categories produced by reachable public paths:
 
 ```go
 var (
@@ -129,9 +129,6 @@ var (
     ErrUnsupportedOption error
     ErrInvalidValue error
     ErrInvalidCode error
-    ErrInvalidKey error
-    ErrUnsupportedLocale error
-    ErrUnsupportedBackend error
 )
 ```
 
@@ -151,9 +148,6 @@ const (
     UnsupportedOption  ErrorKind = "unsupportedOption"
     InvalidValue       ErrorKind = "invalidValue"
     InvalidCode        ErrorKind = "invalidCode"
-    InvalidKey         ErrorKind = "invalidKey"
-    UnsupportedLocale  ErrorKind = "unsupportedLocale"
-    UnsupportedBackend ErrorKind = "unsupportedBackend"
 )
 
 type Error struct {
@@ -171,7 +165,7 @@ Required behavior:
 
 1. `errors.Is(err, gointl.ErrInvalidOption)` and the other root category sentinels remain the stable branch points for caller code.
 2. `detail, ok := errors.AsType[*gointl.Error](err)` exposes machine-readable context for host bindings, config UIs, and API adapters.
-3. `ErrUnsupportedOption`, `ErrUnsupportedLocale`, and `ErrUnsupportedBackend` must also match `errors.ErrUnsupported`.
+3. `ErrUnsupportedOption` must also match `errors.ErrUnsupported`; the other categories must not.
 4. `errors.Is(err, underlying)` must keep working when a structured error maps an internal dependency, data, or embedded-formatter failure to a public Intl category.
 5. `Owner` is the owning Intl package or root namespace name, such as `numberformat`, `datetimeformat`, `displaynames`, or `intl`.
 6. `Name` is the rejected option, argument, key, code, or field name.
@@ -229,7 +223,7 @@ var slots sync.Map // map[*NumberFormat]map[string]any
 - `internal/ecma402` contains only production-used algorithms, validators, constants, and shared types.
 - `internal/ecma402/types.go` contains `Part`, `Pattern`, and `MathematicalValue`, with no option discriminator.
 - `internal/ecma402/errors.go` declares `ErrInvalidOption` plus shared option-error context helpers.
-- Root `errors.go` exposes `ErrorKind`, `Error`, and the seven category sentinels; `internal/intlerr/errors_test.go` proves `errors.Is`, `errors.AsType`, and `expected ...; got ...` text behavior.
+- Root `errors.go` exposes `ErrorKind`, `Error`, and exactly four reachable category sentinels; `internal/intlerr/errors_test.go` proves `errors.Is`, `errors.AsType`, `errors.ErrUnsupported`, and `expected ...; got ...` text behavior.
 - `ResolveConstructorLocale` has production constructor callers and internal tests for localeMatcher dispatch plus relevant-extension option override behavior.
 - Any `GetOption` / `GetNumberOption` / typed equivalent has a production caller and is covered by constructor error/resolved-options tests.
 - No `audit_test.go` in `internal/ecma402` or `internal/cldr` maintains pending implementation rows.

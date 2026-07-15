@@ -4,8 +4,25 @@ import (
 	"slices"
 	"testing"
 
+	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/internal/intltest"
 )
+
+func TestGetCalendarsReturnsOnlyActiveCalendars(t *testing.T) {
+	t.Parallel()
+
+	supported := gointl.SupportedCalendars()
+	for _, tag := range []string{"en-US", "en-US-u-rg-thzzzz", "ar-EG", "ja-JP"} {
+		t.Run(tag, func(t *testing.T) {
+			t.Parallel()
+			for _, calendar := range intltest.Locale(t, tag).GetCalendars() {
+				if !slices.Contains(supported, calendar) {
+					t.Fatalf("GetCalendars(%q) contains unsupported calendar %q; supported=%v", tag, calendar, supported)
+				}
+			}
+		})
+	}
+}
 
 // ECMA-402 §14.3 (`Intl.Locale.prototype.calendars` and siblings) returns a
 // fresh Array on every call so JS callers can mutate the result without
@@ -15,13 +32,14 @@ import (
 func TestLocaleInfoGettersReturnIndependentSlices(t *testing.T) {
 	t.Parallel()
 	loc := intltest.Locale(t, "en-US")
+	de := intltest.Locale(t, "de-DE")
 
 	cases := []struct {
 		name string
 		get  func() []string
 	}{
 		{"Calendars", loc.GetCalendars},
-		{"Collations", loc.GetCollations},
+		{"Collations", de.GetCollations},
 		{"HourCycles", loc.GetHourCycles},
 		{"NumberingSystems", loc.GetNumberingSystems},
 		{"TimeZones", loc.GetTimeZones},

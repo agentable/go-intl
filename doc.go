@@ -55,38 +55,6 @@
 //
 // Suggested mapping: invalid caller input, such as HTTP 400 or CLI usage exit.
 //
-// ErrInvalidKey is returned when a root namespace key is outside the ECMA-402
-// supported set. It is a standalone category sentinel. Caller pattern:
-//
-//	errors.Is(err, gointl.ErrInvalidKey)
-//
-// Suggested mapping: invalid caller input, such as HTTP 400 or CLI usage exit.
-//
-// ErrUnsupportedLocale is returned when locale negotiation cannot satisfy a
-// requested locale with the active data set. It is a standalone category
-// sentinel. Caller pattern:
-//
-//	errors.Is(err, gointl.ErrUnsupportedLocale)
-//
-// It also matches errors.ErrUnsupported. Caller pattern:
-//
-//	errors.Is(err, errors.ErrUnsupported)
-//
-// Suggested mapping: unsupported locale input, such as HTTP 400 or 406 depending
-// on the host API contract.
-//
-// ErrUnsupportedBackend is returned when required implementation support is
-// unavailable. It is a standalone category sentinel. Caller pattern:
-//
-//	errors.Is(err, gointl.ErrUnsupportedBackend)
-//
-// It also matches errors.ErrUnsupported. Caller pattern:
-//
-//	errors.Is(err, errors.ErrUnsupported)
-//
-// Suggested mapping: service/configuration capability failure, such as HTTP 500
-// or 503.
-//
 // Public caller-fixable errors also expose *gointl.Error. Caller pattern:
 //
 //	detail, ok := errors.AsType[*gointl.Error](err)

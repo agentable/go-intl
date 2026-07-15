@@ -19,7 +19,6 @@ import (
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	cldrplural "github.com/agentable/go-intl/internal/cldr/plural"
 	cldrrelativetime "github.com/agentable/go-intl/internal/cldr/relativetime"
-	cldrtimezone "github.com/agentable/go-intl/internal/cldr/timezone"
 	cldrunit "github.com/agentable/go-intl/internal/cldr/unit"
 	internalcollation "github.com/agentable/go-intl/internal/collation"
 	"github.com/agentable/go-intl/internal/ecma402"
@@ -371,7 +370,7 @@ func supportedValueTests() []supportedValueTest {
 		{name: "collation", values: SupportedCollations, want: internalcollation.SupportedCollations},
 		{name: "currency", values: SupportedCurrencies, want: cldrcurrency.SupportedCodes},
 		{name: "numberingSystem", values: SupportedNumberingSystems, want: cldrnumber.SupportedNumberingSystems},
-		{name: "timeZone", values: SupportedTimeZones, want: cldrtimezone.SupportedTimeZones},
+		{name: "timeZone", values: SupportedTimeZones, want: tz.SupportedTimeZones},
 		{name: "unit", values: SupportedUnits, want: ecma402.SanctionedSimpleUnitIdentifiers},
 	}
 }

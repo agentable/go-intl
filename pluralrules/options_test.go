@@ -235,15 +235,16 @@ func TestPluralRulesResolvedOptionsSignificantDigits(t *testing.T) {
 		*second.MinimumSignificantDigits != 2 || *second.MaximumSignificantDigits != 4 {
 		t.Fatalf("ResolvedOptions() significant digits after caller mutation = %v/%v, want 2/4", second.MinimumSignificantDigits, second.MaximumSignificantDigits)
 	}
-	if got.MinimumFractionDigits != nil || got.MaximumFractionDigits != nil {
-		t.Fatalf("ResolvedOptions() fraction digits = %v/%v, want nil/nil for compact significant-digit surface", got.MinimumFractionDigits, got.MaximumFractionDigits)
+	if got.MinimumFractionDigits == nil || got.MaximumFractionDigits == nil ||
+		*got.MinimumFractionDigits != 0 || *got.MaximumFractionDigits != 3 {
+		t.Fatalf("ResolvedOptions() fraction digits = %v/%v, want 0/3", got.MinimumFractionDigits, got.MaximumFractionDigits)
 	}
 	if got.RoundingMode != HalfEvenRoundingMode || got.RoundingPriority != MorePrecisionRoundingPriority || got.TrailingZeroDisplay != StripIfIntegerTrailingZeroDisplay {
 		t.Fatalf("ResolvedOptions() rounding options = %#v", got)
 	}
 }
 
-func TestPluralRulesResolvedOptionsRoundingPriorityUsesSignificantDigitSurface(t *testing.T) {
+func TestPluralRulesResolvedOptionsRoundingPriorityProjectsAllResolvedDigitSlots(t *testing.T) {
 	t.Parallel()
 
 	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{
@@ -254,8 +255,9 @@ func TestPluralRulesResolvedOptionsRoundingPriorityUsesSignificantDigitSurface(t
 		t.Fatal(err)
 	}
 	got := rules.ResolvedOptions()
-	if got.MinimumFractionDigits != nil || got.MaximumFractionDigits != nil {
-		t.Fatalf("ResolvedOptions() fraction digits = %v/%v, want nil/nil", got.MinimumFractionDigits, got.MaximumFractionDigits)
+	if got.MinimumFractionDigits == nil || got.MaximumFractionDigits == nil ||
+		*got.MinimumFractionDigits != 0 || *got.MaximumFractionDigits != 2 {
+		t.Fatalf("ResolvedOptions() fraction digits = %v/%v, want 0/2", got.MinimumFractionDigits, got.MaximumFractionDigits)
 	}
 	if got.MinimumSignificantDigits == nil || got.MaximumSignificantDigits == nil ||
 		*got.MinimumSignificantDigits != 1 || *got.MaximumSignificantDigits != 21 {
@@ -263,6 +265,45 @@ func TestPluralRulesResolvedOptionsRoundingPriorityUsesSignificantDigitSurface(t
 	}
 	if got.RoundingPriority != MorePrecisionRoundingPriority {
 		t.Fatalf("ResolvedOptions().RoundingPriority = %q, want %q", got.RoundingPriority, MorePrecisionRoundingPriority)
+	}
+}
+
+func TestPluralRulesResolvedOptionsPrecisionPriorityDigitSlotMatrix(t *testing.T) {
+	t.Parallel()
+
+	for _, priority := range []RoundingPriority{MorePrecisionRoundingPriority, LessPrecisionRoundingPriority} {
+		for _, tc := range []struct {
+			name                           string
+			opts                           Options
+			minFrac, maxFrac               int
+			minSignificant, maxSignificant int
+		}{
+			{name: "defaults", minFrac: 0, maxFrac: 3, minSignificant: 1, maxSignificant: 21},
+			{name: "fraction only", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(4)}, minFrac: 2, maxFrac: 4, minSignificant: 1, maxSignificant: 21},
+			{name: "significant only", opts: Options{MinimumSignificantDigits: intPtr(3), MaximumSignificantDigits: intPtr(5)}, minFrac: 0, maxFrac: 3, minSignificant: 3, maxSignificant: 5},
+			{name: "both", opts: Options{MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(4), MinimumSignificantDigits: intPtr(3), MaximumSignificantDigits: intPtr(5)}, minFrac: 2, maxFrac: 4, minSignificant: 3, maxSignificant: 5},
+		} {
+			t.Run(string(priority)+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				tc.opts.RoundingPriority = stringPtr(priority)
+				rules, err := New(locale.List{intltest.Locale(t, "en")}, tc.opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := rules.ResolvedOptions()
+				if got.MinimumFractionDigits == nil || got.MaximumFractionDigits == nil ||
+					got.MinimumSignificantDigits == nil || got.MaximumSignificantDigits == nil {
+					t.Fatalf("ResolvedOptions() digit slots = %#v, want all four present", got)
+				}
+				if *got.MinimumFractionDigits != tc.minFrac || *got.MaximumFractionDigits != tc.maxFrac ||
+					*got.MinimumSignificantDigits != tc.minSignificant || *got.MaximumSignificantDigits != tc.maxSignificant {
+					t.Fatalf("ResolvedOptions() digit slots = %d/%d/%d/%d, want %d/%d/%d/%d",
+						*got.MinimumFractionDigits, *got.MaximumFractionDigits, *got.MinimumSignificantDigits, *got.MaximumSignificantDigits,
+						tc.minFrac, tc.maxFrac, tc.minSignificant, tc.maxSignificant)
+				}
+			})
+		}
 	}
 }
 

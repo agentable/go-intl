@@ -96,20 +96,6 @@ func conformanceRelativeInput(t *testing.T, fixture conformance.Fixture) relativ
 func conformanceRelativeOutput(t *testing.T, format *RelativeTimeFormat, input relativeFixtureInput) (string, []Part, error) {
 	t.Helper()
 
-	var decimal string
-	if err := json.Unmarshal(input.Value, &decimal); err == nil {
-		value, err := Decimal(decimal)
-		if err != nil {
-			return "", nil, err
-		}
-		got, err := format.Format(value, input.Unit)
-		if err != nil {
-			return "", nil, err
-		}
-		parts, err := format.FormatToParts(value, input.Unit)
-		return got, parts, err
-	}
-
 	var value float64
 	if err := json.Unmarshal(input.Value, &value); err != nil {
 		t.Fatal(err)

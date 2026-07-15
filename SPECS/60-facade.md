@@ -214,7 +214,7 @@ Supported accessors:
 | `SupportedCollations` | active `collator` backend collation identifiers that can be truthfully applied through locale-scoped Collator collation requests, currently sourced from `golang.org/x/text/collate.Supported()` |
 | `SupportedCurrencies` | generated CLDR / ISO 4217 currency identifiers |
 | `SupportedNumberingSystems` | ECMA-402 simple digit numbering systems plus generated CLDR numbering-system identifiers |
-| `SupportedTimeZones` | generated primary IANA time-zone identifiers |
+| `SupportedTimeZones` | primary projection of the generated `internal/tz` IANA/CLDR identifier registry |
 | `SupportedUnits` | ECMA-402 sanctioned single unit identifiers |
 
 Required behavior:
@@ -274,10 +274,10 @@ The root package owns the public Intl error vocabulary. Formatter packages const
 
 Rules:
 
-1. Root exposes `ErrorKind`, `Error`, and the seven category sentinels: `ErrInvalidOption`, `ErrUnsupportedOption`, `ErrInvalidValue`, `ErrInvalidCode`, `ErrInvalidKey`, `ErrUnsupportedLocale`, and `ErrUnsupportedBackend`.
+1. Root exposes `ErrorKind`, `Error`, and exactly four reachable category sentinels: `ErrInvalidOption`, `ErrUnsupportedOption`, `ErrInvalidValue`, and `ErrInvalidCode`.
 2. Formatter constructor and runtime errors match these root sentinels through `errors.Is`; callers do not need formatter-owned category sentinels.
 3. `Error` exposes `Kind`, `Owner`, `Name`, `Value`, `Locale`, optional `Expected`, and wrapped `Err` context for `errors.AsType`.
-4. `ErrUnsupportedOption`, `ErrUnsupportedLocale`, and `ErrUnsupportedBackend` also match `errors.ErrUnsupported`.
+4. `ErrUnsupportedOption` also matches `errors.ErrUnsupported`; the other three categories do not.
 5. Human-facing error text uses `expected ...; got ...` and must not expose ECMA-402 abstract-operation names.
 6. No fallback formatting output is produced by the root package.
 

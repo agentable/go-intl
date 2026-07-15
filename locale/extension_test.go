@@ -23,11 +23,11 @@ func TestParseUnicodeExtensions(t *testing.T) {
 	}{
 		{in: "en-US-u-hc-h23", want: "en-US-u-hc-h23", hourCycle: "h23"},
 		{in: "en-US-u-ca-buddhist-hc-h23", want: "en-US-u-ca-buddhist-hc-h23", calendar: "buddhist", hourCycle: "h23"},
-		{in: "en-us-U-Ca-Gregorian-Hc-H23", want: "en-US-u-ca-gregory-hc-h23", calendar: "gregory", hourCycle: "h23"},
+		{in: "en-us-U-Ca-Gregory-Hc-H23", want: "en-US-u-ca-gregory-hc-h23", calendar: "gregory", hourCycle: "h23"},
 		{in: "en-US-u-kn", want: "en-US-u-kn", numeric: true},
 		{in: "en-US-u-kn-false", want: "en-US-u-kn-false", numeric: false},
 		{in: "en-US-u-kf-false", want: "en-US-u-kf-false", caseFirst: "false"},
-		{in: "en-US-u-ca-islamic-civil", want: "en-US-u-ca-islamicc", calendar: "islamicc"},
+		{in: "en-US-u-ca-islamicc", want: "en-US-u-ca-islamic-civil", calendar: "islamic-civil"},
 		{in: "en-US-u-co-phonebk-nu-arab-fw-mon", want: "en-US-u-co-phonebk-fw-mon-nu-arab", collation: "phonebk", numberingSystem: "arab", firstDayOfWeek: "mon"},
 		{in: "en-US-u-fw-0", want: "en-US-u-fw-sun", firstDayOfWeek: "sun"},
 		{in: "en-US-u-foo-ca-buddhist-zz-abc", want: "en-US-u-foo-ca-buddhist-zz-abc", calendar: "buddhist"},

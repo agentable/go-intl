@@ -134,6 +134,36 @@ func TestRelativeTimeFormatFormatFloatValueFutureDay(t *testing.T) {
 	}
 }
 
+func TestRelativeTimeFormatFloatInputUsesNumberValue(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name  string
+		input float64
+		want  string
+	}{
+		{name: "integer", input: 1, want: "in 1 day"},
+		{name: "fraction", input: 1.5, want: "in 1.5 days"},
+		{name: "negative zero", input: math.Copysign(0, -1), want: "0 days ago"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := format.Format(Float(tc.input), Day)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Errorf("Format(Float(%v), Day) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRelativeTimeFormatFormatValuePastMinute(t *testing.T) {
 	t.Parallel()
 
@@ -142,7 +172,7 @@ func TestRelativeTimeFormatFormatValuePastMinute(t *testing.T) {
 		t.Fatalf("New(en-US) error = %v", err)
 	}
 
-	got, err := format.Format(mustDecimalValue(t, "-2"), Minute)
+	got, err := format.Format(Float(-2), Minute)
 	if err != nil {
 		t.Fatalf("Format(-2, Minute) error = %v", err)
 	}
@@ -263,7 +293,7 @@ func TestRelativeTimeFormatNumericAutoLiteralToParts(t *testing.T) {
 	}
 }
 
-func TestRelativeTimeFormatNumericAutoDecimalNegativeZeroLiteral(t *testing.T) {
+func TestRelativeTimeFormatNumericAutoNegativeZeroLiteral(t *testing.T) {
 	t.Parallel()
 
 	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Numeric: stringPtr(NumericAuto)})
@@ -271,7 +301,7 @@ func TestRelativeTimeFormatNumericAutoDecimalNegativeZeroLiteral(t *testing.T) {
 		t.Fatalf("New(en-US) error = %v", err)
 	}
 
-	value := mustDecimalValue(t, "-0")
+	value := Float(math.Copysign(0, -1))
 	got, err := format.Format(value, Day)
 	if err != nil {
 		t.Fatalf("Format(-0, Day) error = %v", err)
@@ -368,8 +398,8 @@ func TestRelativeTimeFormatFormatValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Format(max, Year) error = %v", err)
 	}
-	if !strings.HasPrefix(got, "in 18,446,744,073,709,551,615 years") {
-		t.Fatalf("Format(max, Year) = %q, want exact uint64 magnitude", got)
+	if got != "in 18,446,744,073,709,552,000 years" {
+		t.Fatalf("Format(max, Year) = %q, want ECMAScript Number rounding", got)
 	}
 }
 
@@ -396,8 +426,8 @@ func TestRelativeTimeFormatFormatUnsignedToParts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FormatToParts(max, Year) error = %v", err)
 	}
-	if got := relativePartsText(maxParts); !strings.HasPrefix(got, "in 18,446,744,073,709,551,615 years") {
-		t.Fatalf("FormatToParts(max, Year) text = %q, want exact uint64 magnitude", got)
+	if got := relativePartsText(maxParts); got != "in 18,446,744,073,709,552,000 years" {
+		t.Fatalf("FormatToParts(max, Year) text = %q, want ECMAScript Number rounding", got)
 	}
 }
 
@@ -433,7 +463,7 @@ func TestRelativeTimeFormatFormatValueToPartsNegativeZero(t *testing.T) {
 		t.Fatalf("New(en-US) error = %v", err)
 	}
 
-	parts, err := format.FormatToParts(mustDecimalValue(t, "-0"), Day)
+	parts, err := format.FormatToParts(Float(math.Copysign(0, -1)), Day)
 	if err != nil {
 		t.Fatalf("FormatToParts(-0, Day) error = %v", err)
 	}
@@ -504,12 +534,12 @@ func TestRelativeTimeFormatFormatEqualsFormatToPartsJoin(t *testing.T) {
 			},
 		},
 		{
-			name: "decimal negative zero",
+			name: "negative zero",
 			format: func() (string, error) {
-				return format.Format(mustDecimalValue(t, "-0"), Day)
+				return format.Format(Float(math.Copysign(0, -1)), Day)
 			},
 			parts: func() ([]Part, error) {
-				return format.FormatToParts(mustDecimalValue(t, "-0"), Day)
+				return format.FormatToParts(Float(math.Copysign(0, -1)), Day)
 			},
 		},
 	}
@@ -646,8 +676,8 @@ func TestRelativeTimeFormatErrors(t *testing.T) {
 	}
 	if got, err := format.Format(Int(math.MinInt64), Day); err != nil {
 		t.Fatalf("Format(MinInt64, Day) error = %v", err)
-	} else if !strings.HasPrefix(got, "9,223,372,036,854,775,808 days ago") {
-		t.Fatalf("Format(MinInt64, Day) = %q, want exact absolute magnitude", got)
+	} else if got != "9,223,372,036,854,776,000 days ago" {
+		t.Fatalf("Format(MinInt64, Day) = %q, want ECMAScript Number rounding", got)
 	}
 	if _, err := format.Format(Uint(1), Unit("bad")); !errors.Is(err, intlerr.ErrInvalidValue) {
 		t.Fatalf("Format(invalid unit) error = %v, want intlerr.ErrInvalidValue", err)
@@ -667,12 +697,6 @@ func TestRelativeTimeFormatErrors(t *testing.T) {
 		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "relativetimeformat", "value", "NaN", format.ResolvedOptions().Locale.String())
 		testcontract.AssertErrorExpected(t, err, "a finite numeric value")
 	}
-	if _, err := Decimal("not-a-number"); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
-		t.Fatalf("Decimal(invalid) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
-	} else {
-		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "relativetimeformat", "value", "not-a-number", "")
-		testcontract.AssertErrorExpected(t, err, "a finite numeric value")
-	}
 	for _, matcher := range []string{"bad", ""} {
 		t.Run(matcher, func(t *testing.T) {
 			t.Parallel()
@@ -684,14 +708,4 @@ func TestRelativeTimeFormatErrors(t *testing.T) {
 			testcontract.AssertOptionExpected(t, err, `one of "lookup", "best fit"`)
 		})
 	}
-}
-
-func mustDecimalValue(t *testing.T, value string) Value {
-	t.Helper()
-
-	v, err := Decimal(value)
-	if err != nil {
-		t.Fatalf("Decimal(%q) error = %v", value, err)
-	}
-	return v
 }

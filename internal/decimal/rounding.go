@@ -2,8 +2,7 @@ package decimal
 
 import (
 	"fmt"
-
-	"github.com/cockroachdb/apd/v3"
+	"math/big"
 )
 
 type RoundingMode int
@@ -92,9 +91,7 @@ func ApplyUnsignedRoundingMode(x, r1, r2 Decimal, mode RoundingMode) Decimal {
 		return r2
 	case RoundCeil, RoundFloor, RoundHalfCeil, RoundHalfFloor, RoundHalfExpand, RoundHalfTrunc, RoundHalfEven:
 	}
-	d1 := sub(x, r1)
-	d2 := sub(r2, x)
-	switch d1.Cmp(d2) {
+	switch compareRoundingDistances(x, r1, r2) {
 	case -1:
 		return r1
 	case 1:
@@ -113,22 +110,28 @@ func ApplyUnsignedRoundingMode(x, r1, r2 Decimal, mode RoundingMode) Decimal {
 	return r2
 }
 
-func sub(a, b Decimal) Decimal {
-	var out apd.Decimal
-	_, _ = decimalContext.Sub(&out, &a.inner, &b.inner)
-	return Decimal{inner: out, negative: out.Negative}
+func compareRoundingDistances(x, r1, r2 Decimal) int {
+	return MulInt(x, 2).Cmp(addRoundingBoundaries(r1, r2))
 }
 
 func halfEvenLower(r1, r2 Decimal) bool {
-	step := sub(r2, r1)
-	if step.IsZero() {
+	lower := r1.inner.Coeff.MathBigInt()
+	step := r2.inner.Coeff.MathBigInt()
+	step.Sub(step, lower)
+	if step.Sign() == 0 {
 		return true
 	}
-	var quotient apd.Decimal
-	_, _ = decimalContext.Quo(&quotient, &r1.inner, &step.inner)
-	var remainder apd.Decimal
-	_, _ = decimalContext.Rem(&remainder, &quotient, apd.New(2, 0))
-	return remainder.Coeff.Sign() == 0
+	cardinality := new(big.Int)
+	remainder := new(big.Int)
+	cardinality.QuoRem(lower, step, remainder)
+	return remainder.Sign() == 0 && cardinality.Bit(0) == 0
 }
 
-var decimalContext = apd.Context{Precision: 100, MaxExponent: 1000000, MinExponent: -1000000}
+// addRoundingBoundaries relies on the ApplyUnsignedRoundingMode contract: r1
+// and r2 are adjacent non-negative multiples of one rounding increment and
+// therefore share an exponent.
+func addRoundingBoundaries(r1, r2 Decimal) Decimal {
+	coeff := r1.inner.Coeff.MathBigInt()
+	coeff.Add(coeff, r2.inner.Coeff.MathBigInt())
+	return New(false, coeff, r1.inner.Exponent)
+}

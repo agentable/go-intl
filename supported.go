@@ -4,9 +4,9 @@ import (
 	cldrcurrency "github.com/agentable/go-intl/internal/cldr/currency"
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
-	cldrtimezone "github.com/agentable/go-intl/internal/cldr/timezone"
 	"github.com/agentable/go-intl/internal/collation"
 	"github.com/agentable/go-intl/internal/ecma402"
+	"github.com/agentable/go-intl/internal/tz"
 )
 
 // SupportedCalendars returns the calendar identifiers for
@@ -46,7 +46,7 @@ func SupportedNumberingSystems() []string {
 //
 // The returned slice is sorted, canonical, and independent.
 func SupportedTimeZones() []string {
-	return cldrtimezone.SupportedTimeZones()
+	return tz.SupportedTimeZones()
 }
 
 // SupportedUnits returns the sanctioned unit identifiers for

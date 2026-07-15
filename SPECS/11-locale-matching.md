@@ -2,7 +2,7 @@
 
 > **Status:** Revised (2026-05-31)
 > **Priority:** High (locale parsing layer that all formatters must pass through; blocking SPEC 20 / 30 / 40 / 60)
-> **Authority:** ECMA-402 `.references/ecma402/spec/negotiation.html` is the normative source. This SPEC documents the current Go contract for `internal/ecma402.CanonicalLocaleList`, the `internal/localematcher` package, `LookupMatchingLocaleByPrefix`, `LookupMatchingLocaleByBestFit`, `ResolveOptions`, `ResolveLocale`, `FilterLocales`, compiled matcher indexes, and the active bounded distance model.
+> **Authority:** ECMA-402 `.references/ecma402/spec/negotiation.html` is the normative source. This SPEC documents the current Go contract for `internal/ecma402.CanonicalLocaleList`, the `internal/localematcher` package, `LookupMatchingLocaleByPrefix`, `LookupMatchingLocaleByBestFit`, `ResolveOptions`, `ResolveLocale`, `FilterLocales`, compiled matcher indexes, and the pinned CLDR language-matching profile.
 
 ---
 
@@ -13,7 +13,7 @@ ECMA-402 locale negotiation is a locale selection algorithm that all formatters 
 This SPEC decision:
 
 1. **Do not** reuse `golang.org/x/text/language.Matcher` (output `Confidence` instead of CLDR distance, not comparable to ECMA-402 conformance).
-2. In `internal/localematcher/` **self-implemented** ECMA-402 lookup and best-fit locale matching. Best-fit keeps the Generated reference three-tier shape while using the active bounded Go distance model; a full CLDR `languageMatching` codegen table is not part of the current runtime contract.
+2. In `internal/localematcher/` **self-implemented** ECMA-402 lookup and best-fit locale matching. Best-fit keeps the Generated reference three-tier shape and interprets the complete ordered CLDR 48.1 `written-new` language-matching profile generated into the package.
 3. `LookupMatchingLocaleByBestFit` is an enhancement of `LookupMatchingLocaleByPrefix`; both share the subtag truncation and canonicalization subroutines.
 4. Formatter constructors use `internal/ecma402.ResolveConstructorLocale` as the narrow Go typed wrapper over requested-locale preparation, `localeMatcher` algorithm selection, default-locale fallback, and `ResolveLocale`.
 5. `FilterLocales` is the only semantic source of constructor `supportedLocalesOf`.
@@ -29,7 +29,7 @@ Go APIs do not accept arbitrary JavaScript values, but the semantic pipeline mus
 | `CanonicalizeLocaleList(locales)` | Deduplicate already-parsed requested `locale.Locale` values while preserving order through `internal/ecma402.CanonicalLocaleList` |
 | `ResolveOptions(constructor, localeData, locales, options, ...)` | Resolve locale/options for formatter constructors from typed `Options` |
 | `LookupMatchingLocaleByPrefix` | Implement RFC 4647 lookup ignoring Unicode extension sequences |
-| `LookupMatchingLocaleByBestFit` | Implementation-defined best-fit, using the selected Generated reference three-tier shape and active bounded distance model |
+| `LookupMatchingLocaleByBestFit` | Implementation-defined best-fit, using the selected Generated reference three-tier shape and pinned CLDR distance profile |
 | `ResolveLocale` | Merge matched locale data, relevant extension keys, Unicode extension requests, and explicit option overrides |
 | `FilterLocales` | Implement `Intl.<Constructor>.supportedLocalesOf` |
 
@@ -55,7 +55,9 @@ internal/localematcher/
 ├── match.go         ← Match / MatchWithMaximizer and Algorithm enumeration
 ├── lookup.go        ← LookupMatcher(ECMA-402 §9.2.6) + BestAvailableLocale
 ├── best_fit.go      ← BestFitMatcher three-layer algorithm (Tier 1 / Tier 2 / Tier 3)
-├── distance.go      ← bounded matching distance + sync.Map memoize
+├── distance.go      ← compiled ordered CLDR distance evaluation
+├── profile.go       ← immutable generated-profile projection
+├── profile_data.go  ← generated rules, variables, and paradigm locales
 ├── filter.go        ← FilterLocales / FilterLocalesWithMaximizer
 ├── resolve.go       ← ResolveLocale(ECMA-402 §9.2.7) + relevantExtensionKeys processing
 └── ucanonicalize.go ← UnicodeExtensionValue / InsertUnicodeExtensionAndCanonicalize
@@ -92,7 +94,7 @@ type Algorithm int
 
 const (
 AlgorithmLookup Algorithm = iota // sec-LookupMatcher(accurate + subtag truncation)
-AlgorithmBestFit // sec-BestFitMatcher (three tiers + bounded distance model)
+AlgorithmBestFit // sec-BestFitMatcher (three tiers + generated CLDR distance profile)
 )
 
 // Result is an internal product of matcher, not ResolvedLocale; the latter is composed of ResolveLocale.
@@ -219,7 +221,7 @@ That is, spec **does not force** a specific algorithm. This gives three options 
 
 | Candidate | Decision | Reason |
 |------|------|------|
-| Generated reference three-tier algorithm shape (Tier 1 exact / Tier 2 maximize+truncation / Tier 3 bounded distance) | ✅ Selected | There is a public test baseline; aligned with the conformance goal without shipping an unused generated distance table |
+| Generated reference three-tier algorithm shape (Tier 1 exact / Tier 2 maximize+truncation / Tier 3 CLDR distance) | ✅ Selected | Preserves the readable reference algorithm while using the same pinned CLDR facts as the rest of the runtime |
 | Reuse `golang.org/x/text/language.Matcher` | ❌ Reject | Output `Confidence`(No/Low/High/Exact) is not CLDR distance; tie-breaking is determined by `x/text`, inconsistent with Generated reference; `x/text`'s CLDR data version is not synchronized with `internal/cldr` |
 | ICU-only simplified heuristic | ❌ Reject | No fixture exposed; cannot reverse verify from conformance test |
 
@@ -275,7 +277,7 @@ if candidate == desired: continue # Tier 1 Checked
 if result.matchedSupported != "" and lowestDistance == 0:
 return result # Tier 2 finds distance=0 and returns directly
 
-# === TIER 3 — Bounded distance calculation ===
+# === TIER 3 — Ordered CLDR distance calculation ===
 lowestDistance = +Inf # Reset: Tier 2's "position penalty" is not comparable to distance output
 for i, desired in requested:
     for k, candidate in supported:
@@ -322,54 +324,52 @@ func (m *Matcher) findBestMatch(requested []string, threshold int) bestMatchResu
 // Example: "zh-Hant-TW" → ["zh-Hant-TW", "zh-Hant", "zh"]
 func getFallbackCandidates(maximized string) []string
 
-// matchingDistance returns the active bounded best-fit distance (memoized via sync.Map).
-func matchingDistance(desired, supported, maximizedDesired, maximizedSupported string) int
+// cachedMatchingDistance evaluates the generated profile once per tuple and
+// memoizes the result on the compiled Matcher.
+func (m *Matcher) cachedMatchingDistance(desired, supported, maximizedDesired, maximizedSupported string) int
 ```
 
 > **Why `findBestMatch` is not exported**: It is a compiled matcher implementation detail. Public callers only need the selected `Result`; exposing the candidate-distance internals would freeze a non-ECMA-402 detail.
 >
-> **Why matching distance memoizes with `sync.Map`**: Repeated calculation of the same requested/supported/maximized tuple appears during constructor-heavy workloads and supported-locale filtering. The cache is process-local, bounded by locale-pair variety, and removes duplicate distance work without adding formatter-level cache controls.
+> **Why matching distance memoizes on `Matcher` with `sync.Map`**: Repeated calculation of the same requested/supported/maximized tuple appears during constructor-heavy workloads and supported-locale filtering. Per-matcher ownership keeps cache entries aligned with the injected maximizer and supported-locale profile while remaining race-safe and private.
 
-### 3.4 Active bounded distance model
+### 3.4 Generated language-matching profile
 
-`matchingDistance` is intentionally small and local to the active ECMA-402
-surface. It is not a generated CLDR `languageMatching.json` table.
+`tools/gen-cldr` reads `cldr-core/supplemental/languageMatching.json` and
+`territoryContainment.json`. It validates and preserves all 378 ordered
+`written-new` rules, `oneway`, the four named region variables, their source
+tokens and recursively expanded region sets, and the six paradigm locales.
+The generated owner is `internal/localematcher/profile_data.go`; matcher code
+does not import an `internal/cldr` package or parse JSON at runtime.
 
-| Case | Distance |
-|------|----------|
-| Requested and supported tags are identical | `0` |
-| Maximized requested and supported tags are identical | `0` |
-| Fixture-backed generated-reference-sensitive pairs, such as `en-CA` vs `en-US` or `es-KY` vs `es-419` | Recorded fixture distance |
-| Same language without a fixture override | `40` |
-| Different language | `840` |
+At construction, each `Matcher` compiles the immutable profile into pattern
+records, region membership sets, and a paradigm set augmented through the
+injected maximizer. Tier 3 then:
 
-`Matcher` adds request-order penalties and derived-fallback penalties around this
-base distance, then compares the result against `DefaultMatchingThreshold`.
+1. compares maximized language, script, and region components independently;
+2. scans rules in source order and applies reverse matching only when `oneway` is false;
+3. applies named region variables, including `$!name` exclusion;
+4. multiplies CLDR distance units by 10 and applies the Generated-reference paradigm penalty;
+5. adds request-order and derived-fallback penalties before the 838 threshold check.
 
-> **Why no generated languageMatching table**: ECMA-402 leaves best-fit matching implementation-defined. The active product profile needs stable, auditable behavior for the supported locale set, not an unused generated table that suggests broader ICU parity than the runtime can verify.
+Related-language witnesses (`nn → nb`, `gsw → de`, `wuu → zh`), one-way
+asymmetry, region-variable selection, paradigm tie-breaking, and threshold
+rejection are executable tests. There is no formatter-local pair table or
+same-language fallback.
 
-#### Known gap — related-language requests fall to default
+> **Rejected**: copying FormatJS's generated object shape, using
+> `language.Matcher` confidence, compiling a supported-locale pair matrix, or
+> retaining hand-written pair overrides. The ordered interpreter is lossless,
+> compact, and keeps update errors in the generator.
 
-Because the base distance is a bounded override table plus a `same-language → 40 / else → 840` fallback, linguistically close requests whose CLDR `languageMatching` distance is below the 838 threshold still exceed the bounded fallback and resolve to the default locale instead of their CLDR neighbour:
+### 3.5 Measured profile cost
 
-| Request | CLDR `languageMatching` neighbour (distance) | Active result |
-|---------|----------------------------------------------|---------------|
-| `nn` | `nb` (20) | default |
-| `gsw` | `de` (4) | default |
-| `wuu` | `zh` (10) | default |
-
-This gap is tracked by the self-activating skip test `internal/localematcher/language_distance_gap_test.go`, which names the CLDR neighbours and asserts the correct behaviour. It stays skipped until the generated CLDR `languageMatching` distance table (wildcards / territory groups) lands, then turns green automatically. Generating that table is the remaining observable-correctness item for best-fit matching and is deferred as a large generator feature that needs Node/ICU distance witnesses before it can ship.
-
-### 3.5 Performance Targets
-
-| Scenario | Target |
-|------|------|
-| Tier 1 hit | < 200 ns(supportedSet is `map[string]struct{}`) |
-| Tier 2 hit | < 5 µs / single match (including maximize + truncation + lookup) |
-| Tier 3 complete (supported list = 100) | < 100 µs (steady state after memoize hit) |
-| Tier 3 cold(memoize miss) | < 1 ms / single match |
-
-> **Why these numbers**: SPEC 71 §benchmark lists matcher as a fixed overhead in NumberFormat / DateTimeFormat construction; < 10 µs once constructed is a reasonable goal.
+On Apple M5 Pro / Go 1.26.5, the pinned source JSON is 55,261 bytes and the
+generated typed profile is 26,682 bytes. Three benchmark samples measured raw
+JSON loading at 1.80–2.41 ms with about 238 KB allocated, profile compilation
+at 0.29–0.37 ms with about 109 KB allocated, and cached distance lookup at
+143–183 ns with zero allocations. These observations compare shapes and explain
+the chosen boundary; they are not CI thresholds.
 
 ---
 
@@ -657,10 +657,10 @@ Locale parsing errors classify through `gointl.ErrInvalidValue`; `internal/local
 
 | SPEC | Provide | Consumption |
 |------|------|------|
-| SPEC 11 (this) | `Matcher`, `Maximizer`, and `LocaleDataLookup` interfaces | receives supported-locale slices, maximizers, and locale-data lookups from formatter constructors |
-| SPEC 50 | generated supported-locale accessors, locale maximizer, and relevant-extension-key data providers | Not consumed directly by SPEC 11 |
+| SPEC 11 (this) | `Matcher`, generated language-distance profile, `Maximizer`, and `LocaleDataLookup` interfaces | receives supported-locale slices, maximizers, and locale-data lookups from formatter constructors |
+| SPEC 50 | generates the private profile into `internal/localematcher`; provides supported-locale accessors, locale maximizer, and relevant-extension-key data providers | profile data is package-owned; formatter-specific data remains injected |
 
-Dependency direction: formatter packages inject SPEC 50 data into SPEC 11 algorithms. `internal/localematcher` must not import `internal/cldr` directly.
+Dependency direction: `tools/gen-cldr` emits immutable matching facts directly into `internal/localematcher`; formatter packages inject their supported locales and the locale-kernel maximizer. `internal/localematcher` must not import `internal/cldr` directly.
 
 ---
 
@@ -759,21 +759,20 @@ for ... { /* Tier 3 */ }
 
 > **Why**: Tier 2 distance is heuristic (subtag position × 10), while Tier 3 uses the active bounded matching distance plus request-order and derived-fallback penalties. The two are not the same scale.
 
-### 9.7 ❌ Don’t skip memoization in matching distance
+### 9.7 ❌ Don’t skip matcher-owned memoization in matching distance
 
 ```go
 // ❌ Error: recompute the same distance tuple repeatedly.
-func cachedMatchingDistance(d, s, md, ms string) int {
-    return matchingDistance(d, s, md, ms)
+func (m *Matcher) cachedMatchingDistance(d, s, md, ms string) int {
+    return m.distanceProfile.distance(md, ms)
 }
 
-// ✅ Correct: sync.Map memoize.
-var distanceCache sync.Map // map[[4]string]int
-func cachedMatchingDistance(d, s, md, ms string) int {
+// ✅ Correct: matcher-owned sync.Map memoize.
+func (m *Matcher) cachedMatchingDistance(d, s, md, ms string) int {
     key := [4]string{d, s, md, ms}
-    if v, ok := distanceCache.Load(key); ok { return v.(int) }
-    dist := matchingDistance(d, s, md, ms)
-    distanceCache.Store(key, dist)
+    if v, ok := m.distanceCache.Load(key); ok { return v.(int) }
+    dist := m.distanceProfile.distance(md, ms)
+    m.distanceCache.Store(key, dist)
     return dist
 }
 ```
@@ -798,7 +797,7 @@ if res1.Locale == res2.Locale { /* ... */ }
 
 ### Package structure
 
-- [ ] `internal/localematcher/` subdirectory is divided into files `available.go` / `compiled.go` / `match.go` / `lookup.go` / `best_fit.go` / `distance.go` / `filter.go` / `resolve.go` / `ucanonicalize.go`.
+- [ ] `internal/localematcher/` separates available-locale indexes, matching algorithms, generated profile ownership, filtering, resolution, and Unicode extension handling.
 - [ ] `internal/localematcher` is not directly accessed `import "github.com/agentable/go-intl/internal/cldr"`; callers inject generated supported-locale slices, maximizers, and locale-data lookups.
 - [ ] `internal/localematcher` is not directly `import "github.com/agentable/go-intl/internal/ecma402"` (SPEC 12 is option-shape; this SPEC is locale-shape; there is no loop between the two).
 
@@ -810,11 +809,13 @@ if res1.Locale == res2.Locale { /* ... */ }
 
 ### BestFitMatcher
 
-- [ ] `BestFitMatcher(requested, supported, defaultLocale) Result` implements the three-tier algorithm (Tier 1 exact / Tier 2 maximize+truncation / Tier 3 bounded distance).
+- [ ] `BestFitMatcher(requested, supported, defaultLocale) Result` implements the three-tier algorithm (Tier 1 exact / Tier 2 maximize+truncation / Tier 3 ordered CLDR distance).
 - [ ] `findBestMatch` resets `lowestDistance = +Inf` on Tier 3 entry (not mixed with Tier 2 heuristics).
 - [ ] `getFallbackCandidates(maximized)` output `["zh-Hant-TW","zh-Hant","zh"]` (right-to-left subtag truncation).
-- [ ] `cachedMatchingDistance` uses `sync.Map` memoize for the same desired/supported/maximized tuple.
+- [ ] `cachedMatchingDistance` uses matcher-owned `sync.Map` memoization for the same desired/supported/maximized tuple.
 - [ ] `DefaultMatchingThreshold = 838`(Generated reference verbatim).
+- [ ] The generated profile round-trips 378 ordered rules, four variables with containment expansion, six paradigm locales, distance values, and `oneway`; malformed source fails generation.
+- [ ] Related-language, one-way, region-variable, paradigm, and threshold witnesses pass without skips or hand-written pair overrides.
 - [ ] generated-reference `intl-localematcher/tests/BestFitMatcher.test.ts` and `tests/conformance.test.ts` all fixtures pass in `internal/localematcher/best_fit_test.go`.
 
 ### ResolveLocale
@@ -850,8 +851,7 @@ if res1.Locale == res2.Locale { /* ... */ }
 
 ### Performance
 
-- [ ] Tier 1 hit path benchmark < 200 ns(`go test -bench=BenchmarkTier1Match`).
-- [ ] Tier 3 steady state (memoize hit) 100-locale supported list benchmark < 100 µs.
+- [ ] Matcher benchmarks report compile and cached-lookup telemetry without imposing numeric CI thresholds.
 - [ ] `sync.Map` memoize has no race (`-race` passes) under concurrent 10 goroutines.
 
 ### Boundary with `language.Matcher`
@@ -891,7 +891,7 @@ if res1.Locale == res2.Locale { /* ... */ }
 - `.references/formatjs/packages/intl-localematcher/abstract/UnicodeExtensionValue.ts`
 - `.references/formatjs/packages/intl-localematcher/abstract/CanonicalizeLocaleList.ts`
 - `.references/formatjs/packages/intl-localematcher/abstract/LookupSupportedLocales.ts`
-- `.references/formatjs/packages/intl-localematcher/abstract/languageMatching.ts` —— Reference-only CLDR matching table for future best-fit expansion; generated CLDR accessors are not consumed by the active matcher.
+- `.references/formatjs/packages/intl-localematcher/abstract/languageMatching.ts` —— readable generated CLDR matching profile used to cross-check source interpretation.
 - `.references/formatjs/packages/intl-localematcher/tests/conformance.test.ts` —— ICU4J alignment fixture
 - `.references/formatjs/packages/intl-localematcher/tests/locale-match-fixtures.json` —— table-driven fixture
 - `.references/ext/src/ecma402/locale.cpp` —— PHP `ecma402_bestAvailableLocale` via ICU (same as spec but different path)
@@ -909,4 +909,4 @@ if res1.Locale == res2.Locale { /* ... */ }
 
 ---
 
-> This SPEC is a maintenance record for `internal/localematcher`. New ECMA-402 matcher subroutines or a deliberate move to generated CLDR `languageMatching.json` data trigger this SPEC revision before code changes.
+> This SPEC is a maintenance record for `internal/localematcher`. New ECMA-402 matcher subroutines or a change to the generated CLDR language-matching contract trigger this SPEC revision before code changes.

@@ -11,19 +11,18 @@ import (
 )
 
 type RuntimeInput struct {
-	Manifest        ManifestInput
-	Locales         extract.Locales
-	LikelySubtags   extract.LikelySubtags
-	Numbers         extract.Numbers
-	Currencies      extract.CurrencyData
-	Dates           extract.Dates
-	Preferences     cldr.PreferenceData
-	Metazones       extract.Metazones
-	TimeZoneAliases []cldr.TimeZoneAlias
-	Units           extract.Units
-	ListPatterns    extract.ListPatterns
-	RelativeTime    extract.RelativeTimeFields
-	DisplayNames    extract.DisplayNames
+	Manifest      ManifestInput
+	Locales       extract.Locales
+	LikelySubtags extract.LikelySubtags
+	Numbers       extract.Numbers
+	Currencies    extract.CurrencyData
+	Dates         extract.Dates
+	Preferences   cldr.PreferenceData
+	Metazones     extract.Metazones
+	Units         extract.Units
+	ListPatterns  extract.ListPatterns
+	RelativeTime  extract.RelativeTimeFields
+	DisplayNames  extract.DisplayNames
 }
 
 type generatedFile struct {
@@ -40,7 +39,6 @@ type localeKernelLeaf struct {
 
 var localeKernelLeaves = [...]localeKernelLeaf{
 	{name: "locale/manifest.go", render: func(in RuntimeInput) ([]byte, error) { return renderManifest(in.Manifest) }},
-	{name: "locale/timezones.go", render: func(in RuntimeInput) ([]byte, error) { return renderTimezones(in) }},
 }
 
 func RenderRuntime(outDir string, input RuntimeInput) error {
@@ -92,11 +90,8 @@ func renderRuntimeFiles(input RuntimeInput) ([]generatedFile, error) {
 // strings.go are dissolved into that single payload; the kernel _data holds only
 // the kernel's own strings.
 //
-// timezones.go stays a small const/literal file (no compile-bomb shape), so it
-// is rendered into the kernel package. numbering values move into the kernel
-// payload, so renderLocaleNumbering is retired. The data manifest (CLDR/ICU/
-// tzdata pin and locale profile) is owned by the kernel too, so manifest.go is
-// rendered here with the kernel package name.
+// The data manifest (CLDR/ICU/tzdata pin and locale profile) is owned by the
+// kernel too, so manifest.go is rendered here with the kernel package name.
 func renderLeafCLDRFiles(input RuntimeInput) ([]generatedFile, error) {
 	files := make([]generatedFile, 1+len(localeKernelLeaves))
 
@@ -142,75 +137,4 @@ func runtimeFileNames() []string {
 func replaceGeneratedPackage(src []byte, packageName string) ([]byte, error) {
 	replaced := bytes.Replace(src, []byte("package cldr\n"), []byte("package "+packageName+"\n"), 1)
 	return FormatFile(replaced)
-}
-
-func renderTimezones(input RuntimeInput) ([]byte, error) {
-	var linkCases bytes.Buffer
-	links := canonicalTimeZoneLinks(input.TimeZoneAliases)
-	for i, link := range links {
-		if i > 0 {
-			if _, err := linkCases.WriteString("\n"); err != nil {
-				return nil, err
-			}
-		}
-		if _, err := fmt.Fprintf(&linkCases, "\tcase %q:\n\t\treturn %q", link.alias, link.canonical); err != nil {
-			return nil, err
-		}
-	}
-
-	return FormatFile([]byte(fmt.Sprintf(`package cldr
-
-import "slices"
-
-type regionTimeZonesRecord struct {
-	region string
-	zones  []string
-}
-
-var timeZonesByRegion = [...]regionTimeZonesRecord{
-	{
-		region: "BR",
-		zones: []string{
-			"America/Araguaina", "America/Bahia", "America/Belem", "America/Boa_Vista",
-			"America/Campo_Grande", "America/Cuiaba", "America/Eirunepe", "America/Fortaleza",
-			"America/Maceio", "America/Manaus", "America/Noronha", "America/Porto_Velho",
-			"America/Recife", "America/Rio_Branco", "America/Santarem", "America/Sao_Paulo",
-		},
-	},
-	{region: "CN", zones: []string{"Asia/Shanghai", "Asia/Urumqi"}},
-	{region: "EG", zones: []string{"Africa/Cairo"}},
-	{region: "GB", zones: []string{"Europe/London"}},
-	{region: "IN", zones: []string{"Asia/Calcutta"}},
-	{region: "SA", zones: []string{"Asia/Riyadh"}},
-	{
-		region: "US",
-		zones: []string{
-			"America/Adak", "America/Anchorage", "America/Boise", "America/Chicago",
-			"America/Denver", "America/Detroit", "America/Indiana/Knox", "America/Indiana/Marengo",
-			"America/Indiana/Petersburg", "America/Indiana/Tell_City", "America/Indiana/Vevay",
-			"America/Indiana/Vincennes", "America/Indiana/Winamac", "America/Indianapolis",
-			"America/Juneau", "America/Kentucky/Monticello", "America/Los_Angeles", "America/Louisville",
-			"America/Menominee", "America/Metlakatla", "America/New_York", "America/Nome",
-			"America/North_Dakota/Beulah", "America/North_Dakota/Center", "America/North_Dakota/New_Salem",
-			"America/Phoenix", "America/Sitka", "America/Yakutat", "Pacific/Honolulu",
-		},
-	},
-}
-
-func CanonicalTimeZoneLink(name string) string {
-	switch name {
-%s
-	}
-	return name
-}
-
-func TimeZonesForRegion(region string) []string {
-	for _, record := range timeZonesByRegion[:] {
-		if record.region == region {
-			return slices.Clone(record.zones)
-		}
-	}
-	return nil
-}
-			`, linkCases.String())))
 }

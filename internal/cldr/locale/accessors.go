@@ -65,18 +65,42 @@ func Maximize(tag string) string {
 	return localeid.Maximize(tag, MaximizeSubtags)
 }
 
-// MaximizeSubtags returns the likely (language, script, region) for the input
-// subtags, or ok=false when the key is absent from the maximize table.
+// MaximizeSubtags applies the CLDR Add Likely Subtags fallback order and
+// preserves subtags already supplied by the caller.
 func MaximizeSubtags(language, script, region string) (lang, scr, reg string, ok bool) {
 	likelySubtagsOnce.Do(loadLikelySubtags)
+	candidates := [...]string{
+		localeid.Join(language, script, region),
+		localeid.Join(language, "", region),
+		localeid.Join(language, script, ""),
+		language,
+		localeid.Join("und", script, ""),
+		localeid.Join("und", "", region),
+		"und",
+	}
+	for i, key := range candidates {
+		if key == "" || slices.Contains(candidates[:i], key) {
+			continue
+		}
+		maxLang, maxScript, maxRegion, found := exactLikelySubtags(key)
+		if !found {
+			continue
+		}
+		if language != "" && language != "und" {
+			maxLang = language
+		}
+		if script != "" {
+			maxScript = script
+		}
+		if region != "" {
+			maxRegion = region
+		}
+		return maxLang, maxScript, maxRegion, true
+	}
+	return "", "", "", false
+}
 
-	key := language
-	if script != "" {
-		key += "-" + script
-	}
-	if region != "" {
-		key += "-" + region
-	}
+func exactLikelySubtags(key string) (lang, scr, reg string, ok bool) {
 	i, ok := slices.BinarySearchFunc(likelySubtags, key, func(row maximizeSubtagRecord, target string) int {
 		return cmp.Compare(row.key, target)
 	})

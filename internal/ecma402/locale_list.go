@@ -72,6 +72,9 @@ func SupportedLocalesOf(opts SupportedLocalesOptions) (locale.List, error) {
 		return nil, InvalidStringOptionError(opts.Owner, check, loc)
 	}
 	matcher, _ := LocaleMatcherAlgorithm(check.Value)
+	if opts.RequireLookupMatch {
+		matcher = localematcher.AlgorithmLookup
+	}
 	supported := SupportedLocales(opts.Supported, opts.Requested, matcher, opts.Maximizer)
 	return supported, nil
 }
@@ -84,4 +87,7 @@ type SupportedLocalesOptions struct {
 	// LocaleMatcher is the pointer-backed supportedLocalesOf option; nil means omitted.
 	LocaleMatcher *string
 	Maximizer     localematcher.Maximizer
+	// RequireLookupMatch prevents best-fit from expanding an engine capability
+	// allowlist across languages after localeMatcher has been validated.
+	RequireLookupMatch bool
 }

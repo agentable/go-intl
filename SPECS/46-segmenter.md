@@ -151,7 +151,7 @@ MUST rules:
 1. Use `internal/segmentation.SupportedLocales()` as the supported set. The list contains locales whose active boundaries do not require dictionary or locale-specific tailoring beyond the UAX #29 defaults. The package lives outside `internal/cldr/` because the boundary algorithm comes from `github.com/rivo/uniseg`, not CLDR, and it must not inherit the CLDR locale profile automatically.
 2. `internal/segmentation.SupportedLocales()` MUST return a fresh slice and be covered by an exact allowlist test. Adding any locale requires word and sentence native-engine fixtures before the public supported-locale API may advertise it.
 2a. The manual `SupportedLocalesOf` fixture must continue to request known tailored locales and expect only the actively supported set; deleting that fixture weakens the capability boundary.
-3. Call `localematcher.FilterLocalesWithMaximizer`.
+3. Validate the `localeMatcher` option through the shared ECMA-402 helper, then require lookup containment in the explicit capability allowlist. Best-fit may choose among genuinely available locale data for ordinary formatters, but it must not turn a cross-language fallback such as `km → en` into a false claim that dictionary segmentation is implemented.
 4. Accept one `Options` value; `Options{}` represents omitted static-method options.
 5. Read only `LocaleMatcher`; `nil` means omitted and an explicit empty string is invalid.
 

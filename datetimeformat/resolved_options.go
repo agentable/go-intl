@@ -75,18 +75,18 @@ const (
 
 const (
 	// ECMA-402 §15.5.1 Table 9 (Type Field of FormatDateTimePattern part records).
-	PartYear                   PartType = "year"
-	PartMonth                  PartType = "month"
-	PartDay                    PartType = "day"
-	PartHour                   PartType = "hour"
-	PartMinute                 PartType = "minute"
-	PartSecond                 PartType = "second"
-	PartWeekday                PartType = "weekday"
-	PartEra                    PartType = "era"
-	PartDayPeriod              PartType = "dayPeriod"
-	PartTimeZoneName           PartType = "timeZoneName"
-	PartLiteral                PartType = "literal"
-	PartFractionalSecondDigits PartType = "fractionalSecondDigits"
+	PartYear             PartType = "year"
+	PartMonth            PartType = "month"
+	PartDay              PartType = "day"
+	PartHour             PartType = "hour"
+	PartMinute           PartType = "minute"
+	PartSecond           PartType = "second"
+	PartWeekday          PartType = "weekday"
+	PartEra              PartType = "era"
+	PartDayPeriod        PartType = "dayPeriod"
+	PartTimeZoneName     PartType = "timeZoneName"
+	PartLiteral          PartType = "literal"
+	PartFractionalSecond PartType = "fractionalSecond"
 	// PartRelatedYear and PartYearName appear when the resolved calendar is a
 	// non-Gregorian cyclic calendar (e.g. Chinese, Dangi); the active Gregorian
 	// path never emits them, but the constants must exist so consumer switches

@@ -153,13 +153,29 @@ func TestGeneratedNoDrift(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(cldrDir, "cldr-core")); err != nil {
 		t.Skip("tools/gen-cldr/.cldr-json is absent; run task data to install the CLDR checkout")
 	}
+	tzdataArchive := filepath.Join(root, "tools", "gen-cldr", ".tzdata", "tzdata"+cldrlocale.Version().TZData+".tar.gz")
+	if _, err := os.Stat(tzdataArchive); err != nil {
+		t.Skip("tools/gen-cldr/.tzdata is absent; run task data to install the pinned IANA archive")
+	}
 
-	out := filepath.Join(t.TempDir(), "cldr")
+	temp := t.TempDir()
+	out := filepath.Join(temp, "cldr")
 	if err := os.MkdirAll(out, 0o777); err != nil {
 		t.Fatalf("mkdir output: %v", err)
 	}
 	profile := filepath.Join(root, "tools", "locale-profile.json")
-	cmd := exec.Command("go", "-C", filepath.Join(root, "tools", "gen-cldr"), "run", ".", "-cldr-dir", ".cldr-json/node_modules", "-out", out, "-version-file", filepath.Join(root, "internal", "cldr", "VERSION"), "-profile", profile)
+	cmd := exec.Command(
+		"go", "-C", filepath.Join(root, "tools", "gen-cldr"), "run", ".",
+		"-cldr-dir", ".cldr-json/node_modules",
+		"-out", out,
+		"-version-file", filepath.Join(root, "internal", "cldr", "VERSION"),
+		"-profile", profile,
+		"-localeid-out", filepath.Join(temp, "localeid", "unicode_alias_data.go"),
+		"-localematcher-out", filepath.Join(temp, "localematcher", "profile_data.go"),
+		"-tzdata-lock", filepath.Join(root, "tools", "gen-cldr", "tzdata.json"),
+		"-tzdata-archive", tzdataArchive,
+		"-timezone-out", filepath.Join(temp, "tz", "registry_data.go"),
+	)
 	cmd.Env = os.Environ()
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -199,6 +215,43 @@ func TestGeneratedNoDrift(t *testing.T) {
 			}
 			if !bytes.Equal(got, want) {
 				t.Fatalf("%s drifted from generator output", filepath.ToSlash(rel))
+			}
+		})
+	}
+	auxiliary := []struct {
+		name      string
+		committed string
+		generated string
+	}{
+		{
+			name:      "localeid/unicode_alias_data.go",
+			committed: filepath.Join(root, "internal", "localeid", "unicode_alias_data.go"),
+			generated: filepath.Join(temp, "localeid", "unicode_alias_data.go"),
+		},
+		{
+			name:      "localematcher/profile_data.go",
+			committed: filepath.Join(root, "internal", "localematcher", "profile_data.go"),
+			generated: filepath.Join(temp, "localematcher", "profile_data.go"),
+		},
+		{
+			name:      "tz/registry_data.go",
+			committed: filepath.Join(root, "internal", "tz", "registry_data.go"),
+			generated: filepath.Join(temp, "tz", "registry_data.go"),
+		},
+	}
+	for _, output := range auxiliary {
+		t.Run(output.name, func(t *testing.T) {
+			t.Parallel()
+			want, err := os.ReadFile(output.committed)
+			if err != nil {
+				t.Fatalf("read committed file: %v", err)
+			}
+			got, err := os.ReadFile(output.generated)
+			if err != nil {
+				t.Fatalf("read generated file: %v", err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Fatalf("%s drifted from generator output", output.name)
 			}
 		})
 	}

@@ -215,7 +215,7 @@ roundingIncrement!=1 ⇒ roundingType forces fractionDigits and mnfd=mxfd
 **MUST** Rules:
 
 1. `DigitOptions` **MUST** contain the resolved status of `minimumIntegerDigits`, fraction digits, significant digits, `roundingIncrement`, `roundingMode`, `roundingPriority`, `trailingZeroDisplay`; the public formatter package is only responsible for mapping its own config to this structure.
-2. `FormatNumericToString` **MUST** return an unlocalized, ungrouped ASCII decimal string, retaining the trailing zeros forced by digit options. Grouping, local numeric notation, currency/unit/percent/compact wrapping can only be done in the formatter package.
+2. `FormatNumericToString` **MUST** return an unlocalized, ungrouped ASCII decimal string, retaining only trailing zeros forced by resolved digit options. Lexical zeros in an input such as `"1.50"` are not part of the Intl mathematical value and must not become a second display owner. Grouping, local numeric notation, currency/unit/percent/compact wrapping can only be done in the formatter package.
 3. `FormatNumericToString` **MUST** also return rounded numeric value for compact plural selection and PluralRules operands. NumberFormat range equality is decided later from the fully partitioned visible endpoint text, not from this rounded decimal value.
 4. NumberFormat and PluralRules are **FORBIDDEN** to each duplicate fixed/significant/priority rounding code; any rounding or zero-padding fixes must fall in `internal/ecma402/numberformat` and be shared by both formatters.
 5. `FormatNumericToString` **disables** decimal rounding or exponential scaling via `float64`, `strconv.ParseFloat`, `math.Log10`, `math.Pow10`; these operations must be done via [SPEC 21 §Decimal API](./21-number-math.md#decimal-api).
@@ -306,7 +306,7 @@ MaximumSignificantDigits *int // Same as above
 **MUST** Rules:
 
 1. `ToIntlMathematicalValue` **MUST** be implemented using [SPEC 21 §ToIntlMathematicalValue](./21-number-math.md#tointlmathematicalvalue); **FORBIDDEN** to convert values via `fmt.Sprintf("%v", value)`.
-2. The `String` output by `FormatNumericToString` **MUST** retain trailing zero (forced by `mnfd`) for subsequent OperandsRecord calculation of `v / w / f / t` (see [SPEC 40 §Operands](./40-pluralrules.md#operands)).
+2. The `String` output by `FormatNumericToString` **MUST** retain trailing zeros forced by resolved digit options (for example `mnfd`) for subsequent OperandsRecord calculation of `v / w / f / t` (see [SPEC 40 §Operands](./40-pluralrules.md#operands)); it must not retain zeros solely because they appeared in the input literal.
 3. `NaN / +Inf / -Inf` **MUST** be expressed through `apd.Decimal.Form`, and **FORBIDDEN** to be transferred through `math.IsNaN(float64(...))`.
 4. The `[]Part` element `Type` output by `PartitionDigitParts` **MUST** qualify ECMA-402 §15.5.1 + Generated reference extension for a total of 16 enumeration strings: `integer | group | decimal | fraction | currency | percentSign | minusSign | plusSign | nan | infinity | unit | literal | exponentSeparator | exponentMinusSign | exponentInteger | compact | approximatelySign` (strictly aligned with `.references/formatjs/packages/ecma402-abstract/types/number.ts` `NumberFormatPartTypes`; **FORBIDDEN** to use `exponentSymbol`, the canonical name is `exponentSeparator`;`approximatelySign` only appears as part type when the formatting results of both ends of `FormatRange` are the same).
 5. `ComputeExponent` **MUST** be a single shared engine (`internal/ecma402/numberformat.computeExponent`) behind scientific, engineering, and compact notation. It scales the value into its notation mantissa, rounds with the resolved digit options, and applies the ECMA-402 post-rounding carry recheck: when rounding pushes the mantissa up a magnitude (for example `999` with `maximumFractionDigits:0` rounds to `1000`), the exponent is re-derived from `magnitude + 1`. Scientific/engineering `ScientificExponent` and compact `ResolveCompactMagnitude` **MUST** both route through this engine; **FORBIDDEN** to keep a second exponent routine that computes the pre-rounding magnitude and skips the carry recheck. Result: scientific `Format(999)` with `maximumFractionDigits:0` → `"1E3"`, `999500` → `"1E6"`, engineering `999500` → `"1E6"`.
@@ -372,7 +372,7 @@ output; it does not call a public `pluralrules.PluralRules` instance.
 **MUST** rules (corresponding to ECMA-402 §15.5.1):
 
 1. Public hot path is **FORBIDDEN** to accept `any`; the caller must construct `numberformat.Value` first, and then call `Format`, `FormatToParts`, `FormatRange` or `FormatRangeToParts`.
-2. `Decimal` accepts ECMA-402 `StringNumericLiteral`, such as `"1234.5"` / `"NaN"` / `"Infinity"`; the range method consumes the constructed `Value`.
+2. `Decimal` accepts ECMA-402 `StringNumericLiteral`, such as `"1234.5"` / `"NaN"` / `"Infinity"`; the resulting `Value` represents the mathematical value, so `"1"`, `"1.0"`, and `"1.00"` have the same value and differ in visible zeros only when resolved digit options require them. The range method consumes the constructed `Value`.
 3. malformed decimal string **MUST** return `ErrInvalidValue`; silent fallback to `"NaN"` is prohibited.
 4. The conformance fixture can keep the unexported `formatValue(any)` adapter in the package, but it must not appear in the public API, README or root package.
 
@@ -464,22 +464,6 @@ implementation mechanics rather than ECMA-402-observable behavior.
 ## 11.1 Known Divergences and Future Work
 
 **Generated fixture coverage (deferred).** The scientific/engineering rounding-overflow carry (single `computeExponent`, §4 rule 5) and the `roundingPriority` `RoundingMagnitude` tie-break (§2.2 rule 5) are currently locked by hand-written Node-witnessed tests, not yet by generated FormatJS `format` fixtures. Adding the generated rounding-overflow and `roundingPriority` fixtures is deferred Theme-D extractor work; the observable behavior is already correct and tested.
-
-**NF-TZ — decimal-string input preserves trailing zeros (deferred).**
-`Format(Decimal("1.50"))` currently yields `"1.50"` where Node
-`Intl.NumberFormat('en').format("1.50")` yields `"1.5"`. ECMA-402
-`ToIntlMathematicalValue` coerces a decimal-string input to its mathematical
-value, so trailing zeros carry no significance (`"2.00"` → `"2"`); go-intl keeps
-the input's `apd` scale and echoes it through the shared `canUseRoundedString`
-fast path in `internal/ecma402/numberformat`. That fast path is load-bearing and
-**MUST NOT** be changed to strip trailing zeros: PluralRules operands depend on
-the source decimal's `v`/`w`/`f`/`t` trailing-zero view (removing it breaks
-`SelectRange(1, 1.0)` → `other`). The correct isolated fix reduces the
-NumberFormat decimal *input* to its mathematical value at the
-`numberformat.Decimal` boundary, before the shared digit pipeline, without
-touching the shared rounded-string path. It is deferred pending Node-witness
-fixtures across the digit-option matrix rather than shipped as an unverified
-change.
 
 ---
 

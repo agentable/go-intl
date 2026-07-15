@@ -440,7 +440,7 @@ func TestSkipReasonReportsDivergenceOrUnexpiredXFail(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeDivergenceFile(t, root, "id: diverged\nsource: manual:test\nowner: conformance\nreason: upstream output differs\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeDivergenceFile(t, root, "id: diverged\nsource: manual:test\nowner: conformance\nstatus: accepted\nreason: upstream output differs\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 	writeXFailFile(t, root, `[
 		{"id":"xfail","reason":"pending implementation","expires_at":"2999-01-01","tracking_issue":"SPEC-70"}
 	]`)

@@ -5,9 +5,11 @@ import (
 	"slices"
 	"time"
 
+	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	internalcollation "github.com/agentable/go-intl/internal/collation"
 	"github.com/agentable/go-intl/internal/localeid"
+	"github.com/agentable/go-intl/internal/tz"
 )
 
 // WeekInfo describes locale week data. Mirrors Intl.Locale.prototype.getWeekInfo().
@@ -41,19 +43,30 @@ func (w WeekInfo) MarshalJSON() ([]byte, error) {
 }
 
 func (l Locale) GetCalendars() []string {
+	if l.ext.calendar != "" {
+		return []string{l.ext.calendar}
+	}
 	preference := l.regionPreference()
 	calendars := normalizeCalendarList(cldrlocale.CalendarPreference(preference.lookupRegion(cldrlocale.HasCalendarPreference)))
-	if l.ext.calendar == "" {
-		return calendars
+	supported := cldrdate.SupportedCalendars()
+	out := make([]string, 0, len(calendars))
+	for _, calendar := range calendars {
+		if slices.Contains(supported, calendar) && !slices.Contains(out, calendar) {
+			out = append(out, calendar)
+		}
 	}
-	return []string{l.ext.calendar}
+	if len(out) == 0 {
+		return []string{"gregory"}
+	}
+	return out
 }
 
 func (l Locale) GetCollations() []string {
 	if l.ext.collation != "" {
 		return []string{l.ext.collation}
 	}
-	return internalcollation.SupportedCollations()
+	values := internalcollation.SupportedCollationsForLocale(l.BaseName())
+	return values[1:]
 }
 
 func (l Locale) GetHourCycles() []string {
@@ -82,7 +95,7 @@ func (l Locale) GetTimeZones() []string {
 	if region == "" {
 		return nil
 	}
-	return cldrlocale.TimeZonesForRegion(region)
+	return tz.TimeZonesForRegion(region)
 }
 
 func (l Locale) GetWeekInfo() WeekInfo {
@@ -188,7 +201,7 @@ func validSubdivisionSuffix(s string) bool {
 func normalizeCalendarList(in []string) []string {
 	out := make([]string, len(in))
 	for i, cal := range in {
-		out[i], _ = normalizeUnicodeType(cal)
+		out[i], _ = normalizeUnicodeType("ca", cal)
 	}
 	return out
 }

@@ -31,9 +31,8 @@ func TestRenderLeafCLDRFilesOwnsLocaleKernelFiles(t *testing.T) {
 		}
 	}
 	for name, wants := range map[string][]string{
-		"locale/data.go":      {"const _data =", "const _localeBlob =", "const _maximizeBlob =", "const _numberingBlob ="},
-		"locale/manifest.go":  {"var dataManifest = DataManifest", `Generator: "tools/gen-cldr"`, `Name: "VERSION"`},
-		"locale/timezones.go": {"func CanonicalTimeZoneLink(name string) string", "func TimeZonesForRegion(region string) []string"},
+		"locale/data.go":     {"const _data =", "const _localeBlob =", "const _maximizeBlob =", "const _numberingBlob ="},
+		"locale/manifest.go": {"var dataManifest = DataManifest", `Generator: "tools/gen-cldr"`, `Name: "VERSION"`},
 	} {
 		assertSourceContainsAll(t, name, byName[name], wants...)
 	}

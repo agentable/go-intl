@@ -21,6 +21,44 @@ func TestNewWithOptions(t *testing.T) {
 	}
 }
 
+func TestUnicodeTypeAliasesAreCanonicalizedByKey(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "deprecated calendar", in: "en-u-ca-islamicc", want: "en-u-ca-islamic-civil"},
+		{name: "canonical calendar", in: "en-u-ca-islamic-civil", want: "en-u-ca-islamic-civil"},
+		{name: "measurement system", in: "en-u-ms-imperial", want: "en-u-ms-uksystem"},
+		{name: "calendar value under collation key", in: "en-u-co-islamic-civil", want: "en-u-co-islamic-civil"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			loc, err := Parse(tc.in)
+			if err != nil {
+				t.Fatalf("Parse(%q) error = %v", tc.in, err)
+			}
+			if got := loc.String(); got != tc.want {
+				t.Fatalf("Parse(%q).String() = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestUnicodeTypeAliasDoesNotMakeMalformedInputValid(t *testing.T) {
+	t.Parallel()
+
+	if _, err := Parse("en-u-ca-gregorian"); !errors.Is(err, intlerr.ErrInvalidValue) {
+		t.Fatalf("Parse(en-u-ca-gregorian) error = %v, want intlerr.ErrInvalidValue", err)
+	}
+	if _, err := New("en", Options{Calendar: stringPtr("gregorian")}); !errors.Is(err, intlerr.ErrInvalidOption) {
+		t.Fatalf("New(calendar=gregorian) error = %v, want intlerr.ErrInvalidOption", err)
+	}
+}
+
 func TestNewOptionsOverrideTagExtensions(t *testing.T) {
 	t.Parallel()
 
@@ -89,7 +127,7 @@ func TestNewNormalizesRawOptionValuesDuringValidation(t *testing.T) {
 	t.Parallel()
 
 	loc, err := New("en", Options{
-		Calendar:        stringPtr("GREGORIAN"),
+		Calendar:        stringPtr("GREGORY"),
 		HourCycle:       stringPtr("H23"),
 		CaseFirst:       stringPtr("UPPER"),
 		NumberingSystem: stringPtr("ARAB"),
@@ -274,8 +312,8 @@ func TestNewNumericOptionPresence(t *testing.T) {
 func TestEqual(t *testing.T) {
 	t.Parallel()
 
-	a := parseLocaleForTest("en-us-u-hc-h23-ca-gregorian")
-	b := parseLocaleForTest("en-US-u-ca-gregory-hc-h23")
+	a := parseLocaleForTest("en-us-u-hc-h23-ca-islamicc")
+	b := parseLocaleForTest("en-US-u-ca-islamic-civil-hc-h23")
 	if !a.Equal(b) {
 		t.Fatalf("%q Equal(%q) = false, want true", a.String(), b.String())
 	}

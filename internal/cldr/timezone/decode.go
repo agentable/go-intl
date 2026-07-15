@@ -36,10 +36,10 @@ type metazonePeriod struct {
 	start, end int64
 }
 
-// timeZoneFormatRefs holds the resolved GMT/hour offset format strings for one
-// locale.
+// timeZoneFormatRefs holds the resolved GMT/hour offset and location format
+// strings for one locale.
 type timeZoneFormatRefs struct {
-	gmtFormat, gmtZeroFormat, hourFormat string
+	gmtFormat, gmtZeroFormat, hourFormat, regionFormat string
 }
 
 type localizedNamesRecord struct {
@@ -130,7 +130,6 @@ func decodeTimeZoneFormatRefs(r *codec.Reader) timeZoneFormatRefs {
 		gmtFormat:     r.StringRef(_data),
 		gmtZeroFormat: r.StringRef(_data),
 		hourFormat:    r.StringRef(_data),
+		regionFormat:  r.StringRef(_data),
 	}
 }
-
-var supported = codec.NewLazyStrings(_tzSupportedBlob, _data)

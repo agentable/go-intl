@@ -24,13 +24,13 @@ const (
 )
 
 func (l *Locale) validate() error {
-	if err := normalizeOption(&l.ext.calendar, "calendar", localeUnicodeTypeExpected, normalizeUnicodeType); err != nil {
+	if err := normalizeOption(&l.ext.calendar, "calendar", localeUnicodeTypeExpected, normalizeUnicodeTypeForKey("ca")); err != nil {
 		return err
 	}
-	if err := normalizeOption(&l.ext.collation, "collation", localeUnicodeTypeExpected, normalizeUnicodeType); err != nil {
+	if err := normalizeOption(&l.ext.collation, "collation", localeUnicodeTypeExpected, normalizeUnicodeTypeForKey("co")); err != nil {
 		return err
 	}
-	if err := normalizeOption(&l.ext.numberingSystem, "numberingSystem", localeUnicodeTypeExpected, normalizeUnicodeType); err != nil {
+	if err := normalizeOption(&l.ext.numberingSystem, "numberingSystem", localeUnicodeTypeExpected, normalizeUnicodeTypeForKey("nu")); err != nil {
 		return err
 	}
 	if err := normalizeOption(&l.ext.hourCycle, "hourCycle", localeHourCycleExpected, normalizeHourCycle); err != nil {
@@ -79,23 +79,12 @@ func expectedLocaleValue(name string) string {
 func normalizeLocaleAliases(tag string) string {
 	base, privateUse, hasPrivateUse := strings.Cut(tag, "-x-")
 	if strings.Contains(base, "-u-") {
-		base = normalizeCalendarAliases(base)
 		base = normalizeFirstDayAliases(base)
 	}
 	if !hasPrivateUse {
 		return base
 	}
 	return base + "-x-" + privateUse
-}
-
-func normalizeCalendarAliases(tag string) string {
-	for _, alias := range [...]string{"gregorian", "islamic-civil"} {
-		canonical, ok := localeid.CanonicalUnicodeType(alias)
-		if ok && canonical != alias {
-			tag = strings.ReplaceAll(tag, "-ca-"+alias, "-ca-"+canonical)
-		}
-	}
-	return tag
 }
 
 func normalizeFirstDayAliases(tag string) string {
@@ -121,11 +110,17 @@ func normalizeLanguageAliases(tag string) string {
 	return strings.Join(parts, "-")
 }
 
-func normalizeUnicodeType(value string) (string, error) {
+func normalizeUnicodeTypeForKey(key string) func(string) (string, error) {
+	return func(value string) (string, error) {
+		return normalizeUnicodeType(key, value)
+	}
+}
+
+func normalizeUnicodeType(key, value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	canonical, ok := localeid.CanonicalUnicodeType(value)
+	canonical, ok := localeid.CanonicalUnicodeType(key, value)
 	if !ok {
 		return "", errInvalidLocaleOptionValue
 	}
@@ -136,7 +131,7 @@ func normalizeHourCycle(value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	value, err := normalizeUnicodeType(value)
+	value, err := normalizeUnicodeType("hc", value)
 	if err != nil {
 		return "", err
 	}
@@ -151,7 +146,7 @@ func normalizeCaseFirst(value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	value, err := normalizeUnicodeType(value)
+	value, err := normalizeUnicodeType("kf", value)
 	if err != nil {
 		return "", err
 	}
@@ -169,7 +164,7 @@ func normalizeFirstDayOfWeek(value string) (string, error) {
 	if canonical, ok := canonicalFirstDay(value); ok {
 		return canonical, nil
 	}
-	value, err := normalizeUnicodeType(value)
+	value, err := normalizeUnicodeType("fw", value)
 	if err != nil {
 		return "", err
 	}

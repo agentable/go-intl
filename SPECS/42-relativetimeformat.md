@@ -100,7 +100,6 @@ type Value struct{ /* opaque */ }
 func Int(value int64) Value
 func Uint(value uint64) Value
 func Float(value float64) Value
-func Decimal(value string) (Value, error)
 
 func (f *RelativeTimeFormat) Format(value Value, unit Unit) (string, error)
 func (f *RelativeTimeFormat) FormatToParts(value Value, unit Unit) ([]Part, error)
@@ -111,15 +110,14 @@ MUST rules:
 1. `New` accepts a single `Options` value. `New(locales, Options{})` is the ECMA-402 "empty options object" call.
 2. `Options{}` defaults to `style="long"` and `numeric="always"`; explicit empty `style` or `numeric` strings are invalid.
 3. `RelativeTimeFormat` is immutable after construction. All methods on `*RelativeTimeFormat` must be safe for concurrent callers.
-4. Integer and unsigned typed values return errors only for invalid units.
-5. `Float` values reject NaN and infinities at `Format` / `FormatToParts` with `ErrInvalidValue`, matching ECMA-402 `RangeError`.
-6. `Decimal` rejects malformed or non-finite decimal strings with `ErrInvalidValue`.
-7. `ResolvedOptions` returns a value snapshot.
-8. JSON field names and `omitempty` behavior follow [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors).
+4. `Value` owns one normalized ECMAScript Number snapshot. `Int` and `Uint` are convenience bridges that convert through `float64`; they do not preserve integers beyond the Number precision boundary.
+5. `Float` preserves signed zero. NaN and infinities reject at `Format` / `FormatToParts` with `ErrInvalidValue`, matching ECMA-402 `RangeError`.
+6. `ResolvedOptions` returns a value snapshot.
+7. JSON field names and `omitempty` behavior follow [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors).
 
-> **Why**: JavaScript accepts one dynamic `Number` plus a unit string. Go needs typed numeric bridges, but all bridges still share the same ECMA-402 partitioning algorithm and unit validation.
+> **Why**: JavaScript accepts one `Number` plus a unit string. Go's `Int` and `Uint` entry points are ergonomic conversions into that same Number domain, not exact-decimal or BigInt semantics.
 >
-> **Rejected**: public `FormatInt*`, `FormatUint*`, `FormatFloat64*`, and `FormatDecimal*` method families - they encode Go overload mechanics into the method namespace and split one native `format(value, unit)` operation into many public verbs.
+> **Rejected**: a `Decimal` bridge, exact/native modes, and public `FormatInt*`, `FormatUint*`, or `FormatFloat64*` method families. They either create semantics native RelativeTimeFormat does not have or split one native `format(value, unit)` operation into many public verbs.
 
 ---
 
@@ -204,6 +202,8 @@ MUST rules:
 2. Positive values and positive zero select `future`.
 3. Number formatting uses the absolute value.
 4. Plural category selection follows ECMA-402 and existing `pluralrules` behavior.
+5. Literal lookup, tense, NumberFormat input, and PluralRules input must all derive from the same normalized Number. `2^53+1` therefore observes the same value as JavaScript `Number(2^53+1)`.
+6. Number-to-string literal lookup collapses negative zero to `"0"`, while tense still observes its sign bit.
 
 ### 4.3 `numeric=auto`
 
@@ -221,7 +221,7 @@ MUST rules:
 
 Formatting pipeline:
 
-1. Reject non-finite or malformed numeric input.
+1. Reject non-finite numeric input.
 2. Normalize unit to singular.
 3. Select style field, with short/narrow fallback to long.
 4. If `numeric=auto`, return exact literal when present.
@@ -290,7 +290,7 @@ The root package must not add `NewRelativeTimeFormat`, `FormatRelativeTime`, cac
 MUST rules:
 
 1. Use stdlib `testing`, table-driven tests, and `t.Parallel()` unless shared generated-output state prevents it.
-2. Add focused unit tests for constructor defaults, invalid options, invalid units, non-finite values, style fallback, `numeric=auto`, parts joining, and supported locales.
+2. Add focused unit tests for constructor defaults, invalid options, invalid units, the `2^53` boundary, `uint64` conversion, signed zero, non-finite values, style fallback, `numeric=auto`, parts joining, and supported locales.
 3. Add generator tests for CLDR relative field extraction and generated supported locales.
 4. Add generated-reference conformance fixtures under `relativetimeformat/testdata/conformance/formatjs/`.
 5. Accepted output mismatches must go to `relativetimeformat/testdata/divergences.md` or `xfail.json`.
@@ -311,6 +311,7 @@ Acceptance checks:
 - No runtime CLDR JSON loading.
 - No public cache controls.
 - No reimplementation of NumberFormat digit formatting or PluralRules category selection.
+- No exact-decimal bridge or mode for relative-time values.
 - No hand-written supported-locale list.
 - No date arithmetic or calendar-relative helpers.
 - No implementation of other ECMA-402 constructors as part of this package.

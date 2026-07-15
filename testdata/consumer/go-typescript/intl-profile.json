@@ -24,7 +24,9 @@
       "timeZone": "UTC",
       "start": "2026-06-01T00:00:00Z",
       "end": "2026-05-01T00:00:00Z",
-      "errorCode": "invalid_value"
+      "want": "6/1/2026 – 5/1/2026",
+      "wantStart": "6/1/2026",
+      "wantEnd": "5/1/2026"
     },
     "pluralRules": {
       "locale": "az",

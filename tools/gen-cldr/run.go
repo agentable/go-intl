@@ -11,15 +11,21 @@ import (
 	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 	"github.com/agentable/go-intl/tools/gen-cldr/codegen"
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
+	"github.com/agentable/go-intl/tools/gen-cldr/tzdb"
 	"github.com/agentable/go-intl/tools/internal/localeprofile"
 )
 
 // Config controls a generator run.
 type Config struct {
-	CLDRDir     string
-	OutDir      string
-	VersionFile string
-	ProfileFile string
+	CLDRDir          string
+	OutDir           string
+	LocaleIDOut      string
+	LocaleMatcherOut string
+	TimeZoneOut      string
+	TZDataLock       string
+	TZDataArchive    string
+	VersionFile      string
+	ProfileFile      string
 }
 
 // Run drives the CLDR extract and emit pipeline.
@@ -53,7 +59,37 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 		return fmt.Errorf("load cldr-json: %w", err)
 	}
 	log.InfoContext(ctx, "cldr-json checkout validated", "dir", source.Root)
-	manifest, err := buildManifest(cfg.VersionFile, cfg.ProfileFile, source.Root, want, profile)
+	var registry tzdb.Registry
+	var manifestExtras []manifestInputFile
+	if cfg.TimeZoneOut != "" {
+		if cfg.TZDataLock == "" {
+			return fmt.Errorf("config: -tzdata-lock is required with -timezone-out")
+		}
+		pin, err := tzdb.ReadPin(cfg.TZDataLock)
+		if err != nil {
+			return err
+		}
+		if pin.Version != want.TZData {
+			return fmt.Errorf("tzdb pin version %q, want VERSION tzdata %q", pin.Version, want.TZData)
+		}
+		if cfg.TZDataArchive == "" {
+			cfg.TZDataArchive = filepath.Join(filepath.Dir(cfg.TZDataLock), ".tzdata", "tzdata"+pin.Version+".tar.gz")
+		}
+		aliases, err := tzdb.LoadCLDRPrimaryAliases(filepath.Join(source.Root, "cldr-bcp47", "bcp47", "timezone.json"))
+		if err != nil {
+			return err
+		}
+		registry, err = tzdb.LoadArchive(cfg.TZDataArchive, pin, aliases)
+		if err != nil {
+			return err
+		}
+		log.InfoContext(ctx, "tzdb identity source validated", "version", registry.Version, "identifiers", len(registry.Records), "regions", len(registry.Regions))
+		manifestExtras = append(manifestExtras,
+			manifestInputFile{name: "tools/gen-cldr/tzdata.json", path: cfg.TZDataLock},
+			manifestInputFile{name: "iana/tzdata" + pin.Version + ".tar.gz", path: cfg.TZDataArchive},
+		)
+	}
+	manifest, err := buildManifest(cfg.VersionFile, cfg.ProfileFile, source.Root, want, profile, manifestExtras...)
 	if err != nil {
 		return err
 	}
@@ -69,34 +105,51 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 	relativeTime := extract.ExtractRelativeTimeFields(source.RelativeTime, profile.Locales)
 	displayNames := extract.ExtractDisplayNames(source.DisplayNames, profile.Locales)
 	input := codegen.RuntimeInput{
-		Manifest:        manifest,
-		Locales:         locales,
-		LikelySubtags:   likely,
-		Numbers:         numbers,
-		Currencies:      currencies,
-		Dates:           dates,
-		Preferences:     source.Preference,
-		Metazones:       metazones,
-		TimeZoneAliases: source.TimeZoneAliases,
-		Units:           units,
-		ListPatterns:    listPatterns,
-		RelativeTime:    relativeTime,
-		DisplayNames:    displayNames,
+		Manifest:      manifest,
+		Locales:       locales,
+		LikelySubtags: likely,
+		Numbers:       numbers,
+		Currencies:    currencies,
+		Dates:         dates,
+		Preferences:   source.Preference,
+		Metazones:     metazones,
+		Units:         units,
+		ListPatterns:  listPatterns,
+		RelativeTime:  relativeTime,
+		DisplayNames:  displayNames,
 	}
 	if err := codegen.RenderRuntime(cfg.OutDir, input); err != nil {
 		return fmt.Errorf("render runtime data: %w", err)
 	}
+	if cfg.LocaleIDOut != "" {
+		if err := codegen.RenderUnicodeTypeAliases(cfg.LocaleIDOut, source.UnicodeTypeAliases); err != nil {
+			return fmt.Errorf("render Unicode type aliases: %w", err)
+		}
+	}
+	if cfg.LocaleMatcherOut != "" {
+		if err := codegen.RenderLanguageMatchingProfile(cfg.LocaleMatcherOut, source.LanguageMatching); err != nil {
+			return fmt.Errorf("render language matching profile: %w", err)
+		}
+	}
+	if cfg.TimeZoneOut != "" {
+		if err := codegen.RenderTimeZoneRegistry(cfg.TimeZoneOut, registry); err != nil {
+			return fmt.Errorf("render time-zone registry: %w", err)
+		}
+	}
 	return nil
 }
 
-func buildManifest(versionFile, profileFile, cldrRoot string, versions cldr.Versions, profile localeprofile.Profile) (codegen.ManifestInput, error) {
-	inputFiles := [...]struct {
-		name string
-		path string
-	}{
+type manifestInputFile struct {
+	name string
+	path string
+}
+
+func buildManifest(versionFile, profileFile, cldrRoot string, versions cldr.Versions, profile localeprofile.Profile, extras ...manifestInputFile) (codegen.ManifestInput, error) {
+	inputFiles := []manifestInputFile{
 		{name: "internal/cldr/VERSION", path: versionFile},
 		{name: "tools/locale-profile.json", path: profileFile},
 	}
+	inputFiles = append(inputFiles, extras...)
 	packages := cldr.RequiredPackages()
 	hashes := make([]codegen.ManifestHash, len(inputFiles)+len(packages))
 	for i, file := range inputFiles {

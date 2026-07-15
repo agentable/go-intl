@@ -25,7 +25,7 @@ func (f *RelativeTimeFormat) Format(value Value, unit Unit) (string, error) {
 	if selection.literal != "" {
 		return selection.literal, nil
 	}
-	return relativeTimePatternText(selection.pattern, f.number.Format(value.numberValue)), nil
+	return relativeTimePatternText(selection.pattern, f.number.Format(value.numberFormatValue())), nil
 }
 
 func (f *RelativeTimeFormat) FormatToParts(value Value, unit Unit) ([]Part, error) {
@@ -36,7 +36,7 @@ func (f *RelativeTimeFormat) FormatToParts(value Value, unit Unit) ([]Part, erro
 	if selection.literal != "" {
 		return []Part{{Type: PartLiteral, Value: selection.literal}}, nil
 	}
-	return relativeTimePatternParts(selection.pattern, selection.unit, f.number.FormatToParts(value.numberValue)), nil
+	return relativeTimePatternParts(selection.pattern, selection.unit, f.number.FormatToParts(value.numberFormatValue())), nil
 }
 
 type relativeTimePatternSelection struct {
@@ -58,16 +58,16 @@ func resolveRelativeTimePattern(value Value, unit Unit, f *RelativeTimeFormat) (
 		return relativeTimePatternSelection{}, invalidRelativeTimeUnit(unit, f.resolved.Locale.String())
 	}
 	if f.resolved.Numeric == NumericAuto {
-		if literal := field.relative[value.literalKey]; literal != "" {
+		if literal := field.relative[value.literalKey()]; literal != "" {
 			return relativeTimePatternSelection{unit: resolvedUnit, literal: literal}, nil
 		}
 	}
-	category, err := f.plural.Select(value.pluralValue)
+	category, err := f.plural.Select(value.pluralRulesValue())
 	if err != nil {
 		return relativeTimePatternSelection{}, invalidRelativeTimeValue(value.errValue, f.resolved.Locale.String(), err)
 	}
 	patterns := field.future
-	if value.past {
+	if value.isPast() {
 		patterns = field.past
 	}
 	// pattern is always non-empty: compileRelativeTimePatternSet requires a

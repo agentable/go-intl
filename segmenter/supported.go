@@ -14,5 +14,8 @@ func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error) 
 		Requested:     locales,
 		LocaleMatcher: opts.LocaleMatcher,
 		Maximizer:     cldrlocale.Maximize,
+		// A best-fit fallback to an allowlisted language does not prove that the
+		// requested language's dictionary/CJK boundaries are implemented.
+		RequireLookupMatch: true,
 	})
 }

@@ -10,13 +10,13 @@
 
 ECMA-402 §6.4's `ToIntlMathematicalValue` normalizes any JS value (`Number` / `BigInt` / `String`) to an internal "mathematical value" concept, which can express `NaN`, `±Infinity`, and arbitrary precision decimal finite number `Finite(coeff, exp)`. This value is then consumed by abstract ops such as `ToRawPrecision` / `ToRawFixed` / `ComputeExponent` / `ApplyUnsignedRoundingMode`.
 
-Generated reference uses `@formatjs/bigdecimal` to self-implement this data structure; Go does not need to rewrite, because the `Form` enumeration (`Finite` / `Infinite` / `NaN` / `NaNSignaling`) of `cockroachdb/apd/v3` (IEEE 754-2008 GDA Decimal) corresponds one-to-one with generated-reference `BigDecimal.specialValue`, and natively provides `Log10` / `Floor` / `Ceil` / `Quantize` / `Round` / 8 GDA rounding modes (covering all 9 ECMA-402 modes).
+Generated reference uses `@formatjs/bigdecimal` to implement this data structure. Go uses `cockroachdb/apd/v3` (IEEE 754-2008 GDA Decimal) for finite/special-value representation, while ECMA-402 rounding uses exact coefficient/exponent arithmetic. No finite `apd.Context.Precision` participates in selecting rounding neighbours or ties.
 
 This SPEC decides:
 
 1. Backend selection **`cockroachdb/apd/v3`**; **rejection** `shopspring/decimal` (no NaN/Inf construct panic) and `ericlagergren/decimal` (v3 alpha long-term stagnation).
 2. The `Decimal` type that provides the ECMA-402 abstraction layer narrow interface in `internal/decimal/`; apd as a backend, but does not expose the apd type through the public API (to facilitate future switching).
-3. Nine ECMA-402 rounding modes → 8 GDA mode mappings of apd + `halfFloor` self-implemented patch.
+3. The nine ECMA-402 rounding modes map to the five unsigned selection rules and are evaluated against exact adjacent values.
 4. `RoundingPriority` / `RoundingIncrement` / `TrailingZeroDisplay` Three ES 2025 V3 algorithms are implemented in this package (SPEC 20 / 40 only for consumption).
 5. Formatter packages carry numeric inputs through `internal/ecma402.NumericValue`; the concrete `internal/decimal.Decimal` value is consumed directly by shared number-format and plural-rules algorithms. There is no active `MathematicalValue` interface layer.
 
@@ -34,7 +34,7 @@ require github.com/cockroachdb/apd/v3 v3.x.x
 
 | Candidate | Decision | Key Reasons |
 |------|------|---------|
-| **`github.com/cockroachdb/apd/v3`** | ✅ Selected | IEEE 754-2008 GDA; `Form` enumeration corresponds to generated-reference `specialValue`; native `Log10` / `Quantize` / `Round`; `Context` concurrency safety; Apache-2.0; maintained upstream. |
+| **`github.com/cockroachdb/apd/v3`** | ✅ Selected | IEEE 754-2008 GDA value representation; `Form` enumeration corresponds to generated-reference `specialValue`; arbitrary-size decimal coefficient; Apache-2.0; maintained upstream. |
 | `shopspring/decimal` | ❌ Reject | No NaN/Inf representation; `NewFromString("NaN")` panic, conflicts with CLAUDE.md "no panic in production" red line; missing `Log10` native |
 | `ericlagergren/decimal` | ❌ Rejected | v3 remains long-term alpha; ABI stability is weaker for a formatter math core. |
 | `math/big.Float` | ❌ Rejected | Binary floating point; `0.1 + 0.2` converted to decimal string and reference output **bytes are not equal** (violates SPEC 70 conformance) |
@@ -42,8 +42,8 @@ require github.com/cockroachdb/apd/v3 v3.x.x
 
 > **Why `cockroachdb/apd/v3`**:
 > 1. **GDA is isomorphic to Generated reference** - `apd.Form` enumeration (`Finite=0` / `Infinite=1` / `NaN=2` / `NaNSignaling=3`) directly corresponds to generated-reference `BigDecimal.specialValue`(`undefined` / `'POSITIVE_INFINITY'` / `'NEGATIVE_INFINITY'` / `'NaN'`); ported `ToIntlMathematicalValue` is 1:1 Translate.
-> 2. **Native override ECMA-402 operations** - `Log10` / `Floor` / `Ceil` / `Quantize` / `Round` all built-in; no need to self-implement for ToRawPrecision / ComputeExponent.
-> 3. **Concurrency safety** - `apd.Context` is a value type and can be copied by goroutine; unlike `big.Float`, it is a shared mutable state.
+> 2. **Exact representation without precision policy** - apd owns the decimal coefficient, exponent, sign, and special forms. ECMA-402 neighbour selection remains exact for arbitrary-size `BigInt` and decimal-string inputs instead of inheriting a context precision.
+> 3. **Backend boundary** - formatter code consumes the narrow `Decimal` wrapper. Coefficient/exponent operations needed by rounding stay private and do not expose apd through public APIs.
 > 4. **Active maintenance** - cockroachdb main repository, continuous submission, Apache-2.0 compatible with go-intl license.
 >
 > **Rejected `shopspring/decimal` Details**:
@@ -309,23 +309,21 @@ d, _ = decimal.ToIntlMathematicalValue(math.NaN())      // NaNValue
 
 ### 4.1 Nine ECMA-402 modes
 
-ECMA-402 §15.5.5 defines nine rounding modes; compared with apd:
+ECMA-402 §15.5.5 defines nine signed rounding modes. `UnsignedRoundingMode` maps them to the five selection behaviours consumed by `ApplyUnsignedRoundingMode`:
 
-| ECMA-402 Name | apd Rounding Constant | Description |
+| ECMA-402 Name | Positive input | Negative input |
 |------------|------------------|------|
-| `ceil` | `apd.RoundCeiling` | Towards +∞ |
-| `floor` | `apd.RoundFloor` | Towards -∞ |
-| `expand` | `apd.RoundUp` | Far from zero |
-| `trunc` | `apd.RoundDown` | Towards zero |
-| `halfCeil` | (no apd direct correspondence) | Half of the cases go to +∞;**Self-implementation** |
-| `halfFloor` | (no apd direct correspondence) | Half of the cases go to -∞;**Self-implementation** |
-| `halfExpand` | `apd.RoundHalfUp` | Far from zero half the time (default) |
-| `halfTrunc` | `apd.RoundHalfDown` | Towards zero half of the time |
-| `halfEven` | `apd.RoundHalfEven` | Half of the time to an even number (Banker) |
+| `ceil` | infinity | zero |
+| `floor` | zero | infinity |
+| `expand` | infinity | infinity |
+| `trunc` | zero | zero |
+| `halfCeil` | half-infinity | half-zero |
+| `halfFloor` | half-zero | half-infinity |
+| `halfExpand` | half-infinity | half-infinity |
+| `halfTrunc` | half-zero | half-zero |
+| `halfEven` | half-even | half-even |
 
-> **Why apd is missing `halfCeil` / `halfFloor`**: apd implements 8 modes of the GDA standard; ECMA-402 V3(2022) adds `halfCeil` / `halfFloor` (for financial rounding to the positive direction/negative direction).
->
-> **Why not submit PR to apd**: The maintainer has stated that this is ECMA-402 specific and does not belong to GDA; and the apd `Rounder` interface allows us to extend it.
+The implementation does not delegate these decisions to an apd `Rounder`: ECMA-402 requires both adjacent mathematical values so `halfCeil`, `halfFloor`, and `halfEven` can select the correct endpoint.
 
 ### 4.2 Go Type
 
@@ -379,7 +377,7 @@ func GetUnsignedRoundingMode(m RoundingMode, isNegative bool) RoundingMode
 
 > **Why According to spec name `ApplyUnsignedRoundingMode` verbatim**:generated-reference `ecma402-abstract/NumberFormat/ApplyUnsignedRoundingMode.ts` 1:1 implementation; the transplantation cost is the lowest.
 >
-> **Why not directly adjust `apd.Decimal.Quantize` + `apd.Rounder`**: The Rounder interface of apd does not expose the intermediate value of "between the two neighbors r1 / r2 I am now", and cannot implement the "select the edge based on the symbol" logic of `halfCeil` / `halfFloor`; must implement `ApplyUnsignedRoundingMode` by itself, and use apd internally to calculate `r1` / `r2` Then choose yourself.
+> **Why not use `apd.Decimal.Quantize` + `apd.Rounder`**: The Rounder interface does not expose both ECMA-402 neighbours. `QuantizeToIncrement` therefore derives `r1` and `r2` by exact integer quotient/remainder, and `ApplyUnsignedRoundingMode` compares exact aligned coefficients. This also prevents a backend context from truncating 100+ digit values before the rounding decision.
 
 ### 4.4 RoundingPriority
 
@@ -421,29 +419,41 @@ RoundingCompact // notation=compact default
 ```go
 // internal/decimal/quantize.go(signature)
 
-// ValidRoundingIncrements are among the 17 values allowed by ECMA-402 §15.5.4.
+// roundingIncrements contains the 15 values allowed by ECMA-402 §15.5.4.
 // Other values → ErrInvalidRoundingIncrement.
-var ValidRoundingIncrements = []int{
+var roundingIncrements = [...]int{
     1, 2, 5, 10, 20, 25, 50,
     100, 200, 250, 500,
     1000, 2000, 2500, 5000,
 }
 
-// IsValidRoundingIncrement verification.
+// RoundingIncrements returns a caller-owned copy.
+func RoundingIncrements() []int
+
+// IsValidRoundingIncrement validates a single option value.
 func IsValidRoundingIncrement(inc int) bool
 
 // QuantizeToIncrement(x, increment, exp, mode) rounds x to the nearest
 // (increment × 10^exp) multiple.
 // x: value to be rounded
-// increment: must ∈ ValidRoundingIncrements
+// increment: must be present in roundingIncrements
 // exp: magnitude (determined by mxfd)
 //   mode      : RoundingMode
 func QuantizeToIncrement(x Decimal, increment int, exp int32, mode RoundingMode) Decimal
 ```
 
-> **Why static check `ValidRoundingIncrements`**: ECMA-402 §15.5.4 Explicit enumeration, any other value is RangeError; one-time `IsValidRoundingIncrement` check at the `numberformat.New` boundary to avoid re-evaluation when `Format` is used.
+> **Why a static increment set**: ECMA-402 §15.5.4 explicitly enumerates the values; any other value is a RangeError. The formatter validates once at construction, while the accessor returns a copy so callers cannot mutate package state.
 >
-> **Why `QuantizeToIncrement` is not adjusted internally `apd.Quantize`**: Quantize of apd is "quantized to 10^k", and this operator is "quantized to an integer multiple of (increment × 10^exp)"; you need to `x / increment` first, then quantize and then multiply back to increment.
+> **Why `QuantizeToIncrement` uses coefficient/exponent arithmetic**: The target is an integer multiple of `increment × 10^exp`, not merely a decimal exponent. Exact integer quotient/remainder identifies the lower and upper multiples without division precision, then exact aligned coefficients determine distance and half-even cardinality. Replacing a fixed precision with a larger constant is forbidden because public `BigInt` and decimal-string inputs have no matching digit limit.
+>
+> **Work bound for extreme exponents**: Exact rounding must not materialize a
+> `10^n` coefficient, or otherwise allocate work proportional to `n`, when the
+> input is already an exact multiple of the step or when the rounded result can
+> be selected without expanding that power. This keeps compact decimal records
+> such as `1e+1000000000` and `1e-1000000000` bounded by the digits that must
+> actually appear in the input or result. The implementation owner is
+> `internal/decimal/quantize.go`; the regression witness is
+> `internal/decimal/quantize_test.go` (`TestQuantizeToIncrementBoundsWorkForExtremeExponents`).
 
 ### 4.6 TrailingZeroDisplay
 
@@ -496,12 +506,12 @@ The exact decimal result of `floor(log10(|x|))` is required (cannot use `math.Lo
 // Log10Floor returns the exact integer result of floor(log10(|x|)).
 // x must be Form == Finite and != 0; otherwise ErrLog10Domain will be returned.
 //
-// Internally used apd.BaseContext.Precision = 200 (covering the ECMA-402 mxfd upper bound of 100)
-// Call apd.Log10 then Floor; the result is int32 (always within the ECMA-402 numeric domain).
+// For finite positive x, floor(log10(x)) is NumDigits(coeff)-1+exponent.
+// The result is checked before conversion to int32.
 func Log10Floor(x Decimal) (int32, error)
 ```
 
-> **Why `apd.Log10` + Precision=200**: ECMA-402's `mxfd` upper bound is 100, so the maximum relevant value is about 10^100; Log10 internal precision 200 is enough to keep the `floor` boundary correct.
+> **Why digit count instead of logarithm**: A finite decimal already stores an integer coefficient and base-10 exponent. Their decimal digit count gives the exact floor directly, including arbitrary-size values and exact powers of ten, with no floating or context precision boundary.
 
 ---
 
@@ -763,9 +773,12 @@ type NumericValue struct {
 
 ### RoundingIncrement
 
-- [ ] `ValidRoundingIncrements` verbatim 17 value.
+- [ ] `RoundingIncrements()` returns the 15 sanctioned values and a caller cannot mutate package state through the returned slice.
 - [ ] `IsValidRoundingIncrement(3) == false`,`IsValidRoundingIncrement(50) == true`.
-- [ ] `QuantizeToIncrement(123.456, 25, -2, RoundHalfExpand).String() == "123.5"`(125/25=5; round half expand; 25×0.05=1.25? See fixture).
+- [ ] `QuantizeToIncrement(123.456, 25, -2, RoundHalfExpand).String() == "123.50"` (the target step is `25 × 10^-2 = 0.25`).
+- [ ] 1-, 100-, 101-, 250-, and 1000-digit coefficients retain their low-order rounding information across positive and negative exponent alignment.
+- [ ] No fixed `apd.Context.Precision` participates in quotient, neighbour, distance, or half-even selection.
+- [ ] `QuantizeToIncrement` handles compact inputs with exponents `+1_000_000_000` and `-1_000_000_000` without constructing exponent-sized powers of ten; exact multiples remain unchanged and tiny values select zero or one target step according to the rounding mode.
 - [ ] generated-reference `ecma402-abstract/NumberFormat/tests/Quantize.test.ts` fixture passed (if exists).
 
 ### TrailingZeroDisplay
@@ -825,7 +838,7 @@ type NumericValue struct {
 
 ### Library survey
 
-- `github.com/cockroachdb/apd/v3` —— selected backend;Apache-2.0;`Form` / `Context` / `Log10` / `Quantize` / `Round` / 8 GDA modes
+- `github.com/cockroachdb/apd/v3` —— selected representation backend; Apache-2.0; `Decimal` / `Form` / arbitrary-size coefficient
 - `github.com/shopspring/decimal` —— ❌ reject; no NaN/Inf; construct panic
 - `github.com/ericlagergren/decimal` —— ❌ Rejected; v3 alpha long-term stagnation (no new commits after 2024-04)
 - `math/big.Float` —— ❌ reject; binary IEEE-754; conformance byte-equality fails

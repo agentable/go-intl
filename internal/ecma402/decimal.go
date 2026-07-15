@@ -21,7 +21,7 @@ func ParseDecimalInput(value string) (decimal.Decimal, error) {
 }
 
 // ParseFiniteDecimalInput parses a decimal-string bridge value that must be
-// finite, such as PluralRules input and NumberFormat range endpoints.
+// finite at the owning operation boundary.
 func ParseFiniteDecimalInput(value string) (decimal.Decimal, error) {
 	d, err := ParseDecimalInput(value)
 	if err != nil {

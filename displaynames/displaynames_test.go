@@ -251,13 +251,25 @@ func TestDisplayNames_ResolvedOptionsLanguageDisplayPresentForLanguageType(t *te
 
 func TestSupportedLocalesOf(t *testing.T) {
 	t.Parallel()
+
 	requested := locale.List{intltest.Locale(t, "en-US"), intltest.Locale(t, "xh")}
-	got, err := displaynames.SupportedLocalesOf(requested, displaynames.Options{})
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name string
+		opts displaynames.Options
+		want []string
+	}{
+		{name: "best fit", opts: displaynames.Options{}, want: []string{"en-US", "xh"}},
+		{name: "lookup", opts: displaynames.Options{LocaleMatcher: stringPtr(displaynames.LookupLocaleMatcher)}, want: []string{"en-US"}},
 	}
-	if len(got) != 1 || got[0].String() != "en-US" {
-		t.Errorf("SupportedLocalesOf = %v, want [en-US]", got)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := displaynames.SupportedLocalesOf(requested, tc.opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			testcontract.AssertLocaleListStrings(t, "SupportedLocalesOf", got, tc.want)
+		})
 	}
 }
 

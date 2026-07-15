@@ -93,7 +93,7 @@ func applyOptions(cfg *config, opts Options) {
 	ecma402.ApplyOptionInput(&cfg.caseFirst, &cfg.caseFirstSet, opts.CaseFirst)
 	ecma402.ApplyOptionInput(&cfg.numeric, &cfg.numericSet, opts.Numeric)
 	ecma402.ApplyOption(&cfg.ignorePunctuation, opts.IgnorePunctuation)
-	ecma402.ApplyUnicodeTypeOptionInput(&cfg.collation, &cfg.collationSet, opts.Collation)
+	ecma402.ApplyUnicodeTypeOptionInput(&cfg.collation, &cfg.collationSet, "co", opts.Collation)
 }
 
 func (cfg config) validate(locName string) error {
@@ -120,6 +120,16 @@ func (cfg config) validate(locName string) error {
 		if err := ecma402.ValidateSupportedStringOptions(collatorOwner, locName, supportedCaseFirstOption(cfg.caseFirst)); err != nil {
 			return err
 		}
+	}
+	if cfg.ignorePunctuation {
+		return ecma402.UnsupportedOptionErrorExpected(
+			collatorOwner,
+			"ignorePunctuation",
+			"true",
+			locName,
+			"false or omitted until the active backend supports UCA alternate-shifted handling",
+			nil,
+		)
 	}
 	return ecma402.ValidateUnicodeTypeOptionInput(collatorOwner, "collation", cfg.collation, locName, cfg.collationSet)
 }

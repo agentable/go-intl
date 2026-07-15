@@ -16,7 +16,7 @@ Before `go-intl` advertises or accepts a Collator option, the backend must apply
 
 ## Actual Behavior
 
-The active `x/text/collate` integration can cover base sort behavior, numeric comparison, and sensitivity. It does **not** implement UCA alternate-shifted handling: `Collator.compare()` hits `else { // TODO: handle shifted }` (`collate/collate.go:164-166`), which skips the primary comparison level, so requesting `ka=shifted` collapses every comparison to zero. go-intl therefore implements `ignorePunctuation` itself by stripping punctuation/whitespace before comparison rather than delegating to the backend. It also does not expose a stable public path for ECMA-402 search tailoring, case-first direction, or arbitrary explicit collation tailorings.
+The active `x/text/collate` integration can cover base sort behavior, numeric comparison, and sensitivity. It does **not** implement UCA alternate-shifted handling: `Collator.compare()` hits `else { // TODO: handle shifted }` (`collate/collate.go:164-166`), which skips the primary comparison level, so requesting `ka=shifted` collapses every comparison to zero. Unicode category deletion is not equivalent to collation variable weights, so go-intl rejects `ignorePunctuation=true` with `ErrUnsupportedOption`. The backend also does not expose a stable public path for ECMA-402 search tailoring, case-first direction, or arbitrary explicit collation tailorings.
 
 ## Evidence
 
@@ -26,4 +26,4 @@ The active `x/text/collate` integration can cover base sort behavior, numeric co
 
 ## Suggested Workaround
 
-Keep the current constructor rejections and withhold `Intl.supportedValuesOf("collation")` values until either `x/text/collate` can be mapped to those ECMA-402 semantics or a replacement/generated backend proves the behavior with fixtures, size evidence, and benchmark evidence.
+Keep the current constructor rejections, including `ignorePunctuation=true`, and withhold `Intl.supportedValuesOf("collation")` values until either `x/text/collate` can be mapped to those ECMA-402 semantics or a replacement/generated backend proves the behavior with fixtures, size evidence, and benchmark evidence.

@@ -228,8 +228,20 @@ func TestNumberFormatPublicRangeDecimalAndFloatBridges(t *testing.T) {
 		t.Fatal(err)
 	}
 	gotDecimal := mustFormatRange(t, format, start, end)
-	if gotDecimal != "1.25–1.50" {
-		t.Fatalf("FormatRangeDecimal(1.25, 1.50) = %q, want 1.25–1.50", gotDecimal)
+	if gotDecimal != "1.25–1.5" {
+		t.Fatalf("FormatRangeDecimal(1.25, 1.50) = %q, want 1.25–1.5", gotDecimal)
+	}
+
+	equalStart, err := Decimal("1.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	equalEnd, err := Decimal("1.50")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mustFormatRange(t, format, equalStart, equalEnd); got != "~1.5" {
+		t.Fatalf("FormatRangeDecimal(1.5, 1.50) = %q, want ~1.5", got)
 	}
 }
 

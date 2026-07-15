@@ -8,6 +8,7 @@ import (
 )
 
 var requiredPackages = [...]string{
+	"cldr-bcp47",
 	"cldr-core",
 	"cldr-dates-full",
 	"cldr-localenames-full",

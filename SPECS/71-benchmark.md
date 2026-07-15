@@ -100,7 +100,7 @@ func BenchmarkNumberFormat_Decimal_Cached(b *testing.B) {
 
 **Rules**:
 
-1. **MUST** use Go 1.24+ `b.Loop()` (project baseline Go 1.26.4). **FORBIDDEN** to use the old-style `for i := 0; i < b.N; i++` loop.
+1. **MUST** use Go 1.24+ `b.Loop()` (project baseline Go 1.26.5). **FORBIDDEN** to use the old-style `for i := 0; i < b.N; i++` loop.
 2. Cached benchmark **MUST** complete the construction before `b.Loop()`; **FORBIDDEN** to `New(...)` in the loop body (that is the scope of PerCall).
 3. All benchmarks **MUST** call `b.ReportAllocs()`, reporting B/op + allocs/op outside of ns/op.
 4. **FORBIDDEN** Calling `time.Now()` / `runtime.GC()` and other perturbation measurements within the benchmark.
@@ -227,13 +227,13 @@ Benchmark numbers are evidence, not gates. A benchmark result may justify invest
 
 Committed baseline artifacts live under `testdata/bench/` and use
 `baseline-<go-version>-<goos>-<goarch>.txt`. The current Apple Silicon
-baseline is `testdata/bench/baseline-go1.26.3-darwin-arm64.txt`, captured with:
+baseline is `testdata/bench/baseline-go1.26.5-darwin-arm64.txt`, captured with:
 
 ```bash
 go test -run '^$' -bench=. -benchmem ./numberformat ./pluralrules
 ```
 
-Use it with `task bench BASELINE=testdata/bench/baseline-go1.26.3-darwin-arm64.txt`
+Use it with `task bench BASELINE=testdata/bench/baseline-go1.26.5-darwin-arm64.txt`
 when reviewing performance regressions on comparable hardware. Refreshing the
 file is a release-maintenance act, not a correctness gate.
 

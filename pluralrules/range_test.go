@@ -48,16 +48,16 @@ func TestPluralRulesSelectRangeDecimal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != Other {
-		t.Fatalf("SelectRangeDecimal(1, 1.0) = %s, want %s", got, Other)
+	if got != One {
+		t.Fatalf("SelectRangeDecimal(1, 1.0) = %s, want %s", got, One)
 	}
 
 	got, err = rules.SelectRange(decimalValue("1.0"), decimalValue("1.00"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != Other {
-		t.Fatalf("SelectRangeDecimal(1.0, 1.00) = %s, want %s", got, Other)
+	if got != One {
+		t.Fatalf("SelectRangeDecimal(1.0, 1.00) = %s, want %s", got, One)
 	}
 
 	got, err = rules.SelectRange(decimalValue("1"), decimalValue("1"))

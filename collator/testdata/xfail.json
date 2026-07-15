@@ -28,5 +28,11 @@
     "reason": "Node reflects explicit collation options in resolved locale extensions while ECMA-402 ResolveLocale and FormatJS keep option overrides out of the locale tag",
     "expires_at": "2026-09-30",
     "tracking_issue": "SPEC-45"
+  },
+  {
+    "id": "collator-node-v26-ignore-punctuation",
+    "reason": "active x/text backend does not implement UCA alternate-shifted handling; deleting Unicode punctuation categories is not equivalent",
+    "expires_at": "2026-09-30",
+    "tracking_issue": "SPEC-45"
   }
 ]

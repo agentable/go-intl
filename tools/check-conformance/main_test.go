@@ -196,7 +196,7 @@ func TestRunReportsDivergenceIDMissingFromFixtures(t *testing.T) {
 	packageDir := writeFixtureFile(t, root, "numberformat", "numberformat/testdata/conformance/manual/basic.json", `[
 		{"id":"nf-basic","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"}
 	]`)
-	writeDivergences(t, packageDir, "id: nf-missing\nsource: manual:missing\nowner: numberformat\nreason: known upstream difference\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeDivergences(t, packageDir, "id: nf-missing\nsource: manual:missing\nowner: numberformat\nstatus: accepted\nreason: known upstream difference\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 
 	err := run([]string{packageDir}, io.Discard)
 	if err == nil {
@@ -214,7 +214,7 @@ func TestRunReportsDivergenceSourceMismatch(t *testing.T) {
 	packageDir := writeFixtureFile(t, root, "numberformat", "numberformat/testdata/conformance/manual/basic.json", `[
 		{"id":"nf-basic","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"}
 	]`)
-	writeDivergences(t, packageDir, "id: nf-basic\nsource: formatjs:wrong\nowner: numberformat\nreason: known upstream difference\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeDivergences(t, packageDir, "id: nf-basic\nsource: formatjs:wrong\nowner: numberformat\nstatus: accepted\nreason: known upstream difference\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 
 	err := run([]string{packageDir}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "source") || !strings.Contains(err.Error(), "manual") {

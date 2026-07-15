@@ -12,13 +12,13 @@ func (l *Locale) readExtensions(ext localeid.UnicodeExtension) error {
 	l.ext.attributes = ext.Attributes()
 	keywords := ext.Keywords()
 	l.ext.keywords = unknownUnicodeKeywords(keywords)
-	if l.ext.calendar, err = normalizeUnicodeExtension(ext, "ca", "calendar", normalizeUnicodeType); err != nil {
+	if l.ext.calendar, err = normalizeUnicodeExtension(ext, "ca", "calendar", normalizeUnicodeTypeForKey("ca")); err != nil {
 		return err
 	}
-	if l.ext.collation, err = normalizeUnicodeExtension(ext, "co", "collation", normalizeUnicodeType); err != nil {
+	if l.ext.collation, err = normalizeUnicodeExtension(ext, "co", "collation", normalizeUnicodeTypeForKey("co")); err != nil {
 		return err
 	}
-	if l.ext.numberingSystem, err = normalizeUnicodeExtension(ext, "nu", "numberingSystem", normalizeUnicodeType); err != nil {
+	if l.ext.numberingSystem, err = normalizeUnicodeExtension(ext, "nu", "numberingSystem", normalizeUnicodeTypeForKey("nu")); err != nil {
 		return err
 	}
 	if l.ext.hourCycle, err = normalizeUnicodeExtension(ext, "hc", "hourCycle", normalizeHourCycle); err != nil {

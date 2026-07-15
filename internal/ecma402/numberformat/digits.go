@@ -120,15 +120,10 @@ func roundingType(opts DigitOptions) decimal.RoundingType {
 	return decimal.ApplyRoundingPriority(opts.MaximumSignificantDigits > 0, true, priority)
 }
 
-// canUseRoundedString is a fast path that returns the input decimal's string
-// verbatim when no digit option requires rounding, padding, or trailing-zero
-// changes and the fraction already fits MaximumFractionDigits.
-//
-// This path is load-bearing for PluralRules: preserving the source decimal's
-// visible fraction digits is what lets the operands (notably v) reflect trailing
-// zeros — e.g. "1.0" must select "other", not "one". It must therefore stay
-// byte-identical to the general fixed path for every input where it fires; that
-// agreement is locked by TestCanUseRoundedStringAgreesWithFullPath.
+// canUseRoundedString returns true only when the input representation is already
+// byte-identical to the general fixed path. Input literal scale is not part of an
+// Intl mathematical value, so fractional trailing zeros and negative zero must
+// go through that path even when no rounding is otherwise needed.
 func canUseRoundedString(d decimal.Decimal, opts DigitOptions) bool {
 	switch {
 	case opts.MinimumIntegerDigits != 1,
@@ -140,8 +135,11 @@ func canUseRoundedString(d decimal.Decimal, opts DigitOptions) bool {
 		opts.RoundingPriority != "auto":
 		return false
 	}
+	if d.IsZero() && d.Negative() {
+		return false
+	}
 	_, fraction, ok := strings.Cut(strings.TrimPrefix(d.String(), "-"), ".")
-	return !ok || len(fraction) <= opts.MaximumFractionDigits
+	return !ok || len(fraction) <= opts.MaximumFractionDigits && !strings.HasSuffix(fraction, "0")
 }
 
 func roundFixed(d decimal.Decimal, opts DigitOptions) (decimal.Decimal, bool) {
@@ -178,10 +176,20 @@ func roundSignificant(d decimal.Decimal, opts DigitOptions) (decimal.Decimal, bo
 }
 
 func roundedFixedString(d decimal.Decimal, maximumFractionDigits int) string {
-	if d.IsZero() && maximumFractionDigits > 0 {
-		return "0." + strings.Repeat("0", maximumFractionDigits)
+	formatted := strings.TrimPrefix(d.String(), "-")
+	integer, fraction, ok := strings.Cut(formatted, ".")
+	if maximumFractionDigits == 0 {
+		return integer
 	}
-	return strings.TrimPrefix(d.String(), "-")
+	if !ok {
+		return integer + "." + strings.Repeat("0", maximumFractionDigits)
+	}
+	if len(fraction) < maximumFractionDigits {
+		fraction += strings.Repeat("0", maximumFractionDigits-len(fraction))
+	} else if len(fraction) > maximumFractionDigits {
+		fraction = fraction[:maximumFractionDigits]
+	}
+	return integer + "." + fraction
 }
 
 func unsignedDecimal(d decimal.Decimal) (decimal.Decimal, bool) {
@@ -190,7 +198,7 @@ func unsignedDecimal(d decimal.Decimal) (decimal.Decimal, bool) {
 
 func trimFraction(formatted string, opts DigitOptions) string {
 	if opts.TrailingZeroDisplay == "stripIfInteger" {
-		return stripIntegerFraction(formatted)
+		formatted = stripIntegerFraction(formatted)
 	}
 	cut := opts.MaximumFractionDigits - opts.MinimumFractionDigits
 	for cut > 0 && strings.HasSuffix(formatted, "0") {

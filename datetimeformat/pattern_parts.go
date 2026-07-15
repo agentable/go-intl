@@ -74,7 +74,7 @@ func (f *DateTimeFormat) timePatternPart(field rune, width int, t localTime, num
 		return Part{Type: PartSecond, Value: localizedNumericField(t.Second, width, numberingSystem)}, true
 	case 'S':
 		value := fractionalSecondValue(t.Nanosecond, width)
-		return Part{Type: PartFractionalSecondDigits, Value: ecma402.LocalizeDigits(value, numberingSystem)}, true
+		return Part{Type: PartFractionalSecond, Value: ecma402.LocalizeDigits(value, numberingSystem)}, true
 	case 'a':
 		if uses24Hour {
 			return Part{}, false

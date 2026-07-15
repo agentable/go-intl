@@ -89,7 +89,7 @@ func applyOptions(cfg *config, opts Options) {
 	ecma402.ApplyOption(&cfg.useGrouping, opts.UseGrouping)
 	ecma402.ApplyOption(&cfg.signDisplay, opts.SignDisplay)
 	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
-	ecma402.ApplyOptionInput(&cfg.numberingSystem, &cfg.numberingSystemSet, opts.NumberingSystem)
+	ecma402.ApplyUnicodeTypeOptionInput(&cfg.numberingSystem, &cfg.numberingSystemSet, "nu", opts.NumberingSystem)
 }
 
 func (c config) validate(locName string) error {

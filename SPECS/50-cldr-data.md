@@ -19,13 +19,13 @@ The runtime algorithm boundaries for `collator`, `segmenter`, and active best-fi
 > - `//go:build` tags (`intl_full` / `intl_minimal`) — lost on default-correctness: the default shape must already be correct; making users opt out of a broken default is configuration cope.
 > - Multi-module split — lost on cost/benefit: Go's compile and link unit is the package, not the module; splitting modules buys version-matrix, cross-module `internal/` invisibility, and release-orchestration cost for zero compile benefit.
 >
-> **Basis**: issue #3 reproducer measurements (Go 1.26.4, darwin/arm64): root package 5,945 → 226 MB; `unit` leaf 4,276 → 276 MB after blob-ization; all leaf domains land in the 276–317 MB band. `golang.org/x/text/internal/data` ships CLDR-scale data as const strings.
+> **Basis**: issue #3 reproducer measurements (darwin/arm64): root package 5,945 → 226 MB; `unit` leaf 4,276 → 276 MB after blob-ization; all leaf domains land in the 276–317 MB band. These measurements remain structural evidence rather than a toolchain-patch benchmark. `golang.org/x/text/internal/data` ships CLDR-scale data as const strings.
 
 ---
 
 ## CLDR Pin Rationale <a id="cldr-pin-rationale"></a>
 
-The active data baseline is fixed at `cldr=48.1.0` / `icu=78` / `tzdata=2025b` and is exposed to tests and data contracts by `internal/cldr/locale/manifest.go` (package `cldrlocale`). The three must move together as a conformance baseline: the CLDR JSON provides the locale payload, the ICU version represents the pattern-matching and reference-behavior context, and the tzdata version determines the IANA zone/link and display-name boundaries.
+The active data baseline is fixed at `cldr=48.1.0` / `icu=78` / `tzdata=2025b` and is exposed to tests and data contracts by `internal/cldr/locale/manifest.go` (package `cldrlocale`). The manifest records all three in one auditable baseline, but their owners remain distinct: CLDR JSON provides locale/display payloads, ICU identifies the reference-behavior context, and the pinned IANA release determines Zone/Link identity and region records. Go's embedded transition data may be newer than the identity pin but must never be older.
 
 Version upgrades must not be mixed with ordinary code changes as an opportunistic dependency refresh. An upgrade must update `internal/cldr/VERSION`, rerun `task data`, pass `task data:check` / `task conformance:verify` / `task verify`, and document user-observable data differences in this SPEC or release notes.
 
@@ -46,22 +46,32 @@ CLDR data **MUST** directly consume the npm package set (`cldr-bcp47` / `cldr-co
 
 ### 1.2 Extraction scope (active scope) <a id="schema"></a>
 
-Each semantic domain is a Go package under `internal/cldr/<domain>/` with a generated **const-only** `data.go` (one or more `const _<...>Blob` payloads plus a domain-private `const _data` string table) and hand-written `decode.go` / `accessors.go`. The locale kernel package `cldrlocale` (`internal/cldr/locale/`) owns the `Locale` handle, the locale registry, likely subtags, region/hour-cycle/week preferences, numbering data, collation candidates, IANA time-zone links, the data manifest, and `Version()`. The root `internal/cldr` directory holds only the `VERSION` text file and the domain subdirectories; it is **not** a Go package.
+Each semantic domain is a Go package under `internal/cldr/<domain>/` with a generated **const-only** `data.go` (one or more `const _<...>Blob` payloads plus a domain-private `const _data` string table) and hand-written `decode.go` / `accessors.go`. The locale kernel package `cldrlocale` (`internal/cldr/locale/`) owns the `Locale` handle, the locale registry, likely subtags, region/hour-cycle/week preferences, numbering data, collation candidates, the data manifest, and `Version()`. IANA identifier records live in `internal/tz`, outside the CLDR kernel and localized time-zone display domain. The root `internal/cldr` directory holds only the `VERSION` text file and the domain subdirectories; it is **not** a Go package.
 
 | `internal/cldr/<domain>` | CLDR source | Extract fields |
 |---------------------------|-------------|----------------|
 | `number` | `cldr-numbers-full/main/<locale>/numbers.json` | symbols (decimal/group/percent/plus/minus/NaN/Infinity/timeSeparator), decimal/percent/currency/scientific/compact formats, numbering systems |
 | `date` | `cldr-dates-full/main/<locale>/ca-gregorian.json` | era / month / weekday / day-period names (stand-alone × format, wide / abbreviated / narrow), date/time/dateTime formats, availableFormats, intervalFormats, day-period rules |
-| `timezone` | `cldr-core/supplemental/metaZones.json` + `cldr-dates-full/main/<locale>/timeZoneNames.json` | zone → metazone mapping, metazone display names (long / short × generic / standard / daylight), exemplarCity, metazone period boundaries |
+| `timezone` | `cldr-core/supplemental/metaZones.json` + `cldr-dates-full/main/<locale>/timeZoneNames.json` | zone → metazone mapping, metazone display names (long / short × generic / standard / daylight), exemplarCity, GMT/hour/region formatting patterns, metazone period boundaries |
 | `currency` | `cldr-numbers-full/main/<locale>/currencies.json` + `cldr-core/supplemental/currencyData.json` | currency display names (long / short / narrow), plural forms, defaultFractionDigits, cashDigits, rounding |
 | `unit` | `cldr-units-full/main/<locale>/units.json` | NumberFormat-sanctioned unit plural patterns, DurationFormat duration unit patterns (long / short / narrow), compound unit patterns, unit-supported locales |
 | `list` | `cldr-misc-full/main/<locale>/listPatterns.json` | `conjunction` / `disjunction` / `unit` × `long` / `short` / `narrow` pair/start/middle/end patterns |
 | `relativetime` | `cldr-dates-full/main/<locale>/dateFields.json` | long/short/narrow relative and relativeTime patterns for year/quarter/month/week/day/hour/minute/second |
 | `displaynames` | `cldr-localenames-full/main/<locale>/*.json` (+ currency names imported from the `currency` domain) | language / region / script / calendar / dateTimeField display names |
 | `plural` | `cldr-core/supplemental/plurals.json` + `ordinals.json` + `pluralRanges.json` | cardinal rules, ordinal rules, pluralRanges (emitted by SPEC 40 codegen; this SPEC only fixes the package location and that it passes the data-shape gate) |
-| `locale` (kernel) | `cldr-core` `availableLocales.json` / `likelySubtags.json` / `timeData.json` / `weekData.json` / `calendarPreferenceData.json`, `cldr-bcp47/collation.json`, IANA `backward` | locale registry (`und` at index 0), likely subtags (maximize/minimize), hour-cycle/week/calendar preferences, numbering data, collation candidates, IANA link → canonical zone, manifest, version |
+| `locale` (kernel) | `cldr-core` `availableLocales.json` / `likelySubtags.json` / `timeData.json` / `weekData.json` / `calendarPreferenceData.json`, `cldr-bcp47/collation.json` | locale registry (`und` at index 0), likely subtags (maximize/minimize), hour-cycle/week/calendar preferences, numbering data, collation candidates, manifest, version |
 
-The locale-matching distance / paradigm / matchVariables / territoryContainment tables had no production consumer (the runtime matcher in `internal/localematcher` carries its own distance table), so they are no longer generated.
+Three private identity products are emitted directly to their runtime owners:
+
+| Runtime owner | CLDR source | Generated contract |
+|---------------|-------------|--------------------|
+| `internal/localeid/unicode_alias_data.go` | `cldr-bcp47/bcp47/*.json` `keyword.u` records | key-aware Unicode type aliases; malformed aliases never become valid through lookup |
+| `internal/localematcher/profile_data.go` | `languageMatching.json` + `territoryContainment.json` | all ordered `written-new` rules, `oneway`, source and expanded match variables, and paradigm locales |
+| `internal/tz/registry_data.go` | SHA-256-pinned official IANA archive + CLDR BCP47 `timezone.json` | complete Zone/Link records, ECMA/ICU primary selection, and `zone.tab` region projection |
+
+These files do not create a public or root CLDR package. Their hand-written
+owners provide syntax/matching behavior, while the generator owns pinned facts
+and validation.
 
 Runtime CLDR accessors may interpret locale subtags only to select already
 generated data. When they need script or region shape checks, such as
@@ -71,16 +81,17 @@ domain-local ASCII/length grammar.
 
 #### Supported-value narrow indexes
 
-`SupportedLocales`, `SupportedNumberingSystems`, `SupportedCalendars`, `SupportedCurrencies`, `SupportedTimeZones`, and `UnitSupportedLocales` are cold-start-path queries that must **not** decode the domain's main payload. Each is generated as a small dedicated `const _<...>Blob` with its own `sync.Once`, owned by the domain that proves the support:
+`SupportedLocales`, `SupportedNumberingSystems`, `SupportedCalendars`, `SupportedCurrencies`, and `UnitSupportedLocales` are cold-start-path queries that must **not** decode the domain's main payload. Each is generated as a small dedicated `const _<...>Blob` with its own `sync.Once`, owned by the domain that proves the support:
 
 | Narrow index | Owner | Source |
 |--------------|-------|--------|
 | `number.SupportedLocales()` / `number.SupportedNumberingSystems()` | `number` | generated number payload locales + ECMA-402 simple digit set |
 | `date.SupportedLocales()` / `date.SupportedCalendars()` | `date` | gregorian-bearing payload locales; CLDR `"gregorian"` → ECMA-402 `"gregory"`, `+iso8601` when gregory exists |
 | `currency.SupportedCurrencies()` | `currency` | `currencyData.json`-derived candidate set |
-| `timezone.SupportedTimeZones()` | `timezone` | metazone + IANA link candidate set |
 | `unit.SupportedLocales()` | `unit` | unit-payload locales |
 | `list` / `relativetime` / `displaynames` `SupportedLocales()` | each domain | each domain's payload locales |
+
+`internal/tz.SupportedTimeZones()` is different by design: it is the primary projection of the generated IANA/CLDR identifier records, not a CLDR payload index. It must not decode localized metazone/display-name data.
 
 > **Why**: The legacy `supportedLocaleTags` walked an entire domain data map to collect keys; on the cold start of a `SupportedLocalesOf` call that triggered the full-domain decode and (before DCE) linked the whole domain blob. A narrow blob severs supported queries from main-payload decode, so root `Intl.supportedValuesOf` and constructor `SupportedLocalesOf` stay cheap.
 >
@@ -113,7 +124,7 @@ MUST rules:
 | Identifier | Source | Remarks |
 |------------|--------|---------|
 | Currency (ISO 4217 + precision) | CLDR `currencyData.json` | Do **not** add an independent ISO 4217 table or `bojanz/currency` (separate CLDR-derived table, drifts with `internal/cldr/VERSION`) |
-| Time zone (IANA zone) | `time/tzdata` transitions + CLDR `metaZones.json` display names | tzdata injected by SPEC 32; this SPEC generates the `timezone` display-name + metazone payload |
+| Time zone (IANA zone) | pinned official IANA Zone/Link archive + CLDR BCP47 `timezone.json` primary metadata + Go `time/tzdata` transitions + CLDR display data | `internal/tz` owns legal identifiers/primary/regions and transitions; `internal/cldr/timezone` owns localized names/metazones only |
 | Collation candidate identifiers | CLDR BCP47 `collation.json` | Generation filters deprecated, `ducet`, `search`, `standard`; active root support narrowed by `internal/collation` |
 | Sanctioned unit identifiers | ECMA-402 hardcode in `internal/ecma402/numberformat/constants.go` | Spec list is authoritative; CLDR provides the schema, not the sanctioned list |
 
@@ -159,7 +170,7 @@ Each domain's `data.go` carries its own `const _data string` table holding **onl
 
 ### 2.3 Blob granularity follows accessor reachability
 
-A large domain is split into multiple blobs, each with its own `const`, its own `sync.Once`, and its own accessor, so an unreferenced access path is dropped by the linker together with its blob. The clearest case is `timezone`: canonical links, metazone mapping, zone display names, and metazone period boundaries are independent blobs. The narrow supported-value indexes (§1.2) are the other instance — a supported query decodes only its small blob.
+A large domain is split into multiple blobs, each with its own `const`, its own `sync.Once`, and its own accessor, so an unreferenced access path is dropped by the linker together with its blob. The clearest CLDR case is `timezone`: metazone mapping, zone display names, formatting patterns, and metazone period boundaries are independently reachable. Identifier records are a separate typed generated product in `internal/tz`. The narrow supported-value indexes (§1.2) are the other instance — a supported query decodes only its small blob.
 
 `task build:size` before/after is the **evidence** of this property, not its definition; DCE is a verification item, not an assumption.
 
@@ -217,7 +228,7 @@ icu=78
 tzdata=2025b
 ```
 
-> **Why**: Generated reference's main branch locks `cldr-*: 48.1.0` (ICU 78); byte-level Generated reference alignment is a SPEC 00 §1 goal, so pinning an earlier version would institutionalize reverse divergence. CLDR 48 / ICU 78 (2025-10) is stable by public release; tzdata 2025b matches the Go 1.26.3 built-in.
+> **Why**: Generated reference's main branch locks `cldr-*: 48.1.0` (ICU 78); byte-level Generated reference alignment is a SPEC 00 §1 goal, so pinning an earlier version would institutionalize reverse divergence. CLDR 48 / ICU 78 (2025-10) is stable by public release; tzdata 2025b is the project-pinned time-zone data baseline.
 >
 > **Rejected**:
 > - CLDR 47 / ICU 76 — lost on Generated reference alignment: one version behind, reverse divergence.
@@ -257,7 +268,7 @@ The pins in `internal/cldr/VERSION` must correspond to the data encoded in every
 
 Every file generated by `tools/gen-cldr` begins with the Go `// Code generated by tools/gen-cldr ...` header, followed by stable metadata comments: the pinned versions, the reproducibility note (never timestamps, hostnames, usernames, or absolute paths), and the schema anchor. Hand-written files (`decode.go`, `accessors.go`, `doc.go`, and everything under `codec/`) **MUST NOT** begin with the generated header — the data-shape gate uses that header to tell generated payload from hand-written code, so a hand-written file wearing the header would be wrongly conscripted.
 
-Each domain package follows one layout: a generated const-only `data.go`, a hand-written `decode.go` (the `sync.Once` decode loops), and a hand-written `accessors.go` (the runtime query surface). `go/format` is the final formatting step, so literal layout is deterministic across runs.
+Each domain package follows one layout: a generated const-only `data.go`, a hand-written `decode.go` (the `sync.Once` decode loops), and a hand-written `accessors.go` (the runtime query surface). The three auxiliary identity products above are typed generated tables in their owning utility packages rather than CLDR domains. `go/format` is the final formatting step for every output, so literal layout is deterministic across runs.
 
 > **Why**: The generated header is the gate key in both directions — generated files must carry it, hand-written files must not. This is the contract the data-shape gate (§5.4) relies on.
 
@@ -280,6 +291,9 @@ tools/gen-cldr/
     ├── encoder.go           # blob encoder helpers (uvarint / delta / stringRef / zigzag)
     ├── stringtable.go       # per-domain StringTable
     ├── format.go            # go/format pass
+    ├── unicode_alias.go     # auxiliary localeid alias table
+    ├── language_matching.go # auxiliary localematcher profile
+    ├── timezone_registry.go # auxiliary internal/tz identifier registry
     ├── <domain>_encode.go   # one const-only payload encoder per domain
     └── <domain>_roundtrip_test.go  # one round-trip gate per domain
 ```
@@ -292,7 +306,7 @@ The retired literal-rendering layer — `golang_literal.go`, `map_literal.go` (r
 
 ### 5.2 Domain registry drives everything
 
-`codegen/domain.go` holds the `domains` registry: one row per domain with its package directory and its const-only `emit` function. Generation, the round-trip gate, and the data-shape gate all derive their expectations from this one table — adding a domain is adding a row, not scattering functions across files. The payload path is derived (`internal/cldr/<pkg>/data.go`), and each domain gets a fresh per-domain `StringTable` so its `_data` holds only its own strings.
+`codegen/domain.go` holds the `domains` registry: one row per CLDR payload domain with its package directory and its const-only `emit` function. Generation, the round-trip gate, and the data-shape gate all derive domain expectations from this one table. The payload path is derived (`internal/cldr/<pkg>/data.go`), and each domain gets a fresh per-domain `StringTable` so its `_data` holds only its own strings. Auxiliary identity products have explicit CLI output paths because their runtime owners sit outside `internal/cldr`; `task data` and `task data:check` name and byte-compare all three paths.
 
 > **Why**: A registry makes ten domains ten rows of one table instead of ten scattered function sets, and gives every gate a single source of expected packages.
 
@@ -317,7 +331,7 @@ Migration safety rests on three independent gates, not on human review of tens o
 
    The migration-era shrink-only exemption table is now **empty**: the root literal renderers it covered retired with the root package, so every generated file satisfies its invariant directly.
 2. **Import-graph gate** (`TestCLDRImportGraphDirection` + `TestNoImportOfRetiredRootCLDR`, in `task data:contract`, reading production imports via `go/build.ImportDir`). Dependencies inside `internal/cldr` may only point down: `codec` imports only stdlib; the `locale` kernel imports `codec` plus stdlib-only utility leaves; each domain imports only `codec`, `locale`, the stdlib-only shared utility leaves (`localeid`, `numbering`, `pattern`, `plural`), and any sanctioned leaf→leaf edge. The single sanctioned leaf→leaf edge is `displaynames → currency` (the CLDR owner shared by NumberFormat and DisplayNames). The retired root `internal/cldr` package may never be imported again; its path is matched exactly so a domain subpackage is never mistaken for it. The leaf→leaf exception table is shrink-only: a listed edge absent from the real import graph fails the gate.
-3. **Generated-byte stability** (`task data:check`): regenerate from the same input, assert byte-equality with the committed files.
+3. **Generated-byte stability** (`task data:check`): regenerate from the same input and assert byte-equality for every domain plus `internal/localeid/unicode_alias_data.go`, `internal/localematcher/profile_data.go`, and `internal/tz/registry_data.go`.
 
 Behavior byte-stability — every formatter conformance fixture output unchanged to the byte — is enforced by the formatter conformance suites (SPEC 70) and the per-domain decode snapshot tests, not by a separate gate here.
 
@@ -380,8 +394,12 @@ func SupportedCurrencies() []string
 // + CurrencyDigits / CurrencyDisplayName
 
 // internal/cldr/timezone
+// ZoneToMetazone / MetazoneName / display-pattern / period-boundary accessors
+
+// internal/tz (generated identifier facts, hand-written behavior)
+func LookupIdentifier(name string) (IdentifierRecord, bool)
 func SupportedTimeZones() []string
-// + ZoneToMetazone / MetazoneName / period-boundary accessors (per-blob)
+func TimeZonesForRegion(region string) []string
 
 // internal/cldr/unit
 func SupportedLocales() []string
@@ -396,8 +414,8 @@ func SupportedLocales() []string
 MUST rules:
 
 1. `cldrlocale.AvailableLocales()` is the CLDR universe; a formatter's locale matching **MUST** use the owning domain's `SupportedLocales()`, derived from generated payload, where each tag resolves to a non-`Undefined` locale through `ResolveLocale`.
-2. `internal/localematcher` **MUST NOT** import any `internal/cldr` package; formatter constructors inject generated supported-locale slices and maximizers into the matcher.
-3. Root `Intl.supportedValuesOf` accessors consume the owning domain's narrow index (§1.2). Root `supportedValuesOf("collation")` uses `internal/collation`, not the CLDR candidate list, so it advertises only values the active Collator can apply.
+2. `internal/localematcher` **MUST NOT** import any `internal/cldr` package. Its own generated profile supplies distance facts; formatter constructors inject generated supported-locale slices and the locale-kernel maximizer.
+3. Root `Intl.supportedValuesOf` accessors consume the owning domain's narrow index (§1.2), except time zones, which consume the exact primary projection of `internal/tz` identifier records. Root `supportedValuesOf("collation")` uses `internal/collation`, not the CLDR candidate list, so it advertises only values the active Collator can apply.
 4. `SupportedCalendars()` derives from date calendar payload keys, maps CLDR `"gregorian"` → ECMA-402 `"gregory"`, and appends `"iso8601"` only when Gregorian data exists. `SupportedNumberingSystems()` includes the full ECMA-402 simple digit set even when the profile generates no matching CLDR symbol payload.
 5. Number-domain decimal, percent, scientific, symbol, and currency pattern accessors must fall back from a requested numbering-system row to the locale default numbering-system row when the requested row is absent. Compact pattern accessors keep missing tuple results empty so NumberFormat can distinguish unavailable compact formats from base pattern defaults.
 6. The root `internal/cldr/` directory is not a Go package. It must contain version metadata and domain subdirectories only; no production code may import a retired root CLDR package.
@@ -418,7 +436,7 @@ The `internal/` path segment forces every domain package private. Formatter publ
 
 ### 7.2 Snapshot / contract test
 
-`internal/cldr/locale/snapshot_test.go` (`TestCLDRGeneratedDataContract`) regenerates the CLDR files (every domain `data.go` plus the kernel `manifest.go` / `collations.go` / `timezones.go`, identified by the generator header) into a temp directory and byte-compares against the committed files; CI rejects any difference. The same package holds the data-shape and import-graph gates (`datashape_test.go`, `importgraph_test.go`), all under `task data:contract`.
+`internal/cldr/locale/snapshot_test.go` regenerates every generated file under `internal/cldr` and byte-compares it with the committed payload. `task data:check` extends the byte comparison to the three private identity products in `internal/localeid`, `internal/localematcher`, and `internal/tz`. The locale package also holds the data-shape and import-graph gates (`datashape_test.go`, `importgraph_test.go`), all under `task data:contract`.
 
 ### 7.3 Conformance integration
 
@@ -491,6 +509,7 @@ CLDR supplemental day-period rules cover languages beyond the kernel locale regi
 
 - [ ] `internal/cldr/` is one Go package per semantic domain (`number` / `date` / `timezone` / `currency` / `unit` / `list` / `relativetime` / `displaynames` / `plural`) plus the `locale` kernel and `codec`; the root directory holds only `VERSION` and the domain subdirectories and is **not** a Go package.
 - [ ] Each domain has a generated const-only `data.go`, a hand-written `decode.go`, and a hand-written `accessors.go`.
+- [ ] Key-aware Unicode type aliases, the ordered language-matching profile, and the pinned IANA/CLDR time-zone identifier registry are generated directly into their private runtime owners and byte-compared by `task data:check`.
 - [ ] Each domain's `_data` holds only that domain's strings; there is no shared cross-domain string table.
 - [ ] `cldrlocale.Version()` derives the pins from the generated manifest; the root package exposes no version diagnostic.
 
@@ -501,6 +520,8 @@ CLDR supplemental day-period rules cover languages beyond the kernel locale regi
 - [ ] `TestRetiredRootCLDRHasNoGoFiles` passes: `internal/cldr/` remains a non-package directory.
 - [ ] `mustLocaleIndex` panics at generation time for any domain locale absent from the kernel registry; intentionally skipped locales are filtered with a stated reason.
 - [ ] Per-domain round-trip tests read back through the production accessor via `require` + `replace`; no mirror decoder exists.
+- [ ] Language-matching loader tests reject malformed fields, unknown variables, duplicate paradigms, invalid distances, containment cycles, and a missing final catch-all while preserving all 378 source rows in order.
+- [ ] Time-zone registry generation rejects pin/hash/license/version drift, malformed Zone/Link rows, link cycles, unknown CLDR primary targets, and ASCII-fold collisions; it preserves every legal IANA identifier and `zone.tab` region record.
 
 ### Supported values
 
@@ -508,6 +529,7 @@ CLDR supplemental day-period rules cover languages beyond the kernel locale regi
 - [ ] A supported-value query reads only its narrow blob and does not trigger the domain main-payload `sync.Once` (asserted in the domain test).
 - [ ] `SupportedCalendars()` maps `"gregorian"` → `"gregory"` and contains `iso8601` when Gregorian data exists; `SupportedNumberingSystems()` contains the full ECMA-402 simple digit set.
 - [ ] Root `supportedValuesOf("collation")` reflects `internal/collation`, not the CLDR candidate list.
+- [ ] Root `supportedValuesOf("timeZone")` is exactly the sorted primary projection from `internal/tz`, and no time-zone supported-value query decodes `internal/cldr/timezone` display data.
 
 ### Generator and upgrade
 

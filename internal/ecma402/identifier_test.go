@@ -162,13 +162,16 @@ func TestCanonicalUnicodeType(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		key    string
 		in     string
 		want   string
 		wantOK bool
 	}{
-		{in: "arab", want: "arab", wantOK: true},
-		{in: "ARAB-LATN", want: "arab-latn", wantOK: true},
-		{in: "gregorian"},
+		{key: "nu", in: "arab", want: "arab", wantOK: true},
+		{key: "nu", in: "ARAB-LATN", want: "arab-latn", wantOK: true},
+		{key: "ca", in: "islamicc", want: "islamic-civil", wantOK: true},
+		{key: "co", in: "islamicc", want: "islamicc", wantOK: true},
+		{key: "ca", in: "gregorian"},
 		{in: "\u212Aarab"},
 		{in: "a"},
 		{in: ""},
@@ -177,10 +180,10 @@ func TestCanonicalUnicodeType(t *testing.T) {
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := ecma402.CanonicalUnicodeType(tc.in)
+			got, ok := ecma402.CanonicalUnicodeType(tc.key, tc.in)
 			if ok != tc.wantOK || got != tc.want {
-				t.Fatalf("CanonicalUnicodeType(%q) = %q, %v; want %q, %v",
-					tc.in, got, ok, tc.want, tc.wantOK)
+				t.Fatalf("CanonicalUnicodeType(%q, %q) = %q, %v; want %q, %v",
+					tc.key, tc.in, got, ok, tc.want, tc.wantOK)
 			}
 		})
 	}
@@ -207,7 +210,7 @@ func TestApplyUnicodeTypeOptionInput(t *testing.T) {
 
 			got := tc.initial
 			var present bool
-			ecma402.ApplyUnicodeTypeOptionInput(&got, &present, tc.input)
+			ecma402.ApplyUnicodeTypeOptionInput(&got, &present, "co", tc.input)
 			if got != tc.want || present != tc.wantPresent {
 				t.Fatalf("ApplyUnicodeTypeOptionInput() = %q/%v, want %q/%v",
 					got, present, tc.want, tc.wantPresent)

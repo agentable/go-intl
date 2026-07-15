@@ -201,6 +201,22 @@ func writeBaseCLDRFixture(t *testing.T, root string) {
 	if err := os.WriteFile(filepath.Join(supp, "aliases.json"), []byte(aliases), 0o666); err != nil {
 		t.Fatalf("write aliases: %v", err)
 	}
+	languageMatching := `{"supplemental":{"languageMatching":{"written-new":{"paradigmLocales":{"_locales":["en"]},"matchVariables":{},"languageMatch":[{"_desired":"*-*-*","_supported":"*-*-*","_distance":4}]}}}}`
+	if err := os.WriteFile(filepath.Join(supp, "languageMatching.json"), []byte(languageMatching), 0o666); err != nil {
+		t.Fatalf("write languageMatching: %v", err)
+	}
+	containment := `{"supplemental":{"territoryContainment":{"001":{"_contains":["US"]}}}}`
+	if err := os.WriteFile(filepath.Join(supp, "territoryContainment.json"), []byte(containment), 0o666); err != nil {
+		t.Fatalf("write territoryContainment: %v", err)
+	}
+	bcp47 := `{"keyword":{"u":{"ca":{"gregory":{}}}}}`
+	bcp47Dir := filepath.Join(root, "cldr-bcp47", "bcp47")
+	if err := os.MkdirAll(bcp47Dir, 0o777); err != nil {
+		t.Fatalf("mkdir bcp47: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bcp47Dir, "calendar.json"), []byte(bcp47), 0o666); err != nil {
+		t.Fatalf("write bcp47 fixture: %v", err)
+	}
 }
 
 func writeLocaleProfileFixture(t *testing.T, dir string) string {

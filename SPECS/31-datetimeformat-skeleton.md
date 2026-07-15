@@ -232,6 +232,27 @@ func Parse(skeleton string, pattern string, hour12 *bool, hourCycle HourCycle) F
 
 > **Why**: The algorithm layer is stateless and can be tested independently; data slices are injected by the caller, in line with CLAUDE.md "no production Go code beyond signatures" and the KISS principle.
 
+### 4.3 Generation-time executable grammar
+
+`tools/gen-cldr` **MUST** reject malformed patterns before they enter the
+const payload. Validation has two consumer-aware layers:
+
+1. Date/time style patterns, interval patterns, and `availableFormats`
+   skeletons whose fields are executable by the current runtime validate LDML
+   quote balance, active field symbols, and supported widths. Retained
+   quarter/week skeletons that no public path can select remain source data;
+   the validator must not pretend the runtime executes them.
+2. Date-time combinations, date-time-at combinations, interval fallback, and
+   the active `AppendItems["Timezone"]` consumer require exactly one `{0}` and
+   one `{1}` and reject every other placeholder. Other retained append-item
+   records may contain at most one `{2}` because CLDR uses it for the field
+   display name, but unmatched braces, duplicates, and unknown indexes are
+   always errors.
+
+Errors must include source path, locale, calendar, and the relevant
+skeleton/style/field key. Runtime parsers consume generated patterns as already
+validated data and do not grow a second defensive grammar.
+
 ---
 
 ## 5. ICU Skeleton string syntax compatible
@@ -289,6 +310,8 @@ func Parse(skeleton string, pattern string, hour12 *bool, hourCycle HourCycle) F
 - [ ] `BenchmarkSkeleton_Parse` appears in non-blocking benchmark telemetry.
 - [ ] LDML literal test: `parseDateTimeSkeleton("'Year:' y")` output `Formats.Pattern` contains literal `"Year:"`, and `Year:numeric`.
 - [ ] LDML escape test: `parseDateTimeSkeleton("'it''s' y")` literal part outputs `"it's"`.
+- [ ] Generator tests reject unbalanced quotes, unknown executable fields, unsupported widths, malformed indexed placeholders, duplicate `{0}`/`{1}`, and forbidden `{2}` with source context.
+- [ ] Current pinned data regenerates byte-identically; inactive quarter/week skeletons are not falsely advertised as executable, and only inactive append-item records may retain one `{2}`.
 
 ---
 

@@ -12,8 +12,8 @@ import (
 // TestRunGeneratesTimezoneDomain asserts the generator emits the timezone domain
 // as a self-contained const-only payload at internal/cldr/timezone/data.go, no
 // longer emits the retired root metazones.go literal renderer or the timezone
-// alias facade, and that root supported.go forwards SupportedTimeZones to the
-// domain instead of deriving it from runtime metazone data.
+// alias facade or identity payload; identifier truth is generated separately
+// into internal/tz.
 func TestRunGeneratesTimezoneDomain(t *testing.T) {
 	t.Parallel()
 
@@ -51,7 +51,7 @@ func TestRunGeneratesTimezoneDomain(t *testing.T) {
 		t.Fatalf("read timezone/data.go: %v", err)
 	}
 	if !containsAll(string(payload), "package timezone", "const _data",
-		"_tzMetazonePeriodBlob", "_tzNamesBlob", "_tzFormatsBlob", "_tzSupportedBlob") {
+		"_tzMetazonePeriodBlob", "_tzNamesBlob", "_tzFormatsBlob") || containsAll(string(payload), "_tzSupportedBlob") {
 		t.Fatalf("timezone/data.go missing expected const payload:\n%s", payload)
 	}
 	joined := dewrapStringLiterals(string(payload))
@@ -59,8 +59,7 @@ func TestRunGeneratesTimezoneDomain(t *testing.T) {
 		t.Fatalf("timezone/data.go _data missing expected time-zone strings:\n%s", payload)
 	}
 
-	// The retired root supported.go literal file must no longer be generated; the
-	// timezone domain owns SupportedTimeZones through its own narrow blob.
+	// The retired root supported.go literal file must no longer be generated.
 	if _, err := os.Stat(filepath.Join(out, "supported.go")); !os.IsNotExist(err) {
 		t.Fatalf("root supported.go should no longer be generated, stat err = %v", err)
 	}
@@ -112,5 +111,5 @@ func writeTimeZoneCLDRFixture(t *testing.T, root string) {
 }
 
 func timeZoneNamesJSON(locale string) string {
-	return `{"main":{"` + locale + `":{"dates":{"timeZoneNames":{"hourFormat":"+HH:mm;-HH:mm","gmtFormat":"GMT{0}","gmtZeroFormat":"GMT","metazone":{"America_Pacific":{"long":{"generic":"Pacific Time","standard":"Pacific Standard Time","daylight":"Pacific Daylight Time"},"short":{"generic":"PT","standard":"PST","daylight":"PDT"}},"America_Eastern":{"long":{"generic":"Eastern Time","standard":"Eastern Standard Time","daylight":"Eastern Daylight Time"}}},"zone":{"America":{"Los_Angeles":{"exemplarCity":"Los Angeles"},"New_York":{"exemplarCity":"New York"}},"Europe":{"London":{"long":{"daylight":"British Summer Time"},"short":{"daylight":"BST"}}},"Etc":{"UTC":{"long":{"standard":"Coordinated Universal Time"},"short":{"standard":"UTC"}}}}}}}}}`
+	return `{"main":{"` + locale + `":{"dates":{"timeZoneNames":{"hourFormat":"+HH:mm;-HH:mm","gmtFormat":"GMT{0}","gmtZeroFormat":"GMT","regionFormat":"{0} Time","metazone":{"America_Pacific":{"long":{"generic":"Pacific Time","standard":"Pacific Standard Time","daylight":"Pacific Daylight Time"},"short":{"generic":"PT","standard":"PST","daylight":"PDT"}},"America_Eastern":{"long":{"generic":"Eastern Time","standard":"Eastern Standard Time","daylight":"Eastern Daylight Time"}}},"zone":{"America":{"Los_Angeles":{"exemplarCity":"Los Angeles"},"New_York":{"exemplarCity":"New York"}},"Europe":{"London":{"long":{"daylight":"British Summer Time"},"short":{"daylight":"BST"}}},"Etc":{"UTC":{"long":{"standard":"Coordinated Universal Time"},"short":{"standard":"UTC"}}}}}}}}}`
 }

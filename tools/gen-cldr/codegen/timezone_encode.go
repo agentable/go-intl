@@ -20,14 +20,11 @@ import (
 //     cities. Locale indices are a sorted delta stream; the decoder rebuilds the
 //     per-locale maps that drive the localized display-name lookups in
 //     TimeZoneDisplayName.
-//   - _tzFormatsBlob: per-locale GMT/hour offset formats. Drives GMTOffsetName.
-//   - _tzSupportedBlob: the canonicalized supported IANA zone names in sorted
-//     order, a narrow index so SupportedTimeZones never decodes the period or
-//     names blobs.
+//   - _tzFormatsBlob: per-locale GMT/hour offset and location formats. Drives
+//     GMTOffsetName and exemplar-city fallback in TimeZoneDisplayName.
 //
-// Canonical links and region zones are not part of this payload: they are tiny
-// static locale-region maps owned by the cldr/locale kernel, and the timezone
-// accessors forward to the kernel for them.
+// Identifier legality, primary mappings, and region membership are generated
+// separately into internal/tz from the pinned IANA and CLDR BCP47 sources.
 func encodeTimezone(input RuntimeInput, table *StringTable) ([]byte, error) {
 	data := input.Metazones
 	localeIndex := localeIndexMap(input.Locales)
@@ -42,15 +39,10 @@ func encodeTimezone(input RuntimeInput, table *StringTable) ([]byte, error) {
 		return nil, err
 	}
 
-	var supported blobEncoder
-	supportedTags := timezoneSupportedZones(data, input.TimeZoneAliases)
-	supported.appendStringRefSlice(supportedTags, table)
-
 	return renderPayloadFile("timezone", table,
 		payloadBlob{"_tzMetazonePeriodBlob", periods.bytes()},
 		payloadBlob{"_tzNamesBlob", names.bytes()},
 		payloadBlob{"_tzFormatsBlob", formats.bytes()},
-		payloadBlob{"_tzSupportedBlob", supported.bytes()},
 	)
 }
 
@@ -107,8 +99,9 @@ func appendMetazoneNames(e *blobEncoder, names cldr.MetazoneNames, table *String
 	e.appendStringRef(table.Add(names.ShortDaylight))
 }
 
-// encodeTimeZoneFormats serializes the per-locale GMT/hour offset formats. Only
-// locales with a formats record are emitted, ordered by delta-encoded index.
+// encodeTimeZoneFormats serializes the per-locale GMT/hour offset and location
+// formats. Only locales with a formats record are emitted, ordered by
+// delta-encoded index.
 func encodeTimeZoneFormats(data extract.Metazones, localeIndex map[string]uint64, table *StringTable) (blobEncoder, error) {
 	var e blobEncoder
 	locales := slices.Sorted(maps.Keys(data.Formats))
@@ -120,12 +113,13 @@ func encodeTimeZoneFormats(data extract.Metazones, localeIndex map[string]uint64
 	return e, nil
 }
 
-// appendTimeZoneFormats owns the three-field wire order for GMT/hour offset
-// formatting records.
+// appendTimeZoneFormats owns the four-field wire order for GMT/hour offset and
+// location formatting records.
 func appendTimeZoneFormats(e *blobEncoder, formats cldr.TimeZoneFormats, table *StringTable) {
 	e.appendStringRef(table.Add(formats.GMTFormat))
 	e.appendStringRef(table.Add(formats.GMTZeroFormat))
 	e.appendStringRef(table.Add(formats.HourFormat))
+	e.appendStringRef(table.Add(formats.RegionFormat))
 }
 
 // metazoneNameLocales returns the union of locales present in the metazone-name,
@@ -141,21 +135,6 @@ func metazoneNameLocales(data extract.Metazones) []string {
 	}
 	for locale := range data.ExemplarCities {
 		seen[locale] = true
-	}
-	return slices.Sorted(maps.Keys(seen))
-}
-
-// timezoneSupportedZones returns the canonicalized supported IANA zone names in
-// sorted order: every zone in the metazone-period map (minus Etc/Unknown),
-// canonicalized through the kernel links and deduplicated.
-func timezoneSupportedZones(data extract.Metazones, aliases []cldr.TimeZoneAlias) []string {
-	links := canonicalTimeZoneLinks(aliases)
-	seen := map[string]bool{}
-	for zone := range data.ZoneToMetazones {
-		if zone == "Etc/Unknown" {
-			continue
-		}
-		seen[canonicalTimeZoneLink(zone, links)] = true
 	}
 	return slices.Sorted(maps.Keys(seen))
 }

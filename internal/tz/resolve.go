@@ -1,10 +1,9 @@
 package tz
 
 import (
+	"fmt"
 	"sync"
 	"time"
-
-	cldrtimezone "github.com/agentable/go-intl/internal/cldr/timezone"
 )
 
 type ZoneInfo struct {
@@ -30,11 +29,15 @@ func Resolve(name string) (*time.Location, error) {
 			return time.FixedZone(canonical, int(offsetMs/1000)), nil
 		})
 	}
-	canonical := CanonicalLink(name)
+	record, ok := LookupIdentifier(name)
+	if !ok {
+		return nil, unsupportedTimeZone(name)
+	}
+	canonical := record.Primary
 	return cachedLocation(canonical, func() (*time.Location, error) {
 		loc, err := time.LoadLocation(canonical)
 		if err != nil {
-			return nil, unsupportedTimeZone(name)
+			return nil, fmt.Errorf("tz: load transitions for registered identifier %q: %w", canonical, err)
 		}
 		return loc, nil
 	})
@@ -53,21 +56,15 @@ func cachedLocation(name string, load func() (*time.Location, error)) (*time.Loc
 }
 
 func CanonicalLink(name string) string {
-	return cldrtimezone.CanonicalTimeZoneLink(name)
+	record, ok := LookupIdentifier(name)
+	if !ok {
+		return name
+	}
+	return record.Primary
 }
 
 func LookupAt(loc *time.Location, t time.Time) ZoneInfo {
 	local := t.In(loc)
 	name, offset := local.Zone()
-	return ZoneInfo{Name: loc.String(), OffsetMs: int64(offset) * 1000, IsDST: isDST(loc, local), Abbrv: name}
-}
-
-func isDST(loc *time.Location, t time.Time) bool {
-	_, januaryOffset := time.Date(t.Year(), time.January, 1, 12, 0, 0, 0, loc).Zone()
-	_, julyOffset := time.Date(t.Year(), time.July, 1, 12, 0, 0, 0, loc).Zone()
-	if januaryOffset == julyOffset {
-		return false
-	}
-	_, offset := t.Zone()
-	return offset == max(januaryOffset, julyOffset)
+	return ZoneInfo{Name: loc.String(), OffsetMs: int64(offset) * 1000, IsDST: local.IsDST(), Abbrv: name}
 }

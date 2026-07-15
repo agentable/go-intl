@@ -1,7 +1,6 @@
 package datetimeformat
 
 import (
-	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -64,13 +63,9 @@ type normalizedRange struct {
 }
 
 func (f *DateTimeFormat) normalizeRange(start, end time.Time) (normalizedRange, error) {
-	resolved := f.resolved
 	location := f.location
 	start = start.Round(0)
 	end = end.Round(0)
-	if start.After(end) {
-		return normalizedRange{}, invalidDateTimeRange(start, end, resolved.Locale.String())
-	}
 	if start.Equal(end) {
 		return normalizedRange{start: start, equal: true}, nil
 	}
@@ -81,11 +76,6 @@ func (f *DateTimeFormat) normalizeRange(start, end time.Time) (normalizedRange, 
 		startLocal: startLocal,
 		endLocal:   endLocal,
 	}, nil
-}
-
-func invalidDateTimeRange(start, end time.Time, loc string) error {
-	value := fmt.Sprintf("start=%s end=%s", start.Format(time.RFC3339Nano), end.Format(time.RFC3339Nano))
-	return ecma402.InvalidValueErrorExpected(dateTimeFormatOwner, "range", value, loc, "start date less than or equal to end date", nil)
 }
 
 func (f *DateTimeFormat) formatIntervalRangeToParts(pattern selectedPattern, start, end localTime) ([]RangePart, bool) {
@@ -247,28 +237,16 @@ func (f *DateTimeFormat) formatIntervalPattern(pattern string, start, end localT
 	uses24Hour := f.uses24Hour
 	cldrLoc := f.cldrLoc
 	gregorian := &f.gregorian
-	tokens := tokenizeIntervalPattern(pattern)
-	counts := intervalFieldCounts(tokens)
-	seen := map[rune]int{}
+	steps := compileIntervalPattern(pattern, start, end)
 	parts := make([]RangePart, 0, len(pattern))
-	for i, token := range tokens {
+	for _, step := range steps {
+		token := step.token
 		if token.literal != "" {
-			parts = appendRangeLiteralPart(parts, token.literal, literalRangeSource(tokens, i, counts))
+			parts = appendRangeLiteralPart(parts, token.literal, step.source)
 			continue
 		}
-		key := intervalFieldKey(token.field)
-		seen[key]++
-		source := SourceShared
-		t := start
-		if counts[key] > 1 {
-			source = SourceStartRange
-			if seen[key] > 1 {
-				source = SourceEndRange
-				t = end
-			}
-		}
-		part := f.intervalPatternPart(token.field, token.width, t, numberingSystem, uses24Hour, cldrLoc, gregorian)
-		parts = append(parts, RangePart{Type: part.Type, Value: part.Value, Source: source})
+		part := f.intervalPatternPart(token.field, token.width, step.time(start, end), numberingSystem, uses24Hour, cldrLoc, gregorian)
+		parts = append(parts, RangePart{Type: part.Type, Value: part.Value, Source: step.source})
 	}
 	return parts
 }
@@ -278,21 +256,13 @@ func (f *DateTimeFormat) appendIntervalPattern(dst []byte, pattern string, start
 	uses24Hour := f.uses24Hour
 	cldrLoc := f.cldrLoc
 	gregorian := &f.gregorian
-	tokens := tokenizeIntervalPattern(pattern)
-	counts := intervalFieldCounts(tokens)
-	seen := map[rune]int{}
-	for _, token := range tokens {
+	for _, step := range compileIntervalPattern(pattern, start, end) {
+		token := step.token
 		if token.literal != "" {
 			dst = append(dst, token.literal...)
 			continue
 		}
-		key := intervalFieldKey(token.field)
-		seen[key]++
-		t := start
-		if counts[key] > 1 && seen[key] > 1 {
-			t = end
-		}
-		part := f.intervalPatternPart(token.field, token.width, t, numberingSystem, uses24Hour, cldrLoc, gregorian)
+		part := f.intervalPatternPart(token.field, token.width, step.time(start, end), numberingSystem, uses24Hour, cldrLoc, gregorian)
 		dst = append(dst, part.Value...)
 	}
 	return dst
@@ -304,19 +274,66 @@ type intervalToken struct {
 	width   int
 }
 
-func tokenizeIntervalPattern(pattern string) []intervalToken {
-	tokens := make([]intervalToken, 0, len(pattern))
+type intervalStep struct {
+	token    intervalToken
+	source   RangeSource
+	endpoint intervalEndpoint
+}
+
+type intervalEndpoint uint8
+
+const (
+	intervalStart intervalEndpoint = iota
+	intervalEnd
+)
+
+func (s intervalStep) time(start, end localTime) localTime {
+	if s.endpoint == intervalEnd {
+		return end
+	}
+	return start
+}
+
+func compileIntervalPattern(pattern string, start, end localTime) []intervalStep {
+	steps, counts := tokenizeIntervalPattern(pattern)
+	seen := map[rune]int{}
+	previousSource := SourceShared
+	previousOK := false
+	for i := range steps {
+		token := steps[i].token
+		if token.field != 0 {
+			key := intervalFieldKey(token.field)
+			seen[key]++
+			source := intervalOccurrenceSource(counts[key], seen[key])
+			steps[i].source = source
+			steps[i].endpoint = intervalStart
+			if source == SourceEndRange {
+				steps[i].endpoint = intervalEnd
+			}
+			previousSource, previousOK = source, true
+			continue
+		}
+
+		nextSource, nextOK := nextIntervalFieldSource(steps[i+1:], counts, seen)
+		steps[i].source = surroundingIntervalSource(previousSource, previousOK, nextSource, nextOK)
+	}
+	return steps
+}
+
+func tokenizeIntervalPattern(pattern string) ([]intervalStep, map[rune]int) {
+	steps := make([]intervalStep, 0, len(pattern))
+	counts := map[rune]int{}
 	for pattern != "" {
 		r := rune(pattern[0])
 		if r == '\'' {
 			literal, rest := consumeQuotedPatternLiteral(pattern)
-			tokens = append(tokens, intervalToken{literal: normalizePatternLiteral(literal)})
+			steps = append(steps, intervalStep{token: intervalToken{literal: normalizePatternLiteral(literal)}})
 			pattern = rest
 			continue
 		}
 		if !isDatePatternField(r) && !isTimePatternField(r) {
 			r, size := utf8.DecodeRuneInString(pattern)
-			tokens = append(tokens, intervalToken{literal: normalizePatternLiteral(string(r))})
+			steps = append(steps, intervalStep{token: intervalToken{literal: normalizePatternLiteral(string(r))}})
 			pattern = pattern[size:]
 			continue
 		}
@@ -324,64 +341,49 @@ func tokenizeIntervalPattern(pattern string) []intervalToken {
 		for width < len(pattern) && rune(pattern[width]) == r {
 			width++
 		}
-		tokens = append(tokens, intervalToken{field: r, width: width})
+		steps = append(steps, intervalStep{token: intervalToken{field: r, width: width}})
+		counts[intervalFieldKey(r)]++
 		pattern = pattern[width:]
 	}
-	return tokens
+	return steps, counts
 }
 
-func intervalFieldCounts(tokens []intervalToken) map[rune]int {
-	counts := map[rune]int{}
-	for _, token := range tokens {
-		if token.field != 0 {
-			counts[intervalFieldKey(token.field)]++
+func nextIntervalFieldSource(steps []intervalStep, counts, seen map[rune]int) (RangeSource, bool) {
+	for _, step := range steps {
+		token := step.token
+		if token.field == 0 {
+			continue
 		}
+		key := intervalFieldKey(token.field)
+		return intervalOccurrenceSource(counts[key], seen[key]+1), true
 	}
-	return counts
+	return "", false
 }
 
-func literalRangeSource(tokens []intervalToken, idx int, counts map[rune]int) RangeSource {
-	prev, prevOK := adjacentFieldSource(tokens, idx, -1, counts)
-	next, nextOK := adjacentFieldSource(tokens, idx, 1, counts)
+func intervalOccurrenceSource(count, occurrence int) RangeSource {
+	if count <= 1 {
+		return SourceShared
+	}
+	if occurrence == 1 {
+		return SourceStartRange
+	}
+	return SourceEndRange
+}
+
+func surroundingIntervalSource(previous RangeSource, previousOK bool, next RangeSource, nextOK bool) RangeSource {
 	switch {
-	case prevOK && nextOK:
-		if prev == next {
-			return prev
+	case previousOK && nextOK:
+		if previous == next {
+			return previous
 		}
 		return SourceShared
-	case prevOK:
-		return prev
+	case previousOK:
+		return previous
 	case nextOK:
 		return next
 	default:
 		return SourceShared
 	}
-}
-
-func adjacentFieldSource(tokens []intervalToken, idx int, step int, counts map[rune]int) (RangeSource, bool) {
-	seen := map[rune]int{}
-	for i := range idx {
-		if tokens[i].field != 0 {
-			seen[intervalFieldKey(tokens[i].field)]++
-		}
-	}
-	for i := idx + step; i >= 0 && i < len(tokens); i += step {
-		if tokens[i].field == 0 {
-			continue
-		}
-		key := intervalFieldKey(tokens[i].field)
-		if counts[key] <= 1 {
-			return SourceShared, true
-		}
-		if step > 0 {
-			seen[key]++
-		}
-		if seen[key] > 1 {
-			return SourceEndRange, true
-		}
-		return SourceStartRange, true
-	}
-	return "", false
 }
 
 func intervalFieldKey(field rune) rune {

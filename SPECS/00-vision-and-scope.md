@@ -56,7 +56,9 @@ Reference roles:
 | ECMA-402 spec | Defines constructors, methods, options, resolved options, records, abstract operations, and error boundaries. |
 | Generated reference | Provides readable algorithm shape and extractable input/output fixtures. It cannot override ECMA-402 or justify public API convenience. |
 | Native-engine witness | Settles implementation-defined observable output, runtime edge cases, and backend-capability boundaries. |
-| CLDR data | Owns locale, calendar, numbering, currency, unit, list, relative-time, display-name, time-zone, and plural data content. |
+| CLDR data | Owns locale, calendar, numbering, currency, unit, list, relative-time, display-name, plural, and time-zone display content. |
+| IANA + CLDR time-zone identity | Official IANA source owns Zone/Link legality and `zone.tab` region membership; CLDR BCP47 timezone records own ECMA/ICU primary selection and rename state. |
+| Go `time/tzdata` | Owns the transition bytes used to resolve offsets and DST for generated named identifiers. |
 
 ### 2.2 Reference hygiene
 
@@ -69,7 +71,7 @@ Only reference trees with compatible root licensing and direct project value bel
 3. **Implementation gaps need an exit.** Any retained gap must state current behavior, rationale, `review_after`, and the concrete removal path in the owning SPEC.
 4. **Generated references are readable evidence**, useful for algorithm shape and fixture extraction, but not a product dependency.
 5. **Native-engine witnesses break observable-behavior ties** when ECMA-402 leaves behavior implementation-defined or when runtime output is the compatibility target.
-6. **CLDR is the data oracle.** When tables disagree, trust the CLDR version pinned in `internal/cldr/VERSION` and document the divergence.
+6. **Each data fact has one oracle.** Use pinned CLDR for localized data, the pinned IANA/CLDR composite registry for time-zone identity and primary records, and Go `time/tzdata` for transitions. Do not use display coverage or host loadability as identifier truth.
 7. **No local convenience beats native ownership.** Go typed bridges are allowed, but helper shape, cache knobs, or historical ergonomics must not override the native `Intl` owner model.
 8. **No import-cost shortcut beats the `Intl` namespace.** The root package represents ECMA-402 `Intl`; active constructor aliases are the current Go bridge for constructor properties such as `Intl.NumberFormat`. Measure and document aggregate facade cost separately instead of deleting constructor properties to make dependency reports smaller.
 
@@ -105,7 +107,7 @@ Each concept has exactly one owner. Cross-links may explain dependencies, but th
 | [`21-number-math.md`](./21-number-math.md) | decimal backend, `ToIntlMathematicalValue`, rounding modes, rounding increments, mathematical value bridge |
 | [`30-datetimeformat.md`](./30-datetimeformat.md) | `datetimeformat` public API, resolved options, date/time parts, range behavior |
 | [`31-datetimeformat-skeleton.md`](./31-datetimeformat-skeleton.md) | skeleton parsing, best-fit format matching, pattern scoring |
-| [`32-datetimeformat-tz.md`](./32-datetimeformat-tz.md) | time-zone resolution, canonical links, Gregorian calendar names, metazone display data |
+| [`32-datetimeformat-tz.md`](./32-datetimeformat-tz.md) | time-zone identity/primary/region records, transition resolution, Gregorian calendar names, metazone display data |
 | [`40-pluralrules.md`](./40-pluralrules.md) | `pluralrules` public API, operands, CLDR plural rule codegen, `selectRange` |
 | [`41-listformat.md`](./41-listformat.md) | `listformat` public API, list pattern data, format parts, supported locales |
 | [`42-relativetimeformat.md`](./42-relativetimeformat.md) | `relativetimeformat` public API, relative field data, NumberFormat/PluralRules composition |

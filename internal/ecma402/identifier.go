@@ -11,24 +11,20 @@ func IsWellFormedUnicodeType(value string) bool {
 	return localeid.IsUnicodeType(value)
 }
 
-// CanonicalUnicodeType returns the ASCII-lowercase canonical form for a Unicode
-// locale extension type when the value is well-formed.
-func CanonicalUnicodeType(value string) (string, bool) {
-	canonical := asciiLower(value)
-	if !IsWellFormedUnicodeType(canonical) {
-		return "", false
-	}
-	return canonical, true
+// CanonicalUnicodeType returns the key-aware CLDR canonical form for a
+// well-formed Unicode locale extension type.
+func CanonicalUnicodeType(key, value string) (string, bool) {
+	return localeid.CanonicalUnicodeType(key, value)
 }
 
 // ApplyUnicodeTypeOptionInput copies a present Unicode type option, canonicalizes
 // well-formed values, and records that the caller supplied it explicitly.
-func ApplyUnicodeTypeOptionInput(dst *string, present *bool, value *string) {
+func ApplyUnicodeTypeOptionInput(dst *string, present *bool, key string, value *string) {
 	if value == nil {
 		return
 	}
 	*present = true
-	if canonical, ok := CanonicalUnicodeType(*value); ok {
+	if canonical, ok := CanonicalUnicodeType(key, *value); ok {
 		*dst = canonical
 		return
 	}

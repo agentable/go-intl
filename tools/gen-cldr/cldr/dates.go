@@ -142,13 +142,22 @@ func parseCalendar(raw json.RawMessage) (Calendar, error) {
 	if err != nil {
 		return Calendar{}, fmt.Errorf("parse dateFormats: %w", err)
 	}
+	if err := validateDatePatternMap(dateFormats); err != nil {
+		return Calendar{}, fmt.Errorf("validate dateFormats: %w", err)
+	}
 	timeFormats, err := requiredStyleFormats(doc.TimeFormats)
 	if err != nil {
 		return Calendar{}, fmt.Errorf("parse timeFormats: %w", err)
 	}
+	if err := validateDatePatternMap(timeFormats); err != nil {
+		return Calendar{}, fmt.Errorf("validate timeFormats: %w", err)
+	}
 	dateTimeFormats, err := requiredStyleFormats(doc.DateTimeFormats)
 	if err != nil {
 		return Calendar{}, fmt.Errorf("parse dateTimeFormats: %w", err)
+	}
+	if err := validateTemplateMap(dateTimeFormats, false); err != nil {
+		return Calendar{}, fmt.Errorf("validate dateTimeFormats: %w", err)
 	}
 	dateTimeAtFormats, err := optionalStyleFormats(doc.DateTimeAtFormats.Standard)
 	if err != nil {
@@ -156,6 +165,8 @@ func parseCalendar(raw json.RawMessage) (Calendar, error) {
 	}
 	if len(dateTimeAtFormats) == 0 {
 		dateTimeAtFormats = dateTimeFormats
+	} else if err := validateTemplateMap(dateTimeAtFormats, false); err != nil {
+		return Calendar{}, fmt.Errorf("validate dateTimeFormats-atTime: %w", err)
 	}
 	available, err := availableFormats(doc.DateTimeFormats["availableFormats"])
 	if err != nil {
@@ -350,6 +361,11 @@ func availableFormats(raw json.RawMessage) (map[string]string, error) {
 		if value == "" {
 			return nil, fmt.Errorf("empty pattern for %s", key)
 		}
+		if isExecutableDateSkeleton(key) {
+			if err := validateExecutableDatePattern(value); err != nil {
+				return nil, fmt.Errorf("validate %s: %w", key, err)
+			}
+		}
 		out[key] = value
 	}
 	return out, nil
@@ -374,7 +390,7 @@ func intervalFormats(raw json.RawMessage) (IntervalFormats, error) {
 			if err != nil {
 				return IntervalFormats{}, fmt.Errorf("parse intervalFormatFallback: %w", err)
 			}
-			if err := validatePairTemplate(value); err != nil {
+			if err := validateIndexedTemplate(value, false); err != nil {
 				return IntervalFormats{}, fmt.Errorf("invalid intervalFormatFallback: %w", err)
 			}
 			out.FallbackPattern = value
@@ -397,6 +413,15 @@ func intervalFormats(raw json.RawMessage) (IntervalFormats, error) {
 			if value == "" {
 				return IntervalFormats{}, fmt.Errorf("empty pattern for skeleton %s field %s", key, field)
 			}
+			if len(field) != 1 {
+				return IntervalFormats{}, fmt.Errorf("invalid interval field key %q for skeleton %s", field, key)
+			}
+			if _, ok := executableDatePatternFields[field[0]]; !ok {
+				return IntervalFormats{}, fmt.Errorf("invalid interval field key %q for skeleton %s", field, key)
+			}
+			if err := validateExecutableDatePattern(value); err != nil {
+				return IntervalFormats{}, fmt.Errorf("validate skeleton %s field %s: %w", key, field, err)
+			}
 			patterns[field] = value
 		}
 		if len(patterns) > 0 {
@@ -418,16 +443,28 @@ func appendItems(raw json.RawMessage) (map[string]string, error) {
 		return nil, err
 	}
 	for key, value := range values {
-		if err := validatePairTemplate(value); err != nil {
+		allowThird := key != "Timezone"
+		if err := validateIndexedTemplate(value, allowThird); err != nil {
 			return nil, fmt.Errorf("invalid appendItems %s: %w", key, err)
 		}
 	}
 	return values, nil
 }
 
-func validatePairTemplate(value string) error {
-	if strings.Count(value, "{0}") != 1 || strings.Count(value, "{1}") != 1 {
-		return fmt.Errorf("expected one {0} and one {1}, got %q", value)
+func validateDatePatternMap(values map[string]string) error {
+	for key, value := range values {
+		if err := validateExecutableDatePattern(value); err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+	}
+	return nil
+}
+
+func validateTemplateMap(values map[string]string, allowThird bool) error {
+	for key, value := range values {
+		if err := validateIndexedTemplate(value, allowThird); err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
 	}
 	return nil
 }

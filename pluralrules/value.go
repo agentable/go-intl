@@ -32,11 +32,11 @@ func BigInt(v *big.Int) Value {
 	return Value{numeric: ecma402.BigIntNumericValue(v)}
 }
 
-// Decimal parses a finite ECMA-402 decimal-string bridge value.
+// Decimal parses an ECMA-402 decimal-string bridge value.
 func Decimal(s string) (Value, error) {
-	d, err := ecma402.ParseFiniteDecimalInput(s)
+	d, err := ecma402.ParseDecimalInput(s)
 	if err != nil {
-		return Value{}, invalidValue("decimal", s, "", err)
+		return Value{}, ecma402.InvalidDecimalValueError(pluralRulesOwner, "decimal", s, err)
 	}
 	return Value{numeric: ecma402.DecimalNumericValue(d)}, nil
 }

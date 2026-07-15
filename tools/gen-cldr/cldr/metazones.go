@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/agentable/go-intl/internal/pattern"
 )
 
 type Metazones struct {
@@ -34,6 +36,7 @@ type TimeZoneFormats struct {
 	GMTFormat     string
 	GMTZeroFormat string
 	HourFormat    string
+	RegionFormat  string
 }
 
 type timeZoneNamesBody struct {
@@ -48,6 +51,7 @@ type timeZoneNamesPayload struct {
 	GMTFormat     string `json:"gmtFormat"`
 	GMTZeroFormat string `json:"gmtZeroFormat"`
 	HourFormat    string `json:"hourFormat"`
+	RegionFormat  string `json:"regionFormat"`
 	Metazone      map[string]struct {
 		Long  metazoneWidth `json:"long"`
 		Short metazoneWidth `json:"short"`
@@ -62,6 +66,7 @@ type timeZoneNamesPayload struct {
 const (
 	openMetazoneStart = -1 << 63
 	openMetazoneEnd   = 1<<63 - 1
+	rootRegionFormat  = "{0}"
 )
 
 type metazoneUse struct {
@@ -238,6 +243,7 @@ func loadTimeZoneNames(root string, locales []string) (map[string]map[string]Met
 			GMTFormat:     timeZoneNames.GMTFormat,
 			GMTZeroFormat: timeZoneNames.GMTZeroFormat,
 			HourFormat:    timeZoneNames.HourFormat,
+			RegionFormat:  timeZoneNames.RegionFormat,
 		}
 		localeNames := make(map[string]MetazoneNames)
 		for _, metazone := range slices.Sorted(maps.Keys(timeZoneNames.Metazone)) {
@@ -287,7 +293,34 @@ func requiredTimeZoneNames(locale string, body timeZoneNamesBody) (timeZoneNames
 	case timeZoneNames.HourFormat == "":
 		return timeZoneNamesPayload{}, fmt.Errorf("timeZoneNames hourFormat missing for %s", locale)
 	}
+	if timeZoneNames.RegionFormat == "" {
+		timeZoneNames.RegionFormat = rootRegionFormat
+	}
+	if !validRegionFormat(timeZoneNames.RegionFormat) {
+		return timeZoneNamesPayload{}, fmt.Errorf("timeZoneNames regionFormat invalid for %s: expected exactly one {0} placeholder, got %q", locale, timeZoneNames.RegionFormat)
+	}
 	return timeZoneNames, nil
+}
+
+func validRegionFormat(value string) bool {
+	parts, err := pattern.Partition(value)
+	if err != nil {
+		return false
+	}
+	placeholders := 0
+	for _, part := range parts {
+		if part.Type == pattern.Literal {
+			if strings.ContainsAny(part.Value, "{}") {
+				return false
+			}
+			continue
+		}
+		if part.Type != "0" {
+			return false
+		}
+		placeholders++
+	}
+	return placeholders == 1
 }
 
 type metazoneWidth struct {

@@ -172,15 +172,6 @@ func (d ResolvedDigitOptions) ResolvedProperties() ResolvedDigitProperties {
 	}
 }
 
-// ResolvedPluralRulesProperties returns the digit resolved-option properties
-// visible for Intl.PluralRules.
-func (d ResolvedDigitOptions) ResolvedPluralRulesProperties() ResolvedDigitProperties {
-	if d.RoundingType == RoundingTypeFractionDigits {
-		return d.resolvedFractionDigitProperties()
-	}
-	return d.resolvedSignificantDigitProperties()
-}
-
 // CanUseIntegerOperands reports whether integer numeric bridges can bypass
 // decimal operand construction for Intl.PluralRules without changing selected
 // categories.

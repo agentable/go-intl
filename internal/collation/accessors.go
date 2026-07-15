@@ -70,11 +70,22 @@ func SupportedCollations() []string {
 }
 
 // SupportedCollationsForLocale returns ECMA-402 Collator [[co]] locale data for a
-// matched data locale. The default collation is always first; specialization
-// values are only included for locales whose active x/text backend advertises
-// the matching BCP 47 "co" extension.
+// canonical locale, using prefix fallback to the nearest backend data locale.
+// The default collation is always first; specialization values are only included
+// when the active x/text backend advertises a matching BCP 47 "co" extension.
 func SupportedCollationsForLocale(locale string) []string {
-	values := supportedCapabilities().collationsByLocale[locale]
+	byLocale := supportedCapabilities().collationsByLocale
+	var values []string
+	for candidate := locale; candidate != ""; {
+		if values = byLocale[candidate]; values != nil {
+			break
+		}
+		pos := strings.LastIndexByte(candidate, '-')
+		if pos < 0 {
+			break
+		}
+		candidate = candidate[:pos]
+	}
 	return localeid.RelevantExtensionValues("default", values...)
 }
 

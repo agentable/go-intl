@@ -12,13 +12,10 @@ import (
 type ErrorKind string
 
 const (
-	InvalidOption      ErrorKind = "invalidOption"
-	UnsupportedOption  ErrorKind = "unsupportedOption"
-	InvalidValue       ErrorKind = "invalidValue"
-	InvalidCode        ErrorKind = "invalidCode"
-	InvalidKey         ErrorKind = "invalidKey"
-	UnsupportedLocale  ErrorKind = "unsupportedLocale"
-	UnsupportedBackend ErrorKind = "unsupportedBackend"
+	InvalidOption     ErrorKind = "invalidOption"
+	UnsupportedOption ErrorKind = "unsupportedOption"
+	InvalidValue      ErrorKind = "invalidValue"
+	InvalidCode       ErrorKind = "invalidCode"
 )
 
 var (
@@ -30,12 +27,6 @@ var (
 	ErrInvalidValue = sentinelOf(InvalidValue)
 	// ErrInvalidCode classifies invalid DisplayNames code inputs.
 	ErrInvalidCode = sentinelOf(InvalidCode)
-	// ErrInvalidKey classifies invalid root namespace keys.
-	ErrInvalidKey = sentinelOf(InvalidKey)
-	// ErrUnsupportedLocale classifies locale requests outside the active data set.
-	ErrUnsupportedLocale = sentinelOf(UnsupportedLocale)
-	// ErrUnsupportedBackend classifies unavailable required implementation support.
-	ErrUnsupportedBackend = sentinelOf(UnsupportedBackend)
 )
 
 type kindError struct {
@@ -103,21 +94,6 @@ func NewInvalidValueExpected(owner, name, value, locale, expected string, cause 
 // caller-provided expected guidance.
 func NewInvalidCodeExpected(owner, name, value, locale, expected string, cause error) error {
 	return NewExpected(InvalidCode, owner, name, value, locale, expected, cause)
-}
-
-// NewInvalidKey returns a structured invalid-key error.
-func NewInvalidKey(owner, name, value, locale string, cause error) error {
-	return New(InvalidKey, owner, name, value, locale, cause)
-}
-
-// NewUnsupportedLocale returns a structured unsupported-locale error.
-func NewUnsupportedLocale(owner, name, value, locale string, cause error) error {
-	return New(UnsupportedLocale, owner, name, value, locale, cause)
-}
-
-// NewUnsupportedBackend returns a structured unsupported-backend error.
-func NewUnsupportedBackend(owner, name, value, locale string, cause error) error {
-	return New(UnsupportedBackend, owner, name, value, locale, cause)
 }
 
 // NewExpected returns an Error with caller-provided "expected" guidance.
@@ -219,12 +195,6 @@ func (e *Error) expectedText() string {
 			return fmt.Sprintf("a well-formed code for %q", e.Name)
 		}
 		return "a well-formed code"
-	case InvalidKey:
-		return "a supported Intl key"
-	case UnsupportedLocale:
-		return "a locale supported by the active data set"
-	case UnsupportedBackend:
-		return "an available implementation backend"
 	default:
 		return ""
 	}
@@ -240,12 +210,6 @@ func (k ErrorKind) label() string {
 		return "invalid value"
 	case InvalidCode:
 		return "invalid code"
-	case InvalidKey:
-		return "invalid key"
-	case UnsupportedLocale:
-		return "unsupported locale"
-	case UnsupportedBackend:
-		return "unsupported backend"
 	default:
 		return string(k)
 	}
@@ -253,9 +217,9 @@ func (k ErrorKind) label() string {
 
 func (k ErrorKind) isUnsupported() bool {
 	switch k {
-	case UnsupportedOption, UnsupportedLocale, UnsupportedBackend:
+	case UnsupportedOption:
 		return true
-	case InvalidOption, InvalidValue, InvalidCode, InvalidKey:
+	case InvalidOption, InvalidValue, InvalidCode:
 		return false
 	default:
 		return false

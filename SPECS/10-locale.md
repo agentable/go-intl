@@ -141,8 +141,10 @@ fmt.Println(loc2.String())   // "ja-u-ca-japanese"
 | `"en-US"` | OK;`Tag = en-US`, all extended fields are empty |
 | `"en-US-u-hc-h23"` | OK;`HourCycle="h23"`,Tag reserved `-u-hc-h23` |
 | `"en-US-u-ca-buddhist-hc-h23"` | OK; The field order is normalized according to spec (see §3.2) |
-| `"en-US-u-ca-gregorian"` | OK; accept spec alias, internally normalized to `Calendar="gregory"` |
-| `"en-US-u-ca-islamic-civil"` | OK; accept spec alias, internally normalized to `Calendar="islamicc"` |
+| `"en-US-u-ca-islamicc"` | OK; the deprecated CLDR value canonicalizes to `Calendar="islamic-civil"` |
+| `"en-US-u-ca-islamic-civil"` | OK; the canonical value remains unchanged |
+| `"en-US-u-ca-gregorian"` | Returns an error matching `gointl.ErrInvalidValue`; the nine-character subtag is not a well-formed Unicode type |
+| `"en-US-u-ms-imperial"` | OK; key-aware CLDR canonicalization produces `-u-ms-uksystem` |
 | `"xx-INVALID"` | Returns an error matching `gointl.ErrInvalidValue` |
 | `""` | Returns an error matching `gointl.ErrInvalidValue` (empty string is illegal) |
 | `"en-US-u-kn"`(no value table true) | OK;`Numeric=true` |
@@ -151,7 +153,7 @@ fmt.Println(loc2.String())   // "ja-u-ca-japanese"
 
 > **Why**:
 > 1. **Unique boundary** - Parse is BCP 47 boundary, the public API no longer accepts raw `string` locale (SPEC 11 / 20 / 30 / 40 input parameters all `Locale`).
-> 2. **spec alias** - `gregorian` → `gregory`, `islamic-civil` → `islamicc` is the normalization that spec sec-applyunicodeextensiontotag must comply with (generated-reference `index.ts:62-90` implementation); `Parse` completes the normalization internally to avoid downstream logical branches.
+> 2. **Key-aware canonicalization** - ECMA-402 `CanonicalizeUValue` canonicalizes a value for its specific Unicode key. The pinned CLDR BCP47 data therefore owns mappings such as `ca=islamicc` → `islamic-civil` and `ms=imperial` → `uksystem`; the same spelling under an unrelated key is not rewritten. Syntax validation runs before alias lookup, so an alias cannot make malformed input valid.
 > 3. **No public panic parser** - Test and example code can define local helpers, but production API exposes `Parse` / `ParseList` error returns only.
 >
 > **Rejected**:
@@ -201,7 +203,7 @@ func (l Locale) String() string
 4. **Empty internal extension fields are not output**; constructor option pointers with explicit `""` are rejected before `String()` canonicalization.
 5. **Numeric=true outputs `-u-kn`** (no value table true, consistent with spec); explicit Numeric=false outputs `-u-kn-false`; omitted Numeric does not output.
 6. **CaseFirst=`"false"` outputs `-u-kf-false`** (literal legal value).
-7. **Calendar / NumberingSystem / Collation alias normalization** (`gregorian` → `gregory`, `islamic-civil` → `islamicc`).
+7. **Key-aware Unicode type canonicalization** follows pinned CLDR BCP47 data after syntax validation (`ca=islamicc` → `islamic-civil`, `ms=imperial` → `uksystem`).
 8. **Duplicate Unicode extension keys are first-wins**, matching ECMA-402 `UnicodeExtensionComponents` and native engine behavior (`en-u-ca-buddhist-ca-gregory` canonicalizes to `en-u-ca-buddhist`).
 9. **Unicode extension insertion precedes private-use extension** (`en-u-ca-gregory-x-private`, not `en-x-private-u-ca-gregory`).
 
@@ -211,7 +213,7 @@ Example:
 |------|-----------------|
 | `Parse("en-US")` | `"en-US"` |
 | `Parse("en-US-u-hc-h23")` | `"en-US-u-hc-h23"` |
-| `Parse("en-us-U-Ca-Gregorian-Hc-H23")` | `"en-US-u-ca-gregory-hc-h23"` |
+| `Parse("en-us-U-Ca-Islamicc-Hc-H23")` | `"en-US-u-ca-islamic-civil-hc-h23"` |
 | `Parse("en-US-u-kn")` | `"en-US-u-kn"` |
 | `Parse("en-US-u-kn-false")` | `"en-US-u-kn-false"` |
 | `New("ja", Options{Calendar: gointl.String("japanese"), HourCycle: gointl.String("h23")})` | `"ja-u-ca-japanese-hc-h23"` |
@@ -319,7 +321,7 @@ m := loc.Maximize()
 | Type | Field/Method | Materialization Timing |
 |------|------------|---------|
 | **Simple getter**(spec `Intl.Locale.prototype.<name>` getter) | `Calendar()` / `Collation()` / `HourCycle()` / `CaseFirst()` / `Numeric()` / `NumberingSystem()` / `FirstDayOfWeek()` | **Prepared on construction** (read directly from the BCP 47 `-u-` extended key; zero additional cost) |
-| **Candidate list method** (spec `Intl.Locale.prototype.get<Name>s()` method) | `GetCalendars()` / `GetCollations()` / `GetHourCycles()` / `GetNumberingSystems()` / `GetTimeZones()` / `GetWeekInfo()` / `GetTextInfo()` | **Calculated on each call** (walking `Maximize()` + CLDR preference table; not cached) |
+| **Candidate list method** (spec `Intl.Locale.prototype.get<Name>s()` method) | `GetCalendars()` / `GetCollations()` / `GetHourCycles()` / `GetNumberingSystems()` / `GetTimeZones()` / `GetWeekInfo()` / `GetTextInfo()` | **Calculated on each call** from its owning generated data; not cached |
 
 ### 5.2 Candidate list method signature
 
@@ -341,7 +343,8 @@ func (l Locale) GetHourCycles() []string
 // GetNumberingSystems returns numbering system preferences.
 func (l Locale) GetNumberingSystems() []string
 
-// GetTimeZones returns the canonical IANA time zone list corresponding to the region subtag; returns nil when there is no region.
+// GetTimeZones returns the sorted primary IANA identifiers assigned to the
+// explicit region subtag; it returns nil when the locale has no region.
 func (l Locale) GetTimeZones() []string
 
 // WeekInfo corresponds to ECMA-402 sec-week-info-of-locale.
@@ -381,7 +384,13 @@ fmt.Println(loc.GetCalendars())            // ["islamic-umalqura", "gregory", "i
 
 ### 5.3 Candidate list implementation path
 
-The candidate list method **MUST** take the region preference data of `internal/cldr` (SPEC 50 §6):
+Each candidate list method **MUST** use its owning generated data. Calendar,
+hour-cycle, week, and text preferences use the locale/date CLDR domains.
+`GetTimeZones` is different: ECMA-402 `TimeZonesOfLocale` reads only the
+locale's explicit region, returns nil when no region exists, and projects the
+sorted primary identifiers assigned by the generated `internal/tz` registry's
+IANA `zone.tab` records. It must not maximize a missing region or maintain a
+locale-layer country table.
 
 ```go
 // locale/info.go (fragment; non-complete implementation)
@@ -560,8 +569,8 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 - ✅ Do: Compute per call (O(1) CLDR table lookup).
 - ❌ Don't: Add `cachedCalendars []string` + `sync.Once` to the `Locale` struct.
 
-- **`String()` output is non-canonical** (not in dictionary order, not aliased): destroys round-trip.
-- ✅ Do: `gregorian` → `gregory`, `-u-` keys are in lexicographic order and empty fields are omitted.
+- **`String()` output is non-canonical** (not in dictionary order, not key-aware canonicalized): destroys round-trip.
+- ✅ Do: `ca=islamicc` → `islamic-civil`, preserve the same spelling under unrelated keys, order `-u-` keys lexicographically, and omit empty fields.
 - ❌ Don't: Directly `fmt.Sprintf("%s-u-ca-%s-hc-%s", base, cal, hc)`.
 
 ---
@@ -582,7 +591,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 - [ ] The only `golang.org/x/text` type allowed in an export signature is `language.Tag`; the secondary `x/text` type is not leaked.
 - [ ] `ParseList(tags ...string)` constructs the formatter request list.
 - [ ] If parsing fails, an error with `errors.Is(err, gointl.ErrInvalidValue)` being true is returned.
-- [ ] Accepts spec aliases: `gregorian` → `gregory`, `islamic-civil` → `islamicc` (test coverage).
+- [ ] Canonicalizes Unicode types by key from pinned CLDR BCP47 data: `ca=islamicc` → `islamic-civil`, `ms=imperial` → `uksystem`; `co=islamic-civil` remains unchanged and malformed `ca=gregorian` is rejected before lookup.
 - [ ] The 7 extended fields are spec checked during construction (§2.3 table).
 - [ ] Explicit empty string option values (`Calendar`, `Collation`, `HourCycle`, `CaseFirst`, `NumberingSystem`, `FirstDayOfWeek`, and language identifier overrides) return invalid-option errors instead of being treated as omitted.
 
@@ -591,13 +600,13 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 - [ ] `(Locale).String()` output canonical BCP 47:
 - `-u-` extended keys are in lexicographic order (`ca` < `co` < `fw` < `hc` < `kf` < `kn` < `nu`).
 - Empty internal fields are omitted; omitted `Numeric` is not output; explicit `Numeric=true` is output as `-u-kn`; explicit `Numeric=false` is output as `-u-kn-false`.
-- Alias normalization (`Calendar="GREGORIAN"` outputs `-u-ca-gregory`).
+- Key-aware alias normalization (`Calendar="islamicc"` outputs `-u-ca-islamic-civil`).
 - [ ] `Parse(loc.String()).Equal(loc) == true`(round-trip).
 - [ ] `MarshalText` / `UnmarshalText` implements `encoding.TextMarshaler` / `TextUnmarshaler`.
 
 ### Maximize / Minimize
 
-- [ ] `(Locale).Maximize() Locale` walks the `language.Tag.LikelyScript/Region` + `internal/cldr` patch.
+- [ ] `(Locale).Maximize() Locale` uses the pinned generated CLDR likely-subtag table and preserves caller-supplied subtags.
 - [ ] `(Locale).Minimize() Locale` is the inverse of Maximize.
 - [ ] generated-reference `tests/likely-subtags.test.ts` and `tests/minimize.test.ts` All fixtures pass in `locale/canonical_test.go`.
 - [ ] `Maximize` / `Minimize` 7 extension fields reserved.
@@ -605,7 +614,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 ### Getter
 
 - [ ] Simple fields (7 extended fields) are pre-parsed during construction in `Parse` / `New` (§5.1 table).
-- [ ] Candidate list methods `GetCalendars` / `GetCollations` / `GetHourCycles` / `GetNumberingSystems` / `GetTimeZones` / `GetWeekInfo` / `GetTextInfo`. Each call takes away the CLDR preference data and does not cache it into the struct field.
+- [ ] Candidate list methods `GetCalendars` / `GetCollations` / `GetHourCycles` / `GetNumberingSystems` / `GetTimeZones` / `GetWeekInfo` / `GetTextInfo` read their owning generated data on each call and do not cache it into the struct. `GetTimeZones` uses explicit-region `internal/tz` records, including the full Canadian projection and `IN` → `Asia/Kolkata`.
 - [ ] When explicit `Calendar` is not empty, `GetCalendars()` returns a single-element list.
 - [ ] `WeekInfo` / `TextInfo` type signature is consistent with §5.2.
 
@@ -617,7 +626,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 ### Options
 
 - [ ] The `Options` field is consistent with §7.1, applied via `New(tag, options)`.
-- [ ] Passing in multiple `Options` returns an error matching `gointl.ErrInvalidOption`.
+- [ ] Passing multiple `Options` values is impossible through the public Go signature.
 - [ ] does not provide `With*` constructor options or `(Locale).With*` setters; the locale object remains read-only.
 
 ### Error

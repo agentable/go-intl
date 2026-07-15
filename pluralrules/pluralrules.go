@@ -96,9 +96,6 @@ func (f *PluralRules) Select(v Value) (Category, error) {
 		case ecma402.NumericValueDecimal:
 		}
 	}
-	if err := ecma402.RequireFiniteDecimalInput(numeric.Decimal); err != nil {
-		return Other, invalidValue("value", numeric.Decimal.String(), f.resolved.Locale.String(), err)
-	}
 	_, _, category := resolveDecimal(numeric.Decimal, f.resolved.Notation, f.digitOptions, f.compact, f.rule)
 	return category, nil
 }
@@ -123,11 +120,11 @@ func (f *PluralRules) SelectRange(start, end Value) (Category, error) {
 			return selectRangeCategories(startCategory, selectUnsignedInteger(endNumeric.Uint64, f.rule), f), nil
 		}
 	}
-	if err := ecma402.RequireFiniteDecimalInput(startNumeric.Decimal); err != nil {
-		return Other, invalidValue("start", startNumeric.Decimal.String(), f.resolved.Locale.String(), err)
+	if startNumeric.Decimal.IsNaN() {
+		return Other, invalidRangeValue("start", startNumeric.Decimal.String(), f.resolved.Locale.String(), decimal.ErrInvalidDecimal)
 	}
-	if err := ecma402.RequireFiniteDecimalInput(endNumeric.Decimal); err != nil {
-		return Other, invalidValue("end", endNumeric.Decimal.String(), f.resolved.Locale.String(), err)
+	if endNumeric.Decimal.IsNaN() {
+		return Other, invalidRangeValue("end", endNumeric.Decimal.String(), f.resolved.Locale.String(), decimal.ErrInvalidDecimal)
 	}
 	return selectRangeDecimal(startNumeric.Decimal, endNumeric.Decimal, f), nil
 }
@@ -172,6 +169,9 @@ func selectUnsignedInteger(n uint64, rule pluralRuleFunc) Category {
 }
 
 func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf.DigitOptions, compact compactExponentSet, rule pluralRuleFunc) (string, decimal.Decimal, Category) {
+	if !d.IsFinite() {
+		return d.String(), d, Other
+	}
 	exponent := 0
 	if notation == CompactNotation {
 		if _, _, compactExponent, ok := ecma402nf.ResolveCompactMagnitude(d, digitOptions, compact.exponentForMagnitude); ok {
@@ -199,8 +199,8 @@ func pluralExponent(d decimal.Decimal, notation Notation, digitOptions ecma402nf
 	}
 }
 
-func invalidValue(name, value, loc string, err error) error {
-	return ecma402.InvalidFiniteNumericValueError(pluralRulesOwner, name, value, loc, err)
+func invalidRangeValue(name, value, loc string, err error) error {
+	return ecma402.InvalidValueErrorExpected(pluralRulesOwner, name, value, loc, "a numeric value other than NaN", err)
 }
 
 type compactExponentSet struct {

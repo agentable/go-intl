@@ -383,65 +383,6 @@ func TestResolvedDigitOptionsResolvedProperties(t *testing.T) {
 	}
 }
 
-func TestResolvedDigitOptionsResolvedPluralRulesProperties(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		typ  RoundingType
-		want ResolvedDigitProperties
-	}{
-		{
-			name: "fraction digits",
-			typ:  RoundingTypeFractionDigits,
-			want: ResolvedDigitProperties{
-				MinimumFractionDigits: ecma402.ResolvedScalar(2),
-				MaximumFractionDigits: ecma402.ResolvedScalar(4),
-			},
-		},
-		{
-			name: "significant digits",
-			typ:  RoundingTypeSignificantDigits,
-			want: ResolvedDigitProperties{
-				MinimumSignificantDigits: ecma402.ResolvedScalar(3),
-				MaximumSignificantDigits: ecma402.ResolvedScalar(5),
-			},
-		},
-		{
-			name: "more precision",
-			typ:  RoundingTypeMorePrecision,
-			want: ResolvedDigitProperties{
-				MinimumSignificantDigits: ecma402.ResolvedScalar(3),
-				MaximumSignificantDigits: ecma402.ResolvedScalar(5),
-			},
-		},
-		{
-			name: "less precision",
-			typ:  RoundingTypeLessPrecision,
-			want: ResolvedDigitProperties{
-				MinimumSignificantDigits: ecma402.ResolvedScalar(3),
-				MaximumSignificantDigits: ecma402.ResolvedScalar(5),
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			digits := resolvedDigits(DigitOptions{
-				MinimumFractionDigits:    2,
-				MaximumFractionDigits:    4,
-				MinimumSignificantDigits: 3,
-				MaximumSignificantDigits: 5,
-			}, tc.typ)
-			if got := digits.ResolvedPluralRulesProperties(); !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("ResolvedDigitOptions.ResolvedPluralRulesProperties() = %+v, want %+v", got, tc.want)
-			}
-		})
-	}
-}
-
 func TestResolvedDigitOptionsCanUseIntegerOperands(t *testing.T) {
 	t.Parallel()
 

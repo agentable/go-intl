@@ -1,6 +1,7 @@
 package codegen
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 
@@ -68,7 +69,10 @@ func encodeDates(input RuntimeInput, table *StringTable) ([]byte, error) {
 	supported.appendStringRefSlice(gregLocales, table)
 
 	var calendars blobEncoder
-	calendarIDs := dateSupportedCalendars(dates)
+	calendarIDs, err := dateSupportedCalendars(dates)
+	if err != nil {
+		return nil, err
+	}
 	calendars.appendStringRefSlice(calendarIDs, table)
 
 	return renderPayloadFile("date", table,
@@ -157,20 +161,18 @@ func dateDayPeriodRuleSet(dates extract.Dates) map[string][]cldr.DayPeriodRange 
 // dateSupportedCalendars returns the ECMA-402 calendar identifiers supported by
 // the date payload: CLDR Gregorian maps to ECMA-402 Gregorian, and its presence
 // adds the ECMA-402 ISO 8601 bridge.
-func dateSupportedCalendars(dates extract.Dates) []string {
-	seen := map[string]bool{}
-	for _, data := range dates {
-		for calendar := range data.Calendars {
-			switch calendar {
-			case dateCLDRGregorianCalendar:
-				seen[dateSupportedGregorianCalendar] = true
-			default:
-				seen[calendar] = true
+func dateSupportedCalendars(dates extract.Dates) ([]string, error) {
+	hasGregorian := false
+	for _, locale := range sortedLocaleKeys(dates) {
+		for calendar := range dates[locale].Calendars {
+			if calendar != dateCLDRGregorianCalendar {
+				return nil, fmt.Errorf("date locale %q has no encoder route for calendar %q", locale, calendar)
 			}
+			hasGregorian = true
 		}
 	}
-	if seen[dateSupportedGregorianCalendar] {
-		seen[dateSupportedISO8601Calendar] = true
+	if !hasGregorian {
+		return nil, nil
 	}
-	return slices.Sorted(maps.Keys(seen))
+	return []string{dateSupportedGregorianCalendar, dateSupportedISO8601Calendar}, nil
 }

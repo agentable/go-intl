@@ -43,7 +43,7 @@ func (f *PluralRules) ResolvedOptions() ResolvedOptions {
 
 func resolvedOptionsForPluralRules(loc locale.Locale, cfg config, digits ecma402nf.ResolvedDigitOptions, dataLocale string) ResolvedOptions {
 	categories := publicCategories(plural.Categories(dataLocale, cfg.typ))
-	digitProperties := digits.ResolvedPluralRulesProperties()
+	digitProperties := digits.ResolvedProperties()
 	return ResolvedOptions{
 		Locale:                   loc,
 		Type:                     Type(cfg.typ),

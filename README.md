@@ -449,6 +449,10 @@ fmt.Println(list.Format([]string{"red", "green", "blue"}))
 fmt.Println(out)
 ```
 
+Relative-time values always use ECMAScript Number semantics. `Int` and `Uint`
+are convenience conversions through `float64`, so integers beyond `2^53` round
+exactly as native `Intl.RelativeTimeFormat`; `Float` preserves negative zero.
+
 ### Format Durations
 
 Use `durationformat` for `Intl.DurationFormat` semantics, including digital time formatting and fractional sub-second rollup. Reuse the formatter for repeated duration output; it resolves its embedded number and list formatters at construction time.
@@ -530,7 +534,7 @@ derive support from the payload family they use, so a locale is advertised only
 when the backing data or engine can support it.
 
 The default data profile is a curated product shape, not a hidden compatibility
-matrix: 104 locale tags, CLDR 48.1.0, ICU 78, and tzdata 2025b. Most
+matrix: 104 locale tags, CLDR 48.1.0, ICU 78, and IANA tzdata 2025b. Most
 CLDR-backed constructors share that generated profile. `Collator` and
 `Segmenter` are intentionally engine-specific: `Collator` follows
 `golang.org/x/text/collate`, and `Segmenter` currently reports only locales
@@ -550,19 +554,26 @@ To check runtime support, call the constructor package's `SupportedLocalesOf`.
 Locale parsing accepts BCP 47 tags through `golang.org/x/text/language`.
 Root supported-value accessors return ECMA-402 values: calendars are `gregory`
 and `iso8601`, numbering systems include the simple digit systems from
-ECMA-402, units come from the sanctioned unit list, currencies and time zones
-come from generated CLDR / tz data, and collations come from the active
-collation backend.
+ECMA-402, units come from the sanctioned unit list, currencies come from CLDR,
+time zones come from the generated IANA/CLDR identifier registry, and
+collations come from the active collation backend.
 
 DateTimeFormat currently formats Gregorian/ISO calendar data. Well-formed but
 unsupported calendar requests participate in locale negotiation and fall back to
 the generated calendar data; malformed calendar identifiers return constructor
 errors.
 
-DateTimeFormat accepts canonical IANA time zones and generated alias links such
-as `America/Montreal`, resolving them to canonical names from the pinned CLDR
-alias data plus documented legacy IANA links. `SupportedTimeZones` advertises
-canonical names, not aliases.
+DateTimeFormat accepts every named Zone or Link in the pinned IANA registry and
+matches identifiers using ECMA-402 ASCII-case-insensitive rules. Links such as
+`US/Eastern`, `Atlantic/Jan_Mayen`, and `Pacific/Truk` resolve to stable primary
+identifiers. `SupportedTimeZones` returns the complete primary projection, and
+`Locale.GetTimeZones` returns the `zone.tab` primary identifiers for the
+locale's explicit region. Localized time-zone names remain CLDR display data;
+Go's embedded `time/tzdata` supplies transition bytes.
+
+`DateTimeFormat.FormatRange` and `FormatRangeToParts` preserve caller-provided
+endpoint order. A later first argument is valid and remains `startRange`; the
+methods do not silently sort the range.
 
 ## Known Divergences
 
@@ -591,7 +602,11 @@ resolved divergence history. Do not create or retain empty placeholder
 
 - [`datetimeformat/testdata/divergences.md`](datetimeformat/testdata/divergences.md)
 
-Each active entry includes a divergence ID, source fixture, owner, reason, review date, and removal path. `task conformance:verify` enforces that every accepted divergence is still referenced.
+Each entry uses the strict `id`, `source`, `owner`, `status`, `reason`, optional
+DateTimeFormat `native_witness`, `review_after`, and `removal_path` fields.
+Unknown, duplicate, malformed, or incomplete fields fail
+`task conformance:verify`; resolved records are validated as history before
+being excluded from active fixture matching.
 
 ## Error Handling
 
@@ -608,11 +623,8 @@ names.
 | `gointl.ErrUnsupportedOption` | A valid ECMA-402 option is not backed by active implementation behavior. |
 | `gointl.ErrInvalidValue` | A runtime formatting value is malformed, non-finite, or otherwise invalid. |
 | `gointl.ErrInvalidCode` | `DisplayNames.Of` received an invalid code for its resolved type. |
-| `gointl.ErrInvalidKey` | A keyed root namespace operation received an unsupported key. |
-| `gointl.ErrUnsupportedLocale` | A locale request is outside the active data set. |
-| `gointl.ErrUnsupportedBackend` | Required implementation support is unavailable. |
 
-The three `ErrUnsupported*` categories also match `errors.ErrUnsupported`.
+`gointl.ErrUnsupportedOption` also matches `errors.ErrUnsupported`.
 
 ```go
 _, err := numberformat.New(mustLocaleList("en-US"), numberformat.Options{
@@ -630,8 +642,8 @@ if err != nil {
 }
 ```
 
-`Error.Kind` returns values such as `invalidOption`, `unsupportedOption`,
-`invalidValue`, `invalidCode`, and `invalidKey`. `Error.Expected` is optional;
+`Error.Kind` is one of `invalidOption`, `unsupportedOption`, `invalidValue`, or
+`invalidCode`. `Error.Expected` is optional;
 when it is empty, `Error()` still derives generic expected-value guidance from
 the error kind and field name. The wrapped sentinel remains the source of truth
 for branching with `errors.Is`.

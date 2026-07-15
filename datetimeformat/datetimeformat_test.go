@@ -1,6 +1,7 @@
 package datetimeformat
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -45,6 +46,22 @@ func mustFormatRangeToParts(t *testing.T, f *DateTimeFormat, start, end time.Tim
 		t.Fatalf("FormatRangeToParts(%v, %v) error = %v", start, end, err)
 	}
 	return parts
+}
+
+func joinPartValues(parts []Part) string {
+	var joined strings.Builder
+	for _, part := range parts {
+		joined.WriteString(part.Value)
+	}
+	return joined.String()
+}
+
+func joinRangePartValues(parts []RangePart) string {
+	var joined strings.Builder
+	for _, part := range parts {
+		joined.WriteString(part.Value)
+	}
+	return joined.String()
 }
 
 func mustGregorianForDateLocale(t *testing.T, tag string) cldrdate.Gregorian {
@@ -724,7 +741,7 @@ func TestDateTimeFormatFormatToPartsBCEWideEra(t *testing.T) {
 			era = part.Value
 		case PartYear:
 			year = part.Value
-		case PartLiteral, PartMonth, PartDay, PartHour, PartMinute, PartSecond, PartDayPeriod, PartTimeZoneName, PartWeekday, PartFractionalSecondDigits, PartRelatedYear, PartYearName, PartUnknown:
+		case PartLiteral, PartMonth, PartDay, PartHour, PartMinute, PartSecond, PartDayPeriod, PartTimeZoneName, PartWeekday, PartFractionalSecond, PartRelatedYear, PartYearName, PartUnknown:
 		}
 	}
 	if era == "" || era == "Anno Domini" {
@@ -769,7 +786,7 @@ func TestDateTimeFormatUsesCLDRDateFieldNames(t *testing.T) {
 			gotWeekday = part.Value
 		case PartMonth:
 			gotMonth = part.Value
-		case PartYear, PartDay, PartHour, PartMinute, PartSecond, PartEra, PartDayPeriod, PartTimeZoneName, PartLiteral, PartFractionalSecondDigits, PartRelatedYear, PartYearName, PartUnknown:
+		case PartYear, PartDay, PartHour, PartMinute, PartSecond, PartEra, PartDayPeriod, PartTimeZoneName, PartLiteral, PartFractionalSecond, PartRelatedYear, PartYearName, PartUnknown:
 		}
 	}
 	if gotWeekday != wantWeekday || gotMonth != "5" {
@@ -851,10 +868,130 @@ func TestDateTimeFormatFormatToPartsTimeFieldsWithFractionalSeconds(t *testing.T
 		{Type: PartLiteral, Value: ":"},
 		{Type: PartSecond, Value: "06"},
 		{Type: PartLiteral, Value: "."},
-		{Type: PartFractionalSecondDigits, Value: "123"},
+		{Type: PartFractionalSecond, Value: "123"},
 	}
 	if !reflect.DeepEqual(parts, want) {
 		t.Fatalf("FormatToParts() = %#v, want %#v", parts, want)
+	}
+}
+
+func TestDateTimeFormatFractionalSecondPartUsesECMA402Type(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{
+		Second:                 stringPtr(TwoDigitFieldStyle),
+		FractionalSecondDigits: intPtr(1),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := format.FormatToParts(time.Date(2026, time.May, 8, 9, 7, 6, 123_000_000, time.UTC))
+	for _, part := range parts {
+		if part.Value == "1" {
+			if got, want := part.Type, PartType("fractionalSecond"); got != want {
+				t.Fatalf("fractional-second part type = %q, want %q", got, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("FormatToParts() = %#v, want fractional-second part", parts)
+}
+
+func TestDateTimeFormatFractionalSecondPartWidthsAndNumberingSystem(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		digits          int
+		numberingSystem string
+		want            string
+	}{
+		{name: "one digit", digits: 1, want: "1"},
+		{name: "two digits", digits: 2, want: "12"},
+		{name: "three digits", digits: 3, want: "123"},
+		{name: "arab digits", digits: 3, numberingSystem: "arab", want: "١٢٣"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			options := Options{
+				Hour:                   stringPtr(TwoDigitFieldStyle),
+				Minute:                 stringPtr(TwoDigitFieldStyle),
+				Second:                 stringPtr(TwoDigitFieldStyle),
+				FractionalSecondDigits: intPtr(tc.digits),
+				Hour12:                 boolPtr(false),
+				TimeZone:               stringPtr("UTC"),
+			}
+			if tc.numberingSystem != "" {
+				options.NumberingSystem = stringPtr(tc.numberingSystem)
+			}
+			format, err := New(locale.List{intltest.Locale(t, "en-US")}, options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			input := time.Date(2026, time.May, 8, 9, 7, 6, 123_000_000, time.UTC)
+			parts := format.FormatToParts(input)
+			var fractional Part
+			for _, part := range parts {
+				if part.Type == PartFractionalSecond {
+					fractional = part
+				}
+				if part.Type == PartType("fractionalSecondDigits") {
+					t.Fatalf("FormatToParts() emitted obsolete type in %#v", parts)
+				}
+			}
+			if fractional.Value != tc.want {
+				t.Fatalf("fractional-second part = %#v, want value %q", fractional, tc.want)
+			}
+			if got, want := format.Format(input), joinPartValues(parts); got != want {
+				t.Fatalf("Format() = %q, want joined parts %q", got, want)
+			}
+			record, err := json.Marshal(fractional)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := string(record), `{"type":"fractionalSecond","value":"`+tc.want+`"}`; got != want {
+				t.Fatalf("fractional-second JSON = %s, want %s", got, want)
+			}
+		})
+	}
+}
+
+func TestDateTimeFormatRangeFractionalSecondPartUsesECMA402Type(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{
+		Hour:                   stringPtr(TwoDigitFieldStyle),
+		Minute:                 stringPtr(TwoDigitFieldStyle),
+		Second:                 stringPtr(TwoDigitFieldStyle),
+		FractionalSecondDigits: intPtr(3),
+		Hour12:                 boolPtr(false),
+		TimeZone:               stringPtr("UTC"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, time.May, 8, 9, 7, 6, 123_000_000, time.UTC)
+	end := time.Date(2026, time.May, 8, 9, 7, 6, 456_000_000, time.UTC)
+	parts := mustFormatRangeToParts(t, format, start, end)
+	var fractional []RangePart
+	for _, part := range parts {
+		if part.Type == PartFractionalSecond {
+			fractional = append(fractional, part)
+		}
+		if part.Type == PartType("fractionalSecondDigits") {
+			t.Fatalf("FormatRangeToParts() emitted obsolete type in %#v", parts)
+		}
+	}
+	want := []RangePart{
+		{Type: PartFractionalSecond, Value: "123", Source: SourceStartRange},
+		{Type: PartFractionalSecond, Value: "456", Source: SourceEndRange},
+	}
+	if !reflect.DeepEqual(fractional, want) {
+		t.Fatalf("fractional-second range parts = %#v, want %#v", fractional, want)
+	}
+	if got, want := mustFormatRange(t, format, start, end), joinRangePartValues(parts); got != want {
+		t.Fatalf("FormatRange() = %q, want joined parts %q", got, want)
 	}
 }
 
@@ -896,6 +1033,43 @@ func TestDateTimeFormatFormatsTimeZoneName(t *testing.T) {
 	}
 }
 
+func TestDateTimeFormatUsesLocalizedRegionFormatForLocationTimeZoneName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		locale string
+		want   string
+	}{
+		{locale: "en", want: "Dumont d’Urville Station Time"},
+		{locale: "fr", want: "heure : Dumont-d’Urville"},
+		{locale: "zh", want: "迪蒙·迪维尔时间"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.locale, func(t *testing.T) {
+			t.Parallel()
+
+			format, err := New(locale.List{intltest.Locale(t, tc.locale)}, Options{
+				TimeZone:     stringPtr("Antarctica/DumontDUrville"),
+				Hour:         stringPtr(NumericFieldStyle),
+				TimeZoneName: stringPtr(ShortGenericTimeZoneName),
+			})
+			if err != nil {
+				t.Fatalf("New(location timezone name) error = %v", err)
+			}
+			parts := format.FormatToParts(time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC))
+			for _, part := range parts {
+				if part.Type == PartTimeZoneName {
+					if part.Value != tc.want {
+						t.Fatalf("timeZoneName part = %q, want %q", part.Value, tc.want)
+					}
+					return
+				}
+			}
+			t.Fatal("FormatToParts() did not return a timeZoneName part")
+		})
+	}
+}
+
 func TestDateTimeFormatFormatsLocalizedTimeZoneNameForms(t *testing.T) {
 	t.Parallel()
 
@@ -926,6 +1100,29 @@ func TestDateTimeFormatFormatsLocalizedTimeZoneNameForms(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDateTimeFormatUsesHistoricalTransitionDSTFlagForSpecificName(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en-GB")}, Options{
+		TimeZone:     stringPtr("Europe/London"),
+		Hour:         stringPtr(NumericFieldStyle),
+		TimeZoneName: stringPtr(LongTimeZoneName),
+	})
+	if err != nil {
+		t.Fatalf("New(historical timezone name) error = %v", err)
+	}
+	parts := format.FormatToParts(time.Date(1941, time.January, 15, 12, 0, 0, 0, time.UTC))
+	for _, part := range parts {
+		if part.Type == PartTimeZoneName {
+			if got, want := part.Value, "British Summer Time"; got != want {
+				t.Fatalf("timeZoneName part = %q, want %q", got, want)
+			}
+			return
+		}
+	}
+	t.Fatal("FormatToParts() did not return a timeZoneName part")
 }
 
 func TestDateTimeFormatFormatsOffsetTimeZoneName(t *testing.T) {
@@ -1558,32 +1755,116 @@ func TestDateTimeFormatRangeFallbackPartsRemainJoined(t *testing.T) {
 	}
 }
 
-func TestDateTimeFormatRangeRejectsReversedRange(t *testing.T) {
+func TestDateTimeFormatRangePreservesReversedInputOrder(t *testing.T) {
 	t.Parallel()
 
 	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Year: stringPtr(NumericFieldStyle), Month: stringPtr(ShortMonthStyle), Day: stringPtr(NumericFieldStyle)})
 	if err != nil {
 		t.Fatalf("New(date fields) error = %v", err)
 	}
-	start := time.Date(2026, time.May, 10, 0, 0, 0, 0, time.UTC)
+	start := time.Date(2027, time.June, 10, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC)
-	wantValue := "start=2026-05-10T00:00:00Z end=2026-05-08T00:00:00Z"
-	wantLocale := format.ResolvedOptions().Locale.String()
-	if got, err := format.FormatRange(start, end); !errors.Is(err, intlerr.ErrInvalidValue) {
-		t.Fatalf("FormatRange(reversed) = %q, error %v, want intlerr.ErrInvalidValue", got, err)
-	} else if got != "" {
-		t.Fatalf("FormatRange(reversed) = %q with error %v, want empty output", got, err)
-	} else {
-		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "datetimeformat", "range", wantValue, wantLocale)
-		testcontract.AssertErrorExpected(t, err, "start date less than or equal to end date")
+	got, err := format.FormatRange(start, end)
+	if err != nil {
+		t.Fatalf("FormatRange(reversed) error = %v", err)
 	}
-	if parts, err := format.FormatRangeToParts(start, end); !errors.Is(err, intlerr.ErrInvalidValue) {
-		t.Fatalf("FormatRangeToParts(reversed) = %#v, error %v, want intlerr.ErrInvalidValue", parts, err)
-	} else if parts != nil {
-		t.Fatalf("FormatRangeToParts(reversed) = %#v with error %v, want nil parts", parts, err)
-	} else {
-		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "datetimeformat", "range", wantValue, wantLocale)
-		testcontract.AssertErrorExpected(t, err, "start date less than or equal to end date")
+	if want := "Jun 10, 2027\u2009–\u2009May 8, 2026"; got != want {
+		t.Fatalf("FormatRange(reversed) = %q, want %q", got, want)
+	}
+	parts, err := format.FormatRangeToParts(start, end)
+	if err != nil {
+		t.Fatalf("FormatRangeToParts(reversed) error = %v", err)
+	}
+	if joined := joinRangePartValues(parts); joined != got {
+		t.Fatalf("joined FormatRangeToParts(reversed) = %q, want %q", joined, got)
+	}
+	var startValues, endValues strings.Builder
+	for _, part := range parts {
+		switch part.Source {
+		case SourceStartRange:
+			startValues.WriteString(part.Value)
+		case SourceEndRange:
+			endValues.WriteString(part.Value)
+		case SourceShared:
+		}
+	}
+	if got, want := startValues.String(), "Jun 10, 2027"; got != want {
+		t.Fatalf("startRange values = %q, want first argument %q", got, want)
+	}
+	if got, want := endValues.String(), "May 8, 2026"; got != want {
+		t.Fatalf("endRange values = %q, want second argument %q", got, want)
+	}
+}
+
+func TestDateTimeFormatRangePreservesReversedTimeAndFallbackOrder(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		opts      Options
+		start     time.Time
+		end       time.Time
+		want      string
+		wantStart string
+		wantEnd   string
+	}{
+		{
+			name:      "same-day time interval",
+			opts:      Options{Hour: stringPtr(NumericFieldStyle), Minute: stringPtr(TwoDigitFieldStyle), Hour12: boolPtr(true)},
+			start:     time.Date(2026, time.May, 8, 10, 7, 0, 0, time.UTC),
+			end:       time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC),
+			want:      "10:07\u2009–\u20099:07 AM",
+			wantStart: "10:07",
+			wantEnd:   "9:07",
+		},
+		{
+			name:      "date-time fallback",
+			opts:      Options{DateStyle: stringPtr(FullDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), Hour12: boolPtr(true)},
+			start:     time.Date(2026, time.June, 10, 10, 7, 0, 0, time.UTC),
+			end:       time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC),
+			want:      "Wednesday, June 10, 2026 at 10:07 AM\u2009–\u2009Friday, May 8, 2026 at 9:07 AM",
+			wantStart: "Wednesday, June 10, 2026 at 10:07 AM",
+			wantEnd:   "Friday, May 8, 2026 at 9:07 AM",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			format, err := New(locale.List{intltest.Locale(t, "en-US")}, tc.opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := format.FormatRange(tc.start, tc.end)
+			if err != nil {
+				t.Fatalf("FormatRange(reversed) error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("FormatRange(reversed) = %q, want %q", got, tc.want)
+			}
+			parts, err := format.FormatRangeToParts(tc.start, tc.end)
+			if err != nil {
+				t.Fatalf("FormatRangeToParts(reversed) error = %v", err)
+			}
+			if joined := joinRangePartValues(parts); joined != got {
+				t.Fatalf("joined FormatRangeToParts(reversed) = %q, want %q", joined, got)
+			}
+			var startValues, endValues strings.Builder
+			for _, part := range parts {
+				switch part.Source {
+				case SourceStartRange:
+					startValues.WriteString(part.Value)
+				case SourceEndRange:
+					endValues.WriteString(part.Value)
+				case SourceShared:
+				}
+			}
+			if got := startValues.String(); got != tc.wantStart {
+				t.Fatalf("startRange values = %q, want first argument %q", got, tc.wantStart)
+			}
+			if got := endValues.String(); got != tc.wantEnd {
+				t.Fatalf("endRange values = %q, want second argument %q", got, tc.wantEnd)
+			}
+		})
 	}
 }
 

@@ -8,11 +8,11 @@ import (
 
 // ExampleParse demonstrates Intl.Locale canonicalization from ECMA-402.
 func ExampleParse() {
-	loc := mustLocale("en-us-u-ca-gregorian-hc-h23")
+	loc := mustLocale("en-us-u-ca-islamicc-hc-h23")
 	fmt.Println(loc.String())
 
 	// Output:
-	// en-US-u-ca-gregory-hc-h23
+	// en-US-u-ca-islamic-civil-hc-h23
 }
 
 // ExampleNew_options demonstrates Intl.Locale constructor options from ECMA-402.

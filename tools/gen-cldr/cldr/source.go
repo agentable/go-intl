@@ -10,20 +10,21 @@ import (
 const undefinedLocale = "und"
 
 type Source struct {
-	Root              string
-	Available         []string
-	LikelySubtags     map[string]string
-	Numbers           map[string]Numbers
-	Currencies        map[string]Currencies
-	CurrencyFractions map[string]CurrencyFraction
-	Dates             map[string]Dates
-	Preference        PreferenceData
-	Metazones         Metazones
-	TimeZoneAliases   []TimeZoneAlias
-	Units             map[string]Units
-	ListPatterns      map[string]ListPatterns
-	RelativeTime      map[string]RelativeTimeFields
-	DisplayNames      map[string]DisplayNames
+	Root               string
+	Available          []string
+	LikelySubtags      map[string]string
+	UnicodeTypeAliases []UnicodeTypeAlias
+	LanguageMatching   LanguageMatching
+	Numbers            map[string]Numbers
+	Currencies         map[string]Currencies
+	CurrencyFractions  map[string]CurrencyFraction
+	Dates              map[string]Dates
+	Preference         PreferenceData
+	Metazones          Metazones
+	Units              map[string]Units
+	ListPatterns       map[string]ListPatterns
+	RelativeTime       map[string]RelativeTimeFields
+	DisplayNames       map[string]DisplayNames
 }
 
 func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlist []string) (*Source, error) {
@@ -45,6 +46,14 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 	}
 	available = filterAvailableLocales(available, localeAllowlist)
 	likely, err := loadLikelySubtags(resolved)
+	if err != nil {
+		return nil, err
+	}
+	unicodeTypeAliases, err := loadUnicodeTypeAliases(resolved)
+	if err != nil {
+		return nil, err
+	}
+	languageMatching, err := loadLanguageMatching(resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -72,10 +81,6 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 	if err != nil {
 		return nil, err
 	}
-	timeZoneAliases, err := loadTimeZoneAliases(resolved)
-	if err != nil {
-		return nil, err
-	}
 	units, err := loadUnits(resolved, available)
 	if err != nil {
 		return nil, err
@@ -93,20 +98,21 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 		return nil, err
 	}
 	return &Source{
-		Root:              resolved,
-		Available:         available,
-		LikelySubtags:     likely,
-		Numbers:           numbers,
-		Currencies:        currencies,
-		CurrencyFractions: fractions,
-		Dates:             dates,
-		Preference:        preference,
-		Metazones:         metazones,
-		TimeZoneAliases:   timeZoneAliases,
-		Units:             units,
-		ListPatterns:      listPatterns,
-		RelativeTime:      relativeTime,
-		DisplayNames:      displayNames,
+		Root:               resolved,
+		Available:          available,
+		LikelySubtags:      likely,
+		UnicodeTypeAliases: unicodeTypeAliases,
+		LanguageMatching:   languageMatching,
+		Numbers:            numbers,
+		Currencies:         currencies,
+		CurrencyFractions:  fractions,
+		Dates:              dates,
+		Preference:         preference,
+		Metazones:          metazones,
+		Units:              units,
+		ListPatterns:       listPatterns,
+		RelativeTime:       relativeTime,
+		DisplayNames:       displayNames,
 	}, nil
 }
 

@@ -10,8 +10,6 @@ package timezone
 import (
 	"strconv"
 	"strings"
-
-	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 )
 
 // TimeZoneName is one ECMA-402 timeZoneName option value.
@@ -40,23 +38,11 @@ const (
 const (
 	rootGMTFormat          = "GMT{0}"
 	rootGMTZeroFormat      = "GMT"
+	rootRegionFormat       = "{0}"
 	rootPositiveHourFormat = "+HH:mm"
 	rootNegativeHourFormat = "-HH:mm"
 	rootHourFormat         = rootPositiveHourFormat + ";" + rootNegativeHourFormat
 )
-
-// CanonicalTimeZoneLink resolves a deprecated IANA link to its canonical name,
-// forwarding to the locale kernel which owns the small static link table.
-func CanonicalTimeZoneLink(name string) string {
-	return cldrlocale.CanonicalTimeZoneLink(name)
-}
-
-// SupportedTimeZones returns the canonicalized supported IANA zone names in
-// sorted order. It reads only the narrow supported blob and never triggers the
-// metazone-period or names blob decode.
-func SupportedTimeZones() []string {
-	return supported.Get()
-}
 
 // TimeZoneMetazone returns the metazone in force for the zone at the given
 // unix-milli instant, or "" when no period covers it.
@@ -93,7 +79,7 @@ func TimeZoneDisplayName(loc Locale, zone string, form TimeZoneName, isDST bool,
 		return name
 	}
 	if city := exemplarCity(loc, zone); city != "" {
-		return "Time in " + city
+		return strings.Replace(timeZoneFormats(loc).regionFormat, "{0}", city, 1)
 	}
 	return GMTOffsetName(loc, offsetMs, form)
 }
@@ -165,8 +151,8 @@ func exemplarCity(loc Locale, zone string) string {
 	return cities[zone]
 }
 
-// timeZoneFormats resolves a locale's GMT/hour offset formats, applying CLDR
-// root defaults when a field is absent.
+// timeZoneFormats resolves a locale's GMT/hour offset and location formats,
+// applying CLDR root defaults when a field is absent.
 func timeZoneFormats(loc Locale) timeZoneFormatRefs {
 	formatsOnce.Do(loadFormats)
 	formats := timeZoneFormatsForLocale(loc)
@@ -178,6 +164,9 @@ func timeZoneFormats(loc Locale) timeZoneFormatRefs {
 	}
 	if formats.hourFormat == "" {
 		formats.hourFormat = rootHourFormat
+	}
+	if formats.regionFormat == "" {
+		formats.regionFormat = rootRegionFormat
 	}
 	return formats
 }

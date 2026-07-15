@@ -24,8 +24,8 @@ func TestNumericAutoLiteralKeyCanonicalization(t *testing.T) {
 	}{
 		{name: "float negative zero", value: Float(negZero), want: "today"},
 		{name: "float positive zero", value: Float(0), want: "today"},
-		{name: "decimal trailing zero one", value: mustDecimalValue(t, "1.0"), want: "tomorrow"},
-		{name: "decimal trailing zero neg one", value: mustDecimalValue(t, "-1.00"), want: "yesterday"},
+		{name: "float one", value: Float(1), want: "tomorrow"},
+		{name: "float negative one", value: Float(-1), want: "yesterday"},
 		{name: "int zero", value: Int(0), want: "today"},
 		{name: "int minus one", value: Int(-1), want: "yesterday"},
 		{name: "int one", value: Int(1), want: "tomorrow"},

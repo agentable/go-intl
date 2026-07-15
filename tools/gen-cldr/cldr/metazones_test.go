@@ -1,9 +1,11 @@
 package cldr
 
 import (
+	"fmt"
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -65,7 +67,7 @@ func TestLoadMetazonesComposesZoneHistoryAndLocalizedNames(t *testing.T) {
 			},
 		},
 		Formats: map[string]TimeZoneFormats{
-			"en": {GMTFormat: "GMT{0}", GMTZeroFormat: "GMT", HourFormat: "+HH:mm;-HH:mm"},
+			"en": {GMTFormat: "GMT{0}", GMTZeroFormat: "GMT", HourFormat: "+HH:mm;-HH:mm", RegionFormat: "{0} Time"},
 		},
 	}
 	assertMetazones(t, "loadMetazones()", got, want)
@@ -302,6 +304,46 @@ func TestLoadTimeZoneNamesRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestLoadTimeZoneNamesRejectsInvalidRegionFormat(t *testing.T) {
+	t.Parallel()
+
+	for _, regionFormat := range []string{"Location time", "{0} / {0}", "{1} Time"} {
+		t.Run(regionFormat, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			raw := `{"main":{"en":{"dates":{"timeZoneNames":{"gmtFormat":"GMT{0}","gmtZeroFormat":"GMT","hourFormat":"+HH:mm;-HH:mm","regionFormat":` + fmt.Sprintf("%q", regionFormat) + `}}}}}`
+			mustWriteFile(t, filepath.Join(root, "cldr-dates-full", "main", "en", "timeZoneNames.json"), raw)
+
+			_, _, _, _, err := loadTimeZoneNames(root, []string{"en"})
+			if err == nil {
+				t.Fatal("loadTimeZoneNames() succeeded, want error")
+			}
+			for _, text := range []string{"en", "regionFormat", regionFormat} {
+				if !strings.Contains(err.Error(), text) {
+					t.Fatalf("loadTimeZoneNames() error = %q, want %q", err, text)
+				}
+			}
+		})
+	}
+}
+
+func TestLoadTimeZoneNamesUsesRootRegionFormatWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	raw := `{"main":{"en":{"dates":{"timeZoneNames":{"gmtFormat":"GMT{0}","gmtZeroFormat":"GMT","hourFormat":"+HH:mm;-HH:mm"}}}}}`
+	mustWriteFile(t, filepath.Join(root, "cldr-dates-full", "main", "en", "timeZoneNames.json"), raw)
+
+	_, _, _, formats, err := loadTimeZoneNames(root, []string{"en"})
+	if err != nil {
+		t.Fatalf("loadTimeZoneNames() error = %v", err)
+	}
+	if got, want := formats["en"].RegionFormat, "{0}"; got != want {
+		t.Fatalf("RegionFormat = %q, want CLDR root %q", got, want)
+	}
+}
+
 func mustWriteMetazoneFixture(t *testing.T, root string) {
 	t.Helper()
 
@@ -374,6 +416,7 @@ func mustWriteTimeZoneNamesFixture(t *testing.T, root, locale string) {
 						"gmtFormat": "GMT{0}",
 						"gmtZeroFormat": "GMT",
 						"hourFormat": "+HH:mm;-HH:mm",
+						"regionFormat": "{0} Time",
 						"metazone": {
 							"America_Eastern": {
 								"long": {

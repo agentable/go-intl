@@ -1,8 +1,8 @@
 # SPEC 32 — DateTimeFormat TimeZone & Calendar Data
 
 > **Status:** Draft (2026-05-08)
-> **Owner:** `internal/cldr/timezone/` + `internal/cldr/date/` + `internal/cldr/locale/timezones.go` + `internal/tz/`
-> **Reference contract:** `formatjs/packages/intl-datetimeformat/scripts/extract-dates.ts` + `time/tzdata` + CLDR `cldr-core/supplemental/metaZones.json` + `cldr-dates-full/main/<locale>/timeZoneNames.json` + `cldr-dates-full/main/<locale>/ca-gregorian.json`
+> **Owner:** `internal/tz/` + `internal/cldr/timezone/` + `internal/cldr/date/`
+> **Reference contract:** ECMA-402 time-zone identifier records + pinned IANA tzdb source + CLDR BCP47 `timezone.json` + Go `time/tzdata` + CLDR `metaZones.json` / localized `timeZoneNames.json` / `ca-gregorian.json`
 
 ## Overview
 
@@ -25,15 +25,18 @@ This SPEC does not redefine:
 
 **MUST** Rules:
 
-1. IANA tzdata **MUST** be injected via the Go official `_ "time/tzdata"` blank import.
-2. **It is forbidden** to copy the tzif file or the transition data of `cldr-core/supplemental/timezone.json` to the warehouse.
-3. **FORBIDDEN** host-dependent `/usr/share/zoneinfo` (`time.LoadLocation` default behavior): deployment to Alpine/scratch containers will fail.
-4. **FORBIDDEN** from transplanting Generated reference's `tz_data.tar.gz` pipeline (zdump + Docker + base36 encoding) - Go already has `time/tzdata`, and there is no profit in reinventing the wheel.
+1. The SHA-256-pinned official IANA release archive **MUST** own the complete legal Zone/Link identifier set and `zone.tab` region assignments used by ECMA-402 identifier records.
+2. CLDR BCP47 `timezone.json` **MUST** refine stable primary-identifier selection and rename state for IANA identifiers. It does not define the complete legal identifier set.
+3. IANA transition bytes **MUST** be injected via the Go official `_ "time/tzdata"` blank import. The Go transition-data version must be at least the pinned IANA identity version.
+4. **It is forbidden** to copy tzif files or transition tables into generated project data.
+5. **FORBIDDEN** host-only `/usr/share/zoneinfo`: deployment to Alpine/scratch containers must retain named-zone behavior through the embedded Go data.
+6. **FORBIDDEN** from transplanting Generated reference's `tz_data.tar.gz` pipeline (zdump + Docker + base36 encoding) - Go already owns transition decoding.
 
 > **Why**:
-> 1. `time/tzdata` is maintained by the Go team and has the same origin as IANA tzdata. ~450 KB increments added to the binary are acceptable (Go binary is usually 10–50 MB).
-> 2. ECMA-402 requires three types of input to coexist: `"Etc/UTC"` / `"America/New_York"` / `"+05:30"`; the first two types go to `time.LoadLocation`, and the third type parses by itself.
-> 3. SPEC 00 §5.4 has stated that "we want deterministic output" - the system zoneinfo is not deterministic in different deployment environments.
+> 1. The official IANA archive is the only complete identity source; CLDR carries the primary-name policy that ECMA-402/ICU observes, while Go carries executable transitions. Treating any one of the three as all-purpose data loses either identifiers, canonicalization, or transitions.
+> 2. `time/tzdata` is maintained by the Go team and has the same origin as IANA tzdata. ~450 KB increments added to the binary are acceptable (Go binary is usually 10–50 MB).
+> 3. ECMA-402 requires three types of input to coexist: `"Etc/UTC"` / `"America/New_York"` / `"+05:30"`; the first two types use registered identifiers and Go transitions, and the third type parses directly.
+> 4. SPEC 00 §5.4 has stated that "we want deterministic output" - the system zoneinfo is not deterministic in different deployment environments.
 >
 > **Rejected**:
 > - **Dependent system zoneinfo**: Alpine/scratch container has no files, prod/dev failure mode is inconsistent.
@@ -72,6 +75,9 @@ func Resolve(name string) (*time.Location, error)
 func Default() (string, *time.Location)
 func ParseOffsetString(s string) (int64, error)        // ms east of UTC
 func CanonicalLink(name string) string                 // "US/Eastern" → "America/New_York"
+func LookupIdentifier(name string) (IdentifierRecord, bool)
+func SupportedTimeZones() []string
+func TimeZonesForRegion(region string) []string
 func LookupAt(loc *time.Location, t time.Time) ZoneInfo
 
 type ZoneInfo struct {
@@ -85,27 +91,22 @@ type ZoneInfo struct {
 
 `Default` is the single internal owner for the DateTimeFormat default time-zone provider. It canonicalizes IANA links and offset names the same way as explicit `Options.TimeZone`; tests may replace the provider with `OverrideDefaultForTest`, which returns ordinary resolution errors for unsupported names instead of panicking. No public diagnostic or configuration API is exposed.
 
-### 1.4 CanonicalLink table <a id="canonicallink"></a>
+`LookupAt` **MUST** derive `ZoneInfo.IsDST` from the IANA transition selected by the target-local `time.Time` (`local.IsDST()`). Inferring DST by comparing January and July offsets is forbidden: Ramadan suspensions, permanent or negative DST, wartime rules, and southern-hemisphere transitions do not fit that model.
+
+### 1.4 Identifier registry and primary projection <a id="canonicallink"></a>
 
 **MUST** Rules:
 
-1. The time-zone alias → canonical mapping **MUST** be generated from pinned `cldr-core/supplemental/aliases.json` `zoneAlias` replacements plus the deliberately documented legacy IANA links not present in CLDR aliases but accepted by Go tzdata.
-2. **Disabled** runtime parsing of external alias files; **Disabled** `//go:embed` alias source files + parsing.
-3. The canonical-link table storage path **MUST** be `internal/cldr/locale/timezones.go` (generated locale-kernel data).
-4. Form:
-   ```go
-   func CanonicalTimeZoneLink(name string) string {
-       switch name {
-       case "America/Montreal":
-           return "America/Toronto"
-       case "US/Eastern":
-           return "America/New_York"
-       // ...
-       }
-       return name
-   }
-   ```
-5. `CanonicalLink(name)` **MUST** look up the table first; if it cannot be found, it will be returned as is (assuming that the input is canonical).
+1. `tools/gen-cldr/tzdata.json` **MUST** pin the official IANA release URL, version, public-domain license declaration, and SHA-256. Generation must fail on a hash/version/license mismatch.
+2. `tools/gen-cldr/tzdb` **MUST** parse the Zone/Link identity set from the official tzdb source files plus `backward`, validate link closure/cycles, parse `zone.tab` region assignments, and read `backzone` Link / `#PACKRATLIST zone.tab Link` records only for the ECMA-402 cross-country primary-selection step. Historical `backzone` Zone bodies do not create a second identity universe. Host-loadable names absent from the resulting registry, such as `posixrules`, are not legal Intl identifiers.
+3. CLDR BCP47 `timezone.json` may select the stable primary record for a known IANA identifier. A CLDR alias whose source or target is absent from the pinned IANA registry cannot create a new legal identifier.
+4. Codegen **MUST** emit one immutable `IdentifierRecord{Identifier, Primary}` for every legal identifier and sorted region records into `internal/tz/registry_data.go`. `internal/cldr/locale` and `internal/cldr/timezone` own no identifier/link copy.
+5. `LookupIdentifier` **MUST** compare ASCII letters case-insensitively while rejecting non-ASCII folding. It returns the source-spelled identifier and its stable primary record.
+6. `CanonicalLink(name)` returns the record's `Primary` when lookup succeeds and otherwise returns `name`; `Resolve` must reject the unknown case before calling Go transition loading.
+7. `SupportedTimeZones()` **MUST** be the sorted, unique, defensive primary projection (`Identifier == Primary`) of the same registry. `TimeZonesForRegion` **MUST** project the sorted primary `zone.tab` assignments and return a defensive slice.
+8. Runtime parsing of the IANA/CLDR source files and `//go:embed` of those source files are forbidden. `task data:check` byte-compares the generated registry.
+
+Required witnesses include `Atlantic/Jan_Mayen → Arctic/Longyearbyen`, `Pacific/Truk → Pacific/Chuuk`, `Europe/Kiev → Europe/Kyiv`, `Asia/Calcutta → Asia/Kolkata`, and region `IN → Asia/Kolkata`.
 
 ### 1.5 metaZones three-segment mapping <a id="metazones"></a>
 
@@ -157,14 +158,21 @@ End int64 //, MaxInt64 means +∞
        localeIndex["en-US"]: {"America/New_York": "New York"},
        // ...
    }
+
+// Stage 4: locale → time-zone formatting patterns
+   type TimeZoneFormats struct {
+       GMTFormat, GMTZeroFormat, HourFormat string
+       RegionFormat string // exactly one {0}, replaced by the exemplar city
+   }
    ```
 4. accessor `internal/cldr/timezone.TimeZoneDisplayName(loc timezone.Locale, zone string, form TimeZoneName, isDST bool, instant int64, offsetMs int64) string` **MUST** implement ECMA-402 §13.1.5 fallback chain:
    ```text
-1. Check metazoneNames[locale][metazone(zone, instant)][form] → Return if hit
-2. Check exemplarCities[locale][zone] → Return generic fallback("Time in {city}") if hit
-3. Fall back to GMT offset string ("GMT-05:00")
+1. Check zone-specific and metazone names for the requested form → return if hit
+2. Check exemplarCities[locale][zone] → interpolate the city into the locale's CLDR regionFormat
+3. Fall back to the locale's GMT offset pattern
    ```
 5. The metazone selection **MUST** support time sensitivity (`instant` decides which `MetazonePeriod` to take) - Example: `Europe/Moscow` has different metazones around 2011.
+6. `regionFormat` **MUST** be extracted from `timeZoneNames.json`, contain exactly one `{0}` placeholder, and use the CLDR root pattern `{0}` when absent. `fallbackFormat` and the standard/daylight `regionFormat` variants remain out of the payload until a runtime decision path consumes them.
 
 > **Why**: `metaZones` three-segment mapping is a difficulty in conformance testing (generated-reference `tests/timezone-name.test.ts` 30+ fixture); any runtime analysis will introduce cold start delay and binary size overhead.
 >
@@ -313,10 +321,10 @@ From, To time.Duration // Time offset from 00:00 on the current day
 1. The `ResolvedOptions().TimeZone` return value **MUST** be the IANA canonical name (converted for link) or UTC offset string (reserved for `+HH:MM` input).
 2. The conversion process **MUST** be:
    ```text
-1. resolveTZ := internal/tz.Resolve(input) // Accept link / canonical / offset
-   2. canonical := internal/tz.CanonicalLink(input)
+1. resolveTZ := internal/tz.Resolve(input) // Validate registry membership or offset
+2. canonical := internal/tz.CanonicalLink(input)
 3. f.timeZoneCanonical := canonical // Cache to DateTimeFormat slot
-   4. ResolvedOptions().TimeZone == canonical
+4. ResolvedOptions().TimeZone == canonical
    ```
 3. UTC offset string input **MUST** retain the original sign and padding (`"+05:30"` does not become `"05:30"`).
 
@@ -345,7 +353,8 @@ From, To time.Duration // Time offset from 00:00 on the current day
 - **BANNED** `dayPeriodRules` only covers `noon` / `midnight` - must be full flex(morning1/afternoon1/evening1/night1).
 - **BANNED** `Format` paths calling `internal/tz.Resolve` or `time.LoadLocation` -- must cache `*time.Location` when `New` does (SPEC 30 §4.2).
 - **Disabled** UTC offset input skips range checking - must reject `+24:00` and accept valid identifiers below 24 hours.
-- **BANNED** The time-zone alias table (`canonicalTimeZoneLinks`) is assembled at runtime from raw source files - codegen is required.
+- **BANNED** deriving the legal identifier universe from CLDR metazones, aliases, or whatever the host can load; use the generated IANA/CLDR identifier records.
+- **BANNED** assembling the time-zone identifier registry at runtime from raw source files; codegen is required.
 
 ---
 
@@ -353,13 +362,18 @@ From, To time.Duration // Time offset from 00:00 on the current day
 
 - [ ] `internal/tz/tzdata.go` contains only one line `import _ "time/tzdata"`; no other declarations.
 - [ ] `internal/tz.Resolve("America/New_York")` returns non-empty `*time.Location`, offset including DST (-04:00 in summer, -05:00 in winter).
+- [ ] `LookupAt` reports transition flags for New York and Sydney winter/summer, Casablanca before/during/after the 2024 Ramadan suspension, and London wartime/postwar winter; no January/July offset heuristic remains.
 - [ ] `internal/tz.Resolve("US/Eastern")` returns the equivalent (canonicalization) of `Resolve("America/New_York")`.
 - [ ] `internal/tz.Resolve("+05:30")` returns fixed-offset Location, DST is always false.
 - [ ] `internal/tz.Resolve("+23:59")` succeeds and `internal/tz.Resolve("+24:00")` returns internal `ErrUnsupportedTimeZone`, with DateTimeFormat bounds mapped to `gointl.ErrUnsupportedOption`.
 - [ ] `internal/tz.Resolve("Mars/Olympus")` returns internal `ErrUnsupportedTimeZone` wrapped error, the message contains `"Mars/Olympus"`.
 - [ ] `internal/tz.CanonicalLink("US/Eastern") == "America/New_York"`.
-- [ ] `internal/tz.CanonicalLink("America/Montreal") == "America/Toronto"` from generated CLDR aliases.
+- [ ] Registry generation verifies `tools/gen-cldr/tzdata.json` version `2025b` and SHA-256, covers the pinned tzdb identity set, applies `zone.tab` / `backzone` Link primary rules, rejects cycles, and emits `internal/tz/registry_data.go` deterministically.
+- [ ] `internal/tz.CanonicalLink("America/Montreal") == "America/Toronto"` from the generated identifier record.
 - [ ] `internal/tz.CanonicalLink("America/New_York") == "America/New_York"`(canonical returned as is).
+- [ ] ASCII case variants such as `america/new_york` resolve with source casing restored; identifiers containing non-ASCII case-fold lookalikes are rejected.
+- [ ] Primary witnesses (`Atlantic/Jan_Mayen`, `Pacific/Truk`, `Europe/Kiev`, `Asia/Calcutta`) and `TimeZonesForRegion("IN") == []string{"Asia/Kolkata"}` pass; host-loadable `posixrules` is rejected.
+- [ ] `SupportedTimeZones()` is exactly the sorted defensive projection of records where `Identifier == Primary`; every result resolves through the same registry and Go transition data.
 - [ ] `internal/tz.ParseOffsetString("+05:30") == 5*3600*1000 + 30*60*1000`(ms east of UTC).
 - [ ] `internal/tz.ParseOffsetString("-08:00") == -8*3600*1000`.
 - [ ] The `internal/cldr/VERSION` file contains three lines: `cldr=` / `icu=` / `tzdata=`, and the CI verification hash is consistent.
@@ -369,6 +383,7 @@ From, To time.Duration // Time offset from 00:00 on the current day
 - [ ] `internal/cldr/date.DayPeriodFor(zhHansCNDateLocale, 13, 0) == "afternoon1"`.
 - [ ] `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "America/New_York", TimeZoneNameLongGeneric, false, time.Now().UnixMilli(), -5*3600*1000) == "Eastern Time"`.
 - [ ] `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "America/New_York", TimeZoneNameShort, false, instant, -5*3600*1000) == "EST"`.
+- [ ] Exemplar-city fallback uses pinned CLDR `regionFormat`: `en` yields `Dumont d’Urville Station Time`, `fr` yields `heure : Dumont-d’Urville`, and `zh` yields `迪蒙·迪维尔时间` for `Antarctica/DumontDUrville` with `shortGeneric`.
 - [ ] `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "Mars/Olympus", TimeZoneNameShortGeneric, false, instant, -5*3600*1000) == "GMT-05:00"`.
 - [ ] `internal/cldr/timezone/data.go` is generated, and the file header contains `// Code generated by tools/gen-cldr; DO NOT EDIT.`.
 - [ ] `internal/cldr/date/data.go` is generated, the file header contains `// Code generated by tools/gen-cldr; DO NOT EDIT.`; there is no `internal/cldr/calendars/*` active scope placeholder file.
@@ -387,15 +402,16 @@ From, To time.Duration // Time offset from 00:00 on the current day
 - `.references/formatjs/packages/intl-datetimeformat/scripts/extract-dates.ts` — CLDR `metaZones` / `timeZoneNames` extraction path (L137-200)
 - `.references/formatjs/packages/ecma402-abstract/DateTimeFormat/ToLocalTime.ts` — UTC offset string parsing (`OFFSET_TIMEZONE_FORMAT_REGEX`,L17-18,45-74) and `getApplicableZoneData` branch (L96-100)
 - `cldr-core/supplemental/metaZones.json` — zone → metazone mapping, metazoneInfo
-- `cldr-dates-full/main/<locale>/timeZoneNames.json` — locale × metazone display name + exemplarCity
+- `cldr-dates-full/main/<locale>/timeZoneNames.json` — locale × metazone display name, exemplarCity, and time-zone formatting patterns
 - `cldr-dates-full/main/<locale>/ca-gregorian.json` — Gregorian calendar full data
 - `cldr-core/supplemental/dayPeriods.json` — `dayPeriodRules` boundary
+- `https://data.iana.org/time-zones/releases/tzdata2025b.tar.gz` — pinned complete Zone/Link identity and `zone.tab` source (URL/hash owned by `tools/gen-cldr/tzdata.json`)
+- `cldr-bcp47/bcp47/timezone.json` — ECMA/ICU primary-selection and rename metadata for known IANA identifiers
 
 ### Secondary
 
 - Go `time/tzdata` package documentation - Embedded IANA data
 - Go `time.LoadLocation` Documentation — Parsing Paths
-- Pinned CLDR `aliases.json` `zoneAlias` replacements and documented legacy IANA links accepted by Go tzdata
 - Upstream ICU tzdata — ICU tzdata (for referees)
 - `.references/intl/intl.go` — translate-agent/intl does not implement time zone (counterexample)
 

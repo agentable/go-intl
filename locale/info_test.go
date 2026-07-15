@@ -50,7 +50,7 @@ func TestLocaleInfoRegionPreference(t *testing.T) {
 		{
 			name:      "rg overrides calendar preference",
 			in:        "en-US-u-rg-thzzzz",
-			calendars: []string{"buddhist", "gregory"},
+			calendars: []string{"gregory"},
 			firstDay:  time.Sunday,
 		},
 		{
@@ -108,13 +108,19 @@ func TestLocaleInfoGetters(t *testing.T) {
 	if got := withCalendar.GetCalendars(); !slices.Equal(got, []string{"buddhist"}) {
 		t.Fatalf("GetCalendars() with calendar = %#v", got)
 	}
-	if got := parseLocaleForTest("und").GetCollations(); !slices.Contains(got, "phonebk") {
-		t.Fatalf("GetCollations(und) = %#v, want active Collator collation values including phonebk", got)
+	if got := parseLocaleForTest("und").GetCollations(); len(got) != 0 {
+		t.Fatalf("GetCollations(und) = %#v, want no unrelated backend collations", got)
 	}
-	if got := loc.GetCollations(); !slices.Contains(got, "phonebk") {
-		t.Fatalf("GetCollations(en-US) = %#v, want active Collator collation values including phonebk", got)
+	if got := loc.GetCollations(); len(got) != 0 {
+		t.Fatalf("GetCollations(en-US) = %#v, want no German collation tailoring", got)
+	}
+	if got := parseLocaleForTest("tlh").GetCollations(); len(got) != 0 {
+		t.Fatalf("GetCollations(tlh) = %#v, want no unmatched backend collations", got)
+	}
+	if got := parseLocaleForTest("de-DE").GetCollations(); !slices.Contains(got, "phonebk") {
+		t.Fatalf("GetCollations(de-DE) = %#v, want locale-scoped phonebk", got)
 	} else {
-		testcontract.AssertStringSliceSortedUnique(t, "GetCollations(en-US)", got)
+		testcontract.AssertStringSliceSortedUnique(t, "GetCollations(de-DE)", got)
 	}
 	withCollation, err := New("en-US", Options{Collation: stringPtr("phonebk")})
 	if err != nil {
@@ -156,8 +162,11 @@ func TestLocaleInfoGetters(t *testing.T) {
 	if got := parseLocaleForTest("zh-CN").GetTimeZones(); !slices.Equal(got, []string{"Asia/Shanghai", "Asia/Urumqi"}) {
 		t.Fatalf("GetTimeZones(zh-CN) = %#v, want CLDR China zones", got)
 	}
-	if got := parseLocaleForTest("en-IN").GetTimeZones(); !slices.Equal(got, []string{"Asia/Calcutta"}) {
-		t.Fatalf("GetTimeZones(en-IN) = %#v, want CLDR India zone", got)
+	if got := parseLocaleForTest("en-IN").GetTimeZones(); !slices.Equal(got, []string{"Asia/Kolkata"}) {
+		t.Fatalf("GetTimeZones(en-IN) = %#v, want IANA primary India zone", got)
+	}
+	if got := parseLocaleForTest("en-CA").GetTimeZones(); len(got) < 20 || !slices.Contains(got, "America/Toronto") || !slices.Contains(got, "America/Vancouver") {
+		t.Fatalf("GetTimeZones(en-CA) = %#v, want full IANA Canadian projection", got)
 	}
 	if got := parseLocaleForTest("ar").GetTimeZones(); got != nil {
 		t.Fatalf("GetTimeZones(ar) = %#v, want nil without region", got)

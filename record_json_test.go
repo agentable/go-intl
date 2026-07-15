@@ -111,6 +111,16 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			absent: []string{`"weekday"`, `"fractionalSecondDigits"`, `"dateStyle"`, `"timeStyle"`},
 		},
 		{
+			name:  "datetime fractional-second part",
+			value: datetimeformat.Part{Type: datetimeformat.PartFractionalSecond, Value: "123"},
+			want:  []string{`"type":"fractionalSecond"`, `"value":"123"`},
+		},
+		{
+			name:  "datetime fractional-second range part",
+			value: datetimeformat.RangePart{Type: datetimeformat.PartFractionalSecond, Value: "123", Source: datetimeformat.SourceStartRange},
+			want:  []string{`"type":"fractionalSecond"`, `"value":"123"`, `"source":"startRange"`},
+		},
+		{
 			name:  "datetime style shortcut resolved options",
 			value: styleDateTime,
 			want:  []string{`"dateStyle":"medium"`, `"timeStyle":"short"`},
@@ -139,10 +149,16 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			absent: []string{`"minimumFractionDigits"`, `"maximumFractionDigits"`, `"compactDisplay"`},
 		},
 		{
-			name:   "plural compact resolved options",
-			value:  compactPlural,
-			want:   []string{`"notation":"compact"`, `"compactDisplay":"long"`},
-			absent: []string{`"minimumFractionDigits"`, `"maximumFractionDigits"`},
+			name:  "plural compact resolved options",
+			value: compactPlural,
+			want: []string{
+				`"notation":"compact"`,
+				`"compactDisplay":"long"`,
+				`"minimumFractionDigits":0`,
+				`"maximumFractionDigits":0`,
+				`"minimumSignificantDigits":1`,
+				`"maximumSignificantDigits":2`,
+			},
 		},
 		{
 			name:  "list part",

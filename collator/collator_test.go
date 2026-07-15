@@ -271,30 +271,18 @@ func TestCollator_UnsupportedLocaleCaseFirstFallsBackToDefault(t *testing.T) {
 func TestCollator_IgnorePunctuation(t *testing.T) {
 	t.Parallel()
 
-	withPunctuation, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{
+	_, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{
 		IgnorePunctuation: boolPtr(true),
 	})
-	if err != nil {
-		t.Fatal(err)
+	if !errors.Is(err, gointl.ErrUnsupportedOption) {
+		t.Fatalf("New(ignorePunctuation=true) error = %v, want ErrUnsupportedOption", err)
 	}
-	if got := withPunctuation.Compare("a-b", "ab"); got != 0 {
-		t.Errorf("ignore punctuation Compare(a-b,ab) = %d, want 0", got)
+	detail, ok := errors.AsType[*gointl.Error](err)
+	if !ok {
+		t.Fatalf("New(ignorePunctuation=true) error = %T, want *gointl.Error", err)
 	}
-	// Ordering of non-punctuation content must still be honored — the bug was
-	// that routing to ka=shifted skipped the primary level and returned 0 for
-	// every comparison, turning sorts into silent no-ops.
-	if got := withPunctuation.Compare("zebra", "apple"); got <= 0 {
-		t.Errorf("ignore punctuation Compare(zebra,apple) = %d, want > 0", got)
-	}
-	if got := withPunctuation.Compare("apple", "zebra"); got >= 0 {
-		t.Errorf("ignore punctuation Compare(apple,zebra) = %d, want < 0", got)
-	}
-	// Punctuation is ignored but surrounding content still orders.
-	if got := withPunctuation.Compare("re-sort", "reser"); got <= 0 {
-		t.Errorf("ignore punctuation Compare(re-sort,reser) = %d, want > 0", got)
-	}
-	if !withPunctuation.ResolvedOptions().IgnorePunctuation {
-		t.Error("ResolvedOptions().IgnorePunctuation = false, want true")
+	if detail.Owner != "collator" || detail.Name != "ignorePunctuation" || detail.Value != "true" || detail.Locale != "en" {
+		t.Fatalf("New(ignorePunctuation=true) detail = %#v", detail)
 	}
 
 	withoutPunctuation, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{})

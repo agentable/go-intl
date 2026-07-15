@@ -385,7 +385,7 @@ func TestSegmenter_New_Errors(t *testing.T) {
 func TestSegmenter_NewDoesNotResolveUnsupportedTailoredLocales(t *testing.T) {
 	t.Parallel()
 
-	for _, tag := range []string{"ja", "th", "zh-Hant"} {
+	for _, tag := range []string{"ja", "km", "lo", "my", "th", "zh-Hant"} {
 		t.Run(tag, func(t *testing.T) {
 			t.Parallel()
 

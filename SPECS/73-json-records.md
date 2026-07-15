@@ -30,6 +30,8 @@ The guard must exercise host-boundary records through real constructors or publi
 
 Adding a public record field or changing `omitempty` behavior without updating this guard is a SPEC violation.
 
+Part records keep ECMA-402 method vocabulary distinct from option vocabulary. In particular, DateTimeFormat's `fractionalSecondDigits` option and resolved property produce `Part` / `RangePart` records with JSON `"type":"fractionalSecond"`; `"fractionalSecondDigits"` is never a part type.
+
 ---
 
 ## 2. ResolvedOptions Field Names
@@ -95,8 +97,8 @@ DateTimeFormat branch-only resolved options (`hourCycle`, `hour12`, component fi
 | `pluralrules.ResolvedOptions` | `Locale` | `locale` | Always |
 | `pluralrules.ResolvedOptions` | `Type` | `type` | Always |
 | `pluralrules.ResolvedOptions` | `MinimumIntegerDigits` | `minimumIntegerDigits` | Always |
-| `pluralrules.ResolvedOptions` | `MinimumFractionDigits` | `minimumFractionDigits` | Fraction branch only |
-| `pluralrules.ResolvedOptions` | `MaximumFractionDigits` | `maximumFractionDigits` | Fraction branch only |
+| `pluralrules.ResolvedOptions` | `MinimumFractionDigits` | `minimumFractionDigits` | Fraction / precision branch |
+| `pluralrules.ResolvedOptions` | `MaximumFractionDigits` | `maximumFractionDigits` | Fraction / precision branch |
 | `pluralrules.ResolvedOptions` | `MinimumSignificantDigits` | `minimumSignificantDigits` | Significant / precision branch |
 | `pluralrules.ResolvedOptions` | `MaximumSignificantDigits` | `maximumSignificantDigits` | Significant / precision branch |
 | `pluralrules.ResolvedOptions` | `PluralCategories` | `pluralCategories` | Always |

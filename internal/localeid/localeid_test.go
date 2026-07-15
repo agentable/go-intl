@@ -73,16 +73,19 @@ func TestUnicodeTypeSyntaxAndCanonicalization(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		key           string
 		in            string
 		wellFormed    bool
 		wantCanonical string
 		canonicalOK   bool
 	}{
-		{in: "arab", wellFormed: true, wantCanonical: "arab", canonicalOK: true},
-		{in: "ARAB", wellFormed: true, wantCanonical: "arab", canonicalOK: true},
-		{in: "ARAB-LATN", wellFormed: true, wantCanonical: "arab-latn", canonicalOK: true},
-		{in: "islamic-civil", wellFormed: true, wantCanonical: "islamicc", canonicalOK: true},
-		{in: "gregorian", wellFormed: false, wantCanonical: "gregory", canonicalOK: true},
+		{key: "nu", in: "arab", wellFormed: true, wantCanonical: "arab", canonicalOK: true},
+		{key: "nu", in: "ARAB", wellFormed: true, wantCanonical: "arab", canonicalOK: true},
+		{key: "nu", in: "ARAB-LATN", wellFormed: true, wantCanonical: "arab-latn", canonicalOK: true},
+		{key: "ca", in: "islamicc", wellFormed: true, wantCanonical: "islamic-civil", canonicalOK: true},
+		{key: "ca", in: "islamic-civil", wellFormed: true, wantCanonical: "islamic-civil", canonicalOK: true},
+		{key: "co", in: "islamic-civil", wellFormed: true, wantCanonical: "islamic-civil", canonicalOK: true},
+		{key: "ca", in: "gregorian", wellFormed: false, canonicalOK: false},
 		{in: "\u212Aarab", wellFormed: false, canonicalOK: false},
 		{in: "a", wellFormed: false, canonicalOK: false},
 		{in: "abcdefghi", wellFormed: false, canonicalOK: false},
@@ -95,10 +98,10 @@ func TestUnicodeTypeSyntaxAndCanonicalization(t *testing.T) {
 			if got := IsUnicodeType(tc.in); got != tc.wellFormed {
 				t.Fatalf("IsUnicodeType(%q) = %v, want %v", tc.in, got, tc.wellFormed)
 			}
-			got, ok := CanonicalUnicodeType(tc.in)
+			got, ok := CanonicalUnicodeType(tc.key, tc.in)
 			if ok != tc.canonicalOK || got != tc.wantCanonical {
-				t.Fatalf("CanonicalUnicodeType(%q) = %q, %v; want %q, %v",
-					tc.in, got, ok, tc.wantCanonical, tc.canonicalOK)
+				t.Fatalf("CanonicalUnicodeType(%q, %q) = %q, %v; want %q, %v",
+					tc.key, tc.in, got, ok, tc.wantCanonical, tc.canonicalOK)
 			}
 		})
 	}

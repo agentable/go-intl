@@ -213,13 +213,18 @@ Rules:
 | `id` | One-to-one correspondence with fixture `id` field |
 | `source` | Must be exactly the same as the `source` field of the corresponding fixture (`formatjs:` / `manual:` / `node:`, etc.) |
 | `owner` | The formatter / data owner responsible for reviewing and deleting the divergence |
-| `status` | Optional; active entry is empty or `accepted`, historical entry is `resolved` |
+| `status` | Required; `accepted` for an active entry or `resolved` for validated history |
 | `reason` | Why accept this difference (implementation-defined behavior / CLDR data version / reference fixture difference); must be sufficient to support human review |
 | `native_witness` | Required for active `owner: datetimeformat` divergences; fixture `id` of a same-package `node:` fixture that records the native observable behavior |
 | `review_after` | Next review anchor point (CLDR upgrade / Go 1.27 / Quarterly review date) |
 | `removal_path` | The conditions or implementation paths that make this divergence disappear; if ECMA-402 is permanently implementation-defined, the retention conditions must be stated |
 
-Optional evidence fields such as `our`, `reference`, `category` can be retained, but CI audit mandatory fields are `id`, `source`, `owner`, `reason`, `review_after`, and `removal_path`; DateTimeFormat active divergences additionally require `native_witness`.
+The record grammar is closed: only `id`, `source`, `owner`, `status`, `reason`,
+`native_witness`, `review_after`, and `removal_path` are recognized.
+`native_witness` is optional only when the active owner is not DateTimeFormat.
+Blank lines and lines beginning with `#` are the only non-field lines; unknown
+fields, duplicate fields, malformed non-empty lines, fields before `id`, and
+trailing partial records are errors.
 
 ### 3.2 Handling Process
 
@@ -230,12 +235,13 @@ Optional evidence fields such as `our`, `reference`, `category` can be retained,
 3. Modifications to divergences.md **MUST** be explicitly approved by PR (reviewer ≥ 1 maintainer); automatic registration is **disallowed**.
 4. The active `id` in divergences.md **MUST** find the corresponding entry in the fixture file; CI lint(`tools/check-conformance/`) checks the integrity.
 5. The `source` of the active divergence must be exactly the same as the `source` of the fixture with the same ID.
-6. `review_after` of active divergence **MUST** be `YYYY-MM-DD`; `status` **can only** be empty, `accepted` or `resolved`.
+6. Every record's `review_after` **MUST** be `YYYY-MM-DD`; `status` **MUST** be exactly `accepted` or `resolved`.
 7. Duplicate divergence `id` values are prohibited.
 8. Divergence entries are **FORBIDDEN** to be deleted; obsolete entries are marked with `status: resolved` and the audit trail is retained. Only empty placeholder files that never contained entries can be deleted.
 9. Each divergence entry **MUST** contain a removal path. Long-term differences without removal paths must justify that ECMA-402 leaves the behavior implementation-defined.
 10. Unimplemented functions are **FORBIDDEN** to be registered as accepted divergence; fixtures that can be generated must be kept in the fixture gate and explicitly stated through XFAIL, and sources that cannot be generated can only enter `.skip-list.json` according to the active extractor category. The narrowed product range must be written in owning SPEC and cannot be disguised as skip-list category.
 11. Active `owner: datetimeformat` divergences **MUST** include `native_witness`, and `tools/check-conformance` must reject missing, unknown, non-native, or expectation-free witness fixtures. Range, time-zone, and resolved-options differences are too implementation-sensitive to live only in prose.
+12. Resolved records remain history, but they receive the same closed-field, required-field, duplicate-ID, status, and date validation before being excluded from active fixture counting and matching.
 
 > **Why**: divergences.md is the human review channel for spec interpretation rights; automatic registration will silently cover up "failed fixture" incidents.
 > **Rejected**: Silent skips, such as moving a fixture to `testdata/skipped/`; this spec forbids that escape hatch.
@@ -356,7 +362,7 @@ governance rules that cannot be proven by a Go test.
 | Contract | Evidence | Status |
 |----------|----------|--------|
 | Packages with active or resolved divergence history keep `testdata/divergences.md`; packages without divergence history may omit it. | `datetimeformat/testdata/divergences.md`; `tools/conformance/divergences.go` | Satisfied |
-| Active divergence records name an existing fixture, source, owner, legal status/review date, removal path, and DateTimeFormat native witness when required. | `tools/conformance/divergences.go`; `tools/conformance/coverage_test.go`; `task conformance:verify` | Satisfied |
+| Divergence records use a closed, unique field set; malformed, duplicate, unknown, incomplete, or invalid-date records fail. Resolved history is fully validated before filtering, while active records also name an existing fixture and DateTimeFormat native witness when required. | `tools/conformance/divergences.go`; `tools/conformance/coverage_test.go`; `task conformance:verify` | Satisfied |
 | XFAIL records require `id`, `reason`, `expires_at`, and `tracking_issue`; IDs must be unique, real, and unexpired. | `tools/conformance/xfail.go`; `tools/conformance/skip_test.go`; `tools/check-conformance/main_test.go` | Satisfied |
 | XFAIL growth must be reviewed toward zero as implementation matures. | `task conformance:verify` reports xfail totals; human review decides whether growth is justified | Governance |
 

@@ -620,6 +620,25 @@ func TestSupportedLocalesOfRecognizesDerivedAvailableLocale(t *testing.T) {
 	}
 }
 
+func TestBestFitUsesGeneratedRelatedLanguageProfile(t *testing.T) {
+	t.Parallel()
+
+	requested := intltest.LocaleList(t, "nn")
+	got, err := SupportedLocalesOf(requested, Options{LocaleMatcher: stringPtr(BestFitLocaleMatcher)})
+	if err != nil {
+		t.Fatalf("SupportedLocalesOf(nn) error = %v", err)
+	}
+	testcontract.AssertLocaleListStrings(t, "SupportedLocalesOf(nn)", got, []string{"nn"})
+
+	format, err := New(requested, Options{LocaleMatcher: stringPtr(BestFitLocaleMatcher)})
+	if err != nil {
+		t.Fatalf("New(nn) error = %v", err)
+	}
+	if got := format.ResolvedOptions().Locale.String(); got != "nb" {
+		t.Fatalf("New(nn).ResolvedOptions().Locale = %q, want CLDR related language nb", got)
+	}
+}
+
 func TestSupportedLocalesOfErrors(t *testing.T) {
 	t.Parallel()
 

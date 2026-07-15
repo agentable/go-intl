@@ -161,7 +161,11 @@ func splitTriple(key string) (language, script, region string) {
 		language = parts[0]
 	}
 	if len(parts) > 1 {
-		script = parts[1]
+		if len(parts[1]) == 4 {
+			script = parts[1]
+		} else {
+			region = parts[1]
+		}
 	}
 	if len(parts) > 2 {
 		region = parts[2]

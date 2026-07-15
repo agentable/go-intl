@@ -166,3 +166,27 @@ func TestSmokeSubtagsAndPreferences(t *testing.T) {
 		t.Errorf("CalendarPreference(TH)[0] = %q, want buddhist", firstTag(CalendarPreference("TH")))
 	}
 }
+
+func TestMaximizeSubtagsUsesLikelySubtagFallbackOrder(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		language string
+		script   string
+		region   string
+		wantLang string
+		wantScr  string
+		wantReg  string
+	}{
+		{language: "en", region: "CA", wantLang: "en", wantScr: "Latn", wantReg: "CA"},
+		{language: "zh", script: "Hant", wantLang: "zh", wantScr: "Hant", wantReg: "TW"},
+		{language: "und", script: "Arab", wantLang: "ar", wantScr: "Arab", wantReg: "EG"},
+	}
+	for _, tc := range tests {
+		lang, script, region, ok := MaximizeSubtags(tc.language, tc.script, tc.region)
+		if !ok || lang != tc.wantLang || script != tc.wantScr || region != tc.wantReg {
+			t.Fatalf("MaximizeSubtags(%q, %q, %q) = %q, %q, %q, %v; want %q, %q, %q, true",
+				tc.language, tc.script, tc.region, lang, script, region, ok, tc.wantLang, tc.wantScr, tc.wantReg)
+		}
+	}
+}

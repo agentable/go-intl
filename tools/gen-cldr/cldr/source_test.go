@@ -3,7 +3,6 @@ package cldr
 import (
 	"encoding/json"
 	"path/filepath"
-	"slices"
 	"testing"
 )
 
@@ -83,44 +82,6 @@ func TestLoadAvailableLocalesRejectsInvalidShape(t *testing.T) {
 				t.Fatalf("loadAvailableLocales(%s) succeeded, want error", tc.name)
 			}
 		})
-	}
-}
-
-func TestLoadTimeZoneAliasesFlattensZoneAlias(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	mustWriteFile(t, filepath.Join(root, "cldr-core", "supplemental", "aliases.json"), `{
-		"supplemental": {
-			"metadata": {
-				"alias": {
-					"zoneAlias": {
-						"America": {
-							"Montreal": {
-								"_reason": "deprecated",
-								"_replacement": "America/Toronto"
-							}
-						},
-						"EST5EDT": {
-							"_reason": "deprecated",
-							"_replacement": "America/New_York"
-						}
-					}
-				}
-			}
-		}
-	}`)
-
-	got, err := loadTimeZoneAliases(root)
-	if err != nil {
-		t.Fatalf("loadTimeZoneAliases() error = %v", err)
-	}
-	want := []TimeZoneAlias{
-		{Alias: "America/Montreal", Canonical: "America/Toronto"},
-		{Alias: "EST5EDT", Canonical: "America/New_York"},
-	}
-	if !slices.Equal(got, want) {
-		t.Fatalf("loadTimeZoneAliases() = %#v, want %#v", got, want)
 	}
 }
 

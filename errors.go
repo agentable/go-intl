@@ -17,12 +17,6 @@ const (
 	InvalidValue = intlerr.InvalidValue
 	// InvalidCode is the Error.Kind for invalid DisplayNames code inputs.
 	InvalidCode = intlerr.InvalidCode
-	// InvalidKey is the Error.Kind for invalid root namespace keys.
-	InvalidKey = intlerr.InvalidKey
-	// UnsupportedLocale is the Error.Kind for locale requests outside the active data set.
-	UnsupportedLocale = intlerr.UnsupportedLocale
-	// UnsupportedBackend is the Error.Kind for unavailable required implementation support.
-	UnsupportedBackend = intlerr.UnsupportedBackend
 )
 
 // Error records structured Intl error context and human guidance.
@@ -37,10 +31,4 @@ var (
 	ErrInvalidValue = intlerr.ErrInvalidValue
 	// ErrInvalidCode classifies invalid DisplayNames code inputs.
 	ErrInvalidCode = intlerr.ErrInvalidCode
-	// ErrInvalidKey classifies invalid root namespace keys.
-	ErrInvalidKey = intlerr.ErrInvalidKey
-	// ErrUnsupportedLocale classifies locale requests outside the active data set.
-	ErrUnsupportedLocale = intlerr.ErrUnsupportedLocale
-	// ErrUnsupportedBackend classifies unavailable required implementation support.
-	ErrUnsupportedBackend = intlerr.ErrUnsupportedBackend
 )

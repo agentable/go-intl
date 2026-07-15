@@ -59,7 +59,10 @@ func TestDateRoundTrip(t *testing.T) {
 	assertStringSliceEqual(t, "SupportedLocales", gotTags, wantTags)
 
 	// Supported-calendar narrow index.
-	wantCal := dateSupportedCalendars(dates)
+	wantCal, err := dateSupportedCalendars(dates)
+	if err != nil {
+		t.Fatalf("dateSupportedCalendars(): %v", err)
+	}
 	gotCal := date.SupportedCalendars()
 	assertStringSliceEqual(t, "SupportedCalendars", gotCal, wantCal)
 }
@@ -88,9 +91,25 @@ func TestDateGregorianCalendarRoutes(t *testing.T) {
 
 	gotLocales := dateGregorianLocales(dates)
 	assertStringSliceEqual(t, "dateGregorianLocales()", gotLocales, []string{"en", "zh"})
-	wantCalendars := []string{"buddhist", "chinese", dateSupportedGregorianCalendar, dateSupportedISO8601Calendar}
-	gotCalendars := dateSupportedCalendars(dates)
-	assertStringSliceEqual(t, "dateSupportedCalendars()", gotCalendars, wantCalendars)
+	if _, err := dateSupportedCalendars(dates); err == nil {
+		t.Fatal("dateSupportedCalendars() accepted calendars without encoder routes")
+	}
+
+	gotCalendars, err := dateSupportedCalendars(extract.Dates{
+		"en": {Calendars: map[string]cldr.Calendar{dateCLDRGregorianCalendar: {}}},
+	})
+	if err != nil {
+		t.Fatalf("dateSupportedCalendars(gregorian): %v", err)
+	}
+	assertStringSliceEqual(t, "dateSupportedCalendars(gregorian)", gotCalendars, []string{dateSupportedGregorianCalendar, dateSupportedISO8601Calendar})
+
+	gotCalendars, err = dateSupportedCalendars(nil)
+	if err != nil {
+		t.Fatalf("dateSupportedCalendars(nil): %v", err)
+	}
+	if gotCalendars != nil {
+		t.Fatalf("dateSupportedCalendars(nil) = %#v, want nil", gotCalendars)
+	}
 }
 
 func loadDateTestInput(t *testing.T) extract.Dates {

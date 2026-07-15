@@ -1,6 +1,6 @@
 module github.com/agentable/go-intl
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/cockroachdb/apd/v3 v3.2.3

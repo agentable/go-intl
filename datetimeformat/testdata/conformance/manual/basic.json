@@ -43,5 +43,308 @@
     "options": {},
     "input": "2026-05-08T12:00:00Z",
     "expected": "5/8/2026"
+  },
+  {
+    "id": "datetimeformat-manual-fractional-second-one-digit-parts",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "second": "2-digit",
+      "fractionalSecondDigits": 1,
+      "hour12": false,
+      "timeZone": "UTC"
+    },
+    "input": "2026-05-08T09:07:06.123Z",
+    "expected": "09:07:06.1",
+    "expectedParts": [
+      {"type": "hour", "value": "09"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "07"},
+      {"type": "literal", "value": ":"},
+      {"type": "second", "value": "06"},
+      {"type": "literal", "value": "."},
+      {"type": "fractionalSecond", "value": "1"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-fractional-second-two-digit-parts",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "second": "2-digit",
+      "fractionalSecondDigits": 2,
+      "hour12": false,
+      "timeZone": "UTC"
+    },
+    "input": "2026-05-08T09:07:06.123Z",
+    "expected": "09:07:06.12",
+    "expectedParts": [
+      {"type": "hour", "value": "09"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "07"},
+      {"type": "literal", "value": ":"},
+      {"type": "second", "value": "06"},
+      {"type": "literal", "value": "."},
+      {"type": "fractionalSecond", "value": "12"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-fractional-second-three-digit-parts",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "second": "2-digit",
+      "fractionalSecondDigits": 3,
+      "hour12": false,
+      "timeZone": "UTC"
+    },
+    "input": "2026-05-08T09:07:06.123Z",
+    "expected": "09:07:06.123",
+    "expectedParts": [
+      {"type": "hour", "value": "09"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "07"},
+      {"type": "literal", "value": ":"},
+      {"type": "second", "value": "06"},
+      {"type": "literal", "value": "."},
+      {"type": "fractionalSecond", "value": "123"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-fractional-second-arab-parts",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "second": "2-digit",
+      "fractionalSecondDigits": 3,
+      "hour12": false,
+      "numberingSystem": "arab",
+      "timeZone": "UTC"
+    },
+    "input": "2026-05-08T09:07:06.123Z",
+    "expected": "٠٩:٠٧:٠٦.١٢٣",
+    "expectedParts": [
+      {"type": "hour", "value": "٠٩"},
+      {"type": "literal", "value": ":"},
+      {"type": "minute", "value": "٠٧"},
+      {"type": "literal", "value": ":"},
+      {"type": "second", "value": "٠٦"},
+      {"type": "literal", "value": "."},
+      {"type": "fractionalSecond", "value": "١٢٣"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-fractional-second-range-parts",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "hour": "2-digit",
+      "minute": "2-digit",
+      "second": "2-digit",
+      "fractionalSecondDigits": 3,
+      "hour12": false,
+      "timeZone": "UTC"
+    },
+    "input": {
+      "start": "2026-05-08T09:07:06.123Z",
+      "end": "2026-05-08T09:07:06.456Z"
+    },
+    "expectedRange": "09:07:06.123 – 09:07:06.456",
+    "expectedRangeParts": [
+      {"type": "hour", "value": "09", "source": "startRange"},
+      {"type": "literal", "value": ":", "source": "startRange"},
+      {"type": "minute", "value": "07", "source": "startRange"},
+      {"type": "literal", "value": ":", "source": "startRange"},
+      {"type": "second", "value": "06", "source": "startRange"},
+      {"type": "literal", "value": ".", "source": "startRange"},
+      {"type": "fractionalSecond", "value": "123", "source": "startRange"},
+      {"type": "literal", "value": " – ", "source": "shared"},
+      {"type": "hour", "value": "09", "source": "endRange"},
+      {"type": "literal", "value": ":", "source": "endRange"},
+      {"type": "minute", "value": "07", "source": "endRange"},
+      {"type": "literal", "value": ":", "source": "endRange"},
+      {"type": "second", "value": "06", "source": "endRange"},
+      {"type": "literal", "value": ".", "source": "endRange"},
+      {"type": "fractionalSecond", "value": "456", "source": "endRange"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-reversed-cross-year-range-parts",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "year": "numeric",
+      "month": "short",
+      "day": "numeric",
+      "timeZone": "UTC"
+    },
+    "input": {
+      "start": "2027-06-10T00:00:00Z",
+      "end": "2026-05-08T00:00:00Z"
+    },
+    "expectedRange": "Jun 10, 2027 – May 8, 2026",
+    "expectedRangeParts": [
+      {"type": "month", "value": "Jun", "source": "startRange"},
+      {"type": "literal", "value": " ", "source": "startRange"},
+      {"type": "day", "value": "10", "source": "startRange"},
+      {"type": "literal", "value": ", ", "source": "startRange"},
+      {"type": "year", "value": "2027", "source": "startRange"},
+      {"type": "literal", "value": " – ", "source": "shared"},
+      {"type": "month", "value": "May", "source": "endRange"},
+      {"type": "literal", "value": " ", "source": "endRange"},
+      {"type": "day", "value": "8", "source": "endRange"},
+      {"type": "literal", "value": ", ", "source": "endRange"},
+      {"type": "year", "value": "2026", "source": "endRange"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-reversed-same-day-time-range-parts",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "hour": "numeric",
+      "minute": "2-digit",
+      "hour12": true,
+      "timeZone": "UTC"
+    },
+    "input": {
+      "start": "2026-05-08T10:07:00Z",
+      "end": "2026-05-08T09:07:00Z"
+    },
+    "expectedRange": "10:07 – 9:07 AM",
+    "expectedRangeParts": [
+      {"type": "hour", "value": "10", "source": "startRange"},
+      {"type": "literal", "value": ":", "source": "startRange"},
+      {"type": "minute", "value": "07", "source": "startRange"},
+      {"type": "literal", "value": " – ", "source": "shared"},
+      {"type": "hour", "value": "9", "source": "endRange"},
+      {"type": "literal", "value": ":", "source": "endRange"},
+      {"type": "minute", "value": "07", "source": "endRange"},
+      {"type": "literal", "value": " ", "source": "shared"},
+      {"type": "dayPeriod", "value": "AM", "source": "shared"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-reversed-fallback-range-parts",
+    "source": "manual",
+    "locale": "en-US",
+    "options": {
+      "dateStyle": "full",
+      "timeStyle": "short",
+      "hour12": true,
+      "timeZone": "UTC"
+    },
+    "input": {
+      "start": "2026-06-10T10:07:00Z",
+      "end": "2026-05-08T09:07:00Z"
+    },
+    "expectedRange": "Wednesday, June 10, 2026 at 10:07 AM – Friday, May 8, 2026 at 9:07 AM",
+    "expectedRangeParts": [
+      {"type": "weekday", "value": "Wednesday", "source": "startRange"},
+      {"type": "literal", "value": ", ", "source": "startRange"},
+      {"type": "month", "value": "June", "source": "startRange"},
+      {"type": "literal", "value": " ", "source": "startRange"},
+      {"type": "day", "value": "10", "source": "startRange"},
+      {"type": "literal", "value": ", ", "source": "startRange"},
+      {"type": "year", "value": "2026", "source": "startRange"},
+      {"type": "literal", "value": " at ", "source": "startRange"},
+      {"type": "hour", "value": "10", "source": "startRange"},
+      {"type": "literal", "value": ":", "source": "startRange"},
+      {"type": "minute", "value": "07", "source": "startRange"},
+      {"type": "literal", "value": " ", "source": "startRange"},
+      {"type": "dayPeriod", "value": "AM", "source": "startRange"},
+      {"type": "literal", "value": " – ", "source": "shared"},
+      {"type": "weekday", "value": "Friday", "source": "endRange"},
+      {"type": "literal", "value": ", ", "source": "endRange"},
+      {"type": "month", "value": "May", "source": "endRange"},
+      {"type": "literal", "value": " ", "source": "endRange"},
+      {"type": "day", "value": "8", "source": "endRange"},
+      {"type": "literal", "value": ", ", "source": "endRange"},
+      {"type": "year", "value": "2026", "source": "endRange"},
+      {"type": "literal", "value": " at ", "source": "endRange"},
+      {"type": "hour", "value": "9", "source": "endRange"},
+      {"type": "literal", "value": ":", "source": "endRange"},
+      {"type": "minute", "value": "07", "source": "endRange"},
+      {"type": "literal", "value": " ", "source": "endRange"},
+      {"type": "dayPeriod", "value": "AM", "source": "endRange"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-location-time-zone-name-en",
+    "source": "manual",
+    "locale": "en",
+    "options": {
+      "hour": "numeric",
+      "timeZone": "Antarctica/DumontDUrville",
+      "timeZoneName": "shortGeneric"
+    },
+    "input": "2025-01-01T00:00:00Z",
+    "expected": "10 AM Dumont d’Urville Station Time",
+    "expectedParts": [
+      {"type": "hour", "value": "10"},
+      {"type": "literal", "value": " "},
+      {"type": "dayPeriod", "value": "AM"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "Dumont d’Urville Station Time"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-location-time-zone-name-fr",
+    "source": "manual",
+    "locale": "fr",
+    "options": {
+      "hour": "numeric",
+      "timeZone": "Antarctica/DumontDUrville",
+      "timeZoneName": "shortGeneric"
+    },
+    "input": "2025-01-01T00:00:00Z",
+    "expected": "10 h heure : Dumont-d’Urville",
+    "expectedParts": [
+      {"type": "hour", "value": "10"},
+      {"type": "literal", "value": " h "},
+      {"type": "timeZoneName", "value": "heure : Dumont-d’Urville"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-location-time-zone-name-zh",
+    "source": "manual",
+    "locale": "zh",
+    "options": {
+      "hour": "numeric",
+      "timeZone": "Antarctica/DumontDUrville",
+      "timeZoneName": "shortGeneric"
+    },
+    "input": "2025-01-01T00:00:00Z",
+    "expected": "迪蒙·迪维尔时间10时",
+    "expectedParts": [
+      {"type": "timeZoneName", "value": "迪蒙·迪维尔时间"},
+      {"type": "hour", "value": "10"},
+      {"type": "literal", "value": "时"}
+    ]
+  },
+  {
+    "id": "datetimeformat-manual-historical-transition-dst-name",
+    "source": "manual",
+    "locale": "en-GB",
+    "options": {
+      "hour": "numeric",
+      "timeZone": "Europe/London",
+      "timeZoneName": "long"
+    },
+    "input": "1941-01-15T12:00:00Z",
+    "expected": "13 British Summer Time",
+    "expectedParts": [
+      {"type": "hour", "value": "13"},
+      {"type": "literal", "value": " "},
+      {"type": "timeZoneName", "value": "British Summer Time"}
+    ]
   }
 ]

@@ -1,17 +1,15 @@
 package gointl_test
 
 import (
-	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	gointl "github.com/agentable/go-intl"
 	"github.com/agentable/go-intl/collator"
 	"github.com/agentable/go-intl/datetimeformat"
-	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/internal/intltest"
-	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/numberformat"
 	"github.com/agentable/go-intl/pluralrules"
@@ -34,7 +32,9 @@ type consumerProfile struct {
 			TimeZone  string `json:"timeZone"`
 			Start     string `json:"start"`
 			End       string `json:"end"`
-			ErrorCode string `json:"errorCode"`
+			Want      string `json:"want"`
+			WantStart string `json:"wantStart"`
+			WantEnd   string `json:"wantEnd"`
 		} `json:"dateTimeFormat"`
 		PluralRules struct {
 			Locale string `json:"locale"`
@@ -194,20 +194,35 @@ func assertConsumerReversedRanges(t *testing.T, profile consumerProfile) {
 		start := intltest.MustParseTime(t, time.RFC3339, fixture.Start)
 		end := intltest.MustParseTime(t, time.RFC3339, fixture.End)
 		got, err := format.FormatRange(start, end)
-		if fixture.ErrorCode == "invalid_value" {
-			if !errors.Is(err, intlerr.ErrInvalidValue) {
-				t.Fatalf("FormatRange(%s, %s) = %q, error %v, want intlerr.ErrInvalidValue", fixture.Start, fixture.End, got, err)
-			}
-			if got != "" {
-				t.Fatalf("FormatRange(%s, %s) = %q with error %v, want empty output", fixture.Start, fixture.End, got, err)
-			}
-			wantValue := "start=2026-06-01T00:00:00Z end=2026-05-01T00:00:00Z"
-			testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "datetimeformat", "range", wantValue, format.ResolvedOptions().Locale.String())
-			testcontract.AssertErrorExpected(t, err, "start date less than or equal to end date")
-			return
-		}
 		if err != nil {
 			t.Fatalf("FormatRange(%s, %s) error = %v", fixture.Start, fixture.End, err)
+		}
+		if got != fixture.Want {
+			t.Fatalf("FormatRange(%s, %s) = %q, want %q", fixture.Start, fixture.End, got, fixture.Want)
+		}
+		parts, err := format.FormatRangeToParts(start, end)
+		if err != nil {
+			t.Fatalf("FormatRangeToParts(%s, %s) error = %v", fixture.Start, fixture.End, err)
+		}
+		var joined, startValues, endValues strings.Builder
+		for _, part := range parts {
+			joined.WriteString(part.Value)
+			switch part.Source {
+			case datetimeformat.SourceStartRange:
+				startValues.WriteString(part.Value)
+			case datetimeformat.SourceEndRange:
+				endValues.WriteString(part.Value)
+			case datetimeformat.SourceShared:
+			}
+		}
+		if joined.String() != got {
+			t.Fatalf("joined FormatRangeToParts(%s, %s) = %q, want %q", fixture.Start, fixture.End, joined.String(), got)
+		}
+		if got := startValues.String(); got != fixture.WantStart {
+			t.Fatalf("startRange values = %q, want first argument %q", got, fixture.WantStart)
+		}
+		if got := endValues.String(); got != fixture.WantEnd {
+			t.Fatalf("endRange values = %q, want second argument %q", got, fixture.WantEnd)
 		}
 	})
 

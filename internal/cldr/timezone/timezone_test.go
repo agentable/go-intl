@@ -5,42 +5,9 @@ import (
 	"time"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
-	"github.com/agentable/go-intl/internal/testcontract"
-	"github.com/agentable/go-intl/internal/testprocess"
 )
 
-// narrowIndexSubprocessEnv gates the narrow-index Once assertion so it runs in a
-// freshly started process where no main-blob decode has happened yet.
-const narrowIndexSubprocessEnv = "GO_INTL_TIMEZONE_NARROW_INDEX_SUBPROCESS"
-
 const missingLocale Locale = 65535
-
-// TestSupportedTimeZonesDoesNotDecodeMainBlobs asserts the narrow-index rule:
-// SupportedTimeZones reads only the supported blob and must never trigger the
-// metazone-period, names, or formats decode.
-//
-// The assertion runs in a fresh process so other time-zone tests cannot populate
-// the package-level Once state first.
-func TestSupportedTimeZonesDoesNotDecodeMainBlobs(t *testing.T) {
-	t.Parallel()
-
-	if !testprocess.RunInFreshProcess(t, narrowIndexSubprocessEnv) {
-		return
-	}
-	testcontract.AssertNarrowStringIndexDoesNotLoad(t, "SupportedTimeZones", SupportedTimeZones,
-		testcontract.LoadProbe{Name: "metazone-period blob", Loaded: func() bool { return zoneToMetazones != nil }},
-		testcontract.LoadProbe{Name: "names blob", Loaded: func() bool {
-			return metazoneNamesByLocale != nil || timeZoneNamesByLocale != nil || exemplarCitiesByLocale != nil
-		}},
-		testcontract.LoadProbe{Name: "formats blob", Loaded: func() bool { return timeZoneFormatsByLocale != nil }},
-	)
-}
-
-func TestSupportedTimeZonesReturnsCopy(t *testing.T) {
-	t.Parallel()
-
-	testcontract.AssertStringSliceReturnsCopy(t, "SupportedTimeZones", SupportedTimeZones)
-}
 
 // TestSmokeMetazoneAccessors is a checkout-independent smoke test mirroring the
 // deleted root metazone assertions, scoped to the timezone domain over the
@@ -199,16 +166,5 @@ func TestOffsetPatternKeepsLocalizedMinus(t *testing.T) {
 
 	if got, want := offsetPattern("+HH:mm;−HH:mm", -3*3600*1000-30*60*1000, false), "−3:30"; got != want {
 		t.Fatalf("offsetPattern(localized minus) = %q, want %q", got, want)
-	}
-}
-
-func TestCanonicalTimeZoneLink(t *testing.T) {
-	t.Parallel()
-
-	if got, want := CanonicalTimeZoneLink("US/Eastern"), "America/New_York"; got != want {
-		t.Fatalf("CanonicalTimeZoneLink(US/Eastern) = %q, want %q", got, want)
-	}
-	if got, want := CanonicalTimeZoneLink("America/New_York"), "America/New_York"; got != want {
-		t.Fatalf("CanonicalTimeZoneLink(America/New_York) = %q, want %q", got, want)
 	}
 }

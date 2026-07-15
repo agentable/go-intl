@@ -18,6 +18,8 @@ type Matcher struct {
 	dataLocaleByAvailable map[string]string
 	maximizedByLocale     map[string]string
 	maximizer             Maximizer
+	distanceProfile       compiledLanguageMatchingProfile
+	distanceCache         sync.Map
 	maximizedRequested    sync.Map
 }
 
@@ -35,6 +37,7 @@ func NewMatcher(supported []string, maximizer Maximizer) *Matcher {
 		maximizedByLocale:     make(map[string]string, len(available)),
 		maximizer:             normalizeMaximizer(maximizer),
 	}
+	m.distanceProfile = compileLanguageMatchingProfile(defaultLanguageMatchingProfile(), m.maximizer)
 	for i, loc := range available {
 		noExtensionLocale, _ := removeUnicodeExtension(loc.locale)
 		maximizedLocale := m.maximizer(noExtensionLocale)
@@ -159,7 +162,7 @@ func (m *Matcher) findBestMatch(requested []string, threshold int) bestMatchResu
 	for i, desired := range requested {
 		maximizedDesired := m.maximize(desired)
 		for j, supportedLocale := range m.supported {
-			distance := cachedMatchingDistance(desired, m.noExtension[j], maximizedDesired, m.maximized[j]) + i*40
+			distance := m.cachedMatchingDistance(desired, m.noExtension[j], maximizedDesired, m.maximized[j]) + i*40
 			if m.derived[j] {
 				distance += derivedFallbackDistancePenalty
 			}
@@ -198,12 +201,12 @@ func (m *Matcher) defaultResult(defaultLocale string) Result {
 	return Result{Locale: defaultLocale, DataLocale: m.dataLocale(defaultLocale)}
 }
 
-func cachedMatchingDistance(desired, supported, maximizedDesired, maximizedSupported string) int {
+func (m *Matcher) cachedMatchingDistance(desired, supported, maximizedDesired, maximizedSupported string) int {
 	key := [4]string{desired, supported, maximizedDesired, maximizedSupported}
-	if v, ok := distanceCache.Load(key); ok {
+	if v, ok := m.distanceCache.Load(key); ok {
 		return v.(int)
 	}
-	distance := matchingDistance(desired, supported, maximizedDesired, maximizedSupported)
-	distanceCache.Store(key, distance)
+	distance := m.distanceProfile.distance(maximizedDesired, maximizedSupported)
+	m.distanceCache.Store(key, distance)
 	return distance
 }

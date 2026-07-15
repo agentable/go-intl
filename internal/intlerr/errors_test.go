@@ -153,9 +153,6 @@ func TestErrorKindSentinelMatching(t *testing.T) {
 		{name: "unsupported option", kind: UnsupportedOption, want: ErrUnsupportedOption, unsupported: true},
 		{name: "invalid value", kind: InvalidValue, want: ErrInvalidValue},
 		{name: "invalid code", kind: InvalidCode, want: ErrInvalidCode},
-		{name: "invalid key", kind: InvalidKey, want: ErrInvalidKey},
-		{name: "unsupported locale", kind: UnsupportedLocale, want: ErrUnsupportedLocale, unsupported: true},
-		{name: "unsupported backend", kind: UnsupportedBackend, want: ErrUnsupportedBackend, unsupported: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -225,26 +222,6 @@ func TestNamedConstructorsWrapSentinelsAndContext(t *testing.T) {
 			wantCause:    true,
 			wantExpected: "a valid code",
 		},
-		{
-			name:     "invalid key",
-			makeErr:  func() error { return NewInvalidKey("owner", "name", "value", "locale", nil) },
-			wantKind: InvalidKey,
-			want:     ErrInvalidKey,
-		},
-		{
-			name:        "unsupported locale",
-			makeErr:     func() error { return NewUnsupportedLocale("owner", "name", "value", "locale", nil) },
-			wantKind:    UnsupportedLocale,
-			want:        ErrUnsupportedLocale,
-			unsupported: true,
-		},
-		{
-			name:        "unsupported backend",
-			makeErr:     func() error { return NewUnsupportedBackend("owner", "name", "value", "locale", nil) },
-			wantKind:    UnsupportedBackend,
-			want:        ErrUnsupportedBackend,
-			unsupported: true,
-		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -284,9 +261,6 @@ func TestUnsupportedKindWithCustomCauseMatchesStdlibUnsupported(t *testing.T) {
 	if !errors.Is(err, errors.ErrUnsupported) {
 		t.Fatalf("New(UnsupportedOption) error = %v, want errors.ErrUnsupported", err)
 	}
-	if !errors.Is(ErrUnsupportedLocale, errors.ErrUnsupported) {
-		t.Fatal("ErrUnsupportedLocale should match errors.ErrUnsupported")
-	}
 }
 
 func TestDefaultExpectedGuidanceByKind(t *testing.T) {
@@ -301,9 +275,6 @@ func TestDefaultExpectedGuidanceByKind(t *testing.T) {
 		{name: "unsupported option", kind: UnsupportedOption, want: "an implementation-supported option value"},
 		{name: "invalid value", kind: InvalidValue, want: "a well-formed Intl value"},
 		{name: "invalid code", kind: InvalidCode, want: "a well-formed code"},
-		{name: "invalid key", kind: InvalidKey, want: "a supported Intl key"},
-		{name: "unsupported locale", kind: UnsupportedLocale, want: "a locale supported by the active data set"},
-		{name: "unsupported backend", kind: UnsupportedBackend, want: "an available implementation backend"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -352,9 +323,6 @@ func TestSentinelErrorsMatchStructuredTargets(t *testing.T) {
 		{name: "unsupported option", sentinel: ErrUnsupportedOption, kind: UnsupportedOption},
 		{name: "invalid value", sentinel: ErrInvalidValue, kind: InvalidValue},
 		{name: "invalid code", sentinel: ErrInvalidCode, kind: InvalidCode},
-		{name: "invalid key", sentinel: ErrInvalidKey, kind: InvalidKey},
-		{name: "unsupported locale", sentinel: ErrUnsupportedLocale, kind: UnsupportedLocale},
-		{name: "unsupported backend", sentinel: ErrUnsupportedBackend, kind: UnsupportedBackend},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

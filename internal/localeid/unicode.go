@@ -4,6 +4,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"sort"
 	"strings"
 )
 
@@ -81,6 +82,11 @@ func NewUnicodeExtension(attributes []string, keywords []UnicodeKeyword) Unicode
 			continue
 		}
 		value := asciiLower(keyword.Value)
+		if value != "" {
+			if canonical, ok := CanonicalUnicodeType(key, value); ok {
+				value = canonical
+			}
+		}
 		ext.byKey[key] = value
 		ext.keywords = append(ext.keywords, UnicodeKeyword{Key: key, Value: value})
 	}
@@ -172,14 +178,15 @@ func IsUnicodeType(value string) bool {
 	}
 }
 
-// CanonicalUnicodeType lowercases a Unicode locale extension type and applies
-// the aliases accepted by Intl.Locale before validating the canonical value.
-func CanonicalUnicodeType(value string) (string, bool) {
-	value = canonicalUnicodeTypeAlias(asciiLower(value))
+// CanonicalUnicodeType validates and lowercases a Unicode locale extension
+// type, then applies the CLDR alias for its key when one exists.
+func CanonicalUnicodeType(key, value string) (string, bool) {
+	key = asciiLower(key)
+	value = asciiLower(value)
 	if !IsUnicodeType(value) {
 		return "", false
 	}
-	return value, true
+	return canonicalUnicodeTypeAlias(key, value), true
 }
 
 // IsUnicodeLanguageSubtag reports whether subtag has Unicode language subtag
@@ -317,12 +324,22 @@ func uniqueSorted(values []string) []string {
 	return slices.Sorted(maps.Keys(seen))
 }
 
-func canonicalUnicodeTypeAlias(value string) string {
-	switch value {
-	case "gregorian":
-		return "gregory"
-	case "islamic-civil":
-		return "islamicc"
+type unicodeTypeAliasRecord struct {
+	key       string
+	alias     string
+	canonical string
+}
+
+func canonicalUnicodeTypeAlias(key, value string) string {
+	index, found := sort.Find(len(unicodeTypeAliases), func(index int) int {
+		record := unicodeTypeAliases[index]
+		if order := strings.Compare(key, record.key); order != 0 {
+			return order
+		}
+		return strings.Compare(value, record.alias)
+	})
+	if found {
+		return unicodeTypeAliases[index].canonical
 	}
 	return value
 }

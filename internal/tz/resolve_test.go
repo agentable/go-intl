@@ -84,6 +84,40 @@ func TestResolveSouthernHemisphereZoneUsesDST(t *testing.T) {
 	}
 }
 
+func TestLookupAtUsesTZDataTransitionDSTFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		zone    string
+		instant time.Time
+		want    bool
+	}{
+		{name: "New York winter", zone: "America/New_York", instant: time.Date(2025, time.January, 1, 12, 0, 0, 0, time.UTC), want: false},
+		{name: "New York summer", zone: "America/New_York", instant: time.Date(2025, time.July, 1, 12, 0, 0, 0, time.UTC), want: true},
+		{name: "Sydney summer", zone: "Australia/Sydney", instant: time.Date(2025, time.January, 1, 12, 0, 0, 0, time.UTC), want: true},
+		{name: "Sydney winter", zone: "Australia/Sydney", instant: time.Date(2025, time.July, 1, 12, 0, 0, 0, time.UTC), want: false},
+		{name: "Casablanca before Ramadan", zone: "Africa/Casablanca", instant: time.Date(2024, time.February, 1, 12, 0, 0, 0, time.UTC), want: true},
+		{name: "Casablanca during Ramadan", zone: "Africa/Casablanca", instant: time.Date(2024, time.March, 20, 12, 0, 0, 0, time.UTC), want: false},
+		{name: "Casablanca after Ramadan", zone: "Africa/Casablanca", instant: time.Date(2024, time.April, 20, 12, 0, 0, 0, time.UTC), want: true},
+		{name: "London wartime winter", zone: "Europe/London", instant: time.Date(1941, time.January, 15, 12, 0, 0, 0, time.UTC), want: true},
+		{name: "London postwar winter", zone: "Europe/London", instant: time.Date(1946, time.January, 15, 12, 0, 0, 0, time.UTC), want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			loc, err := Resolve(tc.zone)
+			if err != nil {
+				t.Fatalf("Resolve(%q) error = %v", tc.zone, err)
+			}
+			if got := LookupAt(loc, tc.instant).IsDST; got != tc.want {
+				t.Fatalf("LookupAt(%q, %s).IsDST = %t, want %t", tc.zone, tc.instant.Format(time.RFC3339), got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCanonicalLink(t *testing.T) {
 	t.Parallel()
 
@@ -131,6 +165,30 @@ func TestResolveIanaLinkUsesCanonicalCache(t *testing.T) {
 	}
 }
 
+func TestResolveUsesCaseInsensitiveRegistryPrimary(t *testing.T) {
+	t.Parallel()
+
+	for input, primary := range map[string]string{
+		"us/eastern":         "America/New_York",
+		"ATLANTIC/JAN_MAYEN": "Arctic/Longyearbyen",
+		"pacific/truk":       "Pacific/Chuuk",
+		"europe/kiev":        "Europe/Kyiv",
+		"etc/utc":            "UTC",
+	} {
+		loc, err := Resolve(input)
+		if err != nil {
+			t.Errorf("Resolve(%q) error = %v", input, err)
+			continue
+		}
+		if loc.String() != primary {
+			t.Errorf("Resolve(%q).String() = %q, want %q", input, loc, primary)
+		}
+		if got := CanonicalLink(input); got != primary {
+			t.Errorf("CanonicalLink(%q) = %q, want %q", input, got, primary)
+		}
+	}
+}
+
 func TestResolveCLDRTimeZoneAliasUsesCanonicalCache(t *testing.T) {
 	t.Parallel()
 
@@ -163,6 +221,18 @@ func TestResolveUnknownZone(t *testing.T) {
 	}
 	if detail.name != "Mars/Olympus" {
 		t.Fatalf("unsupportedTimeZoneError.name = %q, want Mars/Olympus", detail.name)
+	}
+}
+
+func TestResolveRejectsHostLoadableNameAbsentFromRegistry(t *testing.T) {
+	t.Parallel()
+
+	if _, err := time.LoadLocation("posixrules"); err != nil {
+		t.Skipf("host does not expose posixrules: %v", err)
+	}
+	_, err := Resolve("posixrules")
+	if !errors.Is(err, ErrUnsupportedTimeZone) {
+		t.Fatalf("Resolve(posixrules) error = %v, want registry rejection", err)
 	}
 }
 

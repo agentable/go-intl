@@ -66,7 +66,7 @@ go-intl/
 │   ├── collation/         # Collator backend capability metadata
 │   ├── decimal/           # apd-backed decimal math for Intl mathematical values
 │   ├── localematcher/     # Lookup/best-fit locale matching
-│   └── tz/                # IANA time-zone resolution data
+│   └── tz/                # Generated IANA/CLDR identifier registry + Go transition resolution
 ├── tools/
 │   ├── conformance/       # Shared fixture, XFAIL, divergence, and coverage checks
 │   ├── check-conformance/ # Unified conformance verification CLI
@@ -202,7 +202,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 
 ### Must Follow
 
-- Go 1.26.4. Use modern stdlib features already present in the codebase: `slices`, `maps`, `for range N`, `sync.OnceValue`, `sync.Map`, `log/slog`, and `testing.B.Loop()`.
+- Go 1.26.5. Use modern stdlib features already present in the codebase: `slices`, `maps`, `for range N`, `sync.OnceValue`, `sync.Map`, `log/slog`, and `testing.B.Loop()`.
 - Follow Google Go Best Practices: <https://google.github.io/go-style/best-practices>.
 - Follow Google Go Style Decisions: <https://google.github.io/go-style/decisions>.
 - Keep interfaces small and consumer-owned; do not expose broad internal abstractions.
@@ -213,15 +213,19 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep generated CLDR/runtime data out of hot-path file I/O. Runtime data lives in generated Go source under `internal/cldr`.
 - Keep locale-list canonicalization and constructor locale negotiation internal. Public callers use root `GetCanonicalLocales`; formatter packages use `internal/ecma402.CanonicalLocaleList`, `RequestedLocaleStrings`, `ResolveConstructorLocale`, and `SupportedLocalesOf`. Do not expose formatter-independent canonicalize-list helpers or any other public abstract-operation helper.
 - Keep `ResolveConstructorLocale` narrow. It owns shared requested-locale preparation, `localeMatcher` dispatch, default-locale fallback, and relevant-extension merging only; formatter packages still own CLDR data fallback, unsupported-option errors, pattern/data selection, numbering-system defaults, and embedded formatter construction.
+- Keep best-fit distance facts in the generated CLDR `written-new` profile owned by `internal/localematcher`. Preserve rule order, `oneway`, match-variable containment, paradigm penalties, and the 838 threshold; do not add formatter-local pair tables, fixed same/other-language fallbacks, or `language.Matcher` confidence.
+- Keep likely-subtag maximization on the CLDR fallback order (full tag, language-region, language-script, language, `und`-script, `und`-region, `und`) while preserving caller-supplied subtags. Matcher Tier 2 and Tier 3 receive that maximizer from constructors rather than reimplementing it.
 - Keep formatter supported locale lists generated from actual CLDR payload maps or truthful engine capability accessors. Constructor `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` with generated accessors instead of duplicating matcher, filtering, or requested-locale dedupe loops.
 - Keep shared string and integer option validation in `internal/ecma402`. Formatter packages pass formatter-owned allowed values through helpers such as `RequiredStringOption`, `OptionalStringOption`, `InvalidStringOption`, and `InvalidIntegerOption`; do not hand-roll equivalent `switch` or `slices.Contains` loops.
 - Keep root supported-value accessors in the root package, conventionally in `supported.go`, backed by CLDR/tz data, active collation capability, or ECMA-402 sanctioned constants. Do not create public `cldr`, `ecma402`, or `supported` packages for this data. Calendars must include `iso8601`; numbering systems must include the ECMA-402 simple digit table; do not add ad hoc runtime lists.
 - Keep `DateTimeFormat` calendar support tied to `internal/cldr/date.SupportedCalendars()` and generated date data; do not copy calendar allow-lists into constructors.
-- Keep time-zone canonical links generated from pinned CLDR `zoneAlias` replacements plus the documented legacy IANA fallback list; do not hand-write ad hoc alias switches.
-- Keep `Segmenter` supported locales honest. Do not advertise dictionary or CJK-tailored locales such as `ja`, `th`, or `zh-Hant` until the active segmentation backend supports their word-boundary behavior.
+- Keep time-zone facts separated by owner. The pinned official IANA archive owns the complete Zone/Link set and `zone.tab` region membership; pinned CLDR BCP47 timezone records own ECMA/ICU primary selection and rename state; `internal/tz` owns the generated immutable registry; Go `time/tzdata` owns transition bytes; `internal/cldr/timezone` owns localized display names only.
+- Keep the IANA identity source reproducible through `tools/gen-cldr/tzdata.json`, its SHA-256-verified cache, generated manifest hashes, and `task data:check`. The Go transition-data version must not be older than the identity pin; exact equality with CLDR display data is not required.
+- Keep `Segmenter` supported locales honest. Do not advertise dictionary or CJK-tailored locales such as `km`, `lo`, `my`, `th`, `ja`, or `zh-Hant` until the active segmentation backend supports their word-boundary behavior. Its static capability gate requires lookup containment so generated best-fit distances cannot expand the explicit allowlist across languages.
 - Keep `Segmenter` backend dependencies license-compatible. Do not add a mandatory `github.com/agentable/go-segment` dependency to the public MIT module while go-segment remains commercial-only; use an internal, optional, relicensed, or separately licensed integration and preserve the existing Segmenter API and fixtures.
 - Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it resolved digit options, while range equality compares final visible endpoint text instead of rounded decimals.
 - Keep compact plural contracts split: NumberFormat compact suffix selection uses the scaled visible display decimal plus compact exponent, while public PluralRules compact selection uses the source decimal string plus compact exponent.
+- Keep RelativeTimeFormat on one ECMAScript Number boundary. `Int` and `Uint` convert through `float64`, `Float` preserves signed zero, and literal lookup, tense, NumberFormat, and PluralRules all project that same normalized value; do not add an exact-decimal bridge or mode.
 - Freeze constructor-derived hot-path state on formatter instances. Cached method calls must not redo locale negotiation, option validation, digit-option resolution, plural-rule lookup, or embedded formatter construction. `DurationFormat` composes constructor-resolved `NumberFormat` and `ListFormat` instances.
 - Keep constructor and `SupportedLocalesOf` options aligned with the JavaScript single-options-object model. Public Go entrypoints receive exactly one typed `Options` value; use `Options{}` for omitted or empty JS options instead of variadic `Options`.
 - Keep NumberFormat unit identifiers exact and case-sensitive. `Unit("METER")` must not silently become `"meter"`; native `Intl.NumberFormat` rejects non-canonical unit casing.
@@ -267,7 +271,7 @@ When you encounter a bug, limitation, or unexpected behavior in a dependency:
 - Keep generated extractor lanes narrow and source-owned. `notation-compact-zh-TW.test.ts` is an active NumberFormat FormatJS lane and must stay as generated fixtures, not return to `.skip-list.json`.
 - Unextracted or partially extracted FormatJS sources must appear in root `.skip-list.json` with `source`, `category`, `route`, and `reason`.
 - `.skip-list.json` is extraction audit only. A generated fixture that fails must be handled through `testdata/divergences.md` or `testdata/xfail.json`, never by removing it from testdata.
-- Record accepted reference mismatches in `<package>/testdata/divergences.md` only when that package has active or resolved divergence entries; empty placeholder files are not required. Keep IDs auditable by `task conformance:verify`.
+- Record accepted reference mismatches in `<package>/testdata/divergences.md` only when that package has active or resolved divergence entries; empty placeholder files are not required. The ledger accepts only blank lines, `#` comments, and the documented unique fields; all records, including `status: resolved`, must be structurally complete with a valid date before active records are matched to fixtures.
 - Run `task conformance:verify` after fixture, skip-list, XFAIL, divergence, or Node witness changes; the unified checker validates schema, source ownership, expiration, divergence references, coverage health, and the Node witness matrix.
 - Public formatters should have runnable `Example*` functions when adding meaningful new surface.
 
@@ -283,7 +287,7 @@ Add runtime dependencies only when an active SPEC requires them.
 
 ## Error Handling
 
-- Root `gointl` owns the public error categories: `ErrInvalidOption`, `ErrUnsupportedOption`, `ErrInvalidValue`, `ErrInvalidCode`, `ErrInvalidKey`, `ErrUnsupportedLocale`, and `ErrUnsupportedBackend`.
+- Root `gointl` owns exactly four public error categories: `ErrInvalidOption`, `ErrUnsupportedOption`, `ErrInvalidValue`, and `ErrInvalidCode`. Do not add categories without a reachable public producer.
 - Error text should teach the caller what to fix using the three-part shape: owner/name/value/locale, `expected ...`, and `got ...`.
 - Public caller-fixable errors should expose `*gointl.Error` through `errors.AsType`; formatter packages build those errors through `internal/intlerr` to avoid root import cycles.
 - Do not expose ECMA-402 abstract operation names such as `GetOption`, `PartitionPattern`, or `ResolveLocale` in public error text; those names belong in SPECS and internal code only.

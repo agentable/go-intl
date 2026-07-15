@@ -1,6 +1,10 @@
 package localematcher
 
-import "testing"
+import (
+	"testing"
+
+	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+)
 
 func TestBestFitMatcher(t *testing.T) {
 	t.Parallel()
@@ -27,7 +31,7 @@ func TestBestFitMatcher(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := BestFitMatcher(tc.requested, tc.supported, tc.def)
+			got := BestFitMatcherWithMaximizer(tc.requested, tc.supported, tc.def, cldrlocale.Maximize)
 			if got.Locale != tc.locale || got.Extension != tc.extension {
 				t.Fatalf("BestFitMatcher() = %#v, want locale %q extension %q", got, tc.locale, tc.extension)
 			}

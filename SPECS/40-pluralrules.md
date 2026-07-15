@@ -81,7 +81,7 @@ func (r *PluralRules) ResolvedOptions() ResolvedOptions
 1. `New` **MUST** complete all option verification during the construction period, and `error` will be returned if it fails.
 2. `New` accepts a `Options` value. `New(locales, Options{})` is equivalent to JS passing an empty options object or omitting options; multiple options objects are not Go API shapes and are rejected by the compiler.
 3. `Select` / `SelectRange` **MUST** accept opaque `Value`; the caller expresses ECMA-402 numeric input through typed constructors.
-4. `Select` / `SelectRange` **MUST** return `ErrInvalidValue` for non-finite numbers; `Decimal` **MUST** return `ErrInvalidValue` for illegal decimal strings or non-finite strings, instead of silently mapping user input errors to `Other`.
+4. `Select` **MUST** return `Other, nil` for NaN and positive or negative infinity. `SelectRange` **MUST** return `ErrInvalidValue` only when an endpoint is NaN and **MUST** accept positive or negative infinity. `Decimal` **MUST** accept well-formed decimal strings plus `NaN`, `Infinity`, and `-Infinity`, and **MUST** return `ErrInvalidValue` for malformed strings. Finite decimal spellings denote mathematical values: input-only trailing zeros do not affect category or formatted range equality.
 5. `PluralRules` is an immutable value; all methods on `*PluralRules` must be concurrency-safe.
 6. `Options` is the only public configuration value; restoring functional options or multiple options merge is prohibited.
 7. The `Category.String()` return value **MUST** be consistent with the ECMA-402 string representation (to facilitate direct case branching of the `:plural` function of messageformat-go).
@@ -131,9 +131,9 @@ The digit options of PluralRules are a subset of the NumberFormat digit pipeline
 
 1. PluralRules default digit options **MUST** be `minimumIntegerDigits=1`, `minimumFractionDigits=0`, `maximumFractionDigits=3`, `roundingIncrement=1`, `roundingMode="halfExpand"`, `roundingPriority="auto"`, `trailingZeroDisplay="auto"`.
 2. `Select` / `SelectRange` **MUST** compute operands from the source output string of a shared digit formatter; **MUST NOT** copy `trimFraction`, `padMinimumIntegerDigits` or fixed rounding logic within the `pluralrules` package.
-3. When selecting category with a negative number, the format string prefix `-` must be removed because ECMA-402 operands are based on absolute values; zero scale and trailing zero are still retained by the shared formatter.
+3. When selecting category with a negative number, the format string prefix `-` must be removed because ECMA-402 operands are based on absolute values; trailing zeros introduced by resolved digit options are retained by the shared formatter, while input-only lexical zeros are not.
 
-> **Why**: The observable surface of PluralRules for digit options is not the final string, but the `v/w/f/t` of operands. These fields rely on the same set of trailing-zero rules; the shared formatter is the minimum boundary that prevents NumberFormat from bifurcating the semantics of PluralRules.
+> **Why**: The observable surface of PluralRules for digit options is not the final string, but the `v/w/f/t` of operands. These fields rely on the trailing zeros produced by resolved digit options, not on the spelling of the input value; the shared formatter is the minimum boundary that prevents NumberFormat and PluralRules from bifurcating those semantics.
 
 #### 1.2.2 typed constants and ResolvedOptions
 
@@ -227,11 +227,11 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 - `i` = Use the integer part as an integer (`|trunc(x)|`)
 3. `n` **MUST** be the absolute decimal value of `formatted`, which is saved as `OperandValue`; it is forbidden to obtain it through `strconv.ParseFloat`.
 4. `c / e` **MUST** be equal to parameter `exponent`.
-5. Non-finite numbers do not enter `GetOperands`; public `Select` must return `ErrInvalidValue` at the boundary.
+5. Non-finite numbers do not enter `GetOperands`; `ResolvePlural` short-circuits NaN and positive or negative infinity to category `Other` while retaining the corresponding formatted special-value string for range equality.
 
-> **Why**: `v/w/f/t` is extracted from the `formatted` string instead of `decimal.Decimal` because trailing zero is an "observable attribute determined by the formatter" (`mnfd=2` when `1` → `"1.00"` is `v=2, w=0`), not a mathematical attribute. Generated reference extracts,semantically aligned strings.
+> **Why**: `v/w/f/t` is extracted from the `formatted` string instead of `decimal.Decimal` because trailing zero is an "observable attribute determined by the formatter" (`mnfd=2` when `1` → `"1.00"` is `v=2, w=0`), not a mathematical attribute. Generated reference extracts semantically aligned strings. Non-finite special values have no plural operands; ECMA-402 owns them in `ResolvePlural` before operand construction.
 >
-> **Note**: This SPEC clearly states that the current record is based on the `formatted` string (reference behavior); trailing depends entirely on the string. This avoids the dual path bifurcation of the decimal backend and display digit view.
+> **Note**: The record is based on the `formatted` string (reference behavior), after input spelling has already been reduced to an Intl mathematical value. This keeps one display-digit view: formatter options may introduce visible zeros; parser scale may not.
 
 ---
 
@@ -420,33 +420,35 @@ func CardinalRule(loc string) (func(pluralop.OperandsRecord) pluralop.Category, 
 
 ```text
 function SelectRange(start, end Value) Category:
-    sCat := Select(start)
-    eCat := Select(end)
+    if start or end is NaN:
+        return ErrInvalidValue
+
+    sResult := ResolvePlural(start) // Infinity categories are Other
+    eResult := ResolvePlural(end)
 
 // Step 1: Formatted string equality → return sCat (avoid "1–1" going to the corner of the range table)
-    sFmt := FormatNumericToString(start)
-    eFmt := FormatNumericToString(end)
-    if sFmt == eFmt:
-        return sCat
+    if sResult.formatted == eResult.formatted:
+        return sResult.category
 
 // Step 2: locale does not have pluralRanges data → fall back to eCat(end-class)
     rangeMap, ok := pluralRanges[localeData]
     if !ok:
-        return eCat
+        return eResult.category
 
 // Step 3: Check pluralRanges["${sCat}_${eCat}"]; fall back to eCat if missed
-    cat, ok := rangeMap[{sCat, eCat}]
+    cat, ok := rangeMap[{sResult.category, eResult.category}]
     if !ok:
-        return eCat
+        return eResult.category
     return cat
 ```
 
 **MUST** Rules:
 
 1. The three-step sequence **MUST** strictly follow ECMA-402 §16.5.4.
-2. "Formatted string equality" determination **MUST** pass `FormatNumericToString(start) == FormatNumericToString(end)` string comparison, **not** pass `decimal.Cmp` (mathematical equality is not equivalent to formatted equality, for example: `1.00` vs `1` mathematical equality but string unequal).
+2. "Formatted string equality" determination **MUST** pass `FormatNumericToString(start) == FormatNumericToString(end)` string comparison, **not** pass `decimal.Cmp`. Mathematical equality alone is insufficient because digit options can make distinct values visibly equal (for example, `1.1` and `1.2` with `maximumFractionDigits=0`); conversely, `1`, `1.0`, and `1.00` are the same mathematical input and must not differ solely by parser scale.
 3. When there is no `pluralRanges` data in the locale, it **MUST** fall back to `eCat`(end-class), and **is prohibited** from falling back to `sCat` or return an error.
 4. `rangeMap` misses `(sCat, eCat)` **MUST** fallback to `eCat`, and is **disabled** from automatically trying heuristic fallbacks such as `(sCat, Other)` or `(Other, eCat)`.
+5. A NaN start or end **MUST** return `ErrInvalidValue`. Positive and negative infinity **MUST** resolve to `Other` with their special-value formatted strings and continue through the same equality and range-category steps.
 
 > **Why**: Step 1 short-circuiting "1–1" is the solidified behavior of Generated reference; step 2 falling back to end-class is explicitly specified by ECMA-402 §16.5.4; heuristic fallback will introduce inconsistencies with Generated reference.
 >
@@ -480,7 +482,7 @@ type ResolvedOptions struct {
 
 1. The field order **MUST** be consistent with the ECMA-402 §16.4.5 spec order.
 2. `PluralCategories` **MUST** return the category actually defined by the locale (reverse check from the `cardinal_rules.go` / `ordinal_rules.go` per-locale table of codegen), **disabled** from returning all 6 categories of hard-coded lists.
-3. Digit resolved-option fields **MUST** use pointers. Fraction-digit properties are non-nil only for the fraction-digit branch; significant-digit properties are non-nil for the significant, more-precision, and less-precision branches.
+3. Digit resolved-option fields **MUST** use pointers and directly project the slots populated by `SetNumberFormatDigitOptions`. Fraction-digit properties are non-nil for fraction-digits, more-precision, and less-precision; significant-digit properties are non-nil for significant-digits, more-precision, and less-precision. The `auto` branches omit only the unused family. PluralRules must not maintain a second slot-presence policy.
 4. `CompactDisplay` **MUST** be nil unless `Notation == CompactNotation`; constructor validation still rejects invalid `compactDisplay` values even when `Notation` is standard.
 5. **MUST** return an immutable snapshot (value type); pointer-backed resolved scalars must not expose formatter state to callers.
 6. JSON field names and `omitempty` behavior **MUST** comply with [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors).
@@ -494,7 +496,7 @@ type ResolvedOptions struct {
 1. **MUST** pass root sentinel classification: `gointl.ErrInvalidOption` and `gointl.ErrInvalidValue`; this package no longer re-exports formatter-owned sentinels.
 2. Construction-time error **MUST** match root `gointl.ErrInvalidOption` and expose `*gointl.Error` structured context.
 3. **BANNED** `panic` any user path.
-4. Invalid input at runtime (non-finite decimal string or non-finite bridge value) **MUST** return a structured error matching `gointl.ErrInvalidValue`; integer methods do not have invalid input paths.
+4. A malformed decimal bridge string or a NaN `SelectRange` endpoint **MUST** return a structured error matching `gointl.ErrInvalidValue`. `Select` accepts all ECMA-402 mathematical values, and infinity is valid in `SelectRange`.
 5. Public error text follows SPEC 12's `expected ...; got ...` rule and must not expose abstract operation names.
 
 ---
@@ -541,7 +543,7 @@ semantics, and conformance fixtures agree with the ECMA-402/CLDR boundary.
 | `tools/gen-plural-rules/` remains an independent module and emits CLDR 48.1.0 generated files with stable headers. | `tools/gen-plural-rules/go.mod`; `tools/gen-plural-rules/main.go`; `internal/cldr/plural/cardinal_rules.go`; `internal/cldr/plural/ordinal_rules.go`; `internal/cldr/plural/range_rules.go`; `internal/cldr/plural/categories.go`; `internal/cldr/plural/supported.go` | Satisfied |
 | Codegen does not depend on `dave/jennifer`; runtime and codegen do not depend on `golang.org/x/text/feature/plural`. | `rg "dave/jennifer" tools/gen-plural-rules`; `rg "x/text/feature/plural" internal/plural tools/gen-plural-rules pluralrules/*.go` | Satisfied |
 | The `pluralrules/benchmark_baseline_test.go` `x/text/feature/plural` import is retained only as benchmark comparison evidence and is outside runtime/codegen acceptance. | `pluralrules/benchmark_baseline_test.go` | Accepted exception |
-| Cardinal, ordinal, range, NaN error, reversed range, rounded equality, and resolved category behavior are covered by package tests and generated fixtures. | `pluralrules/pluralrules_test.go`; `pluralrules/range_test.go`; `pluralrules/options_test.go`; `pluralrules/conformance_unified_test.go`; `pluralrules/testdata/conformance/formatjs/index-test-ts.json` | Satisfied |
+| Cardinal, ordinal, range, non-finite select/range behavior, NaN range errors, reversed range, rounded equality, and resolved category behavior are covered by package tests and generated fixtures. | `pluralrules/pluralrules_test.go`; `pluralrules/range_test.go`; `pluralrules/options_test.go`; `pluralrules/conformance_unified_test.go`; `pluralrules/testdata/conformance/formatjs/index-test-ts.json` | Satisfied |
 | Public PluralRules compact notation follows Node v26 source-decimal-plus-exponent behavior, including million-scale `many` fixtures. | `pluralrules/testdata/conformance/node-v26/compact.json`; `pluralrules/testdata/xfail.json`; `compact_contract_test.go` | Satisfied |
 | NumberFormat compact suffix selection remains internal and generated-rule based; no public `SelectFormatted` or internal `ResolvePlural` helper exists. | `numberformat/notation.go`; `internal/plural/plural.go`; absence of `SelectFormatted` / `ResolvePlural` in Go source | Satisfied |
 | `OperandsRecord` remains the single internal operand record bridge. | `internal/plural/plural.go`; `pluralrules/pluralrules_test.go` | Satisfied |

@@ -1,5 +1,7 @@
 package decimal
 
+import "math/big"
+
 // Abs returns d without a sign.
 func Abs(d Decimal) Decimal {
 	d.negative = false
@@ -23,7 +25,10 @@ func MulInt(d Decimal, n int64) Decimal {
 	if !d.IsFinite() {
 		return d
 	}
-	return mul(d, FromInt64(n))
+	coefficient := d.inner.Coeff.MathBigInt()
+	factor := new(big.Int).Abs(big.NewInt(n))
+	coefficient.Mul(coefficient, factor)
+	return New(d.Negative() != (n < 0), coefficient, d.inner.Exponent)
 }
 
 // Scale10 returns d multiplied by 10^exp.

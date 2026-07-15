@@ -12,6 +12,9 @@ var (
 	errUnknownDivergence           = errors.New("unknown divergence id")
 	errMissingPackageRoot          = errors.New("missing package root")
 	errDuplicateDivergenceID       = errors.New("duplicate divergence id")
+	errDuplicateDivergenceField    = errors.New("duplicate divergence field")
+	errUnknownDivergenceField      = errors.New("unknown divergence field")
+	errMalformedDivergenceLine     = errors.New("malformed divergence line")
 	errMissingDivergenceField      = errors.New("missing divergence field")
 	errInvalidDivergenceStatus     = errors.New("invalid divergence status")
 	errInvalidDivergenceReviewDate = errors.New("invalid divergence review date")
@@ -78,8 +81,10 @@ func loadActiveDivergences(path string) (map[string]divergenceEntry, error) {
 	entries := map[string]divergenceEntry{}
 	seen := map[string]struct{}{}
 	current := divergenceEntry{}
+	currentFields := map[divergenceField]struct{}{}
+	started := false
 	flush := func() error {
-		if current.ID == "" {
+		if !started {
 			current = divergenceEntry{}
 			return nil
 		}
@@ -87,19 +92,41 @@ func loadActiveDivergences(path string) (map[string]divergenceEntry, error) {
 			return err
 		}
 		current = divergenceEntry{}
+		currentFields = map[divergenceField]struct{}{}
+		started = false
 		return nil
 	}
+	lineNumber := 0
 	for line := range strings.SplitSeq(string(data), "\n") {
-		key, value, ok := strings.Cut(strings.TrimSpace(line), ":")
-		if !ok {
+		lineNumber++
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			return nil, fmt.Errorf("%s:%d: %q: %w", path, lineNumber, line, errMalformedDivergenceLine)
+		}
+		field := divergenceField(strings.TrimSpace(key))
+		if !knownDivergenceField(field) {
+			return nil, fmt.Errorf("%s:%d: field %q: %w", path, lineNumber, key, errUnknownDivergenceField)
+		}
 		value = strings.TrimSpace(value)
-		switch divergenceField(key) {
-		case divergenceFieldID:
+		if field == divergenceFieldID && started {
 			if err := flush(); err != nil {
 				return nil, err
 			}
+		}
+		if _, ok := currentFields[field]; ok {
+			return nil, fmt.Errorf("%s:%d: divergence id %q field %q: %w", path, lineNumber, current.ID, field, errDuplicateDivergenceField)
+		}
+		if field != divergenceFieldID && !started {
+			return nil, &missingDivergenceFieldError{Path: path, Field: divergenceFieldID}
+		}
+		started = true
+		currentFields[field] = struct{}{}
+		switch field {
+		case divergenceFieldID:
 			current.ID = value
 		case divergenceFieldStatus:
 			current.Status = divergenceStatus(value)
@@ -123,22 +150,38 @@ func loadActiveDivergences(path string) (map[string]divergenceEntry, error) {
 	return entries, nil
 }
 
+func knownDivergenceField(field divergenceField) bool {
+	switch field {
+	case divergenceFieldID,
+		divergenceFieldStatus,
+		divergenceFieldSource,
+		divergenceFieldOwner,
+		divergenceFieldReason,
+		divergenceFieldNativeWitness,
+		divergenceFieldReviewAfter,
+		divergenceFieldRemovalPath:
+		return true
+	default:
+		return false
+	}
+}
+
 func addActiveDivergence(path string, entries map[string]divergenceEntry, seen map[string]struct{}, entry divergenceEntry) error {
 	if _, ok := seen[entry.ID]; ok {
 		return fmt.Errorf("%s: duplicate divergence id %q: %w", path, entry.ID, errDuplicateDivergenceID)
 	}
 	seen[entry.ID] = struct{}{}
-	if entry.Status != "" && entry.Status != divergenceStatusAccepted && entry.Status != divergenceStatusResolved {
-		return fmt.Errorf("%s: divergence id %q status %q: %w", path, entry.ID, entry.Status, errInvalidDivergenceStatus)
-	}
-	if entry.Status == divergenceStatusResolved {
-		return nil
-	}
 	if field := missingDivergenceField(entry); field != "" {
 		return &missingDivergenceFieldError{Path: path, ID: entry.ID, Field: field}
 	}
+	if entry.Status != divergenceStatusAccepted && entry.Status != divergenceStatusResolved {
+		return fmt.Errorf("%s: divergence id %q status %q: %w", path, entry.ID, entry.Status, errInvalidDivergenceStatus)
+	}
 	if _, err := time.Parse(time.DateOnly, entry.ReviewAfter); err != nil {
 		return fmt.Errorf("%s: divergence id %q review_after %q: %w", path, entry.ID, entry.ReviewAfter, errInvalidDivergenceReviewDate)
+	}
+	if entry.Status == divergenceStatusResolved {
+		return nil
 	}
 	entries[entry.ID] = entry
 	return nil
@@ -146,6 +189,10 @@ func addActiveDivergence(path string, entries map[string]divergenceEntry, seen m
 
 func missingDivergenceField(entry divergenceEntry) divergenceField {
 	switch {
+	case entry.ID == "":
+		return divergenceFieldID
+	case entry.Status == "":
+		return divergenceFieldStatus
 	case entry.Source == "":
 		return divergenceFieldSource
 	case entry.Owner == "":

@@ -3,6 +3,7 @@ package ecma402
 import (
 	"testing"
 
+	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/internal/localematcher"
 	"github.com/agentable/go-intl/locale"
@@ -101,7 +102,7 @@ func TestResolveConstructorLocaleDispatchesLocaleMatcher(t *testing.T) {
 
 	requested := locale.List{intltest.Locale(t, "zh-TW")}
 	fallback := intltest.Locale(t, "en")
-	matcher := localematcher.NewMatcher([]string{"zh", "zh-Hant", "en"}, nil)
+	matcher := localematcher.NewMatcher([]string{"zh", "zh-Hant", "en"}, cldrlocale.Maximize)
 
 	lookup := ResolveConstructorLocale(ConstructorLocaleOptions{
 		Locales:       requested,

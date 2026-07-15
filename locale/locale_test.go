@@ -136,8 +136,8 @@ func TestLocaleMaximizeAndMinimize(t *testing.T) {
 func TestLocaleEqualUsesCanonicalForm(t *testing.T) {
 	t.Parallel()
 
-	loc := parseLocaleForTest("en-us-U-Ca-Gregorian-Hc-H23")
-	same := parseLocaleForTest("en-US-u-hc-h23-ca-gregory")
+	loc := parseLocaleForTest("en-us-U-Ca-Islamicc-Hc-H23")
+	same := parseLocaleForTest("en-US-u-hc-h23-ca-islamic-civil")
 	if !loc.Equal(same) {
 		t.Fatalf("Equal() = false, want true for %q and %q", loc.String(), same.String())
 	}
@@ -154,7 +154,7 @@ func TestLocaleNewAppliesAndValidatesOptions(t *testing.T) {
 		Language:        stringPtr("FR"),
 		Script:          stringPtr("latn"),
 		Region:          stringPtr("ca"),
-		Calendar:        stringPtr("gregorian"),
+		Calendar:        stringPtr("islamicc"),
 		Collation:       stringPtr("phonebk"),
 		HourCycle:       stringPtr("H23"),
 		CaseFirst:       stringPtr("UPPER"),
@@ -165,7 +165,7 @@ func TestLocaleNewAppliesAndValidatesOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if got, want := loc.String(), "fr-Latn-CA-emodeng-u-ca-gregory-co-phonebk-fw-sun-hc-h23-kf-upper-kn-false-nu-arab"; got != want {
+	if got, want := loc.String(), "fr-Latn-CA-emodeng-u-ca-islamic-civil-co-phonebk-fw-sun-hc-h23-kf-upper-kn-false-nu-arab"; got != want {
 		t.Fatalf("New().String() = %q, want %q", got, want)
 	}
 

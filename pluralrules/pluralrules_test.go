@@ -3,6 +3,7 @@ package pluralrules
 import (
 	"errors"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 
@@ -139,6 +140,57 @@ func TestPluralRulesSelectUsesExactLargeOperands(t *testing.T) {
 	}
 }
 
+func TestPluralRulesDecimalInputUsesMathematicalValue(t *testing.T) {
+	t.Parallel()
+
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		input string
+		want  Category
+	}{
+		{input: "1", want: One},
+		{input: "1.0", want: One},
+		{input: "1.00", want: One},
+		{input: "1.50", want: Other},
+		{input: "-0.00", want: Other},
+	}
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+			got, err := rules.Select(decimalValue(tc.input))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Errorf("Select(Decimal(%q)) = %s, want %s", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPluralRulesRoundingPreservesArbitraryPrecisionDecimal(t *testing.T) {
+	t.Parallel()
+
+	rules, err := New(locale.List{intltest.Locale(t, "ru")}, Options{
+		MaximumFractionDigits: intPtr(0),
+		RoundingMode:          stringPtr(TruncRoundingMode),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputText := "1" + strings.Repeat("0", 98) + "1.5"
+	input, err := Decimal(inputText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := rules.Select(input); err != nil || got != One {
+		t.Fatalf("Select(Decimal(%q)) = %s, %v; want %s, nil", inputText, got, err, One)
+	}
+}
+
 func TestPluralRulesNotationAffectsOperands(t *testing.T) {
 	t.Parallel()
 
@@ -264,40 +316,134 @@ func TestPluralRulesUnsignedTypedBridges(t *testing.T) {
 	}
 }
 
-func TestPluralRulesTypedSelectErrors(t *testing.T) {
+func TestPluralRulesSelectNonFiniteReturnsOther(t *testing.T) {
 	t.Parallel()
 
 	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rules.Select(Float(math.NaN())); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
-		t.Fatalf("SelectFloat64(NaN) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
-	} else {
-		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "value", "NaN", "en")
-		testcontract.AssertErrorExpected(t, err, "a finite numeric value")
+	for _, tc := range []struct {
+		name  string
+		value float64
+	}{
+		{name: "NaN", value: math.NaN()},
+		{name: "positive_infinity", value: math.Inf(1)},
+		{name: "negative_infinity", value: math.Inf(-1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := rules.Select(Float(tc.value))
+			if err != nil || got != Other {
+				t.Fatalf("Select(Float(%v)) = %s, %v; want %s, nil", tc.value, got, err, Other)
+			}
+		})
 	}
+}
+
+func TestPluralRulesDecimalAcceptsNonFinite(t *testing.T) {
+	t.Parallel()
+
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"NaN", "Infinity", "-Infinity"} {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+
+			input, err := Decimal(value)
+			if err != nil {
+				t.Fatalf("Decimal(%q) error = %v", value, err)
+			}
+			got, err := rules.Select(input)
+			if err != nil || got != Other {
+				t.Fatalf("Select(Decimal(%q)) = %s, %v; want %s, nil", value, got, err, Other)
+			}
+		})
+	}
+}
+
+func TestPluralRulesSelectRangeAcceptsInfinity(t *testing.T) {
+	t.Parallel()
+
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	positiveInfinity, err := Decimal("Infinity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	negativeInfinity, err := Decimal("-Infinity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name       string
+		start, end Value
+	}{
+		{name: "positive_start", start: Float(math.Inf(1)), end: Int(1)},
+		{name: "positive_end", start: Int(1), end: Float(math.Inf(1))},
+		{name: "negative_start", start: Float(math.Inf(-1)), end: Int(1)},
+		{name: "negative_end", start: Int(1), end: Float(math.Inf(-1))},
+		{name: "equal_positive", start: Float(math.Inf(1)), end: Float(math.Inf(1))},
+		{name: "decimal_tokens", start: positiveInfinity, end: negativeInfinity},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := rules.SelectRange(tc.start, tc.end)
+			if err != nil || got != Other {
+				t.Fatalf("SelectRange() = %s, %v; want %s, nil", got, err, Other)
+			}
+		})
+	}
+}
+
+func TestPluralRulesSelectRangeRejectsNaN(t *testing.T) {
+	t.Parallel()
+
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decimalNaN, err := Decimal("NaN")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name       string
+		start, end Value
+		field      string
+	}{
+		{name: "float_start", start: Float(math.NaN()), end: Int(1), field: "start"},
+		{name: "float_end", start: Int(1), end: Float(math.NaN()), field: "end"},
+		{name: "decimal_start", start: decimalNaN, end: Int(1), field: "start"},
+		{name: "decimal_end", start: Int(1), end: decimalNaN, field: "end"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := rules.SelectRange(tc.start, tc.end)
+			if !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
+				t.Fatalf("SelectRange() error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
+			}
+			testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", tc.field, "NaN", "en")
+			testcontract.AssertErrorExpected(t, err, "a numeric value other than NaN")
+		})
+	}
+}
+
+func TestPluralRulesDecimalRejectsMalformed(t *testing.T) {
+	t.Parallel()
+
 	if _, err := Decimal("not-a-number"); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
 		t.Fatalf("Decimal(invalid) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
 	} else {
 		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "decimal", "not-a-number", "")
-		testcontract.AssertErrorExpected(t, err, "a finite numeric value")
-	}
-	if _, err := rules.SelectRange(Float(math.Inf(-1)), Float(1)); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
-		t.Fatalf("SelectRangeFloat64(-infinite, 1) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
-	} else {
-		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "start", "-Infinity", "en")
-	}
-	if _, err := rules.SelectRange(Float(1), Float(math.Inf(1))); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
-		t.Fatalf("SelectRangeFloat64(infinite) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
-	} else {
-		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "end", "Infinity", "en")
-	}
-	if _, err := Decimal("NaN"); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
-		t.Fatalf("Decimal(NaN) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
-	} else {
-		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "decimal", "NaN", "")
-		testcontract.AssertErrorExpected(t, err, "a finite numeric value")
+		testcontract.AssertErrorExpected(t, err, "a well-formed decimal string, NaN, Infinity, or -Infinity")
 	}
 }
 

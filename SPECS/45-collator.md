@@ -95,6 +95,7 @@ Supported option precedence:
 |-----|------------------|-----------|--------------|--------------|
 | `usage = "search"` | Constructor returns `ErrUnsupportedOption`. | Search collation must not pretend to be sort collation; ECMA-402 says search data may have different behavior. | 2026-09-30 | Identify a CLDR/x/text-backed search tailoring path, add native comparison fixtures, then accept `SearchUsage`. |
 | explicit `caseFirst = "upper" \| "lower"` | Constructor returns `ErrUnsupportedOption`. | The active backend cannot yet control case-level direction truthfully, and explicit options should not pretend to be applied. | 2026-09-30 | Add backend support or a documented dependency report, then verify resolved options and ordering fixtures. |
+| `ignorePunctuation = true` | Constructor returns `ErrUnsupportedOption`. | UCA alternate-shifted uses collation variable weights; deleting Unicode punctuation/space categories changes semantics and the active backend does not implement shifted handling. | 2026-09-30 | Add a backend with proved alternate-shifted behavior, then verify native ordering/resolved fixtures before accepting `true`. |
 | explicit collation option reflected in `ResolvedOptions().Locale` | Supported explicit collation options apply to comparison and `ResolvedOptions().Collation`, while the resolved locale tag remains the base matched locale. | ECMA-402 ResolveLocale and FormatJS clear supported locale keywords when an option value overrides them; Node v26 reflects this option in the resolved locale tag, so the native fixture stays XFAIL as an observed engine divergence. | 2026-09-30 | Keep the Node witness under XFAIL unless the normative spec changes; do not change the shared resolver merely to mirror this native tag detail. |
 
 ---
@@ -112,7 +113,7 @@ Supported option precedence:
 | `caseFirst = "false"` | (no options) | Default case order. |
 | explicit `caseFirst = "upper" \| "lower"` | constructor error | Returns `ErrUnsupportedOption`; active collation backend cannot apply case-level direction. |
 | locale `kf=upper\|lower` | (no options) | Unsupported locale extension value falls back to default `caseFirst=false`. |
-| `ignorePunctuation = true` | Strip Unicode punctuation and whitespace from both operands before `CompareString` | `x/text` v0.40.0 stubs UCA alternate-shifted handling (`collate/collate.go:164-166`, "TODO: handle shifted"), which skips the primary level and zeroes every comparison; go-intl removes ignorable characters directly (`unicode.IsPunct`/`unicode.IsSpace`) so ordering of non-punctuation content is preserved. |
+| `ignorePunctuation = true` | constructor error | Returns `ErrUnsupportedOption`; `x/text` v0.40.0 stubs UCA alternate-shifted handling and Unicode category deletion is not an equivalent implementation. |
 | `usage = "search"` | constructor error | Current implementation gap; returns `ErrUnsupportedOption` until real search tailoring exists. |
 | backend-supported `collation = "<value>"` | BCP 47 `co=<value>` on the private `collate` tag | Locale-scoped backend support; currently proves German `phonebk` through manual and Node witness fixtures. |
 | well-formed unsupported `collation = "<value>"` | (no options) | Negotiation input; unsupported values fall back to resolved collation `"default"`. |
@@ -142,7 +143,7 @@ Defaults at construction:
 - `Sensitivity = VariantSensitivity` when omitted.
 - `CaseFirst = FalseCaseFirst`; explicit `upper` / `lower` returns `ErrUnsupportedOption`, while locale `kf=upper|lower` falls back to `false`.
 - `Collation = "default"` unless active locale-scoped backend data adopts a requested `co` value; supported German `phonebk` resolves to `"phonebk"`.
-- `Numeric` defaults to `false`; `IgnorePunctuation` defaults to `false` and explicit `true` is reflected in comparison and resolved options.
+- `Numeric` defaults to `false`; `IgnorePunctuation` defaults to `false` and explicit `true` returns `ErrUnsupportedOption` until the backend can execute UCA alternate-shifted behavior.
 - JSON field names and presence behavior follow [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Other Constructors](./73-json-records.md#other-constructors); `collation` is always present because ECMA-402 reports `"default"` when no backend specialization applies.
 
 ---
@@ -150,7 +151,7 @@ Defaults at construction:
 ## 4. Errors
 
 - `gointl.ErrInvalidOption`: invalid `LocaleMatcher`, `Usage`, `Sensitivity`, or `CaseFirst`.
-- `gointl.ErrUnsupportedOption`: valid but unimplemented explicit `usage=search` or `caseFirst=upper|lower`. Well-formed unsupported collation requests are fallback inputs, not errors.
+- `gointl.ErrUnsupportedOption`: valid but unimplemented explicit `usage=search`, `caseFirst=upper|lower`, or `ignorePunctuation=true`. Well-formed unsupported collation requests are fallback inputs, not errors.
 
 Constructor and `SupportedLocalesOf` failures expose `*gointl.Error` and follow SPEC 12's `expected ...; got ...` text rule. `Compare` does not return errors. Strings that fail UTF-8 validation are compared by replacement-rune behavior of `x/text/collate`.
 
@@ -180,7 +181,7 @@ MUST rules:
 | `collator.compare(x, y) -> -1 \| 0 \| 1` | `Compare(x, y) int` with any negative / positive value | Typed bridge (matches `slices.SortFunc`). |
 | `caseFirst` reflected in tailoring | `upper` / `lower` rejected with `ErrUnsupportedOption` | Narrowed implementation gap; see §1.1. |
 | `collation` reflected in tailoring | backend-supported locale-scoped values such as German `phonebk` are applied through `co=<value>` | Implemented behavior. |
-| `ignorePunctuation` reflected in comparison | `true` strips punctuation/whitespace from both operands before compare (x/text alternate-shifted is an unimplemented stub) | Implemented behavior. |
+| `ignorePunctuation` reflected in comparison | `true` is rejected with `ErrUnsupportedOption` | Narrowed implementation gap; category deletion is not UCA alternate-shifted. |
 | `usage = "search"` distinct tailoring | rejected with `ErrUnsupportedOption` | Narrowed implementation gap; see §1.1. |
 
 Accepted divergences must be enumerated in `collator/testdata/divergences.md` when they are added.

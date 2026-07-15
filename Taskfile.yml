@@ -196,7 +196,7 @@ tasks:
         "$GOVULNCHECK" ./...
 
   data:preflight:
-    desc: Verify internal/cldr/VERSION and tools/gen-cldr/.cldr-json/package.json agree on the CLDR pin
+    desc: Verify CLDR, IANA identity, and Go transition-data pins are compatible
     internal: true
     cmds:
       - |
@@ -210,14 +210,31 @@ tasks:
           printf '\nERROR: CLDR version pin drift\n' >&2
           printf '  internal/cldr/VERSION                          : cldr=%s\n' "$VERSION_PIN" >&2
           printf '  tools/gen-cldr/.cldr-json/package.json         : cldr-core=%s\n\n' "$MANIFEST_PIN" >&2
-          printf 'Fix: edit tools/gen-cldr/.cldr-json/package.json so all 7 cldr-* deps match VERSION,\n' >&2
+          printf 'Fix: edit tools/gen-cldr/.cldr-json/package.json so all 8 cldr-* deps match VERSION,\n' >&2
           printf '     run: npm install --package-lock-only --prefix tools/gen-cldr/.cldr-json\n' >&2
           printf '     then commit package.json and package-lock.json.\n\n' >&2
           exit 1
         fi
 
-  data:fetch:
-    desc: Install pinned cldr-json source via npm ci (skipped when node_modules is up to date)
+        TZ_PIN=$(grep '^tzdata=' internal/cldr/VERSION | cut -d= -f2 | tr -d ' \t\r\n')
+        TZ_LOCK=$(sed -n -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' tools/gen-cldr/tzdata.json)
+        if [ -z "$TZ_PIN" ] || [ "$TZ_PIN" != "$TZ_LOCK" ]; then
+          printf 'ERROR: tzdata pin drift: VERSION=%s lock=%s\n' "$TZ_PIN" "$TZ_LOCK" >&2
+          exit 1
+        fi
+        GO_UPDATE=$(go env GOROOT)/lib/time/update.bash
+        GO_TZ=$(sed -n 's/^DATA=//p' "$GO_UPDATE" 2>/dev/null | head -1)
+        if [ -z "$GO_TZ" ]; then
+          printf 'ERROR: cannot prove Go transition tzdata version from %s\n' "$GO_UPDATE" >&2
+          exit 1
+        fi
+        if ! awk -v transitions="$GO_TZ" -v identity="$TZ_PIN" 'BEGIN { exit !(transitions >= identity) }'; then
+          printf 'ERROR: Go transition tzdata %s is older than identity tzdata %s\n' "$GO_TZ" "$TZ_PIN" >&2
+          exit 1
+        fi
+
+  data:fetch:cldr:
+    desc: Install pinned cldr-json source via npm ci
     internal: true
     deps:
       - data:preflight
@@ -228,6 +245,41 @@ tasks:
       - tools/gen-cldr/.cldr-json/package-lock.json
     generates:
       - tools/gen-cldr/.cldr-json/node_modules/.package-lock.json
+
+  data:fetch:tzdb:
+    desc: Fetch and verify the pinned IANA tzdb source archive
+    internal: true
+    deps:
+      - data:preflight
+    cmds:
+      - |
+        set -eu
+        LOCK=tools/gen-cldr/tzdata.json
+        VERSION=$(sed -n -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$LOCK")
+        URL=$(sed -n -E 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$LOCK")
+        WANT=$(sed -n -E 's/.*"sha256"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$LOCK")
+        CACHE=tools/gen-cldr/.tzdata/tzdata${VERSION}.tar.gz
+        mkdir -p "$(dirname "$CACHE")"
+        if [ -f "$CACHE" ] && [ "$(shasum -a 256 "$CACHE" | awk '{print $1}')" = "$WANT" ]; then
+          exit 0
+        fi
+        TMP=${CACHE}.tmp
+        rm -f "$TMP"
+        curl -fsSL "$URL" -o "$TMP"
+        GOT=$(shasum -a 256 "$TMP" | awk '{print $1}')
+        if [ "$GOT" != "$WANT" ]; then
+          rm -f "$TMP"
+          printf 'ERROR: tzdb archive sha256 %s, want %s\n' "$GOT" "$WANT" >&2
+          exit 1
+        fi
+        mv "$TMP" "$CACHE"
+
+  data:fetch:
+    desc: Fetch all pinned CLDR and IANA generation inputs
+    internal: true
+    deps:
+      - data:fetch:cldr
+      - data:fetch:tzdb
 
   data:
     desc: Regenerate internal/cldr/ from the pinned cldr-json source
@@ -240,6 +292,10 @@ tasks:
         -out ../../internal/cldr
         -version-file ../../internal/cldr/VERSION
         -profile ../locale-profile.json
+        -localeid-out ../../internal/localeid/unicode_alias_data.go
+        -localematcher-out ../../internal/localematcher/profile_data.go
+        -tzdata-lock tzdata.json
+        -timezone-out ../../internal/tz/registry_data.go
       - >-
         go -C tools/gen-plural-rules run .
         -plurals ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/plurals.json
@@ -258,13 +314,17 @@ tasks:
     deps:
       - data:fetch
     cmds:
-      - rm -rf .tmp/cldr-check && mkdir -p .tmp/cldr-check
+      - rm -rf .tmp/cldr-check .tmp/localeid .tmp/localematcher .tmp/tz && mkdir -p .tmp/cldr-check
       - >-
         go -C tools/gen-cldr run .
         -cldr-dir .cldr-json/node_modules
         -out ../../.tmp/cldr-check
         -version-file ../../internal/cldr/VERSION
         -profile ../locale-profile.json
+        -localeid-out ../../.tmp/localeid/unicode_alias_data.go
+        -localematcher-out ../../.tmp/localematcher/profile_data.go
+        -tzdata-lock tzdata.json
+        -timezone-out ../../.tmp/tz/registry_data.go
       - >-
         go -C tools/gen-plural-rules run .
         -plurals ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/plurals.json
@@ -321,15 +381,29 @@ tasks:
         diff -u
         internal/cldr/locale/data.go
         .tmp/cldr-check/locale/data.go
+      - >-
+        diff -u
+        internal/localeid/unicode_alias_data.go
+        .tmp/localeid/unicode_alias_data.go
+      - >-
+        diff -u
+        internal/localematcher/profile_data.go
+        .tmp/localematcher/profile_data.go
+      - >-
+        diff -u
+        internal/tz/registry_data.go
+        .tmp/tz/registry_data.go
       - task: data:contract
 
   data:contract:
     desc: Verify generated CLDR data contracts without regeneration
     cmds:
       - go test -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile|GeneratedDataShape|CLDRImportGraphDirection|NoImportOfRetiredRootCLDR|RetiredRootCLDRHasNoGoFiles)$' ./internal/cldr/locale
-      - go test -run 'Test(SupportedCodesDoesNotDecodeOtherBlobs|NarrowIndexDoesNotDecodeMainBlobs|SupportedCalendarsReturnsCopy|SupportedLocalesDoesNotDecode(NameBlobs|PatternBlob|NumberBlob|FieldBlob|PatternBlobs)|SupportedTimeZonesDoesNotDecodeMainBlobs|GeneratedNumberingSystemExtrasHaveRuntimePayload|RuntimeNumberingSystemPayloadsAreAdvertised)$' ./internal/cldr/currency ./internal/cldr/date ./internal/cldr/displaynames ./internal/cldr/list ./internal/cldr/number ./internal/cldr/relativetime ./internal/cldr/timezone ./internal/cldr/unit
+      - go test -run 'Test(SupportedCodesDoesNotDecodeOtherBlobs|NarrowIndexDoesNotDecodeMainBlobs|SupportedCalendarsReturnsCopy|SupportedLocalesDoesNotDecode(NameBlobs|PatternBlob|NumberBlob|FieldBlob|PatternBlobs)|GeneratedNumberingSystemExtrasHaveRuntimePayload|RuntimeNumberingSystemPayloadsAreAdvertised)$' ./internal/cldr/currency ./internal/cldr/date ./internal/cldr/displaynames ./internal/cldr/list ./internal/cldr/number ./internal/cldr/relativetime ./internal/cldr/timezone ./internal/cldr/unit
       - go test ./internal/cldr/plural
       - go test ./internal/numbering
+      - go test ./internal/localeid
+      - go test ./internal/localematcher
       - go test -run 'Test(SupportedLocalesReturnsCopy|SupportedCollationsReturnsCopy)$' ./internal/collation
       - go test -run 'TestSupportedLocales(ExcludesTailoredLocales|ReturnsSnapshot)$' ./internal/segmentation
       - go -C tools/gen-plural-rules test ./...

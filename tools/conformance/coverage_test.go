@@ -217,7 +217,7 @@ func TestCoverageReportCountsFixtureAndSkipHealth(t *testing.T) {
 	writeCoverageFixtureFile(t, packageDir, "node/basic.json", `[
 		{"id":"nf-node","source":"node:v76.1:numberFormats","locale":"en-US","options":{},"input":3,"expected":"3"}
 	]`)
-	writeDivergenceFile(t, packageDir, "id: nf-formatjs\nsource: formatjs:packages/intl-numberformat/tests/basic.test.ts\nowner: numberformat\nreason: accepted reference mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeDivergenceFile(t, packageDir, "id: nf-formatjs\nsource: formatjs:packages/intl-numberformat/tests/basic.test.ts\nowner: numberformat\nstatus: accepted\nreason: accepted reference mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 	writeXFailFile(t, packageDir, `[
 		{"id":"nf-node","reason":"pending implementation","expires_at":"2999-01-01","tracking_issue":"SPEC-70"}
 	]`)
@@ -291,21 +291,21 @@ func TestDivergenceIDLoaderRequiresAuditableActiveEntries(t *testing.T) {
 
 	root := t.TempDir()
 	path := filepath.Join(root, "divergences.md")
-	writeDivergenceFileAt(t, path, "id: missing-source\nowner: numberformat\nreason: mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeDivergenceFileAt(t, path, "id: missing-source\nowner: numberformat\nstatus: accepted\nreason: mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 	if _, err := loadDivergenceIDs(path); !errors.Is(err, errMissingDivergenceField) {
 		t.Fatalf("loadDivergenceIDs() error = %v, want missing field", err)
 	} else {
 		assertMissingDivergenceField(t, err, divergenceFieldSource)
 	}
 
-	writeDivergenceFileAt(t, path, "id: missing-owner\nsource: manual:one\nreason: mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeDivergenceFileAt(t, path, "id: missing-owner\nsource: manual:one\nstatus: accepted\nreason: mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 	if _, err := loadDivergenceIDs(path); !errors.Is(err, errMissingDivergenceField) {
 		t.Fatalf("loadDivergenceIDs() error = %v, want missing owner field", err)
 	} else {
 		assertMissingDivergenceField(t, err, divergenceFieldOwner)
 	}
 
-	writeDivergenceFileAt(t, path, "id: missing-removal\nsource: manual:one\nowner: numberformat\nreason: mismatch\nreview_after: 2026-11-01\n")
+	writeDivergenceFileAt(t, path, "id: missing-removal\nsource: manual:one\nowner: numberformat\nstatus: accepted\nreason: mismatch\nreview_after: 2026-11-01\n")
 	if _, err := loadDivergenceIDs(path); !errors.Is(err, errMissingDivergenceField) {
 		t.Fatalf("loadDivergenceIDs() error = %v, want missing removal_path field", err)
 	} else {
@@ -316,6 +316,7 @@ func TestDivergenceIDLoaderRequiresAuditableActiveEntries(t *testing.T) {
 id: duplicate
 source: manual:one
 owner: numberformat
+status: accepted
 reason: mismatch
 review_after: 2026-11-01
 removal_path: refresh the native reference
@@ -323,6 +324,7 @@ removal_path: refresh the native reference
 id: duplicate
 source: manual:two
 owner: numberformat
+status: accepted
 reason: mismatch
 review_after: 2026-11-01
 removal_path: refresh the native reference
@@ -348,6 +350,7 @@ removal_path: refresh the native reference
 id: invalid-date
 source: manual:one
 owner: numberformat
+status: accepted
 reason: mismatch
 review_after: soon
 removal_path: refresh the native reference
@@ -360,13 +363,18 @@ removal_path: refresh the native reference
 id: active
 source: manual:one
 owner: numberformat
+status: accepted
 reason: mismatch
 review_after: 2026-11-01
 removal_path: refresh the native reference
 
 id: historical
+source: manual:historical
+owner: numberformat
 status: resolved
 reason: old mismatch
+review_after: 2026-11-01
+removal_path: retained as audited history
 `)
 	ids, err := loadDivergenceIDs(path)
 	if err != nil {
@@ -377,6 +385,52 @@ reason: old mismatch
 	}
 	if _, ok := ids["historical"]; ok {
 		t.Fatalf("loadDivergenceIDs() = %v, want resolved id excluded", ids)
+	}
+}
+
+func TestDivergenceIDLoaderRejectsMalformedRecords(t *testing.T) {
+	t.Parallel()
+
+	valid := func(extra string) string {
+		return "id: entry\nsource: manual:one\nowner: numberformat\nstatus: accepted\nreason: mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n" + extra
+	}
+	tests := []struct {
+		name string
+		data string
+		want error
+	}{
+		{name: "unknown field", data: valid("ticket: 42\n"), want: errUnknownDivergenceField},
+		{name: "duplicate field", data: valid("owner: pluralrules\n"), want: errDuplicateDivergenceField},
+		{name: "malformed line", data: valid("not a field\n"), want: errMalformedDivergenceLine},
+		{name: "field before id", data: "owner: numberformat\n", want: errMissingDivergenceField},
+		{name: "missing status", data: "id: partial\nsource: manual:one\nowner: numberformat\nreason: mismatch\nreview_after: 2026-11-01\nremoval_path: later\n", want: errMissingDivergenceField},
+		{name: "trailing partial record", data: valid("\nid: trailing\nsource: manual:two\n"), want: errMissingDivergenceField},
+		{name: "resolved invalid date", data: "id: history\nsource: manual:one\nowner: numberformat\nstatus: resolved\nreason: old\nreview_after: someday\nremoval_path: historical\n", want: errInvalidDivergenceReviewDate},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), "divergences.md")
+			writeDivergenceFileAt(t, path, tc.data)
+			if _, err := loadDivergenceIDs(path); !errors.Is(err, tc.want) {
+				t.Fatalf("loadDivergenceIDs() error = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestDivergenceIDLoaderAllowsBlankLinesAndComments(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "divergences.md")
+	writeDivergenceFileAt(t, path, "# Divergence ledger\n\nid: active\nsource: manual:one\nowner: numberformat\nstatus: accepted\nreason: mismatch\nreview_after: 2026-11-01\nremoval_path: later\n# End record\n")
+	ids, err := loadDivergenceIDs(path)
+	if err != nil {
+		t.Fatalf("loadDivergenceIDs() error = %v", err)
+	}
+	if _, ok := ids["active"]; !ok || len(ids) != 1 {
+		t.Fatalf("loadDivergenceIDs() = %v, want active only", ids)
 	}
 }
 
@@ -413,18 +467,18 @@ func TestValidateDivergencesAuditsActiveEntries(t *testing.T) {
 		t.Fatalf("ValidateDivergences(missing root) error = %v, want missing package root", err)
 	}
 
-	writeDivergenceFile(t, packageDir, "id: nf-basic\nsource: manual\nowner: numberformat\nreason: accepted reference mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeDivergenceFile(t, packageDir, "id: nf-basic\nsource: manual\nowner: numberformat\nstatus: accepted\nreason: accepted reference mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 	if err := ValidateDivergences(packageDir); err != nil {
 		t.Fatalf("ValidateDivergences() error = %v, want nil", err)
 	}
 
-	writeDivergenceFile(t, packageDir, "id: nf-missing\nsource: manual\nowner: numberformat\nreason: accepted reference mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeDivergenceFile(t, packageDir, "id: nf-missing\nsource: manual\nowner: numberformat\nstatus: accepted\nreason: accepted reference mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 	err := ValidateDivergences(packageDir)
 	if !errors.Is(err, errUnknownDivergence) {
 		t.Fatalf("ValidateDivergences() error = %v, want unknown divergence", err)
 	}
 
-	writeDivergenceFile(t, packageDir, "id: nf-basic\nsource: formatjs:wrong\nowner: numberformat\nreason: accepted reference mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	writeDivergenceFile(t, packageDir, "id: nf-basic\nsource: formatjs:wrong\nowner: numberformat\nstatus: accepted\nreason: accepted reference mismatch\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 	err = ValidateDivergences(packageDir)
 	if !errors.Is(err, errDivergenceSourceMismatch) {
 		t.Fatalf("ValidateDivergences() error = %v, want source mismatch", err)
@@ -453,6 +507,7 @@ func TestValidateDivergencesRequiresDateTimeFormatNativeWitness(t *testing.T) {
 			"id: dtf-formatjs-range",
 			"source: formatjs:packages/intl-datetimeformat/tests/format-range.test.ts",
 			"owner: datetimeformat",
+			"status: accepted",
 			"reason: accepted DateTimeFormat range mismatch",
 		}
 		if nativeWitness != "" {

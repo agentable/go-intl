@@ -1,6 +1,7 @@
 package codegen
 
 import (
+	"strings"
 	"testing"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
@@ -12,17 +13,18 @@ import (
 // TestTimezoneRoundTrip is the production-path round-trip gate for the timezone
 // domain. It re-derives the extract.Metazones data from the real pinned CLDR
 // checkout and asserts that the metazone periods, the localized metazone and
-// zone-specific display names, the exemplar cities, the GMT offset formats, and
-// the supported-zone narrow index the encoder wrote are queried back through the
-// production timezone accessors over the committed data.go. It exercises encoder,
-// blob, decoder, and accessor as one chain — not internal structures.
+// zone-specific display names, the exemplar cities, the GMT offset and location
+// formats are queried back through the production timezone accessors over the
+// committed data.go. It exercises encoder, blob, decoder, and accessor as one
+// chain, not internal structures. Identifier records are owned by internal/tz
+// and have an independent IANA/CLDR generation gate.
 //
 // The gate is meaningful only when the pinned cldr-json checkout is present
 // (after task data / data:fetch); without it the test skips.
 func TestTimezoneRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	data, aliases := loadTimezoneTestInput(t)
+	data := loadTimezoneTestInput(t)
 
 	// Metazone periods: probe the midpoint of every finite period and confirm the
 	// production TimeZoneMetazone resolves the metazone the period encodes.
@@ -61,10 +63,6 @@ func TestTimezoneRoundTrip(t *testing.T) {
 		}
 	}
 
-	// Supported-zone narrow index.
-	wantTags := timezoneSupportedZones(data, aliases)
-	gotTags := timezone.SupportedTimeZones()
-	assertStringSliceEqual(t, "SupportedTimeZones", gotTags, wantTags)
 }
 
 func assertZoneNames(t *testing.T, loc timezone.Locale, locale string, data extract.Metazones) {
@@ -99,7 +97,7 @@ func assertExemplarCities(t *testing.T, loc timezone.Locale, locale string, data
 		if len(data.ZoneToMetazones[zone]) > 0 {
 			continue
 		}
-		want := "Time in " + city
+		want := strings.Replace(data.Formats[locale].RegionFormat, "{0}", city, 1)
 		got := timezone.TimeZoneDisplayName(loc, zone, timezone.TimeZoneNameLongGeneric, false, noMetazoneInstant, 0)
 		if got != want {
 			t.Errorf("TimeZoneDisplayName(%q, %q) exemplar = %q, want %q", locale, zone, got, want)
@@ -164,9 +162,9 @@ func periodProbeInstant(start, end int64) int64 {
 	}
 }
 
-func loadTimezoneTestInput(t *testing.T) (extract.Metazones, []cldr.TimeZoneAlias) {
+func loadTimezoneTestInput(t *testing.T) extract.Metazones {
 	t.Helper()
 
 	input := loadRoundTripSource(t)
-	return extract.ExtractMetazones(input.source.Metazones, input.profile), input.source.TimeZoneAliases
+	return extract.ExtractMetazones(input.source.Metazones, input.profile)
 }

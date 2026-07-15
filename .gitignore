@@ -34,6 +34,7 @@ build/
 .tmp/
 .task/
 tools/gen-cldr/.cldr-json/node_modules/
+tools/gen-cldr/.tzdata/
 tools/gen-fixtures-from-formatjs/gen-fixtures-from-formatjs
 .plans/
 improve*.md
@@ -52,6 +53,9 @@ REFACTOR.md
 
 # vscode
 .vscode/
+
+# Local agent integrations
+.claude/
 
 # .ralphy
 .ralphy/*.json
