@@ -249,6 +249,10 @@ func SetNumberFormatDigitOptions(in DigitOptionConfig, mnfdDefault, mxfdDefault 
 	if invalid, ok := validateDigitConfig(in); ok {
 		return ResolvedDigitOptions{}, invalid, true
 	}
+	roundingMode, err := decimal.ParseRoundingMode(in.RoundingMode)
+	if err != nil {
+		return ResolvedDigitOptions{}, invalidStringDigitOption(roundingModeOption(in.RoundingMode)), true
+	}
 	if in.RoundingIncrement != 1 {
 		mxfdDefault = mnfdDefault
 	}
@@ -257,7 +261,7 @@ func SetNumberFormatDigitOptions(in DigitOptionConfig, mnfdDefault, mxfdDefault 
 		DigitOptions: DigitOptions{
 			MinimumIntegerDigits: in.MinimumIntegerDigits,
 			RoundingIncrement:    in.RoundingIncrement,
-			RoundingMode:         in.RoundingMode,
+			RoundingMode:         roundingMode,
 			TrailingZeroDisplay:  in.TrailingZeroDisplay,
 		},
 	}

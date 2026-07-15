@@ -1,7 +1,6 @@
 package locale
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/agentable/go-intl/internal/localeid"
@@ -35,7 +34,6 @@ func Parse(s string) (Locale, error) {
 	if s == "" || strings.Contains(s, "_") || strings.HasPrefix(lower, "x-") {
 		return Locale{}, invalidLocaleValue("languageTag", s, nil)
 	}
-	lower = normalizeLocaleAliases(lower)
 	base, unicodeExtension, err := localeid.SplitUnicodeExtension(lower)
 	if err != nil {
 		return Locale{}, invalidLocaleValue("languageTag", s, err)
@@ -87,7 +85,7 @@ func (l Locale) canonicalString() string {
 }
 
 func (l Locale) formatString() string {
-	base := l.BaseName()
+	base := l.tag.String()
 	if l.ext.empty() {
 		return base
 	}
@@ -99,7 +97,7 @@ func (l *Locale) freeze() {
 }
 
 func (l Locale) BaseName() string {
-	return l.tag.String()
+	return localeid.BaseName(l.tag)
 }
 
 func (l Locale) Tag() language.Tag {
@@ -150,19 +148,7 @@ func (l Locale) Region() string {
 }
 
 func (l Locale) Variants() []string {
-	parts := strings.Split(l.BaseName(), "-")
-	if len(parts) <= 1 {
-		return nil
-	}
-	_, script, region := localeid.Parts(l.tag)
-	idx := 1
-	if script != "" && idx < len(parts) && parts[idx] == script {
-		idx++
-	}
-	if region != "" && idx < len(parts) && parts[idx] == region {
-		idx++
-	}
-	return slices.Clone(parts[idx:])
+	return localeid.VariantSubtags(l.tag)
 }
 
 func (l Locale) Equal(other Locale) bool {

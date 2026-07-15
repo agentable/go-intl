@@ -48,7 +48,7 @@ func TestOptionsPointerValuesCopiedDuringConstruction(t *testing.T) {
 		resolved.RoundingMode != TruncRoundingMode {
 		t.Fatalf("ResolvedOptions() = %#v, want copied string option values", resolved)
 	}
-	if got := mustCategory(rules.Select(Int(int64(1)))); got != One {
+	if got := rules.Select(Int(int64(1))); got != One {
 		t.Fatalf("SelectInt(1) = %s, want %s", got, One)
 	}
 }

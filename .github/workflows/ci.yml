@@ -135,6 +135,42 @@ jobs:
       - name: Run conformance audit
         run: task conformance:verify
 
+  generated-data:
+    name: Generated data
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: "**/go.sum"
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tools/gen-cldr/.cldr-json/package-lock.json
+
+      - name: Install Task
+        uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify generated data
+        run: task data:check
+
+      - name: Verify clean worktree
+        run: git diff --exit-code
+
   security:
     name: Security
     runs-on: ubuntu-latest

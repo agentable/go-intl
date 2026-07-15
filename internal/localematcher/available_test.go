@@ -10,7 +10,7 @@ func TestAvailableLocalesForDerivesFallbacksAndDataLocales(t *testing.T) {
 		"zh-Hant-HK-u-nu-hanidec",
 		"en-US",
 		"en-US",
-	})
+	}, identityMaximizer)
 	want := map[string]availableLocale{
 		"zh-Hant-HK": {locale: "zh-Hant-HK", dataLocale: "zh-Hant-HK"},
 		"zh-HK":      {locale: "zh-HK", dataLocale: "zh-Hant-HK", derived: true},

@@ -84,6 +84,25 @@ func ExampleDurationFormat_FormatToParts() {
 	// integer="03" unit="second"
 }
 
+func ExampleDurationFormat_Format_wideNumber() {
+	format, err := durationformat.New(mustLocaleList("en"), durationformat.Options{
+		Style: gointl.String(durationformat.DigitalStyle),
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	out, err := format.Format(durationformat.Duration{Nanoseconds: 1e20})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(out)
+
+	// Output:
+	// 0:00:100000000000
+}
+
 func mustLocaleList(tags ...string) locale.List {
 	locales, err := locale.ParseList(tags...)
 	if err != nil {

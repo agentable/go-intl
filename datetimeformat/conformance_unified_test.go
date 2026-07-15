@@ -25,6 +25,9 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if len(fixture.ExpectedResolved) > 0 {
+			assertDateTimeResolvedOptions(t, fixture, format.ResolvedOptions())
+		}
 		if fixture.ExpectedRange != nil {
 			start, end := conformanceDateTimeRangeInput(t, fixture)
 			got, err := format.FormatRange(start, end)
@@ -51,6 +54,31 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 			testcontract.AssertParts(t, "FormatToParts", parts, fixture.ExpectedParts, conformanceDateTimePart)
 		}
 	})
+}
+
+func assertDateTimeResolvedOptions(t *testing.T, fixture conformance.Fixture, got ResolvedOptions) {
+	t.Helper()
+
+	want := testcontract.ExpectedResolvedOptions(t, fixture)
+	testcontract.AssertResolvedString(t, want, "locale", got.Locale.String())
+	testcontract.AssertResolvedString(t, want, "calendar", got.Calendar)
+	testcontract.AssertResolvedString(t, want, "numberingSystem", got.NumberingSystem)
+	testcontract.AssertResolvedString(t, want, "timeZone", got.TimeZone)
+	testcontract.AssertResolvedOptionalString(t, want, "hourCycle", got.HourCycle)
+	testcontract.AssertResolvedOptionalBool(t, want, "hour12", got.Hour12)
+	testcontract.AssertResolvedOptionalString(t, want, "weekday", got.Weekday)
+	testcontract.AssertResolvedOptionalString(t, want, "era", got.Era)
+	testcontract.AssertResolvedOptionalString(t, want, "year", got.Year)
+	testcontract.AssertResolvedOptionalString(t, want, "month", got.Month)
+	testcontract.AssertResolvedOptionalString(t, want, "day", got.Day)
+	testcontract.AssertResolvedOptionalString(t, want, "dayPeriod", got.DayPeriod)
+	testcontract.AssertResolvedOptionalString(t, want, "hour", got.Hour)
+	testcontract.AssertResolvedOptionalString(t, want, "minute", got.Minute)
+	testcontract.AssertResolvedOptionalString(t, want, "second", got.Second)
+	testcontract.AssertResolvedOptionalInt(t, want, "fractionalSecondDigits", got.FractionalSecondDigits)
+	testcontract.AssertResolvedOptionalString(t, want, "timeZoneName", got.TimeZoneName)
+	testcontract.AssertResolvedOptionalString(t, want, "dateStyle", got.DateStyle)
+	testcontract.AssertResolvedOptionalString(t, want, "timeStyle", got.TimeStyle)
 }
 
 func conformanceDateTimeError(t *testing.T, code string) error {

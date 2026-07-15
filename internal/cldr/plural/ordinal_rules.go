@@ -216,7 +216,7 @@ func OrdinalRule(loc string) (func(pluralop.OperandsRecord) pluralop.Category, b
 	case "zh-Hant-TW":
 		return ordinalZhHantTW, true
 	}
-	return cardinalOther, true
+	return nil, false
 }
 
 func ordinalAf(o pluralop.OperandsRecord) pluralop.Category {

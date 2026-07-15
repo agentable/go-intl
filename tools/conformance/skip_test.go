@@ -3,10 +3,101 @@ package conformance
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+const runFixturesFailureRoot = "GO_INTL_RUN_FIXTURES_FAILURE_ROOT"
+
+func TestRunFixturesRejectsMalformedDivergenceBeforeCallbacks(t *testing.T) {
+	if runFixturesFailureChild(t) {
+		return
+	}
+
+	root := t.TempDir()
+	writeConformanceFixtureFile(t, root, `[
+		{"id":"nf-basic","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"}
+	]`)
+	writeDivergenceFile(t, root, "malformed divergence line\n")
+	assertRunFixturesFailsBeforeCallbacks(t, root, "TestRunFixturesRejectsMalformedDivergenceBeforeCallbacks", errMalformedDivergenceLine.Error())
+}
+
+func TestRunFixturesRejectsMalformedXFailBeforeCallbacks(t *testing.T) {
+	if runFixturesFailureChild(t) {
+		return
+	}
+
+	root := t.TempDir()
+	writeConformanceFixtureFile(t, root, `[
+		{"id":"nf-basic","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"}
+	]`)
+	writeXFailFile(t, root, `{`)
+	assertRunFixturesFailsBeforeCallbacks(t, root, "TestRunFixturesRejectsMalformedXFailBeforeCallbacks", xfailPath(root))
+}
+
+func TestRunFixturesRejectsExpiredXFailBeforeCallbacks(t *testing.T) {
+	if runFixturesFailureChild(t) {
+		return
+	}
+
+	root := t.TempDir()
+	writeConformanceFixtureFile(t, root, `[
+		{"id":"nf-basic","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"}
+	]`)
+	writeXFailFile(t, root, `[
+		{"id":"nf-basic","reason":"pending implementation","expires_at":"2000-01-01","tracking_issue":"SPEC-70"}
+	]`)
+	assertRunFixturesFailsBeforeCallbacks(t, root, "TestRunFixturesRejectsExpiredXFailBeforeCallbacks", errExpiredXFail.Error())
+}
+
+func TestRunFixturesRejectsUnknownDivergenceBeforeCallbacks(t *testing.T) {
+	if runFixturesFailureChild(t) {
+		return
+	}
+
+	root := t.TempDir()
+	writeConformanceFixtureFile(t, root, `[
+		{"id":"nf-basic","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"}
+	]`)
+	writeDivergenceFile(t, root, "id: missing\nsource: manual\nowner: conformance\nstatus: accepted\nreason: upstream output differs\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+	assertRunFixturesFailsBeforeCallbacks(t, root, "TestRunFixturesRejectsUnknownDivergenceBeforeCallbacks", errUnknownDivergence.Error())
+}
+
+func runFixturesFailureChild(t *testing.T) bool {
+	t.Helper()
+
+	root := os.Getenv(runFixturesFailureRoot)
+	if root == "" {
+		return false
+	}
+	RunFixtures(t, root, func(t *testing.T, _ Fixture) {
+		marker := filepath.Join(root, "callback-ran")
+		if err := os.WriteFile(marker, nil, 0o600); err != nil {
+			t.Fatalf("write callback marker: %v", err)
+		}
+	})
+	return true
+}
+
+func assertRunFixturesFailsBeforeCallbacks(t *testing.T, root, testName, want string) {
+	t.Helper()
+
+	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^"+testName+"$")
+	cmd.Env = append(os.Environ(), runFixturesFailureRoot+"="+root)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("RunFixtures accepted invalid suite state and ran callbacks; child output:\n%s", output)
+	}
+	if _, err := os.Stat(filepath.Join(root, "callback-ran")); !os.IsNotExist(err) {
+		t.Fatalf("fixture callback ran before suite failure: %v", err)
+	}
+	if !strings.Contains(string(output), want) {
+		t.Fatalf("RunFixtures failure = %s, want %q", output, want)
+	}
+}
 
 func TestValidateFixtureRootsUsesXFailExpiry(t *testing.T) {
 	t.Parallel()
@@ -22,6 +113,31 @@ func TestValidateFixtureRootsUsesXFailExpiry(t *testing.T) {
 	err := ValidateFixtureRoots([]string{root}, conformanceAuditNow())
 	if !errors.Is(err, errExpiredXFail) {
 		t.Fatalf("ValidateFixtureRoots() error = %v, want expired xfail", err)
+	}
+}
+
+func TestValidateFixtureRootsRejectsUnknownDivergence(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeConformanceFixtureFile(t, root, `[
+		{"id":"nf-basic","source":"manual","locale":"en-US","options":{},"input":1,"expected":"1"}
+	]`)
+	writeDivergenceFile(t, root, "id: missing\nsource: manual\nowner: conformance\nstatus: accepted\nreason: upstream output differs\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
+
+	err := ValidateFixtureRoots([]string{root}, conformanceAuditNow())
+	if !errors.Is(err, errUnknownDivergence) {
+		t.Fatalf("ValidateFixtureRoots() error = %v, want unknown divergence", err)
+	}
+}
+
+func TestValidateFixtureRootsRejectsMissingPackageRoot(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(t.TempDir(), "missing")
+	err := ValidateFixtureRoots([]string{root}, conformanceAuditNow())
+	if !errors.Is(err, errMissingPackageRoot) {
+		t.Fatalf("ValidateFixtureRoots() error = %v, want missing package root", err)
 	}
 }
 
@@ -436,22 +552,38 @@ func TestXFailLoaderHandlesMissingInvalidAndValidFiles(t *testing.T) {
 	}
 }
 
-func TestSkipReasonReportsDivergenceOrUnexpiredXFail(t *testing.T) {
+func TestLoadRunSuiteCompilesDivergenceOrUnexpiredXFail(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
+	writeConformanceFixtureFile(t, root, `[
+		{"id":"diverged","source":"manual:test","locale":"en-US","options":{},"input":1,"expected":"1"},
+		{"id":"xfail","source":"manual:test","locale":"en-US","options":{},"input":2,"expected":"2"}
+	]`)
 	writeDivergenceFile(t, root, "id: diverged\nsource: manual:test\nowner: conformance\nstatus: accepted\nreason: upstream output differs\nreview_after: 2026-11-01\nremoval_path: refresh the native reference\n")
 	writeXFailFile(t, root, `[
 		{"id":"xfail","reason":"pending implementation","expires_at":"2999-01-01","tracking_issue":"SPEC-70"}
 	]`)
 
-	divergenceReason, ok := SkipReason(root, "diverged", conformanceAuditNow())
-	if !ok || !strings.Contains(divergenceReason, "divergence") {
-		t.Fatalf("SkipReason(diverged) = %q, %v; want divergence skip", divergenceReason, ok)
+	suite, err := loadRunSuite(root, conformanceAuditNow())
+	if err != nil {
+		t.Fatalf("loadRunSuite() error = %v, want nil", err)
 	}
-	xfailReason, ok := SkipReason(root, "xfail", conformanceAuditNow())
+	if err := os.RemoveAll(conformanceFixturesPath(root)); err != nil {
+		t.Fatalf("remove fixture files after suite construction: %v", err)
+	}
+	writeDivergenceFile(t, root, "malformed divergence line\n")
+	writeXFailFile(t, root, `{`)
+	if len(suite.fixtures) != 2 {
+		t.Fatalf("compiled suite fixtures = %d, want 2", len(suite.fixtures))
+	}
+	divergenceReason, ok := suite.skipReasons["diverged"]
+	if !ok || !strings.Contains(divergenceReason, "divergence") {
+		t.Fatalf("suite divergence reason = %q, %v; want divergence skip", divergenceReason, ok)
+	}
+	xfailReason, ok := suite.skipReasons["xfail"]
 	if !ok || !strings.Contains(xfailReason, "pending implementation") {
-		t.Fatalf("SkipReason(xfail) = %q, %v; want xfail skip", xfailReason, ok)
+		t.Fatalf("suite XFAIL reason = %q, %v; want XFAIL skip", xfailReason, ok)
 	}
 }
 

@@ -63,7 +63,7 @@ func TestPluralRulesSelectCardinal(t *testing.T) {
 		{-2, Other},
 	}
 	for _, tc := range tests {
-		if got := mustCategory(rules.Select(Int(int64(tc.in)))); got != tc.want {
+		if got := rules.Select(Int(int64(tc.in))); got != tc.want {
 			t.Fatalf("SelectInt(%v) = %s, want %s", tc.in, got, tc.want)
 		}
 	}
@@ -88,7 +88,7 @@ func TestPluralRulesSelectOrdinal(t *testing.T) {
 		{21, One},
 	}
 	for _, tc := range tests {
-		if got := mustCategory(rules.Select(Int(int64(tc.in)))); got != tc.want {
+		if got := rules.Select(Int(int64(tc.in))); got != tc.want {
 			t.Fatalf("SelectInt(%v) = %s, want %s", tc.in, got, tc.want)
 		}
 	}
@@ -111,10 +111,7 @@ func TestPluralRulesSelectUsesExactLargeOperands(t *testing.T) {
 		{in: "10000000000011", want: Other},
 	}
 	for _, tc := range ordinalTests {
-		got, err := ordinal.Select(decimalValue(tc.in))
-		if err != nil {
-			t.Fatal(err)
-		}
+		got := ordinal.Select(decimalValue(tc.in))
 		if got != tc.want {
 			t.Fatalf("ordinal SelectDecimal(%s) = %s, want %s", tc.in, got, tc.want)
 		}
@@ -124,17 +121,11 @@ func TestPluralRulesSelectUsesExactLargeOperands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := cardinal.Select(decimalValue("1000000000000"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := cardinal.Select(decimalValue("1000000000000"))
 	if got != Many {
 		t.Fatalf("fr SelectDecimal(1000000000000) = %s, want %s", got, Many)
 	}
-	got, err = cardinal.Select(decimalValue("1000000000001"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	got = cardinal.Select(decimalValue("1000000000001"))
 	if got != Other {
 		t.Fatalf("fr SelectDecimal(1000000000001) = %s, want %s", got, Other)
 	}
@@ -160,10 +151,7 @@ func TestPluralRulesDecimalInputUsesMathematicalValue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
-			got, err := rules.Select(decimalValue(tc.input))
-			if err != nil {
-				t.Fatal(err)
-			}
+			got := rules.Select(decimalValue(tc.input))
 			if got != tc.want {
 				t.Errorf("Select(Decimal(%q)) = %s, want %s", tc.input, got, tc.want)
 			}
@@ -186,8 +174,8 @@ func TestPluralRulesRoundingPreservesArbitraryPrecisionDecimal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := rules.Select(input); err != nil || got != One {
-		t.Fatalf("Select(Decimal(%q)) = %s, %v; want %s, nil", inputText, got, err, One)
+	if got := rules.Select(input); got != One {
+		t.Fatalf("Select(Decimal(%q)) = %s, want %s", inputText, got, One)
 	}
 }
 
@@ -198,14 +186,11 @@ func TestPluralRulesNotationAffectsOperands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := standard.Select(decimalValue("12345678"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := standard.Select(decimalValue("12345678"))
 	if got != Other {
 		t.Fatalf("standard SelectDecimal(12345678) = %s, want %s", got, Other)
 	}
-	if got := mustCategory(standard.Select(Int(12345678))); got != Other {
+	if got := standard.Select(Int(12345678)); got != Other {
 		t.Fatalf("standard SelectInt64(12345678) = %s, want %s", got, Other)
 	}
 
@@ -223,14 +208,11 @@ func TestPluralRulesNotationAffectsOperands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := rules.Select(decimalValue("12345678"))
-			if err != nil {
-				t.Fatal(err)
-			}
+			got := rules.Select(decimalValue("12345678"))
 			if got != Many {
 				t.Fatalf("%s SelectDecimal(12345678) = %s, want %s", tc.name, got, Many)
 			}
-			if got := mustCategory(rules.Select(Int(12345678))); got != Many {
+			if got := rules.Select(Int(12345678)); got != Many {
 				t.Fatalf("%s SelectInt64(12345678) = %s, want %s", tc.name, got, Many)
 			}
 		})
@@ -267,7 +249,7 @@ func TestResolveDecimalUsesExplicitConstructorState(t *testing.T) {
 			t.Parallel()
 
 			var gotOps pluralop.OperandsRecord
-			formatted, rounded, category := resolveDecimal(d, tc.notation, digitOptions, compactExponentSet{}, func(ops pluralop.OperandsRecord) pluralop.Category {
+			formatted, rounded, category := resolveDecimal(d, tc.notation, ecma402nf.ResolvedDigitOptions{DigitOptions: digitOptions, RoundingType: ecma402nf.RoundingTypeFractionDigits}, compactExponentSet{}, func(ops pluralop.OperandsRecord) pluralop.Category {
 				gotOps = ops
 				return pluralop.Many
 			})
@@ -295,23 +277,23 @@ func TestPluralRulesUnsignedTypedBridges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := mustCategory(rules.Select(Uint(uint64(1)))); got != One {
+	if got := rules.Select(Uint(uint64(1))); got != One {
 		t.Fatalf("SelectUint(1) = %s, want %s", got, One)
 	}
-	if got := mustCategory(rules.Select(Uint(2))); got != Other {
+	if got := rules.Select(Uint(2)); got != Other {
 		t.Fatalf("SelectUint64(2) = %s, want %s", got, Other)
 	}
 	ordinal, err := New(locale.List{intltest.Locale(t, "en")}, Options{Type: stringPtr(Ordinal)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mustCategory(ordinal.Select(Uint(10000000000001))); got != One {
+	if got := ordinal.Select(Uint(10000000000001)); got != One {
 		t.Fatalf("ordinal SelectUint64(10000000000001) = %s, want %s", got, One)
 	}
-	if got := mustCategory(rules.SelectRange(Uint(uint64(1)), Uint(uint64(2)))); got != Other {
+	if got := mustRangeCategory(rules.SelectRange(Uint(uint64(1)), Uint(uint64(2)))); got != Other {
 		t.Fatalf("SelectRangeUint(1, 2) = %s, want %s", got, Other)
 	}
-	if got := mustCategory(rules.SelectRange(Uint(1), Uint(1))); got != One {
+	if got := mustRangeCategory(rules.SelectRange(Uint(1), Uint(1))); got != One {
 		t.Fatalf("SelectRangeUint64(1, 1) = %s, want %s", got, One)
 	}
 }
@@ -334,9 +316,9 @@ func TestPluralRulesSelectNonFiniteReturnsOther(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := rules.Select(Float(tc.value))
-			if err != nil || got != Other {
-				t.Fatalf("Select(Float(%v)) = %s, %v; want %s, nil", tc.value, got, err, Other)
+			got := rules.Select(Float(tc.value))
+			if got != Other {
+				t.Fatalf("Select(Float(%v)) = %s, want %s", tc.value, got, Other)
 			}
 		})
 	}
@@ -357,9 +339,9 @@ func TestPluralRulesDecimalAcceptsNonFinite(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Decimal(%q) error = %v", value, err)
 			}
-			got, err := rules.Select(input)
-			if err != nil || got != Other {
-				t.Fatalf("Select(Decimal(%q)) = %s, %v; want %s, nil", value, got, err, Other)
+			got := rules.Select(input)
+			if got != Other {
+				t.Fatalf("Select(Decimal(%q)) = %s, want %s", value, got, Other)
 			}
 		})
 	}
@@ -468,7 +450,7 @@ func TestPluralRulesConcurrentSelect(t *testing.T) {
 	var wg sync.WaitGroup
 	for in, category := range want {
 		wg.Go(func() {
-			if got := mustCategory(rules.Select(Int(int64(in)))); got != category {
+			if got := rules.Select(Int(int64(in))); got != category {
 				t.Errorf("SelectInt(%d) = %s, want %s", in, got, category)
 			}
 		})

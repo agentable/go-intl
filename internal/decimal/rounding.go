@@ -5,46 +5,48 @@ import (
 	"math/big"
 )
 
-type RoundingMode int
+type RoundingMode string
 
 const (
-	RoundCeil RoundingMode = iota
-	RoundFloor
-	RoundExpand
-	RoundTrunc
-	RoundHalfCeil
-	RoundHalfFloor
-	RoundHalfExpand
-	RoundHalfTrunc
-	RoundHalfEven
+	RoundCeil       RoundingMode = "ceil"
+	RoundFloor      RoundingMode = "floor"
+	RoundExpand     RoundingMode = "expand"
+	RoundTrunc      RoundingMode = "trunc"
+	RoundHalfCeil   RoundingMode = "halfCeil"
+	RoundHalfFloor  RoundingMode = "halfFloor"
+	RoundHalfExpand RoundingMode = "halfExpand"
+	RoundHalfTrunc  RoundingMode = "halfTrunc"
+	RoundHalfEven   RoundingMode = "halfEven"
 )
 
-var roundingModeNames = [...]string{
-	RoundCeil:       "ceil",
-	RoundFloor:      "floor",
-	RoundExpand:     "expand",
-	RoundTrunc:      "trunc",
-	RoundHalfCeil:   "halfCeil",
-	RoundHalfFloor:  "halfFloor",
-	RoundHalfExpand: "halfExpand",
-	RoundHalfTrunc:  "halfTrunc",
-	RoundHalfEven:   "halfEven",
+var roundingModeNames = [...]RoundingMode{
+	RoundCeil,
+	RoundFloor,
+	RoundExpand,
+	RoundTrunc,
+	RoundHalfCeil,
+	RoundHalfFloor,
+	RoundHalfExpand,
+	RoundHalfTrunc,
+	RoundHalfEven,
 }
 
 func (m RoundingMode) String() string {
-	if m < 0 || int(m) >= len(roundingModeNames) {
-		return "unknown"
+	for _, mode := range roundingModeNames {
+		if m == mode {
+			return string(m)
+		}
 	}
-	return roundingModeNames[m]
+	return "unknown"
 }
 
 func ParseRoundingMode(s string) (RoundingMode, error) {
-	for mode, name := range roundingModeNames {
-		if s == name {
-			return RoundingMode(mode), nil
+	for _, mode := range roundingModeNames {
+		if s == string(mode) {
+			return mode, nil
 		}
 	}
-	return 0, fmt.Errorf("decimal: invalid rounding mode %q: %w", s, ErrInvalidDecimal)
+	return "", fmt.Errorf("decimal: invalid rounding mode %q: %w", s, ErrInvalidDecimal)
 }
 
 func UnsignedRoundingMode(mode RoundingMode, isNegative bool) RoundingMode {

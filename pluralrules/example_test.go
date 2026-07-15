@@ -15,14 +15,8 @@ func Example() {
 		panic(err)
 	}
 
-	one, err := rules.Select(pluralrules.Int(1))
-	if err != nil {
-		panic(err)
-	}
-	other, err := rules.Select(pluralrules.Int(2))
-	if err != nil {
-		panic(err)
-	}
+	one := rules.Select(pluralrules.Int(1))
+	other := rules.Select(pluralrules.Int(2))
 	fmt.Println(one)
 	fmt.Println(other)
 
@@ -41,10 +35,7 @@ func Example_options() {
 	}
 
 	for _, n := range []int64{1, 2, 3, 4} {
-		category, err := rules.Select(pluralrules.Int(n))
-		if err != nil {
-			panic(err)
-		}
+		category := rules.Select(pluralrules.Int(n))
 		fmt.Printf("%d: %s\n", n, category)
 	}
 

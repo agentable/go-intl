@@ -62,10 +62,7 @@ func resolveRelativeTimePattern(value Value, unit Unit, f *RelativeTimeFormat) (
 			return relativeTimePatternSelection{unit: resolvedUnit, literal: literal}, nil
 		}
 	}
-	category, err := f.plural.Select(value.pluralRulesValue())
-	if err != nil {
-		return relativeTimePatternSelection{}, invalidRelativeTimeValue(value.errValue, f.resolved.Locale.String(), err)
-	}
+	category := f.plural.Select(value.pluralRulesValue())
 	patterns := field.future
 	if value.isPast() {
 		patterns = field.past

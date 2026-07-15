@@ -19,6 +19,10 @@ import (
 // pool, because an x/text collator mutates private iterators while comparing and
 // cannot be shared across goroutines. Pooling gives lock-free parallel compares.
 type Collator struct {
+	state *collatorState
+}
+
+type collatorState struct {
 	resolved ResolvedOptions
 	backends sync.Pool // of *collate.Collator
 }
@@ -52,7 +56,7 @@ func New(locales locale.List, opts Options) (*Collator, error) {
 		sensitivity = string(VariantSensitivity)
 	}
 
-	f := &Collator{
+	f := &Collator{state: &collatorState{
 		resolved: ResolvedOptions{
 			Locale:            resolvedLocale,
 			Usage:             Usage(cfg.usage),
@@ -63,7 +67,7 @@ func New(locales locale.List, opts Options) (*Collator, error) {
 			IgnorePunctuation: cfg.ignorePunctuation,
 		},
 		backends: sync.Pool{New: func() any { return collate.New(tag, collOpts...) }},
-	}
+	}}
 	return f, nil
 }
 
@@ -71,8 +75,8 @@ func New(locales locale.List, opts Options) (*Collator, error) {
 // and positive when x sorts after y. The JS bridge for
 // `Intl.Collator.prototype.compare`.
 func (f *Collator) Compare(x, y string) int {
-	backend := f.backends.Get().(*collate.Collator)
-	defer f.backends.Put(backend)
+	backend := f.state.backends.Get().(*collate.Collator)
+	defer f.state.backends.Put(backend)
 	return backend.CompareString(x, y)
 }
 

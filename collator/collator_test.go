@@ -105,6 +105,51 @@ func TestCollator_Compare_Concurrent(t *testing.T) {
 	}
 }
 
+func TestCollator_CopiesRemainSafeAfterUse(t *testing.T) {
+	t.Parallel()
+
+	original, err := collator.New(locale.List{intltest.Locale(t, "en")}, collator.Options{
+		Sensitivity: gointl.String(collator.BaseSensitivity),
+		Numeric:     gointl.Bool(true),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyBeforeUse := *original
+	if got := original.Compare("2", "10"); got >= 0 {
+		t.Fatalf("initial Compare(2,10) = %d, want < 0", got)
+	}
+
+	copyAfterUse := *original
+	copyOfCopy := copyAfterUse
+	values := []*collator.Collator{original, &copyBeforeUse, &copyAfterUse, &copyOfCopy}
+
+	var wg sync.WaitGroup
+	for _, value := range values {
+		for range 8 {
+			wg.Go(func() {
+				for range 100 {
+					if got := value.Compare("2", "10"); got >= 0 {
+						t.Errorf("numeric Compare(2,10) = %d, want < 0", got)
+						return
+					}
+					if got := value.Compare("a", "A"); got != 0 {
+						t.Errorf("base Compare(a,A) = %d, want 0", got)
+						return
+					}
+				}
+			})
+		}
+	}
+	wg.Wait()
+
+	for _, value := range values {
+		if got := value.ResolvedOptions(); !got.Numeric || got.Sensitivity != collator.BaseSensitivity {
+			t.Fatalf("ResolvedOptions() = %#v, want numeric base sensitivity", got)
+		}
+	}
+}
+
 func TestCollator_NumericLocaleExtensionPrecedence(t *testing.T) {
 	t.Parallel()
 

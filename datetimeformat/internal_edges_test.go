@@ -193,7 +193,11 @@ func TestDateTimeFormatFallbackRangeParts(t *testing.T) {
 	start := []Part{{Type: PartHour, Value: "9"}}
 	end := []Part{{Type: PartHour, Value: "10"}}
 	format := DateTimeFormat{
-		fallbackRangePattern: partitionRangeFallbackPattern("{1} <- {0}"),
+		pattern: selectedPattern{
+			rangeRecord: rangePatternRecord{
+				fallback: partitionRangeFallbackPattern("{1} <- {0}"),
+			},
+		},
 	}
 	got := format.fallbackRangeParts(start, end)
 	want := []RangePart{

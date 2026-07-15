@@ -220,7 +220,25 @@ type divergenceEntry struct {
 }
 
 func ValidateDivergences(root string) error {
-	info, err := os.Stat(root)
+	if err := validatePackageRoot(root); err != nil {
+		return err
+	}
+
+	fixtures, err := LoadFixtures(root)
+	if err != nil {
+		return err
+	}
+	divergencePath := divergenceLedgerPath(root)
+	divergences, err := loadActiveDivergences(divergencePath)
+	if err != nil {
+		return err
+	}
+	return validateDivergenceEntries(divergencePath, fixtures, divergences)
+}
+
+func validatePackageRoot(root string) error {
+	// The conformance command intentionally validates a maintainer-selected package root.
+	info, err := os.Stat(root) // #nosec G703 -- inspecting the selected package root is the API contract.
 	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("%s: %w", root, errMissingPackageRoot)
@@ -230,26 +248,20 @@ func ValidateDivergences(root string) error {
 	if !info.IsDir() {
 		return fmt.Errorf("%s: %w", root, errMissingPackageRoot)
 	}
+	return nil
+}
 
-	fixtures, err := LoadFixtures(root)
-	if err != nil {
-		return err
-	}
-	divergencePath := divergenceLedgerPath(root)
+func validateDivergenceEntries(path string, fixtures []Fixture, divergences map[string]divergenceEntry) error {
 	fixtureIndex := fixturesByID(fixtures)
-	divergences, err := loadActiveDivergences(divergencePath)
-	if err != nil {
-		return err
-	}
 	for id, divergence := range divergences {
 		fixture, ok := fixtureIndex[id]
 		if !ok {
-			return fmt.Errorf("%s: divergence id %q does not match any fixture: %w", divergencePath, id, errUnknownDivergence)
+			return fmt.Errorf("%s: divergence id %q does not match any fixture: %w", path, id, errUnknownDivergence)
 		}
 		if divergence.Source != fixture.Source {
-			return fmt.Errorf("%s: divergence id %q source %q does not match fixture source %q: %w", divergencePath, id, divergence.Source, fixture.Source, errDivergenceSourceMismatch)
+			return fmt.Errorf("%s: divergence id %q source %q does not match fixture source %q: %w", path, id, divergence.Source, fixture.Source, errDivergenceSourceMismatch)
 		}
-		if err := validateDivergenceNativeWitness(divergencePath, divergence, fixtureIndex); err != nil {
+		if err := validateDivergenceNativeWitness(path, divergence, fixtureIndex); err != nil {
 			return err
 		}
 	}

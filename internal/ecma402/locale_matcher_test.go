@@ -110,8 +110,8 @@ func TestResolveConstructorLocaleDispatchesLocaleMatcher(t *testing.T) {
 		LocaleMatcher: "lookup",
 		Matcher:       matcher,
 	})
-	if lookup.Locale.String() != "zh" {
-		t.Fatalf("ResolveConstructorLocale(lookup).Locale = %q, want zh", lookup.Locale.String())
+	if lookup.Locale.String() != "zh-TW" || lookup.DataLocale != "zh-Hant" {
+		t.Fatalf("ResolveConstructorLocale(lookup) = locale %q data %q, want zh-TW / zh-Hant", lookup.Locale.String(), lookup.DataLocale)
 	}
 
 	bestFit := ResolveConstructorLocale(ConstructorLocaleOptions{
@@ -120,8 +120,8 @@ func TestResolveConstructorLocaleDispatchesLocaleMatcher(t *testing.T) {
 		LocaleMatcher: "best fit",
 		Matcher:       matcher,
 	})
-	if bestFit.Locale.String() != "zh-Hant" {
-		t.Fatalf("ResolveConstructorLocale(best fit).Locale = %q, want zh-Hant", bestFit.Locale.String())
+	if bestFit.Locale.String() != "zh-TW" || bestFit.DataLocale != "zh-Hant" {
+		t.Fatalf("ResolveConstructorLocale(best fit) = locale %q data %q, want zh-TW / zh-Hant", bestFit.Locale.String(), bestFit.DataLocale)
 	}
 }
 

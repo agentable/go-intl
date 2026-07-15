@@ -31,15 +31,6 @@ const (
 	xfailFieldTrackingIssue xfailField = "tracking_issue"
 )
 
-func validateXFailFile(root string, fixtures []Fixture, now time.Time) error {
-	path := xfailPath(root)
-	entries, err := loadXFails(path)
-	if err != nil {
-		return err
-	}
-	return validateXFailEntries(path, fixtures, entries, now)
-}
-
 func validateXFailEntries(path string, fixtures []Fixture, entries []xfail, now time.Time) error {
 	if len(entries) == 0 {
 		return nil

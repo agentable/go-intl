@@ -18,7 +18,7 @@ func TestBestFitMatcher(t *testing.T) {
 		extension string
 	}{
 		{name: "lookup-compatible truncation", requested: []string{"fr-XX", "en"}, supported: []string{"fr", "en"}, def: "en", locale: "fr"},
-		{name: "zh traditional fallback", requested: []string{"zh-TW"}, supported: []string{"zh", "zh-Hant"}, def: "en", locale: "zh-Hant"},
+		{name: "zh traditional default-region alias", requested: []string{"zh-TW"}, supported: []string{"zh", "zh-Hant"}, def: "en", locale: "zh-TW"},
 		{name: "exact preferred", requested: []string{"en"}, supported: []string{"en", "und"}, def: "en", locale: "en"},
 		{name: "preserves extension", requested: []string{"th-u-ca-gregory"}, supported: []string{"th"}, def: "en", locale: "th", extension: "-u-ca-gregory"},
 		{name: "falls back when too distant", requested: []string{"es"}, supported: []string{"fr", "en"}, def: "en", locale: "en"},
@@ -51,8 +51,8 @@ func TestBestFitMatcherUsesMaximizedFallbackCandidates(t *testing.T) {
 		}
 	}
 	got := BestFitMatcherWithMaximizer([]string{"zh-TW"}, []string{"zh-Hant", "en"}, "en", maximizer)
-	if got.Locale != "zh-Hant" || got.DataLocale != "zh-Hant" {
-		t.Fatalf("BestFitMatcherWithMaximizer() = %#v, want zh-Hant fallback candidate", got)
+	if got.Locale != "zh-TW" || got.DataLocale != "zh-Hant" {
+		t.Fatalf("BestFitMatcherWithMaximizer() = %#v, want locale zh-TW data zh-Hant", got)
 	}
 	if got.Distance != 0 {
 		t.Fatalf("BestFitMatcherWithMaximizer().Distance = %d, want exact maximized distance", got.Distance)

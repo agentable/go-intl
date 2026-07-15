@@ -52,7 +52,7 @@ func formatCompactText(d decimal.Decimal, state *decimalFormatState) (string, de
 	return pattern.formatText(text), result.Rounded
 }
 
-func resolveCompactPattern(d decimal.Decimal, digitOptions ecma402nf.DigitOptions, compact compactPatternSet) (decimal.Decimal, compactPatternEntry) {
+func resolveCompactPattern(d decimal.Decimal, digitOptions ecma402nf.ResolvedDigitOptions, compact compactPatternSet) (decimal.Decimal, compactPatternEntry) {
 	scaled, magnitude, _, ok := ecma402nf.ResolveCompactMagnitude(d, digitOptions, compact.exponentForMagnitude)
 	if !ok {
 		return d, compactPatternEntry{}

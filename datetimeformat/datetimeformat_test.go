@@ -82,7 +82,7 @@ func TestDateTimeFormatDefaultResolvedOptions(t *testing.T) {
 		t.Fatalf("New(en-US) error = %v", err)
 	}
 	resolved := format.ResolvedOptions()
-	if got, want := resolved.Locale.String(), "en"; got != want {
+	if got, want := resolved.Locale.String(), "en-US"; got != want {
 		t.Fatalf("ResolvedOptions().Locale = %q, want %q", got, want)
 	}
 	if got, want := resolved.Calendar, "gregory"; got != want {
@@ -534,7 +534,7 @@ func TestDateTimeFormatHour12FalseResolvesHourCycle(t *testing.T) {
 		t.Fatalf("New(WithHour+Options{Hour12: boolPtr(false)}) error = %v", err)
 	}
 	resolved := format.ResolvedOptions()
-	if got, want := ecma402.ResolvedScalarValue(resolved.Hour), NumericStyle("numeric"); got != want {
+	if got, want := ecma402.ResolvedScalarValue(resolved.Hour), NumericStyle("2-digit"); got != want {
 		t.Fatalf("ResolvedOptions().Hour = %q, want %q", got, want)
 	}
 	if got, want := ecma402.ResolvedScalarValue(resolved.HourCycle), HourCycle("h23"); got != want {
@@ -1448,6 +1448,36 @@ func TestDateTimeFormatBasicMatcherWithComponents(t *testing.T) {
 	}
 	if got, want := format.Format(time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC)), "May 8, 2026"; got != want {
 		t.Fatalf("Format() = %q, want %q", got, want)
+	}
+}
+
+func TestDateTimeFormatResolvedComponentsFollowSelectedPattern(t *testing.T) {
+	t.Parallel()
+
+	for _, matcher := range []FormatMatcher{BasicFormatMatcher, BestFitFormatMatcher} {
+		t.Run(string(matcher), func(t *testing.T) {
+			t.Parallel()
+
+			format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{
+				FormatMatcher: stringPtr(matcher),
+				Hour:          stringPtr(NumericFieldStyle),
+				Minute:        stringPtr(NumericFieldStyle),
+				TimeZone:      stringPtr("UTC"),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved := format.ResolvedOptions()
+			if got, want := ecma402.ResolvedScalarValue(resolved.Hour), NumericFieldStyle; got != want {
+				t.Fatalf("ResolvedOptions().Hour = %q, want %q", got, want)
+			}
+			if got, want := ecma402.ResolvedScalarValue(resolved.Minute), TwoDigitFieldStyle; got != want {
+				t.Fatalf("ResolvedOptions().Minute = %q, want selected pattern width %q", got, want)
+			}
+			if got, want := format.Format(time.Date(2026, time.January, 1, 9, 5, 0, 0, time.UTC)), "9:05 AM"; got != want {
+				t.Fatalf("Format() = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

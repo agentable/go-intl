@@ -13,5 +13,5 @@ type ResolvedOptions struct {
 }
 
 func (f *Collator) ResolvedOptions() ResolvedOptions {
-	return f.resolved
+	return f.state.resolved
 }

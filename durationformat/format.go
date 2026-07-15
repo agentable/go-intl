@@ -1,6 +1,7 @@
 package durationformat
 
 import (
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -12,16 +13,16 @@ import (
 )
 
 type Duration struct {
-	Years        int64 `json:"years"`
-	Months       int64 `json:"months"`
-	Weeks        int64 `json:"weeks"`
-	Days         int64 `json:"days"`
-	Hours        int64 `json:"hours"`
-	Minutes      int64 `json:"minutes"`
-	Seconds      int64 `json:"seconds"`
-	Milliseconds int64 `json:"milliseconds"`
-	Microseconds int64 `json:"microseconds"`
-	Nanoseconds  int64 `json:"nanoseconds"`
+	Years        float64 `json:"years"`
+	Months       float64 `json:"months"`
+	Weeks        float64 `json:"weeks"`
+	Days         float64 `json:"days"`
+	Hours        float64 `json:"hours"`
+	Minutes      float64 `json:"minutes"`
+	Seconds      float64 `json:"seconds"`
+	Milliseconds float64 `json:"milliseconds"`
+	Microseconds float64 `json:"microseconds"`
+	Nanoseconds  float64 `json:"nanoseconds"`
 }
 
 type Part struct {
@@ -30,10 +31,12 @@ type Part struct {
 	Unit  Unit     `json:"unit,omitempty"`
 }
 
-type durationValues [unitCount]int64
+type durationRecord struct {
+	values [unitCount]big.Int
+}
 
-func durationValuesOf(duration Duration) durationValues {
-	return durationValues{
+func durationRecordOf(duration Duration, loc locale.Locale) (*durationRecord, error) {
+	numbers := [unitCount]float64{
 		yearsIndex:        duration.Years,
 		monthsIndex:       duration.Months,
 		weeksIndex:        duration.Weeks,
@@ -45,6 +48,32 @@ func durationValuesOf(duration Duration) durationValues {
 		microsecondsIndex: duration.Microseconds,
 		nanosecondsIndex:  duration.Nanoseconds,
 	}
+	record := new(durationRecord)
+	var exact big.Rat
+	for _, spec := range durationUnitSpecs[:] {
+		number := numbers[spec.index]
+		if math.IsNaN(number) || math.IsInf(number, 0) || math.Trunc(number) != number {
+			return nil, invalidValue(spec.unit, durationNumberString(number), expectedDurationIntegerValue, loc)
+		}
+		exact.SetFloat64(number)
+		record.values[spec.index].Set(exact.Num())
+	}
+	return record, nil
+}
+
+func durationNumberString(number float64) string {
+	switch {
+	case math.IsInf(number, 1):
+		return "Infinity"
+	case math.IsInf(number, -1):
+		return "-Infinity"
+	default:
+		return strconv.FormatFloat(number, 'g', -1, 64)
+	}
+}
+
+func (r *durationRecord) value(index unitIndex) *big.Int {
+	return &r.values[index]
 }
 
 // Format is the concatenation of FormatToParts' values. ECMA-402 defines one
@@ -63,8 +92,11 @@ func (f *DurationFormat) Format(duration Duration) (string, error) {
 }
 
 func (f *DurationFormat) FormatToParts(duration Duration) ([]Part, error) {
-	values := durationValuesOf(duration)
 	loc := f.resolved.Locale
+	values, err := durationRecordOf(duration, loc)
+	if err != nil {
+		return nil, err
+	}
 	sign, err := validateDuration(values, loc)
 	if err != nil {
 		return nil, err
@@ -76,7 +108,7 @@ func (f *DurationFormat) FormatToParts(duration Duration) ([]Part, error) {
 	return durationListFormatParts(f.listFormatter, groups), nil
 }
 
-func partitionDurationFormatPattern(values durationValues, f *DurationFormat, sign int, loc locale.Locale) ([][]Part, error) {
+func partitionDurationFormatPattern(values *durationRecord, f *DurationFormat, sign int, loc locale.Locale) ([][]Part, error) {
 	result := make([][]Part, 0, len(durationUnitSpecs))
 	signAvailable := true
 	for _, spec := range durationUnitSpecs[:] {
@@ -92,7 +124,7 @@ func partitionDurationFormatPattern(values durationValues, f *DurationFormat, si
 			}
 			return result, nil
 		case LongUnitStyle, ShortUnitStyle, NarrowUnitStyle:
-			value := values[spec.index]
+			value := values.value(spec.index)
 			fractional := durationNextUnitFractional(f.unitOptions, spec)
 			if !durationUnitShown(value, opt.display) && !fractional {
 				continue
@@ -126,7 +158,7 @@ func partitionDurationFormatPattern(values durationValues, f *DurationFormat, si
 	return result, nil
 }
 
-func formatDurationNumericUnits(values durationValues, f *DurationFormat, first unitIndex, sign int, signAvailable bool, loc locale.Locale) ([]Part, error) {
+func formatDurationNumericUnits(values *durationRecord, f *DurationFormat, first unitIndex, sign int, signAvailable bool, loc locale.Locale) ([]Part, error) {
 	layout := durationNumericLayoutFor(values, f.unitOptions, first)
 
 	var out []Part
@@ -138,7 +170,7 @@ func formatDurationNumericUnits(values durationValues, f *DurationFormat, first 
 
 		if index != secondsIndex {
 			spec := durationUnitSpecs[index]
-			numericValue := durationIntegerNumberValue(values[index], sign < 0 && signAvailable)
+			numericValue := durationIntegerNumberValue(values.value(index), sign < 0 && signAvailable)
 			parts := formatDurationNumberParts(f.numericFormatters[index], spec.formatUnit, numericValue, signAvailable)
 			out = append(out, parts...)
 			signAvailable = false
@@ -165,11 +197,11 @@ func (l *durationNumericLayout) add(index unitIndex) {
 	l.count++
 }
 
-func durationNumericLayoutFor(values durationValues, unitOptions [unitCount]resolvedUnitConfig, first unitIndex) durationNumericLayout {
-	hoursValue := values[hoursIndex]
-	minutesValue := values[minutesIndex]
+func durationNumericLayoutFor(values *durationRecord, unitOptions [unitCount]resolvedUnitConfig, first unitIndex) durationNumericLayout {
+	hoursValue := values.value(hoursIndex)
+	minutesValue := values.value(minutesIndex)
 	hoursFormatted := first == hoursIndex && durationUnitShown(hoursValue, unitOptions[hoursIndex].display)
-	secondsFormatted := durationUnitShown(values[secondsIndex], unitOptions[secondsIndex].display) ||
+	secondsFormatted := durationUnitShown(values.value(secondsIndex), unitOptions[secondsIndex].display) ||
 		durationHasSubsecondValue(values)
 	minutesAllowed := first == hoursIndex || first == minutesIndex
 	minutesRequired := durationUnitShown(minutesValue, unitOptions[minutesIndex].display)
@@ -188,20 +220,20 @@ func durationNumericLayoutFor(values durationValues, unitOptions [unitCount]reso
 	return layout
 }
 
-func durationHasSubsecondValue(values durationValues) bool {
+func durationHasSubsecondValue(values *durationRecord) bool {
 	for _, spec := range durationUnitSpecs[:] {
 		if !spec.fractional {
 			continue
 		}
-		if values[spec.index] != 0 {
+		if values.value(spec.index).Sign() != 0 {
 			return true
 		}
 	}
 	return false
 }
 
-func durationUnitShown(value int64, display Display) bool {
-	return display == AlwaysDisplay || value != 0
+func durationUnitShown(value *big.Int, display Display) bool {
+	return display == AlwaysDisplay || value.Sign() != 0
 }
 
 func formatDurationNumberParts(formatters durationNumberFormatters, unit Unit, value numberformat.Value, signVisible bool) []Part {
@@ -266,10 +298,10 @@ func durationNextUnitFractional(unitOptions [unitCount]resolvedUnitConfig, spec 
 	return spec.hasFractionalChild && unitOptions[spec.fractionalChild].style == fractionalUnitStyle
 }
 
-func durationFractionalValueString(values durationValues, index unitIndex, showNegativeSign bool) string {
+func durationFractionalValueString(values *durationRecord, index unitIndex, showNegativeSign bool) string {
 	spec := durationUnitSpecs[index]
 	if !spec.hasFractionalChild || spec.nanosecondsPerUnit == 0 {
-		return uint64ValueString(ecma402.Int64Magnitude(values[index]), showNegativeSign)
+		return durationIntegerValueString(values.value(index), showNegativeSign)
 	}
 	var parts [3]fractionalPart
 	base := spec.nanosecondsPerUnit
@@ -277,17 +309,17 @@ func durationFractionalValueString(values durationValues, index unitIndex, showN
 	for spec.hasFractionalChild {
 		child := durationUnitSpecs[spec.fractionalChild]
 		parts[partCount] = fractionalPart{
-			value:       values[child.index],
+			value:       values.value(child.index),
 			denominator: base / child.nanosecondsPerUnit,
 		}
 		partCount++
 		spec = child
 	}
-	return decimalValueString(values[index], showNegativeSign, fractionalDigitWidth(base), parts[:partCount])
+	return decimalValueString(values.value(index), showNegativeSign, fractionalDigitWidth(base), parts[:partCount])
 }
 
 type fractionalPart struct {
-	value       int64
+	value       *big.Int
 	denominator int64
 }
 
@@ -299,12 +331,12 @@ func fractionalDigitWidth(nanosecondsPerUnit int64) int {
 	return width
 }
 
-func decimalValueString(whole int64, showNegativeSign bool, width int, parts []fractionalPart) string {
+func decimalValueString(whole *big.Int, showNegativeSign bool, width int, parts []fractionalPart) string {
 	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(width)), nil)
-	total := new(big.Int).SetUint64(ecma402.Int64Magnitude(whole))
+	total := new(big.Int).Abs(whole)
 	total.Mul(total, scale)
 	for _, part := range parts {
-		term := new(big.Int).SetUint64(ecma402.Int64Magnitude(part.value))
+		term := new(big.Int).Abs(part.value)
 		term.Mul(term, scale)
 		term.Div(term, big.NewInt(part.denominator))
 		total.Add(total, term)
@@ -339,17 +371,17 @@ func durationNumberParts(unit Unit, parts []numberformat.Part) []Part {
 	return out
 }
 
-func validateDuration(values durationValues, loc locale.Locale) (int, error) {
+func validateDuration(values *durationRecord, loc locale.Locale) (int, error) {
 	sign := 0
 	for _, spec := range durationUnitSpecs[:] {
-		value := values[spec.index]
+		valueSign := values.value(spec.index).Sign()
 		switch {
-		case value < 0:
+		case valueSign < 0:
 			if sign > 0 {
 				return 0, invalidValue("duration", "mixed signs", expectedDurationMixedSigns, loc)
 			}
 			sign = -1
-		case value > 0:
+		case valueSign > 0:
 			if sign < 0 {
 				return 0, invalidValue("duration", "mixed signs", expectedDurationMixedSigns, loc)
 			}
@@ -360,9 +392,10 @@ func validateDuration(values durationValues, loc locale.Locale) (int, error) {
 		if spec.maxAbsExclusive == 0 {
 			continue
 		}
-		value := values[spec.index]
-		if ecma402.Int64Magnitude(value) >= spec.maxAbsExclusive {
-			return 0, invalidValue(spec.unit, strconv.FormatInt(value, 10), expectedDurationCalendarUnitValue, loc)
+		value := values.value(spec.index)
+		var magnitude, limit big.Int
+		if magnitude.Abs(value).Cmp(limit.SetUint64(spec.maxAbsExclusive)) >= 0 {
+			return 0, invalidValue(spec.unit, value.String(), expectedDurationCalendarUnitValue, loc)
 		}
 	}
 	if normalizedSecondsOutOfRange(values) {
@@ -371,10 +404,10 @@ func validateDuration(values durationValues, loc locale.Locale) (int, error) {
 	return sign, nil
 }
 
-func normalizedSecondsOutOfRange(values durationValues) bool {
+func normalizedSecondsOutOfRange(values *durationRecord) bool {
 	total := big.NewInt(0)
-	addScaled := func(value int64, scale int64) {
-		term := big.NewInt(value)
+	addScaled := func(value *big.Int, scale int64) {
+		term := new(big.Int).Set(value)
 		term.Mul(term, big.NewInt(scale))
 		total.Add(total, term)
 	}
@@ -382,38 +415,37 @@ func normalizedSecondsOutOfRange(values durationValues) bool {
 		if spec.nanosecondsPerUnit == 0 {
 			continue
 		}
-		addScaled(values[spec.index], spec.nanosecondsPerUnit)
+		addScaled(values.value(spec.index), spec.nanosecondsPerUnit)
 	}
 	limit := new(big.Int).Lsh(big.NewInt(1_000_000_000), 53)
 	return new(big.Int).Abs(total).Cmp(limit) >= 0
 }
 
-func uint64ValueString(value uint64, showNegativeSign bool) string {
-	out := strconv.FormatUint(value, 10)
+func durationIntegerValueString(value *big.Int, showNegativeSign bool) string {
+	out := new(big.Int).Abs(value).String()
 	if showNegativeSign {
 		return "-" + out
 	}
 	return out
 }
 
-func durationIntegerNumberValue(value int64, showNegativeSign bool) numberformat.Value {
+func durationIntegerNumberValue(value *big.Int, showNegativeSign bool) numberformat.Value {
+	magnitude := new(big.Int).Abs(value)
 	if !showNegativeSign {
-		return numberformat.Uint(ecma402.Int64Magnitude(value))
+		return numberformat.BigInt(magnitude)
 	}
-	if value == 0 {
+	if magnitude.Sign() == 0 {
 		out, _ := numberformat.Decimal("-0")
 		return out
 	}
-	if value < 0 {
-		return numberformat.Int(value)
-	}
-	return numberformat.Int(-value)
+	return numberformat.BigInt(magnitude.Neg(magnitude))
 }
 
 const (
 	expectedDurationMixedSigns        = "all non-zero duration fields to have the same sign"
 	expectedDurationNormalizedSeconds = "normalized day and smaller fields below 1e9 * 2^53 nanoseconds"
 	expectedDurationCalendarUnitValue = "an absolute value less than 2^32"
+	expectedDurationIntegerValue      = "a finite integral ECMAScript Number"
 	expectedDurationUnitValue         = "a valid duration unit value"
 )
 

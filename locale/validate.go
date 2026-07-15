@@ -2,7 +2,6 @@ package locale
 
 import (
 	"errors"
-	"strconv"
 	"strings"
 
 	"github.com/agentable/go-intl/internal/intlerr"
@@ -74,26 +73,6 @@ func expectedLocaleValue(name string) string {
 	default:
 		return "a well-formed locale value"
 	}
-}
-
-func normalizeLocaleAliases(tag string) string {
-	base, privateUse, hasPrivateUse := strings.Cut(tag, "-x-")
-	if strings.Contains(base, "-u-") {
-		base = normalizeFirstDayAliases(base)
-	}
-	if !hasPrivateUse {
-		return base
-	}
-	return base + "-x-" + privateUse
-}
-
-func normalizeFirstDayAliases(tag string) string {
-	for day := range 8 {
-		value := strconv.Itoa(day)
-		canonical, _ := canonicalFirstDay(value)
-		tag = strings.ReplaceAll(tag, "-fw-"+value, "-fw-"+canonical)
-	}
-	return tag
 }
 
 func normalizeLanguageAliases(tag string) string {

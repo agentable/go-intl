@@ -29,7 +29,6 @@ func TestParseUnicodeExtensions(t *testing.T) {
 		{in: "en-US-u-kf-false", want: "en-US-u-kf-false", caseFirst: "false"},
 		{in: "en-US-u-ca-islamicc", want: "en-US-u-ca-islamic-civil", calendar: "islamic-civil"},
 		{in: "en-US-u-co-phonebk-nu-arab-fw-mon", want: "en-US-u-co-phonebk-fw-mon-nu-arab", collation: "phonebk", numberingSystem: "arab", firstDayOfWeek: "mon"},
-		{in: "en-US-u-fw-0", want: "en-US-u-fw-sun", firstDayOfWeek: "sun"},
 		{in: "en-US-u-foo-ca-buddhist-zz-abc", want: "en-US-u-foo-ca-buddhist-zz-abc", calendar: "buddhist"},
 		{in: "en-US-u-zz-abc-ca-buddhist", want: "en-US-u-ca-buddhist-zz-abc", calendar: "buddhist"},
 		{in: "en-US-u-attr2-attr1-ca-buddhist-zz-abc-aa-xyz", want: "en-US-u-attr1-attr2-aa-xyz-ca-buddhist-zz-abc", calendar: "buddhist"},
@@ -56,37 +55,12 @@ func TestParseUnicodeExtensions(t *testing.T) {
 	}
 }
 
-func TestParseCanonicalizesNumericFirstDayOfWeekAliases(t *testing.T) {
+func TestParseRejectsNumericFirstDayOfWeekType(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		value string
-		want  string
-	}{
-		{value: "0", want: "sun"},
-		{value: "1", want: "mon"},
-		{value: "2", want: "tue"},
-		{value: "3", want: "wed"},
-		{value: "4", want: "thu"},
-		{value: "5", want: "fri"},
-		{value: "6", want: "sat"},
-		{value: "7", want: "sun"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.value, func(t *testing.T) {
-			t.Parallel()
-
-			loc, err := Parse("en-US-u-fw-" + tc.value)
-			if err != nil {
-				t.Fatalf("Parse err = %v", err)
-			}
-			if got := loc.FirstDayOfWeek(); got != tc.want {
-				t.Fatalf("FirstDayOfWeek() = %q, want %q", got, tc.want)
-			}
-			if got, want := loc.String(), "en-US-u-fw-"+tc.want; got != want {
-				t.Fatalf("String() = %q, want %q", got, want)
-			}
-		})
+	_, err := Parse("en-US-u-fw-0")
+	if !errors.Is(err, intlerr.ErrInvalidValue) {
+		t.Fatalf("Parse(en-US-u-fw-0) error = %v, want intlerr.ErrInvalidValue", err)
 	}
 }
 

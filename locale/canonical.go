@@ -10,7 +10,9 @@ import (
 func (l Locale) Maximize() Locale {
 	lang, script, region := localeid.Parts(l.tag)
 	if maxLang, maxScript, maxRegion, ok := cldrlocale.MaximizeSubtags(lang, script, region); ok {
-		l.tag = mustLanguageTag(localeid.Join(maxLang, maxScript, maxRegion))
+		if tag, err := localeid.ReplaceLanguageSubtags(l.tag, maxLang, maxScript, maxRegion); err == nil {
+			l.tag = tag
+		}
 	}
 	l.freeze()
 	return l
@@ -24,11 +26,13 @@ func (l Locale) Maximize() Locale {
 func (l Locale) Minimize() Locale {
 	lang, script, region := localeid.Parts(l.tag)
 	if minLang, minScript, minRegion, ok := cldrlocale.MinimizeSubtags(lang, script, region); ok {
-		l.tag = mustLanguageTag(localeid.Join(minLang, minScript, minRegion))
+		if tag, err := localeid.ReplaceLanguageSubtags(l.tag, minLang, minScript, minRegion); err == nil {
+			l.tag = tag
+		}
 		l.freeze()
 		return l
 	}
-	max := l.Maximize().tag.String()
+	maxLang, maxScript, maxRegion := localeid.Parts(l.Maximize().tag)
 	for _, candidate := range []string{
 		lang,
 		localeid.Join(lang, "", region),
@@ -39,8 +43,12 @@ func (l Locale) Minimize() Locale {
 		}
 		trial := l
 		trial.tag = mustLanguageTag(candidate)
-		if trial.Maximize().tag.String() == max {
-			l.tag = trial.tag
+		trialLang, trialScript, trialRegion := localeid.Parts(trial.Maximize().tag)
+		if trialLang == maxLang && trialScript == maxScript && trialRegion == maxRegion {
+			minLang, minScript, minRegion := localeid.Parts(trial.tag)
+			if tag, err := localeid.ReplaceLanguageSubtags(l.tag, minLang, minScript, minRegion); err == nil {
+				l.tag = tag
+			}
 			l.freeze()
 			return l
 		}

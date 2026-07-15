@@ -33,7 +33,7 @@ func TestCanUseRoundedStringAgreesWithFullPath(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ParseString(%q): %v", in, err)
 		}
-		formatted := FormatNumericToString(d, opts).Formatted
+		formatted := FormatNumericToString(d, inferredResolvedDigits(opts)).Formatted
 		full, _ := formatFixedCandidate(d, opts)
 		if formatted != full {
 			t.Errorf("FormatNumericToString(%q) = %q, full path = %q; fast-path eligibility = %t", in, formatted, full, canUseRoundedString(d, opts))
@@ -84,8 +84,12 @@ func TestFormatNumericToStringIgnoresInputLiteralScale(t *testing.T) {
 				if err != nil {
 					t.Fatalf("ParseString(%q): %v", input, err)
 				}
-				if got := FormatNumericToString(d, tc.opts).Formatted; got != tc.want[i] {
-					t.Errorf("FormatNumericToString(%q) = %q, want %q", input, got, tc.want[i])
+				got := FormatNumericToString(d, inferredResolvedDigits(tc.opts))
+				if got.Formatted != tc.want[i] {
+					t.Errorf("FormatNumericToString(%q) = %q, want %q", input, got.Formatted, tc.want[i])
+				}
+				if d.IsZero() && d.Negative() && !got.Rounded.Negative() {
+					t.Errorf("FormatNumericToString(%q).Rounded.Negative() = false, want true", input)
 				}
 			}
 		})

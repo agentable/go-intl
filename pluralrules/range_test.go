@@ -30,7 +30,7 @@ func TestPluralRulesSelectRange(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := mustCategory(rules.SelectRange(Int(int64(tc.start)), Int(int64(tc.end)))); got != tc.want {
+			if got := mustRangeCategory(rules.SelectRange(Int(int64(tc.start)), Int(int64(tc.end)))); got != tc.want {
 				t.Fatalf("SelectRangeInt(%v, %v) = %s, want %s", tc.start, tc.end, got, tc.want)
 			}
 		})
@@ -76,10 +76,10 @@ func TestPluralRulesSelectRangeReversedPreservesInputOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mustCategory(rules.SelectRange(Int(int64(2)), Int(int64(1)))); got != One {
+	if got := mustRangeCategory(rules.SelectRange(Int(int64(2)), Int(int64(1)))); got != One {
 		t.Fatalf("SelectRangeInt(2, 1) = %s, want %s", got, One)
 	}
-	if got := mustCategory(rules.SelectRange(Uint(uint64(2)), Uint(uint64(1)))); got != One {
+	if got := mustRangeCategory(rules.SelectRange(Uint(uint64(2)), Uint(uint64(1)))); got != One {
 		t.Fatalf("SelectRangeUint(2, 1) = %s, want %s", got, One)
 	}
 	gotFloat, err := rules.SelectRange(Float(2), Float(1))
@@ -121,16 +121,16 @@ func TestPluralRulesUnsignedSelectionWrappers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mustCategory(rules.Select(Uint(uint64(1)))); got != One {
+	if got := rules.Select(Uint(uint64(1))); got != One {
 		t.Fatalf("SelectUint(1) = %s, want %s", got, One)
 	}
-	if got := mustCategory(rules.Select(Uint(2))); got != Other {
+	if got := rules.Select(Uint(2)); got != Other {
 		t.Fatalf("SelectUint64(2) = %s, want %s", got, Other)
 	}
-	if got := mustCategory(rules.SelectRange(Uint(uint64(1)), Uint(uint64(1)))); got != One {
+	if got := mustRangeCategory(rules.SelectRange(Uint(uint64(1)), Uint(uint64(1)))); got != One {
 		t.Fatalf("SelectRangeUint(1, 1) = %s, want %s", got, One)
 	}
-	if got := mustCategory(rules.SelectRange(Uint(2), Uint(2))); got != Other {
+	if got := mustRangeCategory(rules.SelectRange(Uint(2), Uint(2))); got != Other {
 		t.Fatalf("SelectRangeUint64(2, 2) = %s, want %s", got, Other)
 	}
 }

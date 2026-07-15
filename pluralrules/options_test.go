@@ -19,7 +19,7 @@ func TestPluralRulesMinimumFractionDigitsAffectsSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mustCategory(rules.Select(Int(int64(1)))); got != Other {
+	if got := rules.Select(Int(int64(1))); got != Other {
 		t.Fatalf("SelectInt(1) = %s, want other", got)
 	}
 }
@@ -31,7 +31,7 @@ func TestPluralRulesMinimumSignificantDigitsDefaultsMaximum(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mustCategory(rules.Select(Int(int64(1)))); got != Other {
+	if got := rules.Select(Int(int64(1))); got != Other {
 		t.Fatalf("SelectInt(1) = %s, want %s when minimumSignificantDigits formats 1 as 1.0", got, Other)
 	}
 
@@ -56,6 +56,7 @@ func TestPluralRulesDigitOptionsAffectOperands(t *testing.T) {
 		{name: "minimum integer digits keeps numeric value", opts: Options{MinimumIntegerDigits: intPtr(2)}, in: 1, want: One},
 		{name: "significant digits share numberformat rounding", opts: Options{MinimumSignificantDigits: intPtr(1), MaximumSignificantDigits: intPtr(1)}, in: 1.5, want: Other},
 		{name: "rounding mode truncates toward one", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: stringPtr(TruncRoundingMode)}, in: 1.9, want: One},
+		{name: "rounding mode half trunc resolves tie toward one", opts: Options{MaximumFractionDigits: intPtr(0), RoundingMode: stringPtr(HalfTruncRoundingMode)}, in: 1.5, want: One},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -65,10 +66,7 @@ func TestPluralRulesDigitOptionsAffectOperands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := rules.Select(Float(tc.in))
-			if err != nil {
-				t.Fatal(err)
-			}
+			got := rules.Select(Float(tc.in))
 			if got != tc.want {
 				t.Fatalf("SelectFloat64(%v) = %s, want %s", tc.in, got, tc.want)
 			}

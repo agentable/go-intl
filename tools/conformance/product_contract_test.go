@@ -68,8 +68,11 @@ func TestSegmenterTailoredLocaleContractsRemainWithheld(t *testing.T) {
 	t.Parallel()
 
 	root := packageRoot(t, "segmenter")
-	fixtures := loadPackageFixtures(t, "segmenter")
-	byID := fixturesByID(fixtures)
+	suite, err := loadRunSuite(root, time.Now())
+	if err != nil {
+		t.Fatalf("loadRunSuite(segmenter) error = %v", err)
+	}
+	byID := fixturesByID(suite.fixtures)
 	for _, id := range []string{
 		nodeWitnessFixtureID("segmenter", "th-word-tailored-contract"),
 		nodeWitnessFixtureID("segmenter", "ja-word-tailored-contract"),
@@ -79,7 +82,7 @@ func TestSegmenterTailoredLocaleContractsRemainWithheld(t *testing.T) {
 		if len(fixture.ExpectedSegments) == 0 {
 			t.Fatalf("fixture %q missing expectedSegments", id)
 		}
-		if reason, ok := SkipReason(root, id, time.Now()); !ok || reason == "" {
+		if reason, ok := suite.skipReasons[id]; !ok || reason == "" {
 			t.Fatalf("fixture %q must stay xfailed until the backend supports tailored word boundaries", id)
 		}
 	}

@@ -42,10 +42,7 @@ func TestMessageformatIntegrationContract_PublicConsumerPattern(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := pr.Select(pluralrules.Int(2))
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := pr.Select(pluralrules.Int(2))
 	if got != pluralrules.Other {
 		t.Fatalf("pluralrules.SelectInt(2) = %s, want %s", got, pluralrules.Other)
 	}

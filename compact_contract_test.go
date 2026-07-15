@@ -38,10 +38,7 @@ func TestCompactNumberFormatAndPluralRulesUseDistinctPluralInputs(t *testing.T) 
 	if got := format.Format(numberformat.Int(2000)); got != "2 тысячи" {
 		t.Fatalf("NumberFormat compact Format(2000) = %q, want %q", got, "2 тысячи")
 	}
-	got, err := rules.Select(pluralrules.Int(2000))
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := rules.Select(pluralrules.Int(2000))
 	if got != pluralrules.Many {
 		t.Fatalf("PluralRules compact Select(2000) = %s, want %s", got, pluralrules.Many)
 	}

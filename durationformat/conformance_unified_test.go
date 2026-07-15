@@ -136,16 +136,16 @@ func conformanceDurationInput(t *testing.T, fixture conformance.Fixture) Duratio
 		t.Fatalf("fixture %s input: %v", fixture.ID, err)
 	}
 	return Duration{
-		Years:        int64(raw["years"]),
-		Months:       int64(raw["months"]),
-		Weeks:        int64(raw["weeks"]),
-		Days:         int64(raw["days"]),
-		Hours:        int64(raw["hours"]),
-		Minutes:      int64(raw["minutes"]),
-		Seconds:      int64(raw["seconds"]),
-		Milliseconds: int64(raw["milliseconds"]),
-		Microseconds: int64(raw["microseconds"]),
-		Nanoseconds:  int64(raw["nanoseconds"]),
+		Years:        raw["years"],
+		Months:       raw["months"],
+		Weeks:        raw["weeks"],
+		Days:         raw["days"],
+		Hours:        raw["hours"],
+		Minutes:      raw["minutes"],
+		Seconds:      raw["seconds"],
+		Milliseconds: raw["milliseconds"],
+		Microseconds: raw["microseconds"],
+		Nanoseconds:  raw["nanoseconds"],
 	}
 }
 

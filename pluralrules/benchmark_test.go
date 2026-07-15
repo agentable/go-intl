@@ -12,7 +12,7 @@ func BenchmarkPluralRules_Cardinal_Cached(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = mustCategory(rules.Select(Int(int64(2))))
+		_ = rules.Select(Int(int64(2)))
 	}
 }
 
@@ -21,7 +21,7 @@ func BenchmarkPluralRules_Ordinal_Cached(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = mustCategory(rules.Select(Int(int64(2))))
+		_ = rules.Select(Int(int64(2)))
 	}
 }
 
@@ -30,7 +30,7 @@ func BenchmarkPluralRules_SelectRange_Cached(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = mustCategory(rules.SelectRange(Int(int64(1)), Int(int64(2))))
+		_ = mustRangeCategory(rules.SelectRange(Int(int64(1)), Int(int64(2))))
 	}
 }
 

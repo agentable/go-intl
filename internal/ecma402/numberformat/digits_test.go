@@ -96,10 +96,10 @@ func TestFormatDecimal(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := FormatDecimal(d, tc.opts); got != tc.want {
+			if got := FormatDecimal(d, inferredResolvedDigits(tc.opts)); got != tc.want {
 				t.Fatalf("FormatDecimal(%s) = %q, want %q", tc.in, got, tc.want)
 			}
-			if got := FormatNumericToString(d, tc.opts).Formatted; got != tc.want {
+			if got := FormatNumericToString(d, inferredResolvedDigits(tc.opts)).Formatted; got != tc.want {
 				t.Fatalf("FormatNumericToString(%s).Formatted = %q, want %q", tc.in, got, tc.want)
 			}
 		})
@@ -113,14 +113,14 @@ func TestFormatNumericToStringReturnsRoundedValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := FormatNumericToString(d, DigitOptions{
+	got := FormatNumericToString(d, inferredResolvedDigits(DigitOptions{
 		MinimumIntegerDigits:  1,
 		MaximumFractionDigits: 0,
 		RoundingIncrement:     1,
 		RoundingMode:          "halfExpand",
 		RoundingPriority:      "auto",
 		TrailingZeroDisplay:   "auto",
-	})
+	}))
 	if got.Formatted != "2" {
 		t.Fatalf("Formatted = %q, want 2", got.Formatted)
 	}
@@ -169,12 +169,54 @@ func TestFormatNumericToStringPriorityReturnsChosenRoundedValue(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := FormatNumericToString(d, tc.opts)
+			got := FormatNumericToString(d, inferredResolvedDigits(tc.opts))
 			if got.Formatted != tc.formatted {
 				t.Fatalf("Formatted = %q, want %q", got.Formatted, tc.formatted)
 			}
 			if got.Rounded.String() != tc.rounded {
 				t.Fatalf("Rounded = %s, want %s", got.Rounded.String(), tc.rounded)
+			}
+		})
+	}
+}
+
+func TestFormatNumericToStringExecutesResolvedRoundingType(t *testing.T) {
+	t.Parallel()
+
+	d, err := decimal.ParseString("1.2345")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := DigitOptions{
+		MinimumIntegerDigits:     1,
+		MinimumFractionDigits:    0,
+		MaximumFractionDigits:    2,
+		MinimumSignificantDigits: 1,
+		MaximumSignificantDigits: 2,
+		RoundingIncrement:        1,
+		RoundingMode:             "halfExpand",
+		TrailingZeroDisplay:      "auto",
+	}
+	tests := []struct {
+		name             string
+		roundingType     RoundingType
+		roundingPriority string
+		want             string
+	}{
+		{name: "fraction digits", roundingType: RoundingTypeFractionDigits, roundingPriority: "auto", want: "1.23"},
+		{name: "significant digits", roundingType: RoundingTypeSignificantDigits, roundingPriority: "auto", want: "1.2"},
+		{name: "more precision", roundingType: RoundingTypeMorePrecision, roundingPriority: "lessPrecision", want: "1.23"},
+		{name: "less precision", roundingType: RoundingTypeLessPrecision, roundingPriority: "morePrecision", want: "1.2"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			digits := base
+			digits.RoundingPriority = tc.roundingPriority
+			got := FormatNumericToString(d, resolvedDigits(digits, tc.roundingType))
+			if got.Formatted != tc.want {
+				t.Fatalf("FormatNumericToString() = %q, want %q", got.Formatted, tc.want)
 			}
 		})
 	}
@@ -187,14 +229,14 @@ func TestFormatNumericToStringReturnsNonFiniteValue(t *testing.T) {
 		t.Run(d.String(), func(t *testing.T) {
 			t.Parallel()
 
-			got := FormatNumericToString(d, DigitOptions{
+			got := FormatNumericToString(d, inferredResolvedDigits(DigitOptions{
 				MinimumIntegerDigits:  1,
 				MaximumFractionDigits: 2,
 				RoundingIncrement:     1,
 				RoundingMode:          "halfExpand",
 				RoundingPriority:      "auto",
 				TrailingZeroDisplay:   "auto",
-			})
+			}))
 			if got.Formatted != d.String() {
 				t.Fatalf("Formatted = %q, want %q", got.Formatted, d.String())
 			}
@@ -212,14 +254,14 @@ func TestFormatNumericToStringPreservesNegativeRoundedValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := FormatNumericToString(d, DigitOptions{
+	got := FormatNumericToString(d, inferredResolvedDigits(DigitOptions{
 		MinimumIntegerDigits:  1,
 		MaximumFractionDigits: 0,
 		RoundingIncrement:     1,
 		RoundingMode:          "halfExpand",
 		RoundingPriority:      "auto",
 		TrailingZeroDisplay:   "auto",
-	})
+	}))
 	if got.Formatted != "-2" {
 		t.Fatalf("Formatted = %q, want -2", got.Formatted)
 	}
@@ -228,26 +270,35 @@ func TestFormatNumericToStringPreservesNegativeRoundedValue(t *testing.T) {
 	}
 }
 
-func TestFormatNumericToStringFormatsNegativeZeroWithoutNegativeRoundedValue(t *testing.T) {
+func TestFormatNumericToStringPreservesNegativeRoundedZero(t *testing.T) {
 	t.Parallel()
 
-	d, err := decimal.ParseString("-0.1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := FormatNumericToString(d, DigitOptions{
-		MinimumIntegerDigits:  1,
-		MaximumFractionDigits: 0,
-		RoundingIncrement:     1,
-		RoundingMode:          "halfExpand",
-		RoundingPriority:      "auto",
-		TrailingZeroDisplay:   "auto",
-	})
-	if got.Formatted != "-0" {
-		t.Fatalf("Formatted = %q, want -0", got.Formatted)
-	}
-	if got.Rounded.String() != "0" {
-		t.Fatalf("Rounded = %s, want 0", got.Rounded.String())
+	for _, mode := range []decimal.RoundingMode{decimal.RoundHalfExpand, decimal.RoundCeil} {
+		t.Run(mode.String(), func(t *testing.T) {
+			t.Parallel()
+
+			d, err := decimal.ParseString("-0.1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := FormatNumericToString(d, inferredResolvedDigits(DigitOptions{
+				MinimumIntegerDigits:  1,
+				MaximumFractionDigits: 0,
+				RoundingIncrement:     1,
+				RoundingMode:          mode,
+				RoundingPriority:      "auto",
+				TrailingZeroDisplay:   "auto",
+			}))
+			if got.Formatted != "-0" {
+				t.Fatalf("Formatted = %q, want -0", got.Formatted)
+			}
+			if got.Rounded.String() != "0" {
+				t.Fatalf("Rounded = %s, want 0", got.Rounded.String())
+			}
+			if !got.Rounded.Negative() {
+				t.Fatal("Rounded.Negative() = false, want true")
+			}
+		})
 	}
 }
 
@@ -279,12 +330,6 @@ func TestFormatDecimalSignificantDigitEdges(t *testing.T) {
 			want: "-0.0012",
 		},
 		{
-			name: "invalid rounding mode falls back to half expand",
-			opts: DigitOptions{MinimumIntegerDigits: 1, MinimumFractionDigits: 0, MaximumFractionDigits: 0, RoundingIncrement: 1, RoundingMode: "not-a-mode", RoundingPriority: "auto", TrailingZeroDisplay: "auto"},
-			in:   "1.5",
-			want: "2",
-		},
-		{
 			name: "fixed strip removes integer fraction",
 			opts: DigitOptions{MinimumIntegerDigits: 1, MinimumFractionDigits: 0, MaximumFractionDigits: 2, RoundingIncrement: 1, RoundingMode: "halfExpand", RoundingPriority: "auto", TrailingZeroDisplay: "stripIfInteger"},
 			in:   "1.00",
@@ -299,7 +344,7 @@ func TestFormatDecimalSignificantDigitEdges(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := FormatDecimal(d, tc.opts); got != tc.want {
+			if got := FormatDecimal(d, inferredResolvedDigits(tc.opts)); got != tc.want {
 				t.Fatalf("FormatDecimal(%s) = %q, want %q", tc.in, got, tc.want)
 			}
 		})

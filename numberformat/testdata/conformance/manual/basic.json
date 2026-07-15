@@ -17,5 +17,24 @@
       {"type": "decimal", "value": "."},
       {"type": "fraction", "value": "50"}
     ]
+  },
+  {
+    "id": "numberformat-manual-decimal-grouping",
+    "source": "manual",
+    "locale": "en",
+    "options": {},
+    "input": 1234.5,
+    "expected": "1,234.5"
+  },
+  {
+    "id": "numberformat-manual-scientific",
+    "source": "manual",
+    "locale": "en",
+    "options": {
+      "notation": "scientific",
+      "maximumFractionDigits": 2
+    },
+    "input": 12345,
+    "expected": "1.23E4"
   }
 ]

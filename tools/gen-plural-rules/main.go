@@ -149,7 +149,15 @@ func parsePluralRules(path string, locales []string) (map[string][]Rule, map[str
 	if err != nil {
 		return nil, nil, err
 	}
-	return filterActiveRules(cardinal, locales), filterActiveRules(ordinal, locales), nil
+	cardinal, err = activeRules(cardinalRuleKind, cardinal, locales)
+	if err != nil {
+		return nil, nil, err
+	}
+	ordinal, err = activeRules(ordinalRuleKind, ordinal, locales)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cardinal, ordinal, nil
 }
 
 func parsePluralRulesJSON(path string, kind pluralRuleKind) (map[string][]Rule, error) {
@@ -290,15 +298,16 @@ func parseRangeRuleKey(key string) (Category, Category, bool, error) {
 	return startCategory, endCategory, true, nil
 }
 
-func filterActiveRules(rules map[string][]Rule, locales []string) map[string][]Rule {
+func activeRules(kind pluralRuleKind, rules map[string][]Rule, locales []string) (map[string][]Rule, error) {
 	out := make(map[string][]Rule, len(locales))
 	for _, loc := range locales {
 		source := pluralRuleSource(loc, rules)
-		if rules[source] != nil {
-			out[loc] = cloneRules(loc, rules[source])
+		if rules[source] == nil {
+			return nil, fmt.Errorf("%s rule for active locale %q is missing", kind, loc)
 		}
+		out[loc] = cloneRules(loc, rules[source])
 	}
-	return out
+	return out, nil
 }
 
 func filterActiveRanges(ranges map[string]map[RangeKey]Category, locales []string) map[string]map[RangeKey]Category {
@@ -346,12 +355,7 @@ func renderRuleFile(kind pluralRuleKind, rules map[string][]Rule) (string, error
 	for _, loc := range sortedRuleLocales(rules) {
 		fmt.Fprintf(&b, "\tcase %q:\n\t\treturn %s%s, true\n", loc, kind, funcSuffix(loc))
 	}
-	b.WriteString("\t}\n")
-	if kind == ordinalRuleKind {
-		b.WriteString("\treturn cardinalOther, true\n")
-	} else {
-		b.WriteString("\treturn nil, false\n")
-	}
+	b.WriteString("\t}\n\treturn nil, false\n")
 	b.WriteString("}\n\n")
 	for _, loc := range sortedRuleLocales(rules) {
 		if err := renderRuleFunc(&b, string(kind)+funcSuffix(loc), rules[loc]); err != nil {

@@ -39,7 +39,7 @@ type decimalFormatState struct {
 	resolved     ResolvedOptions
 	symbols      cldrnumber.NumberSymbols
 	grouping     digitGrouping
-	digitOptions ecma402nf.DigitOptions
+	digitOptions ecma402nf.ResolvedDigitOptions
 	cardinalRule pluralRuleFunc
 	currencyLoc  cldrcurrency.Locale
 	currency     currencyPatternSet

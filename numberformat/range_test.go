@@ -33,26 +33,6 @@ func mustFormatRangeToParts(t *testing.T, f *NumberFormat, start, end Value) []R
 	return parts
 }
 
-func mustFormatRangeValue(t *testing.T, f *NumberFormat, start, end any) string {
-	t.Helper()
-
-	out, err := f.formatRangeValue(start, end)
-	if err != nil {
-		t.Fatalf("FormatRange(%v, %v) error = %v", start, end, err)
-	}
-	return out
-}
-
-func mustFormatRangeToPartsValue(t *testing.T, f *NumberFormat, start, end any) []RangePart {
-	t.Helper()
-
-	parts, err := f.formatRangeToPartsValue(start, end)
-	if err != nil {
-		t.Fatalf("FormatRangeToParts(%v, %v) error = %v", start, end, err)
-	}
-	return parts
-}
-
 func TestNumberFormatFormatRangeEqual(t *testing.T) {
 	t.Parallel()
 
@@ -60,7 +40,7 @@ func TestNumberFormatFormatRangeEqual(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mustFormatRangeValue(t, format, 1, 1); got != "~1" {
+	if got := mustFormatRange(t, format, Float(1), Float(1)); got != "~1" {
 		t.Fatalf("FormatRange(1, 1) = %q, want ~1", got)
 	}
 }
@@ -129,7 +109,7 @@ func TestNumberFormatFormatRangeDistinct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mustFormatRangeValue(t, format, 1, 2); got != "1–2" {
+	if got := mustFormatRange(t, format, Float(1), Float(2)); got != "1–2" {
 		t.Fatalf("FormatRange(1, 2) = %q, want 1–2", got)
 	}
 }
@@ -172,7 +152,7 @@ func TestNumberFormatFormatRangeToParts(t *testing.T) {
 		{Type: PartLiteral, Value: "–", Source: SourceShared},
 		{Type: PartInteger, Value: "2", Source: SourceEndRange},
 	}
-	if got := mustFormatRangeToPartsValue(t, format, 1, 2); !reflect.DeepEqual(got, want) {
+	if got := mustFormatRangeToParts(t, format, Float(1), Float(2)); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FormatRangeToParts(1, 2) = %#v, want %#v", got, want)
 	}
 }
@@ -276,7 +256,7 @@ func TestNumberFormatFormatRangeReversed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mustFormatRangeValue(t, format, 2, 1); got != "2–1" {
+	if got := mustFormatRange(t, format, Float(2), Float(1)); got != "2–1" {
 		t.Fatalf("FormatRange(2, 1) = %q, want 2–1", got)
 	}
 	want := []RangePart{
@@ -284,7 +264,7 @@ func TestNumberFormatFormatRangeReversed(t *testing.T) {
 		{Type: PartLiteral, Value: "–", Source: SourceShared},
 		{Type: PartInteger, Value: "1", Source: SourceEndRange},
 	}
-	if got := mustFormatRangeToPartsValue(t, format, 2, 1); !reflect.DeepEqual(got, want) {
+	if got := mustFormatRangeToParts(t, format, Float(2), Float(1)); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FormatRangeToParts(2, 1) = %#v, want %#v", got, want)
 	}
 }
@@ -296,7 +276,7 @@ func TestNumberFormatFormatRangeReversedUsesExactDecimalComparison(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mustFormatRangeValue(t, format, "9007199254740993", "9007199254740992"); got != "9007199254740993–9007199254740992" {
+	if got := mustFormatRange(t, format, mustDecimalValue(t, "9007199254740993"), mustDecimalValue(t, "9007199254740992")); got != "9007199254740993–9007199254740992" {
 		t.Fatalf("FormatRange() = %q, want input-order collapsed range", got)
 	}
 }
@@ -315,8 +295,28 @@ func TestNumberFormatRangeEqualAfterRoundingUsesApproximateSign(t *testing.T) {
 		{Type: PartApproximatelySign, Value: "~", Source: SourceShared},
 		{Type: PartInteger, Value: "1", Source: SourceShared},
 	}
-	if got := mustFormatRangeToPartsValue(t, format, 1.1, 1.2); !reflect.DeepEqual(got, want) {
+	if got := mustFormatRangeToParts(t, format, Float(1.1), Float(1.2)); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FormatRangeToParts(1.1, 1.2) = %#v, want %#v", got, want)
+	}
+}
+
+func TestNumberFormatRangeEqualAfterRoundingPreservesNegativeZero(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{MaximumFractionDigits: intPtr(0)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mustFormatRange(t, format, Float(-0.1), Float(-0.2)); got != "~-0" {
+		t.Fatalf("FormatRange(-0.1, -0.2) = %q; want ~-0", got)
+	}
+	want := []RangePart{
+		{Type: PartApproximatelySign, Value: "~", Source: SourceShared},
+		{Type: PartMinusSign, Value: "-", Source: SourceShared},
+		{Type: PartInteger, Value: "0", Source: SourceShared},
+	}
+	if got := mustFormatRangeToParts(t, format, Float(-0.1), Float(-0.2)); !reflect.DeepEqual(got, want) {
+		t.Fatalf("FormatRangeToParts(-0.1, -0.2) = %#v, want %#v", got, want)
 	}
 }
 
@@ -354,7 +354,7 @@ func TestNumberFormatFormatRangeToPartsCollapsesCurrency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := mustFormatRangeValue(t, format, 1, 2); got != "USD1.00–2.00" {
+	if got := mustFormatRange(t, format, Float(1), Float(2)); got != "USD1.00–2.00" {
 		t.Fatalf("FormatRange(1, 2) = %q, want USD1.00–2.00", got)
 	}
 	want := []RangePart{
@@ -367,7 +367,7 @@ func TestNumberFormatFormatRangeToPartsCollapsesCurrency(t *testing.T) {
 		{Type: PartDecimal, Value: ".", Source: SourceEndRange},
 		{Type: PartFraction, Value: "00", Source: SourceEndRange},
 	}
-	if got := mustFormatRangeToPartsValue(t, format, 1, 2); !reflect.DeepEqual(got, want) {
+	if got := mustFormatRangeToParts(t, format, Float(1), Float(2)); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FormatRangeToParts(1, 2) = %#v, want %#v", got, want)
 	}
 }

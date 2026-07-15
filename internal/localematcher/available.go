@@ -12,7 +12,7 @@ type availableLocale struct {
 	derived    bool
 }
 
-func availableLocalesFor(supported []string) []availableLocale {
+func availableLocalesFor(supported []string, maximizer Maximizer) []availableLocale {
 	backed := make(map[string]struct{}, len(supported))
 	for _, loc := range supported {
 		noExtensionLocale, _ := removeUnicodeExtension(loc)
@@ -24,6 +24,11 @@ func availableLocalesFor(supported []string) []availableLocale {
 	for _, loc := range supported {
 		noExtensionLocale, _ := removeUnicodeExtension(loc)
 		out = appendAvailableLocale(out, seen, noExtensionLocale, noExtensionLocale, false)
+		if alias, ok := languageRegionAlias(maximizer(noExtensionLocale)); ok && alias != noExtensionLocale {
+			if _, backedAlias := backed[alias]; !backedAlias {
+				out = appendAvailableLocale(out, seen, alias, noExtensionLocale, true)
+			}
+		}
 		if alias, ok := languageRegionAlias(noExtensionLocale); ok {
 			if _, backedAlias := backed[alias]; !backedAlias {
 				out = appendAvailableLocale(out, seen, alias, noExtensionLocale, true)

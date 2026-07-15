@@ -41,7 +41,7 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 	if ok {
 		return nil, ecma402nf.InvalidDigitOptionError(numberFormatOwner, invalid, validationLocaleName)
 	}
-	resolvedLocale, cldrLoc, unitLoc, numberingSystem := resolveLocale(locales, validationLocale, cfg)
+	resolvedLocale, dataLocale, cldrLoc, unitLoc, numberingSystem := resolveLocale(locales, validationLocale, cfg)
 	digitOptions := resolvedDigits.DigitOptions
 	digitProperties := resolvedDigits.ResolvedProperties()
 	resolved := ResolvedOptions{
@@ -57,7 +57,7 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 		Notation:                 Notation(cfg.notation),
 		SignDisplay:              SignDisplay(cfg.signDisplay),
 		RoundingIncrement:        digitOptions.RoundingIncrement,
-		RoundingMode:             RoundingMode(digitOptions.RoundingMode),
+		RoundingMode:             RoundingMode(digitOptions.RoundingMode.String()),
 		RoundingPriority:         RoundingPriority(digitOptions.RoundingPriority),
 		TrailingZeroDisplay:      TrailingZeroDisplay(digitOptions.TrailingZeroDisplay),
 	}
@@ -75,20 +75,24 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 	}
 	symbols := cldrLoc.NumberSymbols(numberingSystem)
 	grouping := groupingForNumberFormat(cldrLoc, resolved)
+	cardinalRule, err := plural.Rule(dataLocale, "cardinal")
+	if err != nil {
+		return nil, err
+	}
 	return &NumberFormat{
 		formatState: decimalFormatState{
 			resolved:     resolved,
 			symbols:      symbols,
 			grouping:     grouping,
-			digitOptions: digitOptions,
-			cardinalRule: plural.CardinalRuleOrDefault(resolvedLocale.Tag().String()),
+			digitOptions: resolvedDigits,
+			cardinalRule: cardinalRule,
 			currencyLoc:  unitLoc,
 			currency:     currencyPatternsForNumberFormat(cldrLoc, unitLoc, resolved),
 			unit:         unitPatternsForNumberFormat(unitLoc, resolved),
 			compact:      compactPatternsForNumberFormat(cldrLoc, resolved),
 		},
 		integerFastPath: integerFastPathState{
-			enabled:     canUseDecimalIntegerFastPath(resolved, digitOptions),
+			enabled:     canUseDecimalIntegerFastPath(resolved, resolvedDigits),
 			useGrouping: resolved.UseGrouping,
 			symbols:     symbols,
 			grouping:    grouping,
@@ -96,7 +100,7 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 	}, nil
 }
 
-func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, cldrnumber.Locale, cldrlocale.Locale, string) {
+func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (locale.Locale, string, cldrnumber.Locale, cldrlocale.Locale, string) {
 	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
 		Locales:               locales,
 		Fallback:              fallback,
@@ -112,7 +116,7 @@ func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) (loc
 	if numberingSystem == "" {
 		numberingSystem = cldrLoc.DefaultNumberingSystem()
 	}
-	return resolution.Locale, cldrLoc, unitLoc, numberingSystem
+	return resolution.Locale, ecma402.ResolveDataLocaleTag(resolution), cldrLoc, unitLoc, numberingSystem
 }
 
 func digitDefaults(cfg config) (minimumFractionDigits, maximumFractionDigits int) {

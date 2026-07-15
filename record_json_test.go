@@ -103,7 +103,7 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			name:  "datetime resolved options",
 			value: componentDateTime,
 			want: []string{
-				`"locale":"en"`,
+				`"locale":"en-US"`,
 				`"hourCycle":"h23"`,
 				`"hour12":false`,
 				`"month":"short"`,
@@ -193,14 +193,14 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			want:  []string{`"style":"long"`, `"fractionalDigits":2`, `"milliseconds":"long"`},
 		},
 		{
-			name: "duration record includes subsecond fields",
+			name: "duration record preserves wide Number fields",
 			value: durationformat.Duration{
 				Seconds:      1,
 				Milliseconds: 2,
 				Microseconds: 3,
-				Nanoseconds:  4,
+				Nanoseconds:  1e20,
 			},
-			want: []string{`"seconds":1`, `"milliseconds":2`, `"microseconds":3`, `"nanoseconds":4`},
+			want: []string{`"seconds":1`, `"milliseconds":2`, `"microseconds":3`, `"nanoseconds":100000000000000000000`},
 		},
 		{
 			name:   "display names resolved options omits language display",

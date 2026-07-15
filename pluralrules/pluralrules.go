@@ -37,7 +37,7 @@ func (c Category) MarshalText() ([]byte, error) {
 
 type PluralRules struct {
 	dataLocale      string
-	digitOptions    ecma402nf.DigitOptions
+	digitOptions    ecma402nf.ResolvedDigitOptions
 	compact         compactExponentSet
 	integerOperands bool
 	rule            pluralRuleFunc
@@ -68,15 +68,13 @@ func New(locales locale.List, opts Options) (*PluralRules, error) {
 		Matcher:       pluralRulesLocaleMatcher(),
 	})
 	dataLocale := ecma402.ResolveDataLocaleTag(resolution)
-	rule := plural.CardinalRuleOrDefault(dataLocale)
-	if cfg.typ == string(Ordinal) {
-		if ordinalRule, ok := plural.OrdinalRule(dataLocale); ok {
-			rule = ordinalRule
-		}
+	rule, err := plural.Rule(dataLocale, cfg.typ)
+	if err != nil {
+		return nil, err
 	}
 	return &PluralRules{
 		dataLocale:      dataLocale,
-		digitOptions:    resolvedDigits.DigitOptions,
+		digitOptions:    resolvedDigits,
 		compact:         compactExponentsForPluralRules(ecma402.ResolveDataLocale(resolution, cldrnumber.ResolveLocale), cfg),
 		integerOperands: resolvedDigits.CanUseIntegerOperands(cfg.notation),
 		rule:            rule,
@@ -85,19 +83,19 @@ func New(locales locale.List, opts Options) (*PluralRules, error) {
 }
 
 // Select returns the plural category for a numeric value.
-func (f *PluralRules) Select(v Value) (Category, error) {
+func (f *PluralRules) Select(v Value) Category {
 	numeric := v.numeric
 	if f.integerOperands {
 		switch numeric.Kind {
 		case ecma402.NumericValueInt64:
-			return selectInteger(numeric.Int64, f.rule), nil
+			return selectInteger(numeric.Int64, f.rule)
 		case ecma402.NumericValueUint64:
-			return selectUnsignedInteger(numeric.Uint64, f.rule), nil
+			return selectUnsignedInteger(numeric.Uint64, f.rule)
 		case ecma402.NumericValueDecimal:
 		}
 	}
 	_, _, category := resolveDecimal(numeric.Decimal, f.resolved.Notation, f.digitOptions, f.compact, f.rule)
-	return category, nil
+	return category
 }
 
 // SelectRange returns the plural category for a numeric range.
@@ -168,7 +166,7 @@ func selectUnsignedInteger(n uint64, rule pluralRuleFunc) Category {
 	return Category(rule(pluralop.GetUnsignedIntegerOperands(n)))
 }
 
-func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf.DigitOptions, compact compactExponentSet, rule pluralRuleFunc) (string, decimal.Decimal, Category) {
+func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf.ResolvedDigitOptions, compact compactExponentSet, rule pluralRuleFunc) (string, decimal.Decimal, Category) {
 	if !d.IsFinite() {
 		return d.String(), d, Other
 	}
@@ -186,7 +184,7 @@ func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf
 	return formatted, result.Rounded, Category(rule(ops))
 }
 
-func pluralExponent(d decimal.Decimal, notation Notation, digitOptions ecma402nf.DigitOptions) int {
+func pluralExponent(d decimal.Decimal, notation Notation, digitOptions ecma402nf.ResolvedDigitOptions) int {
 	switch notation {
 	case ScientificNotation:
 		exponent, _ := ecma402nf.ScientificExponent(d, digitOptions, false)

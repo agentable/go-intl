@@ -32,6 +32,33 @@ func TestParsePluralRulesJSON(t *testing.T) {
 	}
 }
 
+func TestParsePluralRulesRejectsMissingActiveLocale(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writePluralRuleFixtures(t, dir)
+
+	_, _, err := parsePluralRules(filepath.Join(dir, "plurals.json"), []string{"en", "missing"})
+	if err == nil || !strings.Contains(err.Error(), `cardinal rule for active locale "missing" is missing`) {
+		t.Fatalf("parsePluralRules() error = %v, want missing cardinal locale context", err)
+	}
+}
+
+func TestParsePluralRulesRejectsMissingActiveOrdinalLocale(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writePluralRuleFixtures(t, dir)
+	writeTestFile(t, filepath.Join(dir, "ordinals.json"), `{"supplemental":{"plurals-type-ordinal":{
+		"en":{"pluralRule-count-other":" @integer 0"}
+	}}}`)
+
+	_, _, err := parsePluralRules(filepath.Join(dir, "plurals.json"), []string{"en", "zh"})
+	if err == nil || !strings.Contains(err.Error(), `ordinal rule for active locale "zh" is missing`) {
+		t.Fatalf("parsePluralRules() error = %v, want missing ordinal locale context", err)
+	}
+}
+
 func TestParsePluralRangesJSON(t *testing.T) {
 	t.Parallel()
 

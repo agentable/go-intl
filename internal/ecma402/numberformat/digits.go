@@ -15,7 +15,7 @@ type DigitOptions struct {
 	MinimumSignificantDigits int
 	MaximumSignificantDigits int
 	RoundingIncrement        int
-	RoundingMode             string
+	RoundingMode             decimal.RoundingMode
 	RoundingPriority         string
 	TrailingZeroDisplay      string
 }
@@ -27,24 +27,25 @@ type FormattedNumeric struct {
 }
 
 // FormatNumericToString applies ECMA-402 digit rounding and zero-padding to d.
-func FormatNumericToString(d decimal.Decimal, opts DigitOptions) FormattedNumeric {
+func FormatNumericToString(d decimal.Decimal, resolved ResolvedDigitOptions) FormattedNumeric {
 	if !d.IsFinite() {
 		return FormattedNumeric{Formatted: d.String(), Rounded: d}
 	}
+	opts := resolved.DigitOptions
 	if canUseRoundedString(d, opts) {
 		return FormattedNumeric{Formatted: d.String(), Rounded: d}
 	}
-	switch roundingType(opts) {
-	case decimal.RoundingTypeSignificantDigits:
+	switch resolved.RoundingType {
+	case RoundingTypeSignificantDigits:
 		formatted, rounded := formatSignificantCandidate(d, opts)
 		return FormattedNumeric{Formatted: formatted, Rounded: rounded}
-	case decimal.RoundingTypeMorePrecision:
+	case RoundingTypeMorePrecision:
 		formatted, rounded := formatPriorityCandidate(d, opts, true)
 		return FormattedNumeric{Formatted: formatted, Rounded: rounded}
-	case decimal.RoundingTypeLessPrecision:
+	case RoundingTypeLessPrecision:
 		formatted, rounded := formatPriorityCandidate(d, opts, false)
 		return FormattedNumeric{Formatted: formatted, Rounded: rounded}
-	case decimal.RoundingTypeFractionDigits:
+	case RoundingTypeFractionDigits:
 	}
 	formatted, rounded := formatFixedCandidate(d, opts)
 	return FormattedNumeric{Formatted: formatted, Rounded: rounded}
@@ -52,7 +53,7 @@ func FormatNumericToString(d decimal.Decimal, opts DigitOptions) FormattedNumeri
 
 // FormatDecimal is the public typed bridge for callers that only need the
 // formatted string.
-func FormatDecimal(d decimal.Decimal, opts DigitOptions) string {
+func FormatDecimal(d decimal.Decimal, opts ResolvedDigitOptions) string {
 	return FormatNumericToString(d, opts).Formatted
 }
 
@@ -109,17 +110,6 @@ func formatSignificantCandidate(d decimal.Decimal, opts DigitOptions) (string, d
 	return formatted, rounded
 }
 
-func roundingType(opts DigitOptions) decimal.RoundingType {
-	priority := decimal.PriorityAuto
-	switch opts.RoundingPriority {
-	case "morePrecision":
-		priority = decimal.PriorityMorePrecision
-	case "lessPrecision":
-		priority = decimal.PriorityLessPrecision
-	}
-	return decimal.ApplyRoundingPriority(opts.MaximumSignificantDigits > 0, true, priority)
-}
-
 // canUseRoundedString returns true only when the input representation is already
 // byte-identical to the general fixed path. Input literal scale is not part of an
 // Intl mathematical value, so fractional trailing zeros and negative zero must
@@ -129,7 +119,7 @@ func canUseRoundedString(d decimal.Decimal, opts DigitOptions) bool {
 	case opts.MinimumIntegerDigits != 1,
 		opts.MinimumFractionDigits != 0,
 		opts.RoundingIncrement != 1,
-		opts.RoundingMode != "halfExpand",
+		opts.RoundingMode != decimal.RoundHalfExpand,
 		opts.TrailingZeroDisplay != "auto",
 		opts.MaximumSignificantDigits > 0,
 		opts.RoundingPriority != "auto":
@@ -144,11 +134,7 @@ func canUseRoundedString(d decimal.Decimal, opts DigitOptions) bool {
 
 func roundFixed(d decimal.Decimal, opts DigitOptions) (decimal.Decimal, bool) {
 	unsigned, negative := unsignedDecimal(d)
-	mode, err := decimal.ParseRoundingMode(opts.RoundingMode)
-	if err != nil {
-		mode = decimal.RoundHalfExpand
-	}
-	mode = decimal.UnsignedRoundingMode(mode, negative)
+	mode := decimal.UnsignedRoundingMode(opts.RoundingMode, negative)
 	scale := -int32(opts.MaximumFractionDigits) // #nosec G115 -- validated to ECMA-402 fraction digit range before construction.
 	rounded := decimal.QuantizeToIncrement(unsigned, opts.RoundingIncrement, scale, mode)
 	return rounded, negative
@@ -166,11 +152,7 @@ func roundSignificant(d decimal.Decimal, opts DigitOptions) (decimal.Decimal, bo
 	if err != nil {
 		return unsigned, negative
 	}
-	mode, err := decimal.ParseRoundingMode(opts.RoundingMode)
-	if err != nil {
-		mode = decimal.RoundHalfExpand
-	}
-	mode = decimal.UnsignedRoundingMode(mode, negative)
+	mode := decimal.UnsignedRoundingMode(opts.RoundingMode, negative)
 	scale := magnitude - int32(opts.MaximumSignificantDigits) + 1 // #nosec G115 -- validated significant digit range is 1..21.
 	return decimal.QuantizeToIncrement(unsigned, 1, scale, mode), negative
 }
@@ -285,8 +267,8 @@ func isNonZeroDigit(r rune) bool {
 }
 
 func signedDecimal(d decimal.Decimal, negative bool) decimal.Decimal {
-	if !negative || d.IsZero() {
+	if !negative {
 		return d
 	}
-	return decimal.Neg(decimal.Abs(d))
+	return decimal.WithSign(d, true)
 }

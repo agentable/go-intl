@@ -26,7 +26,8 @@ type Matcher struct {
 // NewMatcher compiles supported locale data for repeated constructor locale
 // negotiation.
 func NewMatcher(supported []string, maximizer Maximizer) *Matcher {
-	available := availableLocalesFor(supported)
+	maximizer = normalizeMaximizer(maximizer)
+	available := availableLocalesFor(supported, maximizer)
 	m := &Matcher{
 		supported:             make([]string, len(available)),
 		noExtension:           make([]string, len(available)),
@@ -35,7 +36,7 @@ func NewMatcher(supported []string, maximizer Maximizer) *Matcher {
 		exact:                 make(map[string]string, len(available)),
 		dataLocaleByAvailable: make(map[string]string, len(available)),
 		maximizedByLocale:     make(map[string]string, len(available)),
-		maximizer:             normalizeMaximizer(maximizer),
+		maximizer:             maximizer,
 	}
 	m.distanceProfile = compileLanguageMatchingProfile(defaultLanguageMatchingProfile(), m.maximizer)
 	for i, loc := range available {

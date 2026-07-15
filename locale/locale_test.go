@@ -70,6 +70,21 @@ func TestParseVariantGetters(t *testing.T) {
 	}
 }
 
+func TestParseBaseNameAndVariantsExcludeExtensions(t *testing.T) {
+	t.Parallel()
+
+	loc := parseLocaleForTest("de-1901-t-en-u-ca-gregory-x-private")
+	if got, want := loc.BaseName(), "de-1901"; got != want {
+		t.Fatalf("BaseName() = %q, want %q", got, want)
+	}
+	if got := loc.Variants(); len(got) != 1 || got[0] != "1901" {
+		t.Fatalf("Variants() = %#v, want [1901]", got)
+	}
+	if got, want := loc.String(), "de-1901-t-en-u-ca-gregory-x-private"; got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+}
+
 func TestParsePrivateUseDoesNotPromoteUnicodeExtension(t *testing.T) {
 	t.Parallel()
 

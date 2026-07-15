@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
+	"github.com/agentable/go-intl/internal/decimal"
 	ecma402nf "github.com/agentable/go-intl/internal/ecma402/numberformat"
 	"github.com/agentable/go-intl/internal/numbering"
 )
@@ -38,7 +39,7 @@ func formatFastUint64(v uint64, state integerFastPathState) (string, bool) {
 	return formatFastInteger(raw, false, state.useGrouping, state.symbols, state.grouping)
 }
 
-func canUseDecimalIntegerFastPath(resolved ResolvedOptions, digits ecma402nf.DigitOptions) bool {
+func canUseDecimalIntegerFastPath(resolved ResolvedOptions, digits ecma402nf.ResolvedDigitOptions) bool {
 	return resolved.Style == DecimalStyle &&
 		resolved.Notation == StandardNotation &&
 		resolved.SignDisplay == AutoSignDisplay &&
@@ -46,10 +47,9 @@ func canUseDecimalIntegerFastPath(resolved ResolvedOptions, digits ecma402nf.Dig
 		digits.MinimumIntegerDigits == 1 &&
 		digits.MinimumFractionDigits == 0 &&
 		digits.MaximumFractionDigits == 3 &&
-		digits.MinimumSignificantDigits == 0 &&
-		digits.MaximumSignificantDigits == 0 &&
+		digits.RoundingType == ecma402nf.RoundingTypeFractionDigits &&
 		digits.RoundingIncrement == 1 &&
-		digits.RoundingMode == string(HalfExpandRoundingMode) &&
+		digits.RoundingMode == decimal.RoundHalfExpand &&
 		digits.RoundingPriority == string(AutoRoundingPriority) &&
 		digits.TrailingZeroDisplay == string(AutoTrailingZeroDisplay)
 }

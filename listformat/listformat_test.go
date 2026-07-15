@@ -27,8 +27,8 @@ func TestListFormatResolvedOptionsDefaults(t *testing.T) {
 	}
 
 	got := format.ResolvedOptions()
-	if got.Locale.String() != "en" {
-		t.Fatalf("ResolvedOptions().Locale = %q, want en", got.Locale.String())
+	if got.Locale.String() != "en-US" {
+		t.Fatalf("ResolvedOptions().Locale = %q, want en-US", got.Locale.String())
 	}
 	if got.Type != Conjunction {
 		t.Fatalf("ResolvedOptions().Type = %q, want %q", got.Type, Conjunction)

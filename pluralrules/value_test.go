@@ -1,6 +1,8 @@
 package pluralrules
 
-func mustCategory(category Category, err error) Category {
+var _ func(*PluralRules, Value) Category = (*PluralRules).Select
+
+func mustRangeCategory(category Category, err error) Category {
 	if err != nil {
 		panic(err)
 	}

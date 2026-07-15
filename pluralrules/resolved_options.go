@@ -56,7 +56,7 @@ func resolvedOptionsForPluralRules(loc locale.Locale, cfg config, digits ecma402
 		MaximumSignificantDigits: digitProperties.MaximumSignificantDigits,
 		PluralCategories:         categories,
 		RoundingIncrement:        digits.RoundingIncrement,
-		RoundingMode:             RoundingMode(digits.RoundingMode),
+		RoundingMode:             RoundingMode(digits.RoundingMode.String()),
 		RoundingPriority:         RoundingPriority(digits.RoundingPriority),
 		TrailingZeroDisplay:      TrailingZeroDisplay(digits.TrailingZeroDisplay),
 	}

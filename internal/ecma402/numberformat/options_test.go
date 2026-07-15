@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/ecma402"
 )
 
@@ -123,6 +124,47 @@ func TestSetNumberFormatDigitOptions(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("SetNumberFormatDigitOptions() = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSetNumberFormatDigitOptionsResolvesTypedRoundingModes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		want decimal.RoundingMode
+	}{
+		{name: "ceil", want: decimal.RoundCeil},
+		{name: "floor", want: decimal.RoundFloor},
+		{name: "expand", want: decimal.RoundExpand},
+		{name: "trunc", want: decimal.RoundTrunc},
+		{name: "halfCeil", want: decimal.RoundHalfCeil},
+		{name: "halfFloor", want: decimal.RoundHalfFloor},
+		{name: "halfExpand", want: decimal.RoundHalfExpand},
+		{name: "halfTrunc", want: decimal.RoundHalfTrunc},
+		{name: "halfEven", want: decimal.RoundHalfEven},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, invalid, bad := SetNumberFormatDigitOptions(DigitOptionConfig{
+				MinimumIntegerDigits: 1,
+				RoundingIncrement:    1,
+				RoundingMode:         tc.name,
+				RoundingPriority:     "auto",
+				TrailingZeroDisplay:  "auto",
+			}, 0, 3, "standard")
+			if bad {
+				t.Fatalf("SetNumberFormatDigitOptions() invalid = %+v, want valid", invalid)
+			}
+			if got.RoundingMode != tc.want {
+				t.Fatalf("RoundingMode = %v, want %v", got.RoundingMode, tc.want)
+			}
+			if got.RoundingMode.String() != tc.name {
+				t.Fatalf("RoundingMode.String() = %q, want %q", got.RoundingMode.String(), tc.name)
 			}
 		})
 	}
@@ -432,4 +474,19 @@ func withDigitConfig(in DigitOptionConfig, apply func(*DigitOptionConfig)) Digit
 
 func resolvedDigits(options DigitOptions, roundingType RoundingType) ResolvedDigitOptions {
 	return ResolvedDigitOptions{DigitOptions: options, RoundingType: roundingType}
+}
+
+func inferredResolvedDigits(options DigitOptions) ResolvedDigitOptions {
+	roundingType := RoundingTypeFractionDigits
+	switch options.RoundingPriority {
+	case "morePrecision":
+		roundingType = RoundingTypeMorePrecision
+	case "lessPrecision":
+		roundingType = RoundingTypeLessPrecision
+	default:
+		if options.MaximumSignificantDigits > 0 {
+			roundingType = RoundingTypeSignificantDigits
+		}
+	}
+	return resolvedDigits(options, roundingType)
 }

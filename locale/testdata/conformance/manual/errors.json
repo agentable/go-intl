@@ -1,0 +1,11 @@
+[
+  {
+    "id": "locale-manual-invalid-numeric-first-day-tag",
+    "source": "manual",
+    "locale": "en-US",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "en-US-u-fw-0",
+    "errorCode": "invalid_value"
+  }
+]

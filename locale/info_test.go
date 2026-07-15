@@ -12,24 +12,34 @@ func TestGetWeekInfo(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		in       string
-		firstDay time.Weekday
-		weekend  []time.Weekday
+		name           string
+		in             string
+		firstDayOption string
+		firstDay       time.Weekday
+		weekend        []time.Weekday
 	}{
-		{in: "en-US", firstDay: time.Sunday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
-		{in: "de-DE", firstDay: time.Monday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
-		{in: "en-US-u-fw-mon", firstDay: time.Monday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
-		{in: "en-US-u-fw-2", firstDay: time.Tuesday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
-		{in: "en-US-u-fw-3", firstDay: time.Wednesday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
-		{in: "en-US-u-fw-4", firstDay: time.Thursday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
-		{in: "en-US-u-fw-5", firstDay: time.Friday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
-		{in: "en-US-u-fw-6", firstDay: time.Saturday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
-		{in: "en-US-u-fw-7", firstDay: time.Sunday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
+		{name: "US default", in: "en-US", firstDay: time.Sunday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
+		{name: "German default", in: "de-DE", firstDay: time.Monday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
+		{name: "tag keyword", in: "en-US-u-fw-mon", firstDay: time.Monday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
+		{name: "numeric option 2", in: "en-US", firstDayOption: "2", firstDay: time.Tuesday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
+		{name: "numeric option 3", in: "en-US", firstDayOption: "3", firstDay: time.Wednesday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
+		{name: "numeric option 4", in: "en-US", firstDayOption: "4", firstDay: time.Thursday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
+		{name: "numeric option 5", in: "en-US", firstDayOption: "5", firstDay: time.Friday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
+		{name: "numeric option 6", in: "en-US", firstDayOption: "6", firstDay: time.Saturday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
+		{name: "numeric option 7", in: "en-US", firstDayOption: "7", firstDay: time.Sunday, weekend: []time.Weekday{time.Saturday, time.Sunday}},
 	}
 	for _, tc := range tests {
-		t.Run(tc.in, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := parseLocaleForTest(tc.in).GetWeekInfo()
+			opts := Options{}
+			if tc.firstDayOption != "" {
+				opts.FirstDayOfWeek = stringPtr(tc.firstDayOption)
+			}
+			loc, err := New(tc.in, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := loc.GetWeekInfo()
 			if got.FirstDay != tc.firstDay || !slices.Equal(got.Weekend, tc.weekend) {
 				t.Fatalf("GetWeekInfo() = %#v", got)
 			}

@@ -169,9 +169,9 @@ func TestQuantizeToEachSanctionedIncrement(t *testing.T) {
 }
 
 func FuzzQuantizeToIncrement(f *testing.F) {
-	f.Add("12345", int8(-2), uint8(0), int8(-1), uint8(RoundHalfExpand))
-	f.Add("1"+strings.Repeat("0", 99)+"5", int8(0), uint8(3), int8(0), uint8(RoundTrunc))
-	f.Add("9"+strings.Repeat("9", 999), int8(20), uint8(14), int8(21), uint8(RoundHalfEven))
+	f.Add("12345", int8(-2), uint8(0), int8(-1), uint8(6))
+	f.Add("1"+strings.Repeat("0", 99)+"5", int8(0), uint8(3), int8(0), uint8(3))
+	f.Add("9"+strings.Repeat("9", 999), int8(20), uint8(14), int8(21), uint8(8))
 
 	f.Fuzz(func(t *testing.T, coefficientText string, sourceExp int8, incrementIndex uint8, targetExp int8, modeValue uint8) {
 		if coefficientText == "" || len(coefficientText) > 1000 || strings.Trim(coefficientText, "0123456789") != "" {
@@ -183,7 +183,7 @@ func FuzzQuantizeToIncrement(f *testing.F) {
 		}
 		increments := RoundingIncrements()
 		increment := increments[int(incrementIndex)%len(increments)]
-		mode := UnsignedRoundingMode(RoundingMode(int(modeValue)%len(roundingModeNames)), false)
+		mode := UnsignedRoundingMode(roundingModeNames[int(modeValue)%len(roundingModeNames)], false)
 		input := New(false, coefficient, int32(sourceExp))
 		got := QuantizeToIncrement(input, increment, int32(targetExp), mode)
 

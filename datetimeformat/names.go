@@ -75,7 +75,7 @@ func dayPeriodPatternName(gregorian *cldrdate.Gregorian, width int, t localTime)
 }
 
 func flexibleDayPeriodPatternName(cldrLoc cldrdate.Locale, gregorian *cldrdate.Gregorian, width int, t localTime) string {
-	period := cldrdate.DayPeriodFor(cldrLoc, t.Hour, t.Minute)
+	period := flexibleDayPeriodValue(cldrLoc, t)
 	names := gregorian.DayPeriods.Flex[period]
 	if width == 5 && names.Narrow != "" {
 		return names.Narrow
@@ -87,4 +87,14 @@ func flexibleDayPeriodPatternName(cldrLoc cldrdate.Locale, gregorian *cldrdate.G
 		return names.Abbr
 	}
 	return dayPeriodPatternName(gregorian, width, t)
+}
+
+func flexibleDayPeriodValue(cldrLoc cldrdate.Locale, t localTime) string {
+	if period := cldrdate.DayPeriodFor(cldrLoc, t.Hour, t.Minute); period != "" {
+		return period
+	}
+	if t.Hour < 12 {
+		return "am"
+	}
+	return "pm"
 }

@@ -20,6 +20,13 @@ func Neg(d Decimal) Decimal {
 	return d
 }
 
+// WithSign returns d with the requested sign, including for zero.
+func WithSign(d Decimal, negative bool) Decimal {
+	d.negative = negative
+	d.inner.Negative = negative && !d.IsZero()
+	return d
+}
+
 // MulInt returns d multiplied by n.
 func MulInt(d Decimal, n int64) Decimal {
 	if !d.IsFinite() {

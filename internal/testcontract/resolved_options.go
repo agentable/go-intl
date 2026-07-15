@@ -44,6 +44,12 @@ func AssertResolvedBool(t testing.TB, values ResolvedOptionsFixture, name string
 	assertResolvedValue(t, values, name, got, strconv.FormatBool)
 }
 
+func AssertResolvedOptionalBool(t testing.TB, values ResolvedOptionsFixture, name string, got *bool) {
+	t.Helper()
+
+	assertResolvedOptional(t, values, name, got, strconv.FormatBool)
+}
+
 func AssertResolvedOptionalInt(t testing.TB, values ResolvedOptionsFixture, name string, got *int) {
 	t.Helper()
 

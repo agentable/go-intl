@@ -17,7 +17,7 @@ type CompactExponentLookup func(magnitude int) (exponent int, ok bool)
 // computeExponent engine (which owns the post-rounding carry recheck) and returns
 // the scaled value, its magnitude, the compact exponent, and whether compact
 // notation applies. Below MinCompactMagnitude it does not apply.
-func ResolveCompactMagnitude(d decimal.Decimal, digitOptions DigitOptions, lookup CompactExponentLookup) (decimal.Decimal, int, int, bool) {
+func ResolveCompactMagnitude(d decimal.Decimal, digitOptions ResolvedDigitOptions, lookup CompactExponentLookup) (decimal.Decimal, int, int, bool) {
 	exponent, magnitude, ok := computeExponent(d, digitOptions, compactExponentForMagnitude(lookup))
 	if !ok {
 		return d, 0, 0, false

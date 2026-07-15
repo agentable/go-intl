@@ -1,8 +1,10 @@
 package numberformat
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/intlerr"
@@ -29,73 +31,34 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 		if len(fixture.ExpectedResolved) != 0 {
 			assertNumberFormatResolvedOptions(t, fixture, format.ResolvedOptions())
 		}
-		var input any
-		if err := json.Unmarshal(fixture.Input, &input); err != nil {
-			t.Fatal(err)
-		}
 		if fixture.ExpectedRange != nil || len(fixture.ExpectedRangeParts) > 0 {
 			rangeInput := conformanceNumberRangeInput(t, fixture)
 			if fixture.ExpectedRange != nil {
-				got, err := format.formatRangeValue(rangeInput.Start, rangeInput.End)
+				got, err := format.FormatRange(rangeInput.Start, rangeInput.End)
 				if err != nil {
-					t.Fatalf("FormatRange(%v, %v) error = %v", rangeInput.Start, rangeInput.End, err)
+					t.Fatalf("FormatRange() error = %v", err)
 				}
 				testcontract.AssertExpectedRange(t, "FormatRange", got, fixture.ExpectedRange)
 			}
 			if len(fixture.ExpectedRangeParts) > 0 {
-				parts, err := format.formatRangeToPartsValue(rangeInput.Start, rangeInput.End)
+				parts, err := format.FormatRangeToParts(rangeInput.Start, rangeInput.End)
 				if err != nil {
-					t.Fatalf("FormatRangeToParts(%v, %v) error = %v", rangeInput.Start, rangeInput.End, err)
+					t.Fatalf("FormatRangeToParts() error = %v", err)
 				}
 				testcontract.AssertRangeParts(t, "FormatRangeToParts", parts, fixture.ExpectedRangeParts, conformanceNumberRangePart)
 			}
 			return
 		}
+		input := conformanceNumberInput(t, fixture.Input)
 		want := fixture.RequiredExpected(t)
-		if got := format.formatValue(input); got != want {
-			t.Fatalf("Format(%v) = %q, want %q", input, got, want)
+		if got := format.Format(input); got != want {
+			t.Fatalf("Format() = %q, want %q", got, want)
 		}
 		if len(fixture.ExpectedParts) > 0 {
-			parts := format.formatToPartsValue(input)
+			parts := format.FormatToParts(input)
 			testcontract.AssertParts(t, "FormatToParts", parts, fixture.ExpectedParts, conformanceNumberPart)
 		}
 	})
-}
-
-type formatFixture struct {
-	Name                  string  `json:"name"`
-	Locale                string  `json:"locale"`
-	Style                 *string `json:"style,omitempty"`
-	Currency              *string `json:"currency,omitempty"`
-	Notation              *string `json:"notation,omitempty"`
-	MaximumFractionDigits *int    `json:"maximumFractionDigits,omitempty"`
-	Input                 any     `json:"input"`
-	Want                  string  `json:"want"`
-}
-
-func TestNumberFormatConformanceFixtures(t *testing.T) {
-	t.Parallel()
-
-	var fixtures []formatFixture
-	intltest.ReadFixture(t, "testdata/format.json", &fixtures)
-	for _, fixture := range fixtures {
-		t.Run(fixture.Name, func(t *testing.T) {
-			t.Parallel()
-
-			format, err := New(intltest.LocaleList(t, fixture.Locale), Options{
-				Style:                 fixture.Style,
-				Currency:              fixture.Currency,
-				Notation:              fixture.Notation,
-				MaximumFractionDigits: fixture.MaximumFractionDigits,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := format.formatValue(fixture.Input); got != fixture.Want {
-				t.Fatalf("Format(%v) = %q, want %q", fixture.Input, got, fixture.Want)
-			}
-		})
-	}
 }
 
 func TestConformanceNumberOptionsPreserveExplicitEmptyString(t *testing.T) {
@@ -153,45 +116,76 @@ func conformanceNumberError(t testing.TB, code string) error {
 }
 
 type conformanceNumberRange struct {
-	Start any `json:"start"`
-	End   any `json:"end"`
+	Start Value
+	End   Value
 }
 
 func conformanceNumberRangeInput(t *testing.T, fixture conformance.Fixture) conformanceNumberRange {
 	t.Helper()
 
-	var input conformanceNumberRange
+	var input struct {
+		Start json.RawMessage `json:"start"`
+		End   json.RawMessage `json:"end"`
+	}
 	if err := json.Unmarshal(fixture.Input, &input); err != nil {
 		t.Fatal(err)
 	}
-	return input
+	return conformanceNumberRange{
+		Start: conformanceNumberInput(t, input.Start),
+		End:   conformanceNumberInput(t, input.End),
+	}
+}
+
+func conformanceNumberInput(t testing.TB, raw json.RawMessage) Value {
+	t.Helper()
+
+	raw = bytes.TrimSpace(raw)
+	if bytes.Equal(raw, []byte("null")) {
+		return Float(math.NaN())
+	}
+	if len(raw) > 0 && raw[0] == '"' {
+		var value string
+		if err := json.Unmarshal(raw, &value); err != nil {
+			t.Fatal(err)
+		}
+		input, err := Decimal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return input
+	}
+	var value float64
+	if err := json.Unmarshal(raw, &value); err != nil {
+		t.Fatalf("number input %s: %v", raw, err)
+	}
+	return Float(value)
 }
 
 func conformanceNumberOptions(t *testing.T, fixture conformance.Fixture) Options {
 	t.Helper()
 
 	var options struct {
-		Style                    *string `json:"style"`
-		Currency                 *string `json:"currency"`
-		CurrencyDisplay          *string `json:"currencyDisplay"`
-		CurrencySign             *string `json:"currencySign"`
-		Unit                     *string `json:"unit"`
-		UnitDisplay              *string `json:"unitDisplay"`
-		MinimumIntegerDigits     *int    `json:"minimumIntegerDigits"`
-		MinimumFractionDigits    *int    `json:"minimumFractionDigits"`
-		MaximumFractionDigits    *int    `json:"maximumFractionDigits"`
-		MinimumSignificantDigits *int    `json:"minimumSignificantDigits"`
-		MaximumSignificantDigits *int    `json:"maximumSignificantDigits"`
-		RoundingIncrement        *int    `json:"roundingIncrement"`
-		RoundingPriority         *string `json:"roundingPriority"`
-		RoundingMode             *string `json:"roundingMode"`
-		TrailingZeroDisplay      *string `json:"trailingZeroDisplay"`
-		Notation                 *string `json:"notation"`
-		CompactDisplay           *string `json:"compactDisplay"`
-		UseGrouping              any     `json:"useGrouping"`
-		SignDisplay              *string `json:"signDisplay"`
-		LocaleMatcher            *string `json:"localeMatcher"`
-		NumberingSystem          *string `json:"numberingSystem"`
+		Style                    *string         `json:"style"`
+		Currency                 *string         `json:"currency"`
+		CurrencyDisplay          *string         `json:"currencyDisplay"`
+		CurrencySign             *string         `json:"currencySign"`
+		Unit                     *string         `json:"unit"`
+		UnitDisplay              *string         `json:"unitDisplay"`
+		MinimumIntegerDigits     *int            `json:"minimumIntegerDigits"`
+		MinimumFractionDigits    *int            `json:"minimumFractionDigits"`
+		MaximumFractionDigits    *int            `json:"maximumFractionDigits"`
+		MinimumSignificantDigits *int            `json:"minimumSignificantDigits"`
+		MaximumSignificantDigits *int            `json:"maximumSignificantDigits"`
+		RoundingIncrement        *int            `json:"roundingIncrement"`
+		RoundingPriority         *string         `json:"roundingPriority"`
+		RoundingMode             *string         `json:"roundingMode"`
+		TrailingZeroDisplay      *string         `json:"trailingZeroDisplay"`
+		Notation                 *string         `json:"notation"`
+		CompactDisplay           *string         `json:"compactDisplay"`
+		UseGrouping              json.RawMessage `json:"useGrouping"`
+		SignDisplay              *string         `json:"signDisplay"`
+		LocaleMatcher            *string         `json:"localeMatcher"`
+		NumberingSystem          *string         `json:"numberingSystem"`
 	}
 	if err := json.Unmarshal(fixture.Options, &options); err != nil {
 		t.Fatal(err)
@@ -221,28 +215,27 @@ func conformanceNumberOptions(t *testing.T, fixture conformance.Fixture) Options
 	}
 }
 
-func conformanceUseGroupingOption(t *testing.T, value any) *string {
+func conformanceUseGroupingOption(t *testing.T, raw json.RawMessage) *string {
 	t.Helper()
 
-	if value == nil {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
 		return nil
 	}
-	return stringPtr(conformanceUseGrouping(t, value))
-}
-
-func conformanceUseGrouping(t *testing.T, value any) string {
-	t.Helper()
-
-	switch value := value.(type) {
-	case string:
-		return value
-	case bool:
-		if value {
-			return "always"
+	if raw[0] == '"' {
+		var value string
+		if err := json.Unmarshal(raw, &value); err != nil {
+			t.Fatal(err)
 		}
-		return "false"
-	default:
-		t.Fatalf("useGrouping option has type %T, want string or bool", value)
-		return ""
+		return stringPtr(value)
 	}
+	var value bool
+	if err := json.Unmarshal(raw, &value); err == nil {
+		if value {
+			return stringPtr("always")
+		}
+		return stringPtr("false")
+	}
+	t.Fatalf("useGrouping option must be a string or boolean, got %s", raw)
+	return nil
 }

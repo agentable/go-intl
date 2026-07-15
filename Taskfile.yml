@@ -199,39 +199,7 @@ tasks:
     desc: Verify CLDR, IANA identity, and Go transition-data pins are compatible
     internal: true
     cmds:
-      - |
-        VERSION_PIN=$(grep '^cldr=' internal/cldr/VERSION | cut -d= -f2 | tr -d ' \t\r\n')
-        MANIFEST_PIN=$(grep '"cldr-core"' tools/gen-cldr/.cldr-json/package.json | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/')
-        if [ -z "$VERSION_PIN" ] || [ -z "$MANIFEST_PIN" ]; then
-          echo "ERROR: could not extract CLDR pin from VERSION or package.json" >&2
-          exit 1
-        fi
-        if [ "$VERSION_PIN" != "$MANIFEST_PIN" ]; then
-          printf '\nERROR: CLDR version pin drift\n' >&2
-          printf '  internal/cldr/VERSION                          : cldr=%s\n' "$VERSION_PIN" >&2
-          printf '  tools/gen-cldr/.cldr-json/package.json         : cldr-core=%s\n\n' "$MANIFEST_PIN" >&2
-          printf 'Fix: edit tools/gen-cldr/.cldr-json/package.json so all 8 cldr-* deps match VERSION,\n' >&2
-          printf '     run: npm install --package-lock-only --prefix tools/gen-cldr/.cldr-json\n' >&2
-          printf '     then commit package.json and package-lock.json.\n\n' >&2
-          exit 1
-        fi
-
-        TZ_PIN=$(grep '^tzdata=' internal/cldr/VERSION | cut -d= -f2 | tr -d ' \t\r\n')
-        TZ_LOCK=$(sed -n -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' tools/gen-cldr/tzdata.json)
-        if [ -z "$TZ_PIN" ] || [ "$TZ_PIN" != "$TZ_LOCK" ]; then
-          printf 'ERROR: tzdata pin drift: VERSION=%s lock=%s\n' "$TZ_PIN" "$TZ_LOCK" >&2
-          exit 1
-        fi
-        GO_UPDATE=$(go env GOROOT)/lib/time/update.bash
-        GO_TZ=$(sed -n 's/^DATA=//p' "$GO_UPDATE" 2>/dev/null | head -1)
-        if [ -z "$GO_TZ" ]; then
-          printf 'ERROR: cannot prove Go transition tzdata version from %s\n' "$GO_UPDATE" >&2
-          exit 1
-        fi
-        if ! awk -v transitions="$GO_TZ" -v identity="$TZ_PIN" 'BEGIN { exit !(transitions >= identity) }'; then
-          printf 'ERROR: Go transition tzdata %s is older than identity tzdata %s\n' "$GO_TZ" "$TZ_PIN" >&2
-          exit 1
-        fi
+      - go run ./tools/data-preflight
 
   data:fetch:cldr:
     desc: Install pinned cldr-json source via npm ci
@@ -314,85 +282,28 @@ tasks:
     deps:
       - data:fetch
     cmds:
-      - rm -rf .tmp/cldr-check .tmp/localeid .tmp/localematcher .tmp/tz && mkdir -p .tmp/cldr-check
+      - rm -rf .tmp/generated
+      - mkdir -p .tmp/generated/internal/cldr
       - >-
         go -C tools/gen-cldr run .
         -cldr-dir .cldr-json/node_modules
-        -out ../../.tmp/cldr-check
+        -out ../../.tmp/generated/internal/cldr
         -version-file ../../internal/cldr/VERSION
         -profile ../locale-profile.json
-        -localeid-out ../../.tmp/localeid/unicode_alias_data.go
-        -localematcher-out ../../.tmp/localematcher/profile_data.go
+        -localeid-out ../../.tmp/generated/internal/localeid/unicode_alias_data.go
+        -localematcher-out ../../.tmp/generated/internal/localematcher/profile_data.go
         -tzdata-lock tzdata.json
-        -timezone-out ../../.tmp/tz/registry_data.go
+        -timezone-out ../../.tmp/generated/internal/tz/registry_data.go
       - >-
         go -C tools/gen-plural-rules run .
         -plurals ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/plurals.json
         -ranges ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/pluralRanges.json
-        -out ../../.tmp/cldr-check/plural
+        -out ../../.tmp/generated/internal/cldr/plural
         -profile ../locale-profile.json
-      # displaynames/accessors.go is hand-written lookup policy; compare the
-      # generated DisplayNames payload explicitly.
-      # codec is a hand-written decode package; accessors.go, decode.go, and
-      # fallback.go are hand-written per-domain query/decode/fallback layers.
-      # Only the generated data.go payload is compared for each migrated domain.
       - >-
-        diff -ru
-        -x VERSION
-        -x '*_test.go'
-        -x cldr.go
-        -x doc.go
-        -x version.go
-        -x displaynames
-        -x codec
-        -x accessors.go
-        -x decode.go
-        -x fallback.go
-        internal/cldr .tmp/cldr-check
-      - >-
-        diff -u
-        internal/cldr/displaynames/data.go
-        .tmp/cldr-check/displaynames/data.go
-      - >-
-        diff -u
-        internal/cldr/unit/data.go
-        .tmp/cldr-check/unit/data.go
-      - >-
-        diff -u
-        internal/cldr/date/data.go
-        .tmp/cldr-check/date/data.go
-      - >-
-        diff -u
-        internal/cldr/relativetime/data.go
-        .tmp/cldr-check/relativetime/data.go
-      - >-
-        diff -u
-        internal/cldr/currency/data.go
-        .tmp/cldr-check/currency/data.go
-      - >-
-        diff -u
-        internal/cldr/number/data.go
-        .tmp/cldr-check/number/data.go
-      - >-
-        diff -u
-        internal/cldr/timezone/data.go
-        .tmp/cldr-check/timezone/data.go
-      - >-
-        diff -u
-        internal/cldr/locale/data.go
-        .tmp/cldr-check/locale/data.go
-      - >-
-        diff -u
-        internal/localeid/unicode_alias_data.go
-        .tmp/localeid/unicode_alias_data.go
-      - >-
-        diff -u
-        internal/localematcher/profile_data.go
-        .tmp/localematcher/profile_data.go
-      - >-
-        diff -u
-        internal/tz/registry_data.go
-        .tmp/tz/registry_data.go
+        go run ./tools/check-generated-data
+        -committed internal
+        -generated .tmp/generated/internal
       - task: data:contract
 
   data:contract:

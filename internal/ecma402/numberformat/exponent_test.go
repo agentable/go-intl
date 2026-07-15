@@ -45,7 +45,7 @@ func TestScientificExponent(t *testing.T) {
 				RoundingPriority:      "auto",
 				TrailingZeroDisplay:   "auto",
 			}
-			got, ok := ScientificExponent(d, opts, tc.engineering)
+			got, ok := ScientificExponent(d, inferredResolvedDigits(opts), tc.engineering)
 			if !ok {
 				t.Fatalf("ScientificExponent(%s, %t) ok = false, want true", tc.in, tc.engineering)
 			}
@@ -63,7 +63,7 @@ func TestScientificExponentRejectsNonFinite(t *testing.T) {
 		t.Run(d.String(), func(t *testing.T) {
 			t.Parallel()
 
-			if got, ok := ScientificExponent(d, DigitOptions{MaximumFractionDigits: 3, RoundingIncrement: 1}, false); ok {
+			if got, ok := ScientificExponent(d, inferredResolvedDigits(DigitOptions{MaximumFractionDigits: 3, RoundingIncrement: 1}), false); ok {
 				t.Fatalf("ScientificExponent(%s, false) = %d, true; want ok false", d.String(), got)
 			}
 		})

@@ -75,9 +75,9 @@ func pluralFixtureValue(rules *PluralRules, feature string, input any) (Category
 func selectFixtureValue(rules *PluralRules, input any) (Category, error) {
 	switch value := input.(type) {
 	case float64:
-		return rules.Select(Float(value))
+		return rules.Select(Float(value)), nil
 	case string:
-		return rules.Select(decimalValue(value))
+		return rules.Select(decimalValue(value)), nil
 	default:
 		return Other, fmt.Errorf("pluralrules fixture input %T: %w", input, intlerr.ErrInvalidValue)
 	}

@@ -91,6 +91,35 @@ func TestNumberFormatResolvedOptionsDefaults(t *testing.T) {
 	}
 }
 
+func TestNumberFormatResolvedOptionsPreservesEveryRoundingMode(t *testing.T) {
+	t.Parallel()
+
+	modes := []RoundingMode{
+		CeilRoundingMode,
+		FloorRoundingMode,
+		ExpandRoundingMode,
+		TruncRoundingMode,
+		HalfCeilRoundingMode,
+		HalfFloorRoundingMode,
+		HalfExpandRoundingMode,
+		HalfTruncRoundingMode,
+		HalfEvenRoundingMode,
+	}
+	for _, mode := range modes {
+		t.Run(string(mode), func(t *testing.T) {
+			t.Parallel()
+
+			format, err := New(locale.List{intltest.Locale(t, "en")}, Options{RoundingMode: stringPtr(mode)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := format.ResolvedOptions().RoundingMode; got != mode {
+				t.Fatalf("ResolvedOptions().RoundingMode = %q, want %q", got, mode)
+			}
+		})
+	}
+}
+
 func TestNumberFormatResolvedOptionsNumberingSystem(t *testing.T) {
 	t.Parallel()
 
@@ -121,7 +150,7 @@ func TestNumberFormatUsesMatchedNumberDataLocale(t *testing.T) {
 	if got := format.ResolvedOptions().NumberingSystem; got != "latn" {
 		t.Fatalf("NumberingSystem = %q, want latn", got)
 	}
-	if got := format.formatValue(1234); got != "1.234" {
+	if got := format.Format(Float(1234)); got != "1.234" {
 		t.Fatalf("Format(1234) = %q, want German grouping %q", got, "1.234")
 	}
 }

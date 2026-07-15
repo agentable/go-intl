@@ -90,6 +90,35 @@ func TestNewLanguageIdentifierOptions(t *testing.T) {
 	}
 }
 
+func TestNewLanguageIdentifierOptionsPreserveExtensions(t *testing.T) {
+	t.Parallel()
+
+	loc, err := New("de-1901-t-en-u-ca-gregory-x-private", Options{
+		Language: stringPtr("fr"),
+		Script:   stringPtr("Latn"),
+		Region:   stringPtr("CA"),
+	})
+	if err != nil {
+		t.Fatalf("New language options error = %v", err)
+	}
+	const want = "fr-Latn-CA-1901-t-en-u-ca-gregory-x-private"
+	if got := loc.String(); got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+	if got, want := loc.Tag().String(), "fr-Latn-CA-1901-t-en-x-private"; got != want {
+		t.Fatalf("Tag().String() = %q, want %q", got, want)
+	}
+	if got, want := loc.BaseName(), "fr-Latn-CA-1901"; got != want {
+		t.Fatalf("BaseName() = %q, want %q", got, want)
+	}
+	if got := loc.Variants(); len(got) != 1 || got[0] != "1901" {
+		t.Fatalf("Variants() = %#v, want [1901]", got)
+	}
+	if got, want := loc.Calendar(), "gregory"; got != want {
+		t.Fatalf("Calendar() = %q, want %q", got, want)
+	}
+}
+
 func TestNewRejectsExplicitEmptyStringOptions(t *testing.T) {
 	t.Parallel()
 
@@ -223,18 +252,37 @@ func TestLocaleNewRejectsInvalidOption(t *testing.T) {
 	}
 }
 
-func TestNewCanonicalizesNumericFirstDayOfWeekZero(t *testing.T) {
+func TestNewCanonicalizesNumericFirstDayOfWeek(t *testing.T) {
 	t.Parallel()
 
-	loc, err := New("en-US", Options{FirstDayOfWeek: stringPtr("0")})
-	if err != nil {
-		t.Fatalf("New err = %v", err)
+	tests := []struct {
+		value string
+		want  string
+	}{
+		{value: "0", want: "sun"},
+		{value: "1", want: "mon"},
+		{value: "2", want: "tue"},
+		{value: "3", want: "wed"},
+		{value: "4", want: "thu"},
+		{value: "5", want: "fri"},
+		{value: "6", want: "sat"},
+		{value: "7", want: "sun"},
 	}
-	if got, want := loc.String(), "en-US-u-fw-sun"; got != want {
-		t.Fatalf("String() = %q, want %q", got, want)
-	}
-	if got := loc.FirstDayOfWeek(); got != "sun" {
-		t.Fatalf("FirstDayOfWeek() = %q, want sun", got)
+	for _, tc := range tests {
+		t.Run(tc.value, func(t *testing.T) {
+			t.Parallel()
+
+			loc, err := New("en-US", Options{FirstDayOfWeek: stringPtr(tc.value)})
+			if err != nil {
+				t.Fatalf("New err = %v", err)
+			}
+			if got, want := loc.String(), "en-US-u-fw-"+tc.want; got != want {
+				t.Fatalf("String() = %q, want %q", got, want)
+			}
+			if got := loc.FirstDayOfWeek(); got != tc.want {
+				t.Fatalf("FirstDayOfWeek() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

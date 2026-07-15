@@ -329,18 +329,15 @@ func isRFC3339Range(input map[string]any) bool {
 func ValidateFixtureRoots(roots []string, now time.Time) error {
 	seen := map[string]string{}
 	for _, root := range roots {
-		fixtures, err := LoadFixtures(root)
+		suite, err := loadRunSuite(root, now)
 		if err != nil {
 			return err
 		}
-		for _, fixture := range fixtures {
+		for _, fixture := range suite.fixtures {
 			if previous := seen[fixture.ID]; previous != "" {
 				return fmt.Errorf("duplicate fixture id %q in %s and %s: %w", fixture.ID, previous, root, errDuplicateFixtureID)
 			}
 			seen[fixture.ID] = root
-		}
-		if err := validateXFailFile(root, fixtures, now); err != nil {
-			return err
 		}
 	}
 	return nil

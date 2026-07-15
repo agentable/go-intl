@@ -13,7 +13,7 @@ type exponentForMagnitude func(magnitude int) (exponent int, ok bool)
 // pushes the mantissa up a magnitude (999 -> 1000), the exponent is re-derived
 // from magnitude+1. Mirrors FormatJS ComputeExponent
 // (.references/formatjs/packages/ecma402-abstract/NumberFormat/ComputeExponent.ts).
-func computeExponent(d decimal.Decimal, digitOptions DigitOptions, toExponent exponentForMagnitude) (exponent, magnitude int, ok bool) {
+func computeExponent(d decimal.Decimal, digitOptions ResolvedDigitOptions, toExponent exponentForMagnitude) (exponent, magnitude int, ok bool) {
 	abs := decimal.Abs(d)
 	if abs.IsZero() {
 		exponent, ok = toExponent(0)
@@ -45,7 +45,7 @@ func computeExponent(d decimal.Decimal, digitOptions DigitOptions, toExponent ex
 
 // ScientificExponent returns the decimal exponent used by scientific and
 // engineering notation, including the post-rounding carry recheck.
-func ScientificExponent(d decimal.Decimal, digitOptions DigitOptions, engineering bool) (int, bool) {
+func ScientificExponent(d decimal.Decimal, digitOptions ResolvedDigitOptions, engineering bool) (int, bool) {
 	exponent, _, ok := computeExponent(d, digitOptions, scientificExponentForMagnitude(engineering))
 	return exponent, ok
 }

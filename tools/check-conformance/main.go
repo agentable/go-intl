@@ -37,11 +37,6 @@ func run(args []string, stdout io.Writer) error {
 	if err := conformance.ValidateFixtureRoots(roots, time.Now()); err != nil {
 		return err
 	}
-	for _, root := range roots {
-		if err := conformance.ValidateDivergences(root); err != nil {
-			return err
-		}
-	}
 	if *skipListPath != "" {
 		if err := conformance.ValidateSkipList(*skipListPath, roots); err != nil {
 			return err

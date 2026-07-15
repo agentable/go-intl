@@ -1,12 +1,6 @@
 package locale
 
-import (
-	"strings"
-
-	"github.com/agentable/go-intl/internal/localeid"
-
-	"golang.org/x/text/language"
-)
+import "github.com/agentable/go-intl/internal/localeid"
 
 type Options struct {
 	Language        *string
@@ -35,11 +29,11 @@ func applyLanguageOptions(loc *Locale, opts Options) error {
 	if err := applySubtagOption(&region, opts.Region, "region", localeRegionExpected, localeid.CanonicalUnicodeRegionSubtag); err != nil {
 		return err
 	}
-	base, err := buildLanguageTag(lang, script, region, loc.Variants())
+	tag, err := localeid.ReplaceLanguageSubtags(loc.tag, lang, script, region)
 	if err != nil {
-		return err
+		return invalidLocaleOptionExpected("languageIdentifier", localeid.Join(lang, script, region), localeLanguageIdentifierExpected, err)
 	}
-	loc.tag = base
+	loc.tag = tag
 	return nil
 }
 
@@ -86,28 +80,4 @@ func applySubtagOption(dst *string, value *string, name, expected string, canoni
 	}
 	*dst = canonical
 	return nil
-}
-
-func buildLanguageTag(lang, script, region string, variants []string) (language.Tag, error) {
-	parts := []string{lang}
-	if script != "" {
-		parts = append(parts, script)
-	}
-	if region != "" {
-		parts = append(parts, region)
-	}
-	for _, variant := range variants {
-		canonical, ok := localeid.CanonicalUnicodeVariantSubtag(variant)
-		if !ok {
-			tag := strings.Join(parts, "-") + "-" + variant
-			return language.Tag{}, invalidLocaleOptionExpected("languageIdentifier", tag, localeLanguageIdentifierExpected, nil)
-		}
-		parts = append(parts, canonical)
-	}
-	tag := strings.Join(parts, "-")
-	parsed, err := language.Parse(tag)
-	if err != nil {
-		return language.Tag{}, invalidLocaleOptionExpected("languageIdentifier", tag, localeLanguageIdentifierExpected, err)
-	}
-	return parsed, nil
 }

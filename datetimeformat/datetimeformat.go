@@ -14,13 +14,12 @@ import (
 )
 
 type DateTimeFormat struct {
-	resolved             ResolvedOptions
-	cldrLoc              cldrdate.Locale
-	gregorian            cldrdate.Gregorian
-	location             *time.Location
-	uses24Hour           bool
-	pattern              selectedPattern
-	fallbackRangePattern ecma402.Pattern
+	resolved   ResolvedOptions
+	cldrLoc    cldrdate.Locale
+	gregorian  cldrdate.Gregorian
+	location   *time.Location
+	uses24Hour bool
+	pattern    selectedPattern
 }
 
 const timeZoneExpected = "a supported IANA time-zone name or UTC offset identifier"
@@ -76,6 +75,9 @@ func New(locales locale.List, opts Options) (*DateTimeFormat, error) {
 
 	uses24Hour := resolvedUses24HourTime(resolved)
 	pattern := selectPattern(patterns, FormatMatcher(cfg.formatMatcher), resolved, uses24Hour, gregorian)
+	pattern.applyResolvedComponents(&resolved)
+	uses24Hour = resolvedUses24HourTime(resolved)
+	pattern.rangeRecord = newRangePatternRecord(pattern, patterns, FormatMatcher(cfg.formatMatcher), gregorian)
 	return &DateTimeFormat{
 		resolved:   resolved,
 		cldrLoc:    cldrLoc,
@@ -83,9 +85,6 @@ func New(locales locale.List, opts Options) (*DateTimeFormat, error) {
 		location:   location,
 		uses24Hour: uses24Hour,
 		pattern:    pattern,
-		fallbackRangePattern: partitionRangeFallbackPattern(
-			gregorian.IntervalFallback,
-		),
 	}, nil
 }
 

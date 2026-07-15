@@ -3,6 +3,7 @@ package plural
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	pluralop "github.com/agentable/go-intl/internal/plural"
@@ -40,29 +41,36 @@ func TestCardinalRules(t *testing.T) {
 	}
 }
 
-func TestCardinalRuleOrDefault(t *testing.T) {
+func TestCardinalRuleUnknownLocaleReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	rule, ok := CardinalRule("und")
+	if ok || rule != nil {
+		t.Fatalf("CardinalRule(und) found = %t, rule nil = %t; want false, true", ok, rule == nil)
+	}
+}
+
+func TestRuleRejectsMissingFamily(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		locale string
-		op     pluralop.OperandsRecord
-		want   pluralop.Category
+		typ string
 	}{
-		{name: "known locale", locale: "pl", op: operands("2"), want: pluralop.Few},
-		{name: "unknown locale uses english default", locale: "und", op: operands("1"), want: pluralop.One},
+		{typ: "cardinal"},
+		{typ: "ordinal"},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.typ, func(t *testing.T) {
 			t.Parallel()
 
-			if got := CardinalRuleOrDefault(tc.locale)(tc.op); got != tc.want {
-				t.Fatalf("CardinalRuleOrDefault(%q) = %s, want %s", tc.locale, got, tc.want)
+			rule, err := Rule("und", tc.typ)
+			if err == nil || !strings.Contains(err.Error(), `plural: missing `+tc.typ+` rule for data locale "und"`) {
+				t.Fatalf("Rule(und, %s) error = %v, want missing-family context", tc.typ, err)
+			}
+			if rule != nil {
+				t.Fatalf("Rule(und, %s) returned non-nil rule", tc.typ)
 			}
 		})
-	}
-	if got := otherRule(operands("1")); got != pluralop.Other {
-		t.Fatalf("otherRule(1) = %s, want other", got)
 	}
 }
 
@@ -91,6 +99,15 @@ func TestOrdinalRules(t *testing.T) {
 				t.Fatalf("OrdinalRule(en)(%d) = %s, want %s", tc.i, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestOrdinalRuleUnknownLocaleReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	rule, ok := OrdinalRule("und")
+	if ok || rule != nil {
+		t.Fatalf("OrdinalRule(und) found = %t, rule nil = %t; want false, true", ok, rule == nil)
 	}
 }
 

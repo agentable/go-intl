@@ -85,8 +85,8 @@ func TestResolveLocaleBestFitKeepsExtensionFromMatchedRequest(t *testing.T) {
 			"zh-Hant": {"ca": []string{"gregory", "buddhist"}},
 		},
 	})
-	if got.Locale != "zh-Hant-u-ca-buddhist" || got.DataLocale != "zh-Hant" {
-		t.Fatalf("ResolveLocale() = %#v, want zh-Hant-u-ca-buddhist / zh-Hant", got)
+	if got.Locale != "zh-TW-u-ca-buddhist" || got.DataLocale != "zh-Hant" {
+		t.Fatalf("ResolveLocale() = %#v, want zh-TW-u-ca-buddhist / zh-Hant", got)
 	}
 	if got.Extensions["ca"] != "buddhist" {
 		t.Fatalf("ResolveLocale().Extensions[ca] = %q, want buddhist", got.Extensions["ca"])
@@ -137,6 +137,53 @@ func TestMatcherMapsDefaultFallbackToDataLocale(t *testing.T) {
 	got = matcher.Match([]string{"ban"}, "en", AlgorithmBestFit)
 	if got.Locale != "en" || got.DataLocale != "en-US" {
 		t.Fatalf("Matcher.Match(best fit fallback) = %#v, want locale en data en-US", got)
+	}
+}
+
+func TestMatcherDerivesDefaultRegionAliasFromMaximizedBase(t *testing.T) {
+	t.Parallel()
+
+	matcher := NewMatcher([]string{"en"}, defaultRegionTestMaximizer)
+	for _, algorithm := range []Algorithm{AlgorithmLookup, AlgorithmBestFit} {
+		got := matcher.Match([]string{"en-US"}, "en", algorithm)
+		if got.Locale != "en-US" || got.DataLocale != "en" {
+			t.Errorf("Matcher.Match(en-US, %v) = %#v, want locale en-US data en", algorithm, got)
+		}
+	}
+}
+
+func TestMatcherBackedDefaultRegionWinsOverDerivedAlias(t *testing.T) {
+	t.Parallel()
+
+	for _, supported := range [][]string{{"en", "en-US"}, {"en-US", "en"}} {
+		matcher := NewMatcher(supported, defaultRegionTestMaximizer)
+		for _, algorithm := range []Algorithm{AlgorithmLookup, AlgorithmBestFit} {
+			got := matcher.Match([]string{"en-US"}, "en", algorithm)
+			if got.Locale != "en-US" || got.DataLocale != "en-US" {
+				t.Errorf("NewMatcher(%v).Match(en-US, %v) = %#v, want locale/data en-US", supported, algorithm, got)
+			}
+		}
+	}
+}
+
+func TestMatcherDoesNotExposeFullMaximizedTagAsAlias(t *testing.T) {
+	t.Parallel()
+
+	matcher := NewMatcher([]string{"en"}, defaultRegionTestMaximizer)
+	for _, algorithm := range []Algorithm{AlgorithmLookup, AlgorithmBestFit} {
+		got := matcher.Match([]string{"en-Latn-US"}, "en", algorithm)
+		if got.Locale != "en" || got.DataLocale != "en" {
+			t.Errorf("Matcher.Match(en-Latn-US, %v) = %#v, want locale/data en", algorithm, got)
+		}
+	}
+}
+
+func defaultRegionTestMaximizer(tag string) string {
+	switch tag {
+	case "en", "en-US", "en-Latn-US":
+		return "en-Latn-US"
+	default:
+		return tag
 	}
 }
 
