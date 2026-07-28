@@ -304,12 +304,14 @@ tasks:
         go run ./tools/check-generated-data
         -committed internal
         -generated .tmp/generated/internal
+      - go -C tools/gen-cldr test ./...
+      - go -C tools/gen-cldr vet ./...
       - task: data:contract
 
   data:contract:
     desc: Verify generated CLDR data contracts without regeneration
     cmds:
-      - go test -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile|GeneratedDataShape|CLDRImportGraphDirection|NoImportOfRetiredRootCLDR|RetiredRootCLDRHasNoGoFiles)$' ./internal/cldr/locale
+      - go test -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile|GeneratedDataShape)$' ./internal/cldr/locale
       - go test -run 'Test(SupportedCodesDoesNotDecodeOtherBlobs|NarrowIndexDoesNotDecodeMainBlobs|SupportedCalendarsReturnsCopy|SupportedLocalesDoesNotDecode(NameBlobs|PatternBlob|NumberBlob|FieldBlob|PatternBlobs)|GeneratedNumberingSystemExtrasHaveRuntimePayload|RuntimeNumberingSystemPayloadsAreAdvertised)$' ./internal/cldr/currency ./internal/cldr/date ./internal/cldr/displaynames ./internal/cldr/list ./internal/cldr/number ./internal/cldr/relativetime ./internal/cldr/timezone ./internal/cldr/unit
       - go test ./internal/cldr/plural
       - go test ./internal/numbering

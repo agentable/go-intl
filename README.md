@@ -151,7 +151,14 @@ loc := locales[0]
 fmt.Println(loc.String())
 fmt.Println(loc.Maximize().String())
 fmt.Println(loc.GetWeekInfo().FirstDay)
+if direction := loc.GetTextInfo().Direction; direction != nil {
+	fmt.Println(*direction)
+}
 ```
+
+`GetTextInfo().Direction` is present only when the generated CLDR script
+metadata has a known `ltr` or `rtl` value. Unknown direction remains `nil` and
+is omitted from JSON instead of being guessed.
 
 Short examples below use a local `mustLocaleList` helper for brevity; production code should call `locale.ParseList` and handle the returned error.
 
@@ -592,6 +599,7 @@ methods do not silently sort the range.
 |------------------|----------|-----|
 | `collator.compare(x, y)` returns `-1 \| 0 \| 1` | `Collator.Compare(x, y) int` returning standard `-`/`0`/`+` | Matches `slices.SortFunc` and `bytes.Compare`. |
 | `displayNames.of(code)` returns `string \| undefined` or throws `RangeError` | `DisplayNames.Of(code) (string, bool, error)` | `ok` distinguishes missing data; `error` distinguishes invalid code shape. |
+| `locale.getTextInfo().direction` may be unavailable when script metadata is unknown | `locale.TextInfo.Direction *string` | `nil` preserves absence instead of inventing an LTR default. |
 | `segmenter.segment(s)` returns a JS iterable of `{ segment, index, isWordLike }` | `Segments.All() iter.Seq[Segment]` with `Segment.CodeUnitIndex` and `Segment.ByteIndex` | Mirrors ECMA-402 while still supporting Go string offsets. |
 | JS `new Intl.X(locales, options?)` | `New(locales, opts Options)` accepting a `locale.List` plus exactly one typed `Options` value | Callers express omitted locales with `nil` / `locale.List{}` and use `Options{}` for the empty or omitted JS options object. |
 | `format(value)` accepting `Number \| BigInt \| string` | Opaque `numberformat.Value` constructors plus `Format`, `FormatToParts`, `FormatRange`, and `FormatRangeToParts` | Preserves type safety without a public `any` hot path. |
@@ -669,7 +677,7 @@ task codegraph:source:sync-check # Verify source-only mirror matches the current
 task conformance:verify   # Validate fixtures, skip-list, coverage, Node witness matrix, and divergence audit
 task conformance:witness  # Refresh generated Node Intl witness fixtures with the active node binary
 task data                 # Regenerate CLDR data into internal/cldr/ (writes back)
-task data:check           # Regenerate CLDR data into a temp tree and compare byte-for-byte
+task data:check           # Regenerate/compare CLDR data and run gen-cldr test/vet
 task data:contract        # Verify generated CLDR data contracts
 task build:size           # Report root, formatter, and CLDR binary size deltas
 task build:size:cold      # Report the same size table after clearing Go's build cache

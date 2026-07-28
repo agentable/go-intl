@@ -91,7 +91,7 @@ type Options struct {
 type config struct {
 	typ              string
 	localeMatcher    string
-	localeMatcherSet bool
+	hasLocaleMatcher bool
 	digits           ecma402nf.DigitOptionConfig
 	notation         string
 	compactDisplay   string
@@ -109,7 +109,7 @@ func defaultConfig() config {
 
 func configFromOptions(opts Options) config {
 	cfg := defaultConfig()
-	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
 	ecma402.ApplyOption(&cfg.typ, opts.Type)
 	cfg.digits.ApplyOverrides(ecma402nf.DigitOptionOverrides{
 		MinimumIntegerDigits:     opts.MinimumIntegerDigits,
@@ -135,7 +135,7 @@ func (c config) validate(locName string) error {
 	return ecma402.ValidateStringOptions(
 		pluralRulesOwner,
 		locName,
-		ecma402.LocaleMatcherOptionInput(c.localeMatcher, c.localeMatcherSet),
+		ecma402.LocaleMatcherOptionInput(c.localeMatcher, c.hasLocaleMatcher),
 		pluralRuleTypeOption(c.typ),
 		ecma402nf.NotationOption(c.notation),
 		ecma402nf.CompactDisplayOption(c.compactDisplay),

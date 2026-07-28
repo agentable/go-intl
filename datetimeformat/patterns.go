@@ -19,13 +19,16 @@ const (
 )
 
 type selectedPattern struct {
-	kind        patternKind
-	date        string
-	time        string
-	dateTime    string
-	dateFormat  ecma402dtf.Formats
-	timeFormat  ecma402dtf.Formats
-	rangeRecord rangePatternRecord
+	kind            patternKind
+	date            string
+	time            string
+	dateTime        string
+	dateProgram     patternProgram
+	timeProgram     patternProgram
+	dateTimeProgram ecma402.Pattern
+	dateFormat      ecma402dtf.Formats
+	timeFormat      ecma402dtf.Formats
+	rangeRecord     rangePatternRecord
 }
 
 func selectPattern(patterns *patternData, formatMatcher FormatMatcher, resolved ResolvedOptions, uses24Hour bool, gregorian cldrdate.Gregorian) selectedPattern {
@@ -68,21 +71,6 @@ func selectPattern(patterns *patternData, formatMatcher FormatMatcher, resolved 
 		return pattern
 	}
 	return selectedPattern{}
-}
-
-func (p selectedPattern) parts(f *DateTimeFormat, t localTime) []Part {
-	switch p.kind {
-	case patternDate:
-		return f.formatPattern(p.date, t)
-	case patternTime:
-		return f.formatPattern(p.time, t)
-	case patternDateTime:
-		dateParts := f.formatPattern(p.date, t)
-		timeParts := f.formatPattern(p.time, t)
-		return interpolateDateTimeParts(p.dateTime, dateParts, timeParts)
-	case patternNone:
-	}
-	return nil
 }
 
 func dateStylePattern(g cldrdate.Gregorian, style Style) string {

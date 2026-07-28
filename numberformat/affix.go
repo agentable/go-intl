@@ -18,13 +18,6 @@ func applyCurrencyPattern(parts []Part, pluralFormatted string, cardinalRule plu
 	return applyCurrencyPatternForPlural(parts, pluralCategory(cardinalRule, strings.TrimPrefix(pluralFormatted, "-")).String(), resolved, currencyLoc, currency)
 }
 
-func applyCurrencyPatternText(text, pluralFormatted string, cardinalRule pluralRuleFunc, resolved ResolvedOptions, currencyLoc cldrcurrency.Locale, currency currencyPatternSet, symbols cldrnumber.NumberSymbols) string {
-	if ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) != CurrencyDisplayName {
-		return applyCurrencyPatternForPluralText(text, "other", resolved, currencyLoc, currency, symbols)
-	}
-	return applyCurrencyPatternForPluralText(text, pluralCategory(cardinalRule, strings.TrimPrefix(pluralFormatted, "-")).String(), resolved, currencyLoc, currency, symbols)
-}
-
 func applyCurrencyPatternForPlural(parts []Part, plural string, resolved ResolvedOptions, currencyLoc cldrcurrency.Locale, currency currencyPatternSet) []Part {
 	if ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) == CurrencyDisplayName {
 		sign, unsigned := splitLeadingSign(parts)
@@ -54,34 +47,8 @@ func applyCurrencyPatternForPlural(parts []Part, plural string, resolved Resolve
 	return out
 }
 
-func applyCurrencyPatternForPluralText(text, plural string, resolved ResolvedOptions, currencyLoc cldrcurrency.Locale, currency currencyPatternSet, symbols cldrnumber.NumberSymbols) string {
-	if ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) == CurrencyDisplayName {
-		sign, unsigned := splitLeadingSignText(text, symbols)
-		name := currencyDisplayForNumberFormat(currencyLoc, resolved, plural)
-		out := unsigned + " " + name
-		if sign == PartMinusSign && ecma402.ResolvedScalarValue(resolved.CurrencySign) == AccountingCurrencySign {
-			return "(" + out + ")"
-		}
-		if sign != "" {
-			return signValue(sign, symbols) + out
-		}
-		return out
-	}
-	sign, unsigned := splitLeadingSignText(text, symbols)
-	pattern, consumedSign := currency.pattern(sign == PartMinusSign)
-	out := pattern.formatText(unsigned)
-	if sign != "" && !consumedSign {
-		return signValue(sign, symbols) + out
-	}
-	return out
-}
-
 func applyUnitPatternForPlural(parts []Part, plural pluralop.Category, unit unitPatternSet) []Part {
 	return unit.pattern(plural).append(parts)
-}
-
-func applyUnitPatternForPluralText(text string, plural pluralop.Category, unit unitPatternSet) string {
-	return unit.pattern(plural).formatText(text)
 }
 
 func currencyDisplayForNumberFormat(loc cldrcurrency.Locale, opts ResolvedOptions, plural string) string {
@@ -186,10 +153,6 @@ func (p numberAffixPattern) append(parts []Part) []Part {
 	return joinPatternParts(p.prefix, parts, p.suffix)
 }
 
-func (p numberAffixPattern) formatText(text string) string {
-	return joinPatternText(p.prefix, text, p.suffix)
-}
-
 func compileCurrencyLiteralParts(s string, affix Part) []Part {
 	var parts []Part
 	for s != "" {
@@ -274,10 +237,6 @@ func (p simpleUnitPattern) append(parts []Part) []Part {
 	return joinPatternParts(p.prefix, parts, p.suffix)
 }
 
-func (p simpleUnitPattern) formatText(text string) string {
-	return joinPatternText(p.prefix, text, p.suffix)
-}
-
 func splitLeadingSign(parts []Part) (Part, []Part) {
 	if len(parts) == 0 {
 		return Part{}, parts
@@ -286,20 +245,6 @@ func splitLeadingSign(parts []Part) (Part, []Part) {
 		return Part{}, parts
 	}
 	return parts[0], parts[1:]
-}
-
-func splitLeadingSignText(text string, symbols cldrnumber.NumberSymbols) (PartType, string) {
-	if symbols.Minus != "" {
-		if rest, ok := strings.CutPrefix(text, symbols.Minus); ok {
-			return PartMinusSign, rest
-		}
-	}
-	if symbols.Plus != "" {
-		if rest, ok := strings.CutPrefix(text, symbols.Plus); ok {
-			return PartPlusSign, rest
-		}
-	}
-	return "", text
 }
 
 func appendPatternTextParts(parts []Part, text string, typ PartType) []Part {
@@ -322,19 +267,6 @@ func appendPatternTextParts(parts []Part, text string, typ PartType) []Part {
 	return parts
 }
 
-func joinPatternText(prefix []Part, text string, suffix []Part) string {
-	if len(prefix)+len(suffix) == 0 {
-		return text
-	}
-	size := len(text) + partsTextSize(prefix) + partsTextSize(suffix)
-	var b strings.Builder
-	b.Grow(size)
-	writePartsText(&b, prefix)
-	b.WriteString(text)
-	writePartsText(&b, suffix)
-	return b.String()
-}
-
 func joinPatternParts(prefix, parts, suffix []Part) []Part {
 	if len(prefix)+len(suffix) == 0 {
 		return parts
@@ -344,20 +276,6 @@ func joinPatternParts(prefix, parts, suffix []Part) []Part {
 	n += copy(out[n:], parts)
 	copy(out[n:], suffix)
 	return out
-}
-
-func partsTextSize(parts []Part) int {
-	size := 0
-	for _, part := range parts {
-		size += len(part.Value)
-	}
-	return size
-}
-
-func writePartsText(b *strings.Builder, parts []Part) {
-	for _, part := range parts {
-		b.WriteString(part.Value)
-	}
 }
 
 func numberPatternBounds(pattern string) (int, int) {

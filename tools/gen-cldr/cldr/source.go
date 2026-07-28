@@ -13,6 +13,7 @@ type Source struct {
 	Root               string
 	Available          []string
 	LikelySubtags      map[string]string
+	ScriptDirections   map[string]bool
 	UnicodeTypeAliases []UnicodeTypeAlias
 	LanguageMatching   LanguageMatching
 	Numbers            map[string]Numbers
@@ -46,6 +47,10 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 	}
 	available = filterAvailableLocales(available, localeAllowlist)
 	likely, err := loadLikelySubtags(resolved)
+	if err != nil {
+		return nil, err
+	}
+	scriptDirections, err := loadScriptDirections(resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +106,7 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 		Root:               resolved,
 		Available:          available,
 		LikelySubtags:      likely,
+		ScriptDirections:   scriptDirections,
 		UnicodeTypeAliases: unicodeTypeAliases,
 		LanguageMatching:   languageMatching,
 		Numbers:            numbers,

@@ -21,7 +21,7 @@ type extensions struct {
 	hourCycle       string
 	caseFirst       string
 	numeric         bool
-	numericSet      bool
+	hasNumeric      bool
 	numericValue    string
 	numberingSystem string
 	firstDayOfWeek  string

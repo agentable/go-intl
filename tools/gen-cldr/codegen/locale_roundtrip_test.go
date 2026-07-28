@@ -8,8 +8,8 @@ import (
 )
 
 // TestLocaleKernelRoundTrip is the production-path round-trip gate for the locale
-// kernel domain. It re-derives the locale registry, likely-subtags, numbering,
-// and preference inputs from the real pinned CLDR checkout and asserts that every
+// kernel domain. It re-derives the locale registry, likely-subtags, script
+// directions, numbering, and preference inputs from the real pinned CLDR checkout and asserts that every
 // row the encoder wrote is queried back byte-for-byte through the production
 // cldrlocale accessors over the committed data.go. It exercises encoder, blob,
 // decoder, and accessor as one chain — not internal structures.
@@ -62,6 +62,23 @@ func TestLocaleKernelRoundTrip(t *testing.T) {
 		}
 		if min != minimized {
 			t.Errorf("MinimizeSubtags(%q,%q,%q) = %q, want %q", triple.Lang, triple.Script, triple.Region, min, minimized)
+		}
+	}
+
+	// Script directions: UNKNOWN and missing source values never enter the
+	// source map, so every encoded row has a production accessor result.
+	for script, rtl := range input.source.ScriptDirections {
+		got, ok := cldrlocale.TextDirection(script)
+		if !ok {
+			t.Errorf("TextDirection(%q) = false, want true", script)
+			continue
+		}
+		want := "ltr"
+		if rtl {
+			want = "rtl"
+		}
+		if got != want {
+			t.Errorf("TextDirection(%q) = %q, want %q", script, got, want)
 		}
 	}
 

@@ -105,18 +105,19 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 	relativeTime := extract.ExtractRelativeTimeFields(source.RelativeTime, profile.Locales)
 	displayNames := extract.ExtractDisplayNames(source.DisplayNames, profile.Locales)
 	input := codegen.RuntimeInput{
-		Manifest:      manifest,
-		Locales:       locales,
-		LikelySubtags: likely,
-		Numbers:       numbers,
-		Currencies:    currencies,
-		Dates:         dates,
-		Preferences:   source.Preference,
-		Metazones:     metazones,
-		Units:         units,
-		ListPatterns:  listPatterns,
-		RelativeTime:  relativeTime,
-		DisplayNames:  displayNames,
+		Manifest:         manifest,
+		Locales:          locales,
+		LikelySubtags:    likely,
+		ScriptDirections: source.ScriptDirections,
+		Numbers:          numbers,
+		Currencies:       currencies,
+		Dates:            dates,
+		Preferences:      source.Preference,
+		Metazones:        metazones,
+		Units:            units,
+		ListPatterns:     listPatterns,
+		RelativeTime:     relativeTime,
+		DisplayNames:     displayNames,
 	}
 	if err := codegen.RenderRuntime(cfg.OutDir, input); err != nil {
 		return fmt.Errorf("render runtime data: %w", err)

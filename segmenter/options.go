@@ -26,7 +26,7 @@ type Options struct {
 
 type config struct {
 	localeMatcher    string
-	localeMatcherSet bool
+	hasLocaleMatcher bool
 	granularity      string
 }
 
@@ -38,7 +38,7 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
 	ecma402.ApplyOption(&cfg.granularity, opts.Granularity)
 }
 
@@ -46,7 +46,7 @@ func (cfg config) validate(locName string) error {
 	return ecma402.ValidateStringOptions(
 		segmenterOwner,
 		locName,
-		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.localeMatcherSet),
+		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.hasLocaleMatcher),
 		segmenterGranularityOption(cfg.granularity),
 	)
 }

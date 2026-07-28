@@ -15,8 +15,7 @@ import (
 )
 
 type NumberFormat struct {
-	formatState     decimalFormatState
-	integerFastPath integerFastPathState
+	formatState decimalFormatState
 }
 
 type pluralRuleFunc func(pluralop.OperandsRecord) pluralop.Category
@@ -90,12 +89,6 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 			currency:     currencyPatternsForNumberFormat(cldrLoc, unitLoc, resolved),
 			unit:         unitPatternsForNumberFormat(unitLoc, resolved),
 			compact:      compactPatternsForNumberFormat(cldrLoc, resolved),
-		},
-		integerFastPath: integerFastPathState{
-			enabled:     canUseDecimalIntegerFastPath(resolved, resolvedDigits),
-			useGrouping: resolved.UseGrouping,
-			symbols:     symbols,
-			grouping:    grouping,
 		},
 	}, nil
 }

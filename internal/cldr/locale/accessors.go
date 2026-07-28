@@ -124,6 +124,22 @@ func MinimizeSubtags(language, script, region string) (lang, scr, reg string, ok
 	return "", "", "", false
 }
 
+// TextDirection returns the CLDR direction for script. Unknown or missing
+// script metadata returns ok=false.
+func TextDirection(script string) (direction string, ok bool) {
+	scriptDirectionOnce.Do(loadScriptDirections)
+	i, ok := slices.BinarySearchFunc(scriptDirections, script, func(row scriptDirectionRecord, target string) int {
+		return cmp.Compare(row.script, target)
+	})
+	if !ok {
+		return "", false
+	}
+	if scriptDirections[i].rtl {
+		return "rtl", true
+	}
+	return "ltr", true
+}
+
 // DefaultNumberingSystem returns the default numbering system for the locale,
 // defaulting to "latn" for any locale without a non-latn override.
 func (l Locale) DefaultNumberingSystem() string {

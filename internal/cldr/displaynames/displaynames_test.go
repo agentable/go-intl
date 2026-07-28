@@ -138,11 +138,20 @@ func TestCurrencyKindDelegates(t *testing.T) {
 	}
 }
 
-func TestCurrencyKindUsesLocaleFallback(t *testing.T) {
+func TestCurrencyKindDoesNotCrossLocales(t *testing.T) {
 	t.Parallel()
 
 	got, ok := Of("und", "currency", "long", "", "USD", true)
-	if !ok || got != "US Dollar" {
-		t.Fatalf(`Of("und", "currency", "USD") = %q (ok=%v), want "US Dollar" from fallback locale`, got, ok)
+	if ok || got != "" {
+		t.Fatalf(`Of("und", "currency", "USD") = %q (ok=%v), want no cross-locale value`, got, ok)
+	}
+}
+
+func TestLookupWalksParentLocales(t *testing.T) {
+	t.Parallel()
+
+	got, ok := Of("en-Latn-US", "calendar", "long", "", "gregory", false)
+	if !ok || got != "Gregorian Calendar" {
+		t.Fatalf(`Of("en-Latn-US", "calendar", "gregory") = %q (ok=%v), want "Gregorian Calendar" from parent locale`, got, ok)
 	}
 }

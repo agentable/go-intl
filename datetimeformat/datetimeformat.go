@@ -78,6 +78,7 @@ func New(locales locale.List, opts Options) (*DateTimeFormat, error) {
 	pattern.applyResolvedComponents(&resolved)
 	uses24Hour = resolvedUses24HourTime(resolved)
 	pattern.rangeRecord = newRangePatternRecord(pattern, patterns, FormatMatcher(cfg.formatMatcher), gregorian)
+	pattern.compilePrograms()
 	return &DateTimeFormat{
 		resolved:   resolved,
 		cldrLoc:    cldrLoc,
@@ -137,7 +138,7 @@ func resolveLocale(locales locale.List, fallback locale.Locale, cfg config) loca
 }
 
 func resolveTimeZone(locName string, cfg config) (string, *time.Location, error) {
-	if !cfg.timeZoneSet {
+	if !cfg.hasTimeZone {
 		timeZone, location := tz.Default()
 		return timeZone, location, nil
 	}

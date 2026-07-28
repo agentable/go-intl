@@ -10,7 +10,7 @@
 
 `internal/cldr/` is the CLDR-backed data bottom layer of go-intl. Each semantic domain is its own Go package; the CLDR payload enters the compiler only as `const` string blobs, and a hand-written decode loop expands each blob lazily on first access into the in-memory maps and slices the formatter accessors return. `tools/gen-cldr/` is the code generator for this layer, maintained as an independent Go module.
 
-The runtime algorithm boundaries for `collator`, `segmenter`, and active best-fit locale matching are defined by their own SPECs. This SPEC defines: data source selection (direct `unicode-org/cldr-json`), embedding strategy (const blob + on-demand decode, **not** `//go:embed *.json`), active locale scope, version pinning (`cldr=48.1.0` / `icu=78` / `tzdata=2025b`), the per-domain package layout and accessor surface, the three machine gates that keep the layout honest, and the upgrade process.
+The runtime algorithm boundaries for `collator`, `segmenter`, and active best-fit locale matching are defined by their own SPECs. This SPEC defines: data source selection (direct `unicode-org/cldr-json`), embedding strategy (const blob + on-demand decode, **not** `//go:embed *.json`), active locale scope, version pinning (`cldr=48.1.0` / `icu=78` / `tzdata=2025b`), the per-domain package layout and accessor surface, the generated-data machine gates, and the upgrade process.
 
 > **Why**: The earlier single `internal/cldr` package compiled the CLDR tables as giant Go literals — `units.go` alone drove the `compile` subprocess to ~4.3 GB RSS and OOM-killed downstream CI (issue #3). The compile-memory cost grows superlinearly with the SSA-node count per record, not with line count, and string constants are nearly free to compile (`golang.org/x/text` is the decade-long precedent). The fix is structural and permanent: one package per domain (so Go compiles, links, and lazily loads per reachable package) and payload that enters as `const` only (so the compiler sees data, not instructions that build data).
 >
@@ -46,7 +46,7 @@ CLDR data **MUST** directly consume the npm package set (`cldr-bcp47` / `cldr-co
 
 ### 1.2 Extraction scope (active scope) <a id="schema"></a>
 
-Each semantic domain is a Go package under `internal/cldr/<domain>/` with a generated **const-only** `data.go` (one or more `const _<...>Blob` payloads plus a domain-private `const _data` string table) and hand-written `decode.go` / `accessors.go`. The locale kernel package `cldrlocale` (`internal/cldr/locale/`) owns the `Locale` handle, the locale registry, likely subtags, region/hour-cycle/week preferences, numbering data, collation candidates, the data manifest, and `Version()`. IANA identifier records live in `internal/tz`, outside the CLDR kernel and localized time-zone display domain. The root `internal/cldr` directory holds only the `VERSION` text file and the domain subdirectories; it is **not** a Go package.
+Each semantic domain is a Go package under `internal/cldr/<domain>/` with a generated **const-only** `data.go` (one or more `const _<...>Blob` payloads plus a domain-private `const _data` string table) and hand-written `decode.go` / `accessors.go`. The locale kernel package `cldrlocale` (`internal/cldr/locale/`) owns the `Locale` handle, the locale registry, likely subtags, script directions, region/hour-cycle/week preferences, numbering data, collation candidates, the data manifest, and `Version()`. IANA identifier records live in `internal/tz`, outside the CLDR kernel and localized time-zone display domain. The root `internal/cldr` directory holds only the `VERSION` text file and the domain subdirectories; it is **not** a Go package.
 
 | `internal/cldr/<domain>` | CLDR source | Extract fields |
 |---------------------------|-------------|----------------|
@@ -59,7 +59,7 @@ Each semantic domain is a Go package under `internal/cldr/<domain>/` with a gene
 | `relativetime` | `cldr-dates-full/main/<locale>/dateFields.json` | long/short/narrow relative and relativeTime patterns for year/quarter/month/week/day/hour/minute/second |
 | `displaynames` | `cldr-localenames-full/main/<locale>/*.json` (+ currency names imported from the `currency` domain) | language / region / script / calendar / dateTimeField display names |
 | `plural` | `cldr-core/supplemental/plurals.json` + `ordinals.json` + `pluralRanges.json` | cardinal rules, ordinal rules, pluralRanges (emitted by SPEC 40 codegen; this SPEC only fixes the package location and that it passes the data-shape gate) |
-| `locale` (kernel) | `cldr-core` `availableLocales.json` / `likelySubtags.json` / `timeData.json` / `weekData.json` / `calendarPreferenceData.json`, `cldr-bcp47/collation.json` | locale registry (`und` at index 0), likely subtags (maximize/minimize), hour-cycle/week/calendar preferences, numbering data, collation candidates, manifest, version |
+| `locale` (kernel) | `cldr-core` `availableLocales.json` / `likelySubtags.json` / `scriptMetadata.json` / `timeData.json` / `weekData.json` / `calendarPreferenceData.json`, `cldr-bcp47/collation.json` | locale registry (`und` at index 0), likely subtags (maximize/minimize), known script directions, hour-cycle/week/calendar preferences, numbering data, collation candidates, manifest, version |
 
 Three private identity products are emitted directly to their runtime owners:
 
@@ -321,17 +321,16 @@ The retired literal-rendering layer — `golang_literal.go`, `map_literal.go` (r
 
 > **Why**: The guard turned up a latent data bug the moment it landed (see §8). Loud failure at generation time beats a silent index-0 collision that ships wrong data.
 
-### 5.4 The three machine gates
+### 5.4 The two machine gates
 
-Migration safety rests on three independent gates, not on human review of tens of thousands of generated lines. (These are the standing CI cause-gates; the per-domain round-trip gate lives in §5.3 and behavior byte-stability is owned by SPEC 70 — together those two plus gate 3 below formed the migration's correctness locks.)
+Migration safety rests on two independent generated-data gates, not on human review of tens of thousands of generated lines. (These are the standing CI cause-gates; the per-domain round-trip gate lives in §5.3 and behavior byte-stability is owned by SPEC 70 — together those two plus gate 2 below formed the migration's correctness locks.)
 
 1. **Data-shape gate** (`TestGeneratedDataShape`, in `task data:contract`, `go/ast`-based). Two absolute, threshold-free invariants over every generated file, keyed by the generated header:
    - **Rule A** — a payload file (`internal/cldr/<domain>/data.go`) may contain only `const` declarations: zero func, zero var, zero non-const expression, zero import.
    - **Rule B** — any other generated file (e.g. plural rule code) may not place a `CallExpr`, `IndexExpr`, or `IndexListExpr` inside a composite literal. This kills the compile-bomb shape (`makeUnitPatternKey(localeIndex["af"], …)`) at the data-literal level, with no "under the threshold" regression path.
 
    The migration-era shrink-only exemption table is now **empty**: the root literal renderers it covered retired with the root package, so every generated file satisfies its invariant directly.
-2. **Import-graph gate** (`TestCLDRImportGraphDirection` + `TestNoImportOfRetiredRootCLDR`, in `task data:contract`, reading production imports via `go/build.ImportDir`). Dependencies inside `internal/cldr` may only point down: `codec` imports only stdlib; the `locale` kernel imports `codec` plus stdlib-only utility leaves; each domain imports only `codec`, `locale`, the stdlib-only shared utility leaves (`localeid`, `numbering`, `pattern`, `plural`), and any sanctioned leaf→leaf edge. The single sanctioned leaf→leaf edge is `displaynames → currency` (the CLDR owner shared by NumberFormat and DisplayNames). The retired root `internal/cldr` package may never be imported again; its path is matched exactly so a domain subpackage is never mistaken for it. The leaf→leaf exception table is shrink-only: a listed edge absent from the real import graph fails the gate.
-3. **Generated path and byte stability** (`task data:check`): regenerate every CLDR, plural, locale-alias, matcher-profile, and time-zone registry output under one repository-shaped temporary `internal/` root. `tools/check-generated-data` uses the two generated-header prefixes as ownership metadata, compares relative paths in both directions, then requires byte equality for every matched path. Hand-written files remain outside the set because they do not carry a generated header.
+2. **Generated path, byte stability, and generator proof** (`task data:check`): regenerate every CLDR, plural, locale-alias, matcher-profile, and time-zone registry output under one repository-shaped temporary `internal/` root. `tools/check-generated-data` uses the two generated-header prefixes as ownership metadata, compares relative paths in both directions, then requires byte equality for every matched path. After comparison, the gate runs `go -C tools/gen-cldr test ./...` and `go -C tools/gen-cldr vet ./...`, so encoder/production-decoder round trips and generator static checks cannot be skipped by root-module test patterns. Hand-written files remain outside the generated path set because they do not carry a generated header.
 
 Behavior byte-stability — every formatter conformance fixture output unchanged to the byte — is enforced by the formatter conformance suites (SPEC 70) and the per-domain decode snapshot tests, not by a separate gate here.
 
@@ -432,11 +431,11 @@ The `internal/` path segment forces every domain package private. Formatter publ
 
 ### 7.1 Generator self-test
 
-`tools/gen-cldr/` carries per-domain round-trip tests (`codegen/<domain>_roundtrip_test.go`). For every `extract.*` row, the test encodes through the domain's `emit` and reads back through the **production** accessor (via the `replace` to the main module), asserting per-field equality. This locks encoder, blob, decoder, and accessor together in one pass against the real runtime path — there is no mirror decoder.
+`tools/gen-cldr/` carries per-domain round-trip tests (`codegen/<domain>_roundtrip_test.go`). For every `extract.*` row, the test encodes through the domain's `emit` and reads back through the **production** accessor (via the `replace` to the main module), asserting per-field equality. This locks encoder, blob, decoder, and accessor together in one pass against the real runtime path — there is no mirror decoder. `task data:check` runs these tests and `go vet` from the nested module root as part of the standing generated-data gate.
 
 ### 7.2 Snapshot / contract test
 
-`internal/cldr/locale/snapshot_test.go` regenerates every generated file under `internal/cldr` and byte-compares it with the committed payload. `task data:check` regenerates all products into one temporary `internal/` tree and compares the complete generated-header-owned path set and bytes, including the private identity products in `internal/localeid`, `internal/localematcher`, and `internal/tz`. The locale package also holds the data-shape and import-graph gates (`datashape_test.go`, `importgraph_test.go`), all under `task data:contract`.
+`internal/cldr/locale/snapshot_test.go` regenerates every generated file under `internal/cldr` and byte-compares it with the committed payload. `task data:check` regenerates all products into one temporary `internal/` tree, compares the complete generated-header-owned path set and bytes (including the private identity products in `internal/localeid`, `internal/localematcher`, and `internal/tz`), runs the nested generator test/vet proof, then runs `task data:contract`. The locale package holds the data-shape gate (`datashape_test.go`) used by that final contract step.
 
 ### 7.3 Conformance integration
 
@@ -516,8 +515,6 @@ CLDR supplemental day-period rules cover languages beyond the kernel locale regi
 ### Representation and gates
 
 - [ ] `TestGeneratedDataShape` passes: Rule A (payload files const-only) and Rule B (no call/index expressions in composite literals); the exemption table is empty.
-- [ ] `TestCLDRImportGraphDirection` + `TestNoImportOfRetiredRootCLDR` pass: dependencies point down only, the single sanctioned leaf→leaf edge is `displaynames → currency`, and the dead root package is never imported.
-- [ ] `TestRetiredRootCLDRHasNoGoFiles` passes: `internal/cldr/` remains a non-package directory.
 - [ ] `mustLocaleIndex` panics at generation time for any domain locale absent from the kernel registry; intentionally skipped locales are filtered with a stated reason.
 - [ ] Per-domain round-trip tests read back through the production accessor via `require` + `replace`; no mirror decoder exists.
 - [ ] Language-matching loader tests reject malformed fields, unknown variables, duplicate paradigms, invalid distances, containment cycles, and a missing final catch-all while preserving all 378 source rows in order.
@@ -537,7 +534,7 @@ CLDR supplemental day-period rules cover languages beyond the kernel locale regi
 - [ ] The domain registry (`codegen/domain.go`) is the single source of expected domain packages; the retired literal renderers (`golang_literal.go` / `map_literal.go` / `wrappers.go`) do not exist.
 - [ ] `extract/locales.go` outputs a deterministically sorted tag list with `und` at position 0.
 - [ ] `task data` regenerates with no git diff (except after a deliberate VERSION change); `task data:check` fails on any byte difference.
-- [ ] `tools/gen-cldr` is verified from its module root (`cd tools/gen-cldr && go test ./... && go vet ./...`), not via a root-module `./tools/gen-cldr/...` pattern.
+- [ ] `task data:check` verifies `tools/gen-cldr` from its module root with `go -C tools/gen-cldr test ./...` and `go -C tools/gen-cldr vet ./...`, not via a root-module `./tools/gen-cldr/...` pattern.
 
 ### Volume
 

@@ -144,17 +144,6 @@ func writeGroupedString(b *strings.Builder, digits string, grouping digitGroupin
 	b.WriteString(digits[lastGroup:])
 }
 
-func writeGroupedBytes(b *strings.Builder, digits []byte, grouping digitGrouping, separator string) {
-	firstGroup, lastGroup := groupingBounds(len(digits), grouping)
-	b.Write(digits[:firstGroup])
-	for start := firstGroup; start < lastGroup; start += grouping.secondary {
-		b.WriteString(separator)
-		b.Write(digits[start : start+grouping.secondary])
-	}
-	b.WriteString(separator)
-	b.Write(digits[lastGroup:])
-}
-
 func groupingBounds(digits int, grouping digitGrouping) (int, int) {
 	lastGroup := digits - grouping.primary
 	firstGroup := lastGroup % grouping.secondary

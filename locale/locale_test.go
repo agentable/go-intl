@@ -307,8 +307,8 @@ func TestLocaleInfoUsesExtensionsAndRegionFallbacks(t *testing.T) {
 func TestLocaleTextInfoAndUnmarshalText(t *testing.T) {
 	t.Parallel()
 
-	if got := parseLocaleForTest("ar").GetTextInfo().Direction; got != "rtl" {
-		t.Fatalf("GetTextInfo(ar).Direction = %q, want rtl", got)
+	if got := parseLocaleForTest("ar").GetTextInfo().Direction; got == nil || *got != "rtl" {
+		t.Fatalf("GetTextInfo(ar).Direction = %v, want rtl", got)
 	}
 	var loc Locale
 	if err := loc.UnmarshalText([]byte("fr-CA")); err != nil {

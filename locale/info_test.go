@@ -1,6 +1,7 @@
 package locale
 
 import (
+	"encoding/json"
 	"slices"
 	"testing"
 	"time"
@@ -186,19 +187,46 @@ func TestLocaleInfoGetters(t *testing.T) {
 func TestTextInfo(t *testing.T) {
 	t.Parallel()
 
-	if got := parseLocaleForTest("ar-SA").GetTextInfo().Direction; got != "rtl" {
-		t.Fatalf("ar-SA direction = %q, want rtl", got)
+	for _, tag := range []string{"und-Sogd", "und-Phli", "und-Narb"} {
+		assertTextDirection(t, tag, "rtl")
 	}
-	if got := parseLocaleForTest("und-Arab").GetTextInfo().Direction; got != "rtl" {
-		t.Fatalf("und-Arab direction = %q, want rtl", got)
+	assertTextDirection(t, "ar-SA", "rtl")
+	assertTextDirection(t, "und-Arab", "rtl")
+	assertTextDirection(t, "yi", "rtl")
+	assertTextDirection(t, "dv", "rtl")
+	assertTextDirection(t, "en-US", "ltr")
+
+	first := parseLocaleForTest("en").GetTextInfo()
+	second := parseLocaleForTest("en").GetTextInfo()
+	if first.Direction == nil || second.Direction == nil {
+		t.Fatalf("GetTextInfo(en).Direction = %v, %v; want two non-nil values", first.Direction, second.Direction)
 	}
-	if got := parseLocaleForTest("yi").GetTextInfo().Direction; got != "rtl" {
-		t.Fatalf("yi direction = %q, want rtl from likely subtags", got)
+	*first.Direction = "rtl"
+	if got := *second.Direction; got != "ltr" {
+		t.Fatalf("independent GetTextInfo direction = %q after mutating prior result, want ltr", got)
 	}
-	if got := parseLocaleForTest("dv").GetTextInfo().Direction; got != "rtl" {
-		t.Fatalf("dv direction = %q, want rtl from likely subtags", got)
+}
+
+func assertTextDirection(t *testing.T, tag, want string) {
+	t.Helper()
+	got := parseLocaleForTest(tag).GetTextInfo().Direction
+	if got == nil || *got != want {
+		t.Errorf("%s direction = %v, want %q", tag, got, want)
 	}
-	if got := parseLocaleForTest("en-US").GetTextInfo().Direction; got != "ltr" {
-		t.Fatalf("en-US direction = %q, want ltr", got)
+}
+
+func TestTextInfoUnknownDirectionIsAbsent(t *testing.T) {
+	t.Parallel()
+
+	info := parseLocaleForTest("und-Brai").GetTextInfo()
+	if info.Direction != nil {
+		t.Errorf("GetTextInfo(und-Brai).Direction = %q, want nil", *info.Direction)
+	}
+	raw, err := json.Marshal(info)
+	if err != nil {
+		t.Fatalf("json.Marshal(GetTextInfo(und-Brai)) error = %v", err)
+	}
+	if got := string(raw); got != `{}` {
+		t.Errorf("json.Marshal(GetTextInfo(und-Brai)) = %s, want {}", got)
 	}
 }

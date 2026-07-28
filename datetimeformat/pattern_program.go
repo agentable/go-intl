@@ -9,23 +9,29 @@ import (
 	"github.com/agentable/go-intl/internal/ecma402"
 )
 
-func (f *DateTimeFormat) formatPattern(pattern string, t localTime) []Part {
-	numberingSystem := f.resolved.NumberingSystem
-	uses24Hour := f.uses24Hour
-	cldrLoc := f.cldrLoc
-	gregorian := &f.gregorian
-	parts := make([]Part, 0, len(pattern))
+type patternToken struct {
+	literal string
+	field   rune
+	width   int
+}
+
+type patternProgram []patternToken
+
+func compilePatternProgram(pattern string) patternProgram {
+	program := make(patternProgram, 0, len(pattern))
 	for pattern != "" {
 		r := rune(pattern[0])
 		if r == '\'' {
 			literal, rest := consumeQuotedPatternLiteral(pattern)
-			parts = appendLiteralPart(parts, literal)
+			if literal = normalizePatternLiteral(literal); literal != "" {
+				program = append(program, patternToken{literal: literal})
+			}
 			pattern = rest
 			continue
 		}
 		if !isDatePatternField(r) && !isTimePatternField(r) {
 			r, size := utf8.DecodeRuneInString(pattern)
-			parts = appendLiteralPart(parts, string(r))
+			program = append(program, patternToken{literal: normalizePatternLiteral(string(r))})
 			pattern = pattern[size:]
 			continue
 		}
@@ -33,16 +39,105 @@ func (f *DateTimeFormat) formatPattern(pattern string, t localTime) []Part {
 		for width < len(pattern) && rune(pattern[width]) == r {
 			width++
 		}
-		if isDatePatternField(r) {
-			parts = append(parts, datePatternPart(r, width, t, gregorian, numberingSystem))
-		} else if part, ok := f.timePatternPart(r, width, t, numberingSystem, uses24Hour, cldrLoc, gregorian); ok {
+		program = append(program, patternToken{field: r, width: width})
+		pattern = pattern[width:]
+	}
+	return program
+}
+
+func (p *selectedPattern) compilePrograms() {
+	p.dateProgram = compilePatternProgram(p.date)
+	p.timeProgram = compilePatternProgram(p.time)
+	p.dateTimeProgram = compileDateTimeProgram(p.dateTime)
+}
+
+func (p selectedPattern) parts(f *DateTimeFormat, t localTime) []Part {
+	switch p.kind {
+	case patternDate:
+		return p.dateProgram.parts(f, t)
+	case patternTime:
+		return p.timeProgram.parts(f, t)
+	case patternDateTime:
+		dateParts := p.dateProgram.parts(f, t)
+		timeParts := p.timeProgram.parts(f, t)
+		return interpolateDateTimeParts(p.dateTimeProgram, dateParts, timeParts)
+	case patternNone:
+	}
+	return nil
+}
+
+func (p selectedPattern) appendTo(f *DateTimeFormat, dst []byte, t localTime) []byte {
+	switch p.kind {
+	case patternDate:
+		return p.dateProgram.appendTo(f, dst, t)
+	case patternTime:
+		return p.timeProgram.appendTo(f, dst, t)
+	case patternDateTime:
+		var dateScratch [64]byte
+		var timeScratch [64]byte
+		date := p.dateProgram.appendTo(f, dateScratch[:0], t)
+		time := p.timeProgram.appendTo(f, timeScratch[:0], t)
+		return appendDateTimeProgram(dst, p.dateTimeProgram, date, time)
+	case patternNone:
+	}
+	return dst
+}
+
+func (p patternProgram) parts(f *DateTimeFormat, t localTime) []Part {
+	parts := make([]Part, 0, len(p))
+	for _, token := range p {
+		if token.literal != "" {
+			parts = appendLiteralPart(parts, token.literal)
+			continue
+		}
+		part, ok := f.patternTokenPart(token, t)
+		if ok {
 			parts = append(parts, part)
 		} else {
 			parts = trimTrailingLiteralSpace(parts)
 		}
-		pattern = pattern[width:]
 	}
 	return parts
+}
+
+func (p patternProgram) appendTo(f *DateTimeFormat, dst []byte, t localTime) []byte {
+	for _, token := range p {
+		if token.literal != "" {
+			dst = append(dst, token.literal...)
+			continue
+		}
+		part, ok := f.patternTokenPart(token, t)
+		if ok {
+			dst = append(dst, part.Value...)
+		} else {
+			dst = trimTrailingSpaceBytes(dst)
+		}
+	}
+	return dst
+}
+
+func appendDateTimeProgram(dst []byte, program ecma402.Pattern, date, time []byte) []byte {
+	for _, part := range program {
+		switch part.Type {
+		case ecma402.PatternPartPlaceholder0:
+			dst = append(dst, time...)
+		case ecma402.PatternPartPlaceholder1:
+			dst = append(dst, date...)
+		case ecma402.PatternPartLiteral:
+			dst = append(dst, part.Value...)
+		default:
+			dst = append(dst, "{"+part.Type+"}"...)
+		}
+	}
+	return dst
+}
+
+func (f *DateTimeFormat) patternTokenPart(token patternToken, t localTime) (Part, bool) {
+	numberingSystem := f.resolved.NumberingSystem
+	if isDatePatternField(token.field) {
+		return datePatternPart(token.field, token.width, t, &f.gregorian, numberingSystem), true
+	}
+	return f.timePatternPart(token.field, token.width, t, numberingSystem, f.uses24Hour, f.cldrLoc, &f.gregorian)
 }
 
 func datePatternPart(field rune, width int, t localTime, gregorian *cldrdate.Gregorian, numberingSystem string) Part {

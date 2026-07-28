@@ -2,15 +2,25 @@ package datetimeformat
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/agentable/go-intl/internal/ecma402"
 )
 
-func interpolateDateTimeParts(text string, dateParts, timeParts []Part) []Part {
+func compileDateTimeProgram(text string) ecma402.Pattern {
 	patternParts, err := ecma402.PartitionPattern(text)
 	if err != nil {
-		return []Part{{Type: PartLiteral, Value: text}}
+		return ecma402.Pattern{{Type: ecma402.PatternPartLiteral, Value: normalizePatternLiteral(text)}}
 	}
+	for i := range patternParts {
+		if patternParts[i].Type == ecma402.PatternPartLiteral {
+			patternParts[i].Value = normalizeDateTimeConnectorLiteral(patternParts[i].Value)
+		}
+	}
+	return patternParts
+}
+
+func interpolateDateTimeParts(patternParts ecma402.Pattern, dateParts, timeParts []Part) []Part {
 	parts := make([]Part, 0, len(dateParts)+len(timeParts)+len(patternParts))
 	for _, part := range patternParts {
 		switch part.Type {
@@ -19,7 +29,7 @@ func interpolateDateTimeParts(text string, dateParts, timeParts []Part) []Part {
 		case ecma402.PatternPartPlaceholder1:
 			parts = append(parts, dateParts...)
 		case ecma402.PatternPartLiteral:
-			parts = appendDateTimeConnectorLiteral(parts, part.Value)
+			parts = appendLiteralPart(parts, part.Value)
 		default:
 			parts = appendLiteralPart(parts, "{"+part.Type+"}")
 		}
@@ -27,11 +37,7 @@ func interpolateDateTimeParts(text string, dateParts, timeParts []Part) []Part {
 	return parts
 }
 
-func interpolateDateTimeRangeParts(text string, dateParts, timeParts []RangePart) []RangePart {
-	patternParts, err := ecma402.PartitionPattern(text)
-	if err != nil {
-		return []RangePart{{Type: PartLiteral, Value: text, Source: SourceShared}}
-	}
+func interpolateDateTimeRangeParts(patternParts ecma402.Pattern, dateParts, timeParts []RangePart) []RangePart {
 	parts := make([]RangePart, 0, len(dateParts)+len(timeParts)+len(patternParts))
 	for _, part := range patternParts {
 		switch part.Type {
@@ -40,7 +46,7 @@ func interpolateDateTimeRangeParts(text string, dateParts, timeParts []RangePart
 		case ecma402.PatternPartPlaceholder1:
 			parts = append(parts, dateParts...)
 		case ecma402.PatternPartLiteral:
-			parts = appendDateTimeConnectorRangeLiteral(parts, part.Value)
+			parts = appendRangeLiteralPart(parts, part.Value, SourceShared)
 		default:
 			parts = appendRangeLiteralPart(parts, "{"+part.Type+"}", SourceShared)
 		}
@@ -48,27 +54,18 @@ func interpolateDateTimeRangeParts(text string, dateParts, timeParts []RangePart
 	return parts
 }
 
-func appendDateTimeConnectorLiteral(parts []Part, text string) []Part {
-	literal, _ := consumeDateTimeConnectorLiteral(text)
-	return appendLiteralPart(parts, literal)
-}
-
-func appendDateTimeConnectorRangeLiteral(parts []RangePart, text string) []RangePart {
-	literal, _ := consumeDateTimeConnectorLiteral(text)
-	return appendRangeLiteralPart(parts, literal, SourceShared)
-}
-
-func consumeDateTimeConnectorLiteral(pattern string) (string, string) {
+func normalizeDateTimeConnectorLiteral(pattern string) string {
 	var literal strings.Builder
-	for pattern != "" && pattern[0] != '{' {
+	for pattern != "" {
 		if pattern[0] == '\'' {
 			value, rest := consumeQuotedPatternLiteral(pattern)
 			literal.WriteString(value)
 			pattern = rest
 			continue
 		}
-		literal.WriteByte(pattern[0])
-		pattern = pattern[1:]
+		_, size := utf8.DecodeRuneInString(pattern)
+		literal.WriteString(pattern[:size])
+		pattern = pattern[size:]
 	}
-	return literal.String(), pattern
+	return normalizePatternLiteral(literal.String())
 }

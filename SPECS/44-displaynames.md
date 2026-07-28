@@ -100,7 +100,7 @@ Display-name data comes from generated CLDR payloads in `internal/cldr/displayna
 | Calendar | `cldr-localenames-full/main/<locale>/localeDisplayNames.json#types.calendar`. ECMA-402 calendar keys are aliased to CLDR keys at lookup time (`gregory` → `gregorian`, `ethioaa` → `ethiopic-amete-alem`). | |
 | DateTimeField | `cldr-dates-full/main/<locale>/dateFields.json` `fields.<field>.displayName`. CLDR field keys are normalized to ECMA-402 names (`week` → `weekOfYear`, `zone` → `timeZoneName`); `-short` and `-narrow` suffixes feed the corresponding styles. | |
 
-Lookup walks the truncation parent chain (`en-US` → `en`) and finally falls back to `en` so any locale in the project profile resolves to a non-empty name when CLDR carries it.
+Lookup walks only the resolved data locale's truncation parent chain (`en-US` → `en`). Missing names remain missing so the public `Fallback` option can return the canonical code or absence; runtime lookup never borrows a name from an unrelated locale.
 
 Generation MUST:
 

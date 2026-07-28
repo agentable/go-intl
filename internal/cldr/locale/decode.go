@@ -26,6 +26,11 @@ type maximizeSubtagRecord struct{ key, lang, script, region string }
 
 type minimizeSubtagRecord struct{ lang, script, region, minimized string }
 
+type scriptDirectionRecord struct {
+	script string
+	rtl    bool
+}
+
 type weekPreference struct {
 	first, weekendStart, weekendEnd time.Weekday
 	minDays                         int
@@ -39,6 +44,9 @@ var (
 	likelySubtagsOnce sync.Once
 	likelySubtags     []maximizeSubtagRecord
 	minimizeSubtags   []minimizeSubtagRecord
+
+	scriptDirectionOnce sync.Once
+	scriptDirections    []scriptDirectionRecord
 
 	numberingOnce     sync.Once
 	numberingByLocale map[Locale]string
@@ -81,6 +89,15 @@ func decodeMinimizeSubtagRecord(r *codec.Reader) minimizeSubtagRecord {
 		region:    r.StringRef(_data),
 		minimized: r.StringRef(_data),
 	}
+}
+
+func loadScriptDirections() {
+	r := codec.NewReader(_directionBlob)
+	scriptDirections = codec.CountedSlice[scriptDirectionRecord](&r, decodeScriptDirectionRecord)
+}
+
+func decodeScriptDirectionRecord(r *codec.Reader) scriptDirectionRecord {
+	return scriptDirectionRecord{script: r.StringRef(_data), rtl: r.Uvarint() != 0}
 }
 
 func loadNumbering() {

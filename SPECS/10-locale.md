@@ -243,11 +243,11 @@ type WeekInfo struct {
 }
 
 type TextInfo struct {
-    Direction string `json:"direction"`
+    Direction *string `json:"direction,omitempty"`
 }
 ```
 
-`WeekInfo.MarshalJSON` must emit ECMA-402 weekday numbers, Monday=1 through Sunday=7, instead of Go's `time.Weekday` values where Sunday=0. `TextInfo` marshals as `{"direction":"ltr"}` or `{"direction":"rtl"}`. Locale JSON field names follow [SPEC 73 §Part and Locale Info Records](./73-json-records.md#3-part-and-locale-info-records).
+`WeekInfo.MarshalJSON` must emit ECMA-402 weekday numbers, Monday=1 through Sunday=7, instead of Go's `time.Weekday` values where Sunday=0. `TextInfo` marshals as `{"direction":"ltr"}` or `{"direction":"rtl"}` when CLDR has a known direction; an unknown direction is nil and marshals as `{}`. Locale JSON field names follow [SPEC 73 §Part and Locale Info Records](./73-json-records.md#3-part-and-locale-info-records).
 
 > **Why**: JS host bindings and API adapters expect `Intl.Locale.prototype.getWeekInfo()` records, not Go enum ordinals. Keeping Go's `time.Weekday` in memory and ECMA-402 numbers on the wire preserves both sides.
 >
@@ -357,7 +357,7 @@ func (l Locale) GetWeekInfo() WeekInfo
 
 // TextInfo corresponds to ECMA-402 sec-text-info-of-locale.
 type TextInfo struct {
-    Direction string // "ltr" | "rtl"
+    Direction *string // "ltr" | "rtl"; nil when unknown
 }
 func (l Locale) GetTextInfo() TextInfo
 ```
@@ -367,7 +367,8 @@ Call example:
 ```go
 loc := mustLocale("ar-SA")
 fmt.Println(loc.GetWeekInfo().FirstDay)    // time.Sunday
-fmt.Println(loc.GetTextInfo().Direction)   // "rtl"
+direction := loc.GetTextInfo().Direction
+fmt.Println(direction != nil && *direction == "rtl") // true
 fmt.Println(loc.GetCalendars())            // ["islamic-umalqura", "gregory", "islamic", ...]
 ```
 

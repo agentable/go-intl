@@ -97,6 +97,44 @@ func TestDisplayNames_Fallback(t *testing.T) {
 	})
 }
 
+func TestDisplayNames_FallbackDoesNotCrossLocales(t *testing.T) {
+	t.Parallel()
+
+	for _, localeName := range []string{"fr", "ja"} {
+		for _, tc := range []struct {
+			name     string
+			fallback displaynames.Fallback
+			want     string
+			wantOK   bool
+		}{
+			{name: "none", fallback: displaynames.NoneFallback},
+			{name: "code", fallback: displaynames.CodeFallback, want: "islamic-rgsa", wantOK: true},
+		} {
+			t.Run(localeName+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dn, err := displaynames.New(
+					locale.List{intltest.Locale(t, localeName)},
+					displaynames.Options{
+						Type:     stringPtr(displaynames.Calendar),
+						Fallback: stringPtr(tc.fallback),
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, ok, err := dn.Of("islamic-rgsa")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got != tc.want || ok != tc.wantOK {
+					t.Fatalf("Of(islamic-rgsa) = (%q, %v), want (%q, %v)", got, ok, tc.want, tc.wantOK)
+				}
+			})
+		}
+	}
+}
+
 func TestDisplayNames_RejectsInvalidLanguageCodes(t *testing.T) {
 	t.Parallel()
 

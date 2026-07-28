@@ -36,6 +36,9 @@ func TestLoadAllBuildsTypedSource(t *testing.T) {
 	if source.LikelySubtags["en"] != "en_Latn_US" {
 		t.Fatalf("LoadAll().LikelySubtags[en] = %q, want en_Latn_US", source.LikelySubtags["en"])
 	}
+	if rtl, ok := source.ScriptDirections["Latn"]; !ok || rtl {
+		t.Fatalf("LoadAll().ScriptDirections[Latn] = %t, %t; want false, true", rtl, ok)
+	}
 	requireSourceEntry(t, "Numbers", source.Numbers, "en")
 	currencies := requireSourceEntry(t, "Currencies", source.Currencies, "en")
 	if currencies["USD"].Canonical != "US dollar" {

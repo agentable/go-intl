@@ -22,8 +22,9 @@ type WeekInfo struct {
 
 // TextInfo describes locale text direction. Mirrors Intl.Locale.prototype.getTextInfo().
 type TextInfo struct {
-	// Direction is the locale text direction. Mirrors getTextInfo() field "direction".
-	Direction string `json:"direction"`
+	// Direction is the locale text direction, or nil when it is unknown.
+	// Mirrors getTextInfo() field "direction".
+	Direction *string `json:"direction,omitempty"`
 }
 
 // MarshalJSON emits ECMA-402 weekday numbers, Monday=1 through Sunday=7.
@@ -111,17 +112,14 @@ func (l Locale) GetWeekInfo() WeekInfo {
 }
 
 func (l Locale) GetTextInfo() TextInfo {
-	lang, script, _ := localeid.Parts(l.tag)
+	_, script, _ := localeid.Parts(l.tag)
 	if script == "" {
 		_, script, _ = localeid.Parts(l.Maximize().tag)
 	}
-	if script == "" && lang != "" {
-		_, script, _, _ = cldrlocale.MaximizeSubtags(lang, "", "")
+	if direction, ok := cldrlocale.TextDirection(script); ok {
+		return TextInfo{Direction: &direction}
 	}
-	if isRightToLeftScript(script) {
-		return TextInfo{Direction: "rtl"}
-	}
-	return TextInfo{Direction: "ltr"}
+	return TextInfo{}
 }
 
 func (l Locale) maximizedRegion() string {
@@ -240,27 +238,4 @@ func weekdayNumber(day time.Weekday) int {
 		return 7
 	}
 	return int(day)
-}
-
-func isRightToLeftScript(script string) bool {
-	switch script {
-	case "Adlm",
-		"Arab",
-		"Aran",
-		"Hebr",
-		"Mand",
-		"Mani",
-		"Mend",
-		"Merc",
-		"Mero",
-		"Nkoo",
-		"Rohg",
-		"Samr",
-		"Syrc",
-		"Thaa",
-		"Yezi":
-		return true
-	default:
-		return false
-	}
 }

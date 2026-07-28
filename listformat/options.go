@@ -27,7 +27,7 @@ type Options struct {
 
 type config struct {
 	localeMatcher    string
-	localeMatcherSet bool
+	hasLocaleMatcher bool
 	typ              string
 	style            string
 }
@@ -41,7 +41,7 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
 	ecma402.ApplyOption(&cfg.typ, opts.Type)
 	ecma402.ApplyOption(&cfg.style, opts.Style)
 }
@@ -50,7 +50,7 @@ func (cfg config) validate(locName string) error {
 	return ecma402.ValidateStringOptions(
 		listFormatOwner,
 		locName,
-		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.localeMatcherSet),
+		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.hasLocaleMatcher),
 		listTypeOption(cfg.typ),
 		listStyleOption(cfg.style),
 	)

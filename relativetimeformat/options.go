@@ -27,9 +27,9 @@ type Options struct {
 
 type config struct {
 	localeMatcher      string
-	localeMatcherSet   bool
+	hasLocaleMatcher   bool
 	numberingSystem    string
-	numberingSystemSet bool
+	hasNumberingSystem bool
 	style              string
 	numeric            string
 }
@@ -43,8 +43,8 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
-	ecma402.ApplyOptionInput(&cfg.numberingSystem, &cfg.numberingSystemSet, opts.NumberingSystem)
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
+	ecma402.ApplyOptionInput(&cfg.numberingSystem, &cfg.hasNumberingSystem, opts.NumberingSystem)
 	ecma402.ApplyOption(&cfg.style, opts.Style)
 	ecma402.ApplyOption(&cfg.numeric, opts.Numeric)
 }
@@ -53,13 +53,13 @@ func (cfg config) validate(locName string) error {
 	if err := ecma402.ValidateStringOptions(
 		relativeTimeFormatOwner,
 		locName,
-		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.localeMatcherSet),
+		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.hasLocaleMatcher),
 		relativeTimeStyleOption(cfg.style),
 		relativeTimeNumericOption(cfg.numeric),
 	); err != nil {
 		return err
 	}
-	return ecma402.ValidateUnicodeTypeOptionInput(relativeTimeFormatOwner, "numberingSystem", cfg.numberingSystem, locName, cfg.numberingSystemSet)
+	return ecma402.ValidateUnicodeTypeOptionInput(relativeTimeFormatOwner, "numberingSystem", cfg.numberingSystem, locName, cfg.hasNumberingSystem)
 }
 
 func relativeTimeStyleOption(value string) ecma402.StringOption {

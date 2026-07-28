@@ -34,11 +34,11 @@ type Options struct {
 type config struct {
 	style              string
 	currency           string
-	currencySet        bool
+	hasCurrency        bool
 	currencyDisplay    string
 	currencySign       string
 	unit               string
-	unitSet            bool
+	hasUnit            bool
 	unitDisplay        string
 	digits             ecma402nf.DigitOptionConfig
 	notation           string
@@ -46,9 +46,9 @@ type config struct {
 	useGrouping        string
 	signDisplay        string
 	localeMatcher      string
-	localeMatcherSet   bool
+	hasLocaleMatcher   bool
 	numberingSystem    string
-	numberingSystemSet bool
+	hasNumberingSystem bool
 }
 
 func defaultConfig() config {
@@ -68,10 +68,10 @@ func defaultConfig() config {
 
 func applyOptions(cfg *config, opts Options) {
 	ecma402.ApplyOption(&cfg.style, opts.Style)
-	ecma402.ApplyCurrencyCodeOptionInput(&cfg.currency, &cfg.currencySet, opts.Currency)
+	ecma402.ApplyCurrencyCodeOptionInput(&cfg.currency, &cfg.hasCurrency, opts.Currency)
 	ecma402.ApplyOption(&cfg.currencyDisplay, opts.CurrencyDisplay)
 	ecma402.ApplyOption(&cfg.currencySign, opts.CurrencySign)
-	ecma402.ApplyOptionInput(&cfg.unit, &cfg.unitSet, opts.Unit)
+	ecma402.ApplyOptionInput(&cfg.unit, &cfg.hasUnit, opts.Unit)
 	ecma402.ApplyOption(&cfg.unitDisplay, opts.UnitDisplay)
 	cfg.digits.ApplyOverrides(ecma402nf.DigitOptionOverrides{
 		MinimumIntegerDigits:     opts.MinimumIntegerDigits,
@@ -88,8 +88,8 @@ func applyOptions(cfg *config, opts Options) {
 	ecma402.ApplyOption(&cfg.compactDisplay, opts.CompactDisplay)
 	ecma402.ApplyOption(&cfg.useGrouping, opts.UseGrouping)
 	ecma402.ApplyOption(&cfg.signDisplay, opts.SignDisplay)
-	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
-	ecma402.ApplyUnicodeTypeOptionInput(&cfg.numberingSystem, &cfg.numberingSystemSet, "nu", opts.NumberingSystem)
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
+	ecma402.ApplyUnicodeTypeOptionInput(&cfg.numberingSystem, &cfg.hasNumberingSystem, "nu", opts.NumberingSystem)
 }
 
 func (c config) validate(locName string) error {
@@ -104,23 +104,23 @@ func (c config) validate(locName string) error {
 		unitDisplayOption(c.unitDisplay),
 		signDisplayOption(c.signDisplay),
 		useGroupingOption(c.useGrouping),
-		ecma402.LocaleMatcherOptionInput(c.localeMatcher, c.localeMatcherSet),
+		ecma402.LocaleMatcherOptionInput(c.localeMatcher, c.hasLocaleMatcher),
 	); err != nil {
 		return err
 	}
-	if err := ecma402.ValidateUnicodeTypeOptionInput(numberFormatOwner, "numberingSystem", c.numberingSystem, locName, c.numberingSystemSet); err != nil {
+	if err := ecma402.ValidateUnicodeTypeOptionInput(numberFormatOwner, "numberingSystem", c.numberingSystem, locName, c.hasNumberingSystem); err != nil {
 		return err
 	}
-	if c.currencySet && !ecma402.IsWellFormedCurrencyCode(c.currency) {
+	if c.hasCurrency && !ecma402.IsWellFormedCurrencyCode(c.currency) {
 		return ecma402.InvalidCurrencyCodeOptionError(numberFormatOwner, "currency", c.currency, locName)
 	}
-	if c.style == string(CurrencyStyle) && !c.currencySet {
+	if c.style == string(CurrencyStyle) && !c.hasCurrency {
 		return missingStyleOptionError("currency", `a currency code when style is "currency"`, locName)
 	}
-	if c.unitSet && !ecma402.IsWellFormedUnitIdentifier(c.unit) {
+	if c.hasUnit && !ecma402.IsWellFormedUnitIdentifier(c.unit) {
 		return ecma402.InvalidUnitIdentifierOptionError(numberFormatOwner, "unit", c.unit, locName)
 	}
-	if c.style == string(UnitStyle) && !c.unitSet {
+	if c.style == string(UnitStyle) && !c.hasUnit {
 		return missingStyleOptionError("unit", `a sanctioned unit identifier when style is "unit"`, locName)
 	}
 	return nil

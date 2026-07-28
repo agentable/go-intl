@@ -11,7 +11,6 @@ type ZoneInfo struct {
 	OffsetMs int64
 	IsDST    bool
 	Abbrv    string
-	Metazone string
 }
 
 // locationCache memoizes successful canonical-name → *time.Location lookups.

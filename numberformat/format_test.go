@@ -69,6 +69,16 @@ func TestNumberFormatFormatEqualsFormatToPartsJoin(t *testing.T) {
 		{name: "engineering", locale: "en", opts: Options{Notation: stringPtr(EngineeringNotation), MaximumFractionDigits: intPtr(2)}, value: 12345},
 		{name: "compact", locale: "en", opts: Options{Notation: stringPtr(CompactNotation), MaximumFractionDigits: intPtr(1)}, value: 1500},
 		{name: "compact long", locale: "en", opts: Options{Notation: stringPtr(CompactNotation), CompactDisplay: stringPtr(LongCompactDisplay), MaximumFractionDigits: intPtr(1)}, value: 1500},
+		{name: "negative zero auto", locale: "en", opts: Options{}, value: math.Copysign(0, -1)},
+		{name: "negative zero always", locale: "en", opts: Options{SignDisplay: stringPtr(AlwaysSignDisplay)}, value: math.Copysign(0, -1)},
+		{name: "negative zero except zero", locale: "en", opts: Options{SignDisplay: stringPtr(ExceptZeroSignDisplay)}, value: math.Copysign(0, -1)},
+		{name: "negative zero negative", locale: "en", opts: Options{SignDisplay: stringPtr(NegativeSignDisplay)}, value: math.Copysign(0, -1)},
+		{name: "negative zero never", locale: "en", opts: Options{SignDisplay: stringPtr(NeverSignDisplay)}, value: math.Copysign(0, -1)},
+		{name: "positive always", locale: "en", opts: Options{SignDisplay: stringPtr(AlwaysSignDisplay)}, value: 42},
+		{name: "positive except zero", locale: "en", opts: Options{SignDisplay: stringPtr(ExceptZeroSignDisplay)}, value: 42},
+		{name: "positive infinity", locale: "en", opts: Options{}, value: math.Inf(1)},
+		{name: "positive infinity always", locale: "en", opts: Options{SignDisplay: stringPtr(AlwaysSignDisplay)}, value: math.Inf(1)},
+		{name: "compact rounding boundary", locale: "en", opts: Options{Notation: stringPtr(CompactNotation), MaximumFractionDigits: intPtr(0)}, value: 999500},
 		{name: "nan", locale: "en", opts: Options{}, value: math.NaN()},
 		{name: "negative infinity unit", locale: "en", opts: Options{Style: stringPtr(UnitStyle), Unit: stringPtr("meter")}, value: math.Inf(-1)},
 	}
@@ -273,7 +283,7 @@ func TestNumberFormatDecimalInputUsesMathematicalValue(t *testing.T) {
 	}
 }
 
-func TestNumberFormatPublicIntegerBridgesUseGroupedLatnFastPath(t *testing.T) {
+func TestNumberFormatPublicIntegerBridgesPreserveExactGroupedValues(t *testing.T) {
 	t.Parallel()
 
 	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
@@ -1171,19 +1181,6 @@ func TestNumberFormatToPartsUsesCLDRNumberSymbols(t *testing.T) {
 	}
 	if got := format.FormatToParts(value); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FormatToParts(-1234.5) = %#v, want %#v", got, want)
-	}
-}
-
-func TestLocalizeNumberStringUsesNumberSymbols(t *testing.T) {
-	t.Parallel()
-
-	symbols := cldrnumber.NumberSymbols{Decimal: "·", Group: "_", Minus: "−"}
-	if got := localizeNumberString("-1,234.5", symbols); got != "−1_234·5" {
-		t.Fatalf("localizeNumberString() = %q, want %q", got, "−1_234·5")
-	}
-	symbols = cldrnumber.NumberSymbols{Decimal: ",", Group: ".", Minus: "-"}
-	if got := localizeNumberString("-1,234.5", symbols); got != "-1.234,5" {
-		t.Fatalf("localizeNumberString() = %q, want %q", got, "-1.234,5")
 	}
 }
 

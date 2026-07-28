@@ -32,7 +32,7 @@ func (l *Locale) readExtensions(ext localeid.UnicodeExtension) error {
 	}
 	numeric, hasNumeric := ext.TypeForKey("kn")
 	if hasNumeric {
-		l.ext.numericSet = true
+		l.ext.hasNumeric = true
 		l.ext.numeric, l.ext.numericValue = normalizeNumeric(numeric)
 	}
 	return nil
@@ -52,7 +52,7 @@ func (e extensions) empty() bool {
 		e.collation == "" &&
 		e.hourCycle == "" &&
 		e.caseFirst == "" &&
-		!e.numericSet &&
+		!e.hasNumeric &&
 		e.numberingSystem == "" &&
 		e.firstDayOfWeek == "" &&
 		len(e.attributes) == 0 &&
@@ -67,7 +67,7 @@ func (l Locale) unicodeExtensionKeywords() []localeid.UnicodeKeyword {
 	setUnicodeKeyword(keywords, "fw", l.ext.firstDayOfWeek)
 	setUnicodeKeyword(keywords, "hc", l.ext.hourCycle)
 	setUnicodeKeyword(keywords, "kf", l.ext.caseFirst)
-	if l.ext.numericSet {
+	if l.ext.hasNumeric {
 		keywords["kn"] = l.ext.numericKeyword()
 	}
 	setUnicodeKeyword(keywords, "nu", l.ext.numberingSystem)
@@ -96,7 +96,7 @@ func (e extensions) numericKeyword() string {
 }
 
 func (e *extensions) setNumericOption(value bool) {
-	e.numericSet = true
+	e.hasNumeric = true
 	e.numeric = value
 	if value {
 		e.numericValue = ""

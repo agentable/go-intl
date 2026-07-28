@@ -19,25 +19,20 @@ const (
 	dateRangeFieldCount
 )
 
-type rangePatternEntry struct {
-	pattern string
-	present bool
-}
-
 type rangePatternRecord struct {
-	dateFields    [dateRangeFieldCount]rangePatternEntry
-	dateFallbacks [dateRangeFieldCount]string
-	timeFields    [timeRangeFieldCount]rangePatternEntry
+	dateFields    [dateRangeFieldCount]intervalProgram
+	dateFallbacks [dateRangeFieldCount]patternProgram
+	timeFields    [timeRangeFieldCount]intervalProgram
 	periodKind    rangePeriodKind
 	timeStart     timeRangeField
 	hasTime       bool
-	fallback      ecma402.Pattern
+	fallback      rangeFallbackProgram
 }
 
 type rangeRelation struct {
 	equal           bool
-	pattern         string
-	fallbackPattern string
+	program         intervalProgram
+	fallbackProgram patternProgram
 }
 
 type timeRangeField uint8
@@ -60,7 +55,7 @@ const (
 )
 
 func newRangePatternRecord(selected selectedPattern, patterns *patternData, formatMatcher FormatMatcher, gregorian cldrdate.Gregorian) rangePatternRecord {
-	record := rangePatternRecord{fallback: partitionRangeFallbackPattern(gregorian.IntervalFallback)}
+	record := rangePatternRecord{fallback: compileRangeFallbackProgram(gregorian.IntervalFallback)}
 	record.addDatePatterns(selected.dateFormat, gregorian.IntervalFormats)
 	record.addTimePatterns(selected.timeFormat, gregorian.IntervalFormats)
 	record.addDateFallbackPatterns(selected, patterns, formatMatcher, gregorian)
@@ -81,11 +76,11 @@ func (r *rangePatternRecord) addDateFallbackPatterns(selected selectedPattern, p
 		dateTimePattern := dateTimeStylePattern(gregorian, ShortDateTimeStyle)
 		fallback := combineRangeEndpointPattern(dateTimePattern, dateFormat.Pattern, selected.time)
 		for field := dateRangeYear; field < dateRangeFieldCount; field++ {
-			r.dateFallbacks[field] = fallback
+			r.dateFallbacks[field] = compilePatternProgram(fallback)
 		}
 		dateOptions.Era = ecma402dtf.FieldShort
 		if eraFormat, ok := matchComponentPattern(formatMatcher, dateOptions, patterns.dateCandidates, gregorian.AppendItems); ok {
-			r.dateFallbacks[dateRangeEra] = combineRangeEndpointPattern(dateTimePattern, eraFormat.Pattern, selected.time)
+			r.dateFallbacks[dateRangeEra] = compilePatternProgram(combineRangeEndpointPattern(dateTimePattern, eraFormat.Pattern, selected.time))
 		}
 		return
 	}
@@ -97,7 +92,7 @@ func (r *rangePatternRecord) addDateFallbackPatterns(selected selectedPattern, p
 	for field := dateRangeDay; ; field-- {
 		if addMissingDateRangeField(&dateOptions, field) {
 			if dateFormat, ok := matchComponentPattern(formatMatcher, dateOptions, patterns.dateCandidates, gregorian.AppendItems); ok {
-				r.dateFallbacks[field] = combineRangeEndpointPattern(selected.dateTime, dateFormat.Pattern, selected.time)
+				r.dateFallbacks[field] = compilePatternProgram(combineRangeEndpointPattern(selected.dateTime, dateFormat.Pattern, selected.time))
 			}
 		}
 		if field == dateRangeEra {
@@ -168,8 +163,8 @@ func (r *rangePatternRecord) addTimePatterns(format ecma402dtf.Formats, interval
 	r.timeFields[timeRangeMinute] = adjustedRangePattern(patterns["m"], format)
 	r.timeFields[timeRangeSecond] = adjustedRangePattern(patterns["s"], format)
 	r.timeFields[timeRangeFractionalSecond] = adjustedRangePattern(patterns["S"], format)
-	for field, entry := range r.timeFields {
-		if entry.present {
+	for field, program := range r.timeFields {
+		if program != nil {
 			r.timeStart = timeRangeField(field)
 			r.hasTime = true
 			break
@@ -177,31 +172,28 @@ func (r *rangePatternRecord) addTimePatterns(format ecma402dtf.Formats, interval
 	}
 }
 
-func adjustedRangePattern(pattern string, format ecma402dtf.Formats) rangePatternEntry {
+func adjustedRangePattern(pattern string, format ecma402dtf.Formats) intervalProgram {
 	if pattern == "" {
-		return rangePatternEntry{}
+		return nil
 	}
 	parsed := ecma402dtf.Parse(pattern, pattern, nil, "")
-	return rangePatternEntry{
-		pattern: ecma402dtf.AdjustFieldTypes(parsed, formatOptions(format)).Pattern,
-		present: true,
-	}
+	return compileIntervalPattern(ecma402dtf.AdjustFieldTypes(parsed, formatOptions(format)).Pattern)
 }
 
 func (r rangePatternRecord) dateRelation(start, end localTime) rangeRelation {
-	var selected rangePatternEntry
-	for field, entry := range r.dateFields {
-		if selected.present && !entry.present {
+	var selected intervalProgram
+	for field, program := range r.dateFields {
+		if selected != nil && program == nil {
 			break
 		}
-		if entry.present {
-			selected = entry
+		if program != nil {
+			selected = program
 		}
 		if !dateRangeFieldEqual(dateRangeField(field), start, end) {
-			return rangeRelation{pattern: selected.pattern}
+			return rangeRelation{program: selected}
 		}
 	}
-	return rangeRelation{equal: true, pattern: selected.pattern}
+	return rangeRelation{equal: true}
 }
 
 func dateRangeFieldEqual(field dateRangeField, start, end localTime) bool {
@@ -222,7 +214,7 @@ func dateRangeFieldEqual(field dateRangeField, start, end localTime) bool {
 func (r rangePatternRecord) timeRelation(format *DateTimeFormat, start, end localTime) rangeRelation {
 	for field := dateRangeEra; field < dateRangeFieldCount; field++ {
 		if !dateRangeFieldEqual(field, start, end) {
-			return rangeRelation{fallbackPattern: r.dateFallbacks[field]}
+			return rangeRelation{fallbackProgram: r.dateFallbacks[field]}
 		}
 	}
 	if !r.hasTime {
@@ -233,20 +225,20 @@ func (r rangePatternRecord) timeRelation(format *DateTimeFormat, start, end loca
 		}
 		return rangeRelation{equal: true}
 	}
-	var selected rangePatternEntry
+	var selected intervalProgram
 	for field := r.timeStart; field < timeRangeFieldCount; field++ {
-		entry := r.timeFields[field]
-		if selected.present && !entry.present {
+		program := r.timeFields[field]
+		if selected != nil && program == nil {
 			break
 		}
-		if entry.present {
-			selected = entry
+		if program != nil {
+			selected = program
 		}
 		if !timeRangeFieldEqual(field, r.periodKind, format, start, end) {
-			return rangeRelation{pattern: selected.pattern}
+			return rangeRelation{program: selected}
 		}
 	}
-	return rangeRelation{equal: true, pattern: selected.pattern}
+	return rangeRelation{equal: true}
 }
 
 func timeRangeFieldEqual(field timeRangeField, periodKind rangePeriodKind, format *DateTimeFormat, start, end localTime) bool {

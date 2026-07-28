@@ -24,6 +24,8 @@ import (
 //     (key, lang, script, region) StringRef quad for binary search.
 //   - _minimizeBlob:      likely-subtags minimize rows, sorted by
 //     (lang, script, region), each a (lang, script, region, minimized) quad.
+//   - _directionBlob:     known script directions, sorted by script, each a
+//     (script, rtl) pair. UNKNOWN and missing source values are absent.
 //   - _numberingBlob:     the non-latn default-numbering-system overrides as a
 //     sorted (localeDelta, system) stream; the decoder defaults every other
 //     locale to "latn".
@@ -47,6 +49,17 @@ func encodeLocaleKernel(input RuntimeInput, table *StringTable) ([]byte, error) 
 		triple := input.LikelySubtags.Maximize[key]
 		maximize.appendStringRef(table.Add(key))
 		appendSubtagTriple(&maximize, table, triple)
+	})
+
+	var direction blobEncoder
+	directionScripts := slices.Sorted(maps.Keys(input.ScriptDirections))
+	appendCountedSlice(&direction, directionScripts, func(script string) {
+		direction.appendStringRef(table.Add(script))
+		if input.ScriptDirections[script] {
+			direction.appendUvarint(1)
+		} else {
+			direction.appendUvarint(0)
+		}
 	})
 
 	var minimize blobEncoder
@@ -89,6 +102,7 @@ func encodeLocaleKernel(input RuntimeInput, table *StringTable) ([]byte, error) 
 		payloadBlob{"_localeBlob", locales.bytes()},
 		payloadBlob{"_maximizeBlob", maximize.bytes()},
 		payloadBlob{"_minimizeBlob", minimize.bytes()},
+		payloadBlob{"_directionBlob", direction.bytes()},
 		payloadBlob{"_numberingBlob", numbering.bytes()},
 		payloadBlob{"_hourCycleBlob", hourCycle.bytes()},
 		payloadBlob{"_weekBlob", week.bytes()},

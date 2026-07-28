@@ -93,19 +93,6 @@ func fillRangeParts(out []RangePart, parts []Part, source RangeSource) {
 	}
 }
 
-func partsText(parts []Part) string {
-	size := 0
-	for _, part := range parts {
-		size += len(part.Value)
-	}
-	var b strings.Builder
-	b.Grow(size)
-	for _, part := range parts {
-		b.WriteString(part.Value)
-	}
-	return b.String()
-}
-
 func formatApproximateRangeText(sign string, parts []Part) string {
 	size := len(sign)
 	for _, part := range parts {

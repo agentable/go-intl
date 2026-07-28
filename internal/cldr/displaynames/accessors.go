@@ -14,8 +14,7 @@ import (
 )
 
 const (
-	fallbackDisplayLocale = "en"
-	defaultLocalePattern  = "{0} ({1})"
+	defaultLocalePattern = "{0} ({1})"
 )
 
 // Of returns the localized display name for a code and whether one exists.
@@ -27,7 +26,7 @@ const (
 // region code when no localized region name exists.
 //
 // When data for the requested locale is unavailable, the lookup walks the
-// truncation parent chain (e.g. en-US -> en) and finally falls back to "en".
+// truncation parent chain (e.g. en-US -> en).
 func Of(dataLocale, kind, style, languageDisplay, code string, fallbackCode bool) (string, bool) {
 	if kind == "calendar" {
 		code = calendarLookupCode(code)
@@ -40,7 +39,7 @@ func Of(dataLocale, kind, style, languageDisplay, code string, fallbackCode bool
 			return value, true
 		}
 	}
-	return lookupInLocale(fallbackDisplayLocale, kind, style, languageDisplay, code, fallbackCode)
+	return "", false
 }
 
 // calendarLookupCode maps ECMA-402 calendar identifiers (Unicode BCP 47 `u-ca`

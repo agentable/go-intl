@@ -1,10 +1,10 @@
 package datetimeformat
 
 import (
+	"strings"
 	"time"
-	"unicode/utf8"
+	"unicode"
 
-	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	"github.com/agentable/go-intl/internal/ecma402"
 )
 
@@ -16,8 +16,7 @@ func (f *DateTimeFormat) FormatRange(start, end time.Time) (string, error) {
 	if r.relation.equal {
 		return f.Format(r.start), nil
 	}
-	pattern := f.pattern
-	return string(f.appendRange(nil, pattern, r)), nil
+	return string(f.appendRange(nil, f.pattern, r)), nil
 }
 
 func (f *DateTimeFormat) FormatRangeToParts(start, end time.Time) ([]RangePart, error) {
@@ -28,8 +27,7 @@ func (f *DateTimeFormat) FormatRangeToParts(start, end time.Time) ([]RangePart, 
 	if r.relation.equal {
 		return rangeParts(f.FormatToParts(r.start), SourceShared), nil
 	}
-	pattern := f.pattern
-	return f.formatRangeParts(pattern, r), nil
+	return f.formatRangeParts(f.pattern, r), nil
 }
 
 func (f *DateTimeFormat) formatRangeParts(pattern selectedPattern, r normalizedRange) []RangePart {
@@ -38,14 +36,11 @@ func (f *DateTimeFormat) formatRangeParts(pattern selectedPattern, r normalizedR
 	}
 	startParts := pattern.parts(f, r.startLocal)
 	endParts := pattern.parts(f, r.endLocal)
-	if r.relation.fallbackPattern != "" {
-		startParts = f.formatPattern(r.relation.fallbackPattern, r.startLocal)
-		endParts = f.formatPattern(r.relation.fallbackPattern, r.endLocal)
+	if r.relation.fallbackProgram != nil {
+		startParts = r.relation.fallbackProgram.parts(f, r.startLocal)
+		endParts = r.relation.fallbackProgram.parts(f, r.endLocal)
 	}
-	return f.fallbackRangeParts(
-		startParts,
-		endParts,
-	)
+	return f.fallbackRangeParts(startParts, endParts)
 }
 
 func (f *DateTimeFormat) appendRange(dst []byte, pattern selectedPattern, r normalizedRange) []byte {
@@ -55,9 +50,9 @@ func (f *DateTimeFormat) appendRange(dst []byte, pattern selectedPattern, r norm
 	var startScratch [64]byte
 	var endScratch [64]byte
 	var start, end []byte
-	if r.relation.fallbackPattern != "" {
-		start = f.appendPattern(startScratch[:0], r.relation.fallbackPattern, r.startLocal)
-		end = f.appendPattern(endScratch[:0], r.relation.fallbackPattern, r.endLocal)
+	if r.relation.fallbackProgram != nil {
+		start = r.relation.fallbackProgram.appendTo(f, startScratch[:0], r.startLocal)
+		end = r.relation.fallbackProgram.appendTo(f, endScratch[:0], r.endLocal)
 	} else {
 		start = pattern.appendTo(f, startScratch[:0], r.startLocal)
 		end = pattern.appendTo(f, endScratch[:0], r.endLocal)
@@ -98,92 +93,83 @@ func (f *DateTimeFormat) normalizeRange(start, end time.Time) (normalizedRange, 
 }
 
 func (f *DateTimeFormat) formatIntervalRangeToParts(pattern selectedPattern, relation rangeRelation, start, end localTime) ([]RangePart, bool) {
-	rangePattern := relation.pattern
-	if rangePattern == "" {
+	program := relation.program
+	if program == nil {
 		return nil, false
 	}
 	switch pattern.kind {
-	case patternDate:
-		return f.formatIntervalPattern(rangePattern, start, end), true
-	case patternTime:
-		return f.formatIntervalPattern(rangePattern, start, end), true
+	case patternDate, patternTime:
+		return program.parts(f, start, end), true
 	case patternDateTime:
-		dateParts := rangeParts(f.formatPattern(pattern.date, start), SourceShared)
-		timeParts := f.formatIntervalPattern(rangePattern, start, end)
-		return interpolateDateTimeRangeParts(pattern.dateTime, dateParts, timeParts), true
+		dateParts := rangeParts(pattern.dateProgram.parts(f, start), SourceShared)
+		timeParts := program.parts(f, start, end)
+		return interpolateDateTimeRangeParts(pattern.dateTimeProgram, dateParts, timeParts), true
 	case patternNone:
 	}
 	return nil, false
 }
 
 func (f *DateTimeFormat) appendIntervalRange(dst []byte, pattern selectedPattern, relation rangeRelation, start, end localTime) ([]byte, bool) {
-	rangePattern := relation.pattern
-	if rangePattern == "" {
+	program := relation.program
+	if program == nil {
 		return nil, false
 	}
 	switch pattern.kind {
-	case patternDate:
-		return f.appendIntervalPattern(dst, rangePattern, start, end), true
-	case patternTime:
-		return f.appendIntervalPattern(dst, rangePattern, start, end), true
+	case patternDate, patternTime:
+		return program.appendTo(f, dst, start, end), true
 	case patternDateTime:
 		var dateScratch [64]byte
 		var timeScratch [64]byte
-		date := f.appendPattern(dateScratch[:0], pattern.date, start)
-		time := f.appendIntervalPattern(timeScratch[:0], rangePattern, start, end)
-		return appendDateTimePattern(dst, pattern.dateTime, date, time), true
+		date := pattern.dateProgram.appendTo(f, dateScratch[:0], start)
+		time := program.appendTo(f, timeScratch[:0], start, end)
+		return appendDateTimeProgram(dst, pattern.dateTimeProgram, date, time), true
 	case patternNone:
 	}
 	return nil, false
 }
 
-func (f *DateTimeFormat) formatIntervalPattern(pattern string, start, end localTime) []RangePart {
-	numberingSystem := f.resolved.NumberingSystem
-	uses24Hour := f.uses24Hour
-	cldrLoc := f.cldrLoc
-	gregorian := &f.gregorian
-	steps := compileIntervalPattern(pattern, start, end)
-	parts := make([]RangePart, 0, len(pattern))
-	for _, step := range steps {
+func (p intervalProgram) parts(f *DateTimeFormat, start, end localTime) []RangePart {
+	parts := make([]RangePart, 0, len(p))
+	for _, step := range p {
 		token := step.token
 		if token.literal != "" {
 			parts = appendRangeLiteralPart(parts, token.literal, step.source)
 			continue
 		}
-		part := f.intervalPatternPart(token.field, token.width, step.time(start, end), numberingSystem, uses24Hour, cldrLoc, gregorian)
-		parts = append(parts, RangePart{Type: part.Type, Value: part.Value, Source: step.source})
+		part, ok := f.patternTokenPart(token, step.time(start, end))
+		if ok {
+			parts = append(parts, RangePart{Type: part.Type, Value: part.Value, Source: step.source})
+		} else {
+			parts = trimTrailingRangeLiteralSpace(parts)
+		}
 	}
 	return parts
 }
 
-func (f *DateTimeFormat) appendIntervalPattern(dst []byte, pattern string, start, end localTime) []byte {
-	numberingSystem := f.resolved.NumberingSystem
-	uses24Hour := f.uses24Hour
-	cldrLoc := f.cldrLoc
-	gregorian := &f.gregorian
-	for _, step := range compileIntervalPattern(pattern, start, end) {
+func (p intervalProgram) appendTo(f *DateTimeFormat, dst []byte, start, end localTime) []byte {
+	for _, step := range p {
 		token := step.token
 		if token.literal != "" {
 			dst = append(dst, token.literal...)
 			continue
 		}
-		part := f.intervalPatternPart(token.field, token.width, step.time(start, end), numberingSystem, uses24Hour, cldrLoc, gregorian)
-		dst = append(dst, part.Value...)
+		part, ok := f.patternTokenPart(token, step.time(start, end))
+		if ok {
+			dst = append(dst, part.Value...)
+		} else {
+			dst = trimTrailingSpaceBytes(dst)
+		}
 	}
 	return dst
 }
 
-type intervalToken struct {
-	literal string
-	field   rune
-	width   int
-}
-
 type intervalStep struct {
-	token    intervalToken
+	token    patternToken
 	source   RangeSource
 	endpoint intervalEndpoint
 }
+
+type intervalProgram []intervalStep
 
 type intervalEndpoint uint8
 
@@ -199,8 +185,16 @@ func (s intervalStep) time(start, end localTime) localTime {
 	return start
 }
 
-func compileIntervalPattern(pattern string, start, end localTime) []intervalStep {
-	steps, counts := tokenizeIntervalPattern(pattern)
+func compileIntervalPattern(pattern string) intervalProgram {
+	tokens := compilePatternProgram(pattern)
+	steps := make(intervalProgram, len(tokens))
+	counts := map[rune]int{}
+	for i, token := range tokens {
+		steps[i].token = token
+		if token.field != 0 {
+			counts[intervalFieldKey(token.field)]++
+		}
+	}
 	seen := map[rune]int{}
 	previousSource := SourceShared
 	previousOK := false
@@ -223,34 +217,6 @@ func compileIntervalPattern(pattern string, start, end localTime) []intervalStep
 		steps[i].source = surroundingIntervalSource(previousSource, previousOK, nextSource, nextOK)
 	}
 	return steps
-}
-
-func tokenizeIntervalPattern(pattern string) ([]intervalStep, map[rune]int) {
-	steps := make([]intervalStep, 0, len(pattern))
-	counts := map[rune]int{}
-	for pattern != "" {
-		r := rune(pattern[0])
-		if r == '\'' {
-			literal, rest := consumeQuotedPatternLiteral(pattern)
-			steps = append(steps, intervalStep{token: intervalToken{literal: normalizePatternLiteral(literal)}})
-			pattern = rest
-			continue
-		}
-		if !isDatePatternField(r) && !isTimePatternField(r) {
-			r, size := utf8.DecodeRuneInString(pattern)
-			steps = append(steps, intervalStep{token: intervalToken{literal: normalizePatternLiteral(string(r))}})
-			pattern = pattern[size:]
-			continue
-		}
-		width := 1
-		for width < len(pattern) && rune(pattern[width]) == r {
-			width++
-		}
-		steps = append(steps, intervalStep{token: intervalToken{field: r, width: width}})
-		counts[intervalFieldKey(r)]++
-		pattern = pattern[width:]
-	}
-	return steps, counts
 }
 
 func nextIntervalFieldSource(steps []intervalStep, counts, seen map[rune]int) (RangeSource, bool) {
@@ -277,10 +243,9 @@ func intervalOccurrenceSource(count, occurrence int) RangeSource {
 
 func surroundingIntervalSource(previous RangeSource, previousOK bool, next RangeSource, nextOK bool) RangeSource {
 	switch {
+	case previousOK && nextOK && previous == next:
+		return previous
 	case previousOK && nextOK:
-		if previous == next {
-			return previous
-		}
 		return SourceShared
 	case previousOK:
 		return previous
@@ -308,16 +273,6 @@ func intervalFieldKey(field rune) rune {
 	}
 }
 
-func (f *DateTimeFormat) intervalPatternPart(field rune, width int, t localTime, numberingSystem string, uses24Hour bool, cldrLoc cldrdate.Locale, gregorian *cldrdate.Gregorian) Part {
-	if isDatePatternField(field) {
-		return datePatternPart(field, width, t, gregorian, numberingSystem)
-	}
-	if part, ok := f.timePatternPart(field, width, t, numberingSystem, uses24Hour, cldrLoc, gregorian); ok {
-		return part
-	}
-	return Part{Type: PartLiteral, Value: ""}
-}
-
 func appendRangeLiteralPart(parts []RangePart, value string, source RangeSource) []RangePart {
 	if value == "" {
 		return parts
@@ -327,6 +282,17 @@ func appendRangeLiteralPart(parts []RangePart, value string, source RangeSource)
 		return parts
 	}
 	return append(parts, RangePart{Type: PartLiteral, Value: value, Source: source})
+}
+
+func trimTrailingRangeLiteralSpace(parts []RangePart) []RangePart {
+	if len(parts) == 0 || parts[len(parts)-1].Type != PartLiteral {
+		return parts
+	}
+	parts[len(parts)-1].Value = strings.TrimRightFunc(parts[len(parts)-1].Value, unicode.IsSpace)
+	if parts[len(parts)-1].Value == "" {
+		return parts[:len(parts)-1]
+	}
+	return parts
 }
 
 func joinRangeParts(parts []RangePart) string {
@@ -343,53 +309,77 @@ func joinRangeParts(parts []RangePart) string {
 
 const defaultIntervalFallback = "{0} – {1}"
 
-func partitionRangeFallbackPattern(text string) ecma402.Pattern {
+type rangeFallbackStepKind uint8
+
+const (
+	rangeFallbackLiteral rangeFallbackStepKind = iota
+	rangeFallbackStart
+	rangeFallbackEnd
+)
+
+type rangeFallbackStep struct {
+	kind    rangeFallbackStepKind
+	literal string
+}
+
+type rangeFallbackProgram []rangeFallbackStep
+
+func compileRangeFallbackProgram(text string) rangeFallbackProgram {
 	if text == "" {
 		text = defaultIntervalFallback
 	}
 	patternParts, err := ecma402.PartitionPattern(text)
 	if err != nil {
-		return ecma402.Pattern{{Type: ecma402.PatternPartLiteral, Value: text}}
+		return rangeFallbackProgram{{kind: rangeFallbackLiteral, literal: text}}
 	}
-	return patternParts
-}
-
-func (f *DateTimeFormat) fallbackRangeParts(start, end []Part) []RangePart {
-	patternParts := f.pattern.rangeRecord.fallback
-	if len(patternParts) == 0 {
-		patternParts = partitionRangeFallbackPattern("")
-	}
-	parts := make([]RangePart, 0, len(start)+len(end)+1)
+	program := make(rangeFallbackProgram, 0, len(patternParts))
 	for _, part := range patternParts {
 		switch part.Type {
 		case ecma402.PatternPartPlaceholder0:
-			parts = append(parts, rangeParts(start, SourceStartRange)...)
+			program = append(program, rangeFallbackStep{kind: rangeFallbackStart})
 		case ecma402.PatternPartPlaceholder1:
-			parts = append(parts, rangeParts(end, SourceEndRange)...)
+			program = append(program, rangeFallbackStep{kind: rangeFallbackEnd})
 		case ecma402.PatternPartLiteral:
-			parts = appendRangeLiteralPart(parts, part.Value, SourceShared)
+			program = append(program, rangeFallbackStep{kind: rangeFallbackLiteral, literal: part.Value})
 		default:
-			parts = appendRangeLiteralPart(parts, "{"+part.Type+"}", SourceShared)
+			program = append(program, rangeFallbackStep{kind: rangeFallbackLiteral, literal: "{" + part.Type + "}"})
+		}
+	}
+	return program
+}
+
+func (f *DateTimeFormat) fallbackRangeParts(start, end []Part) []RangePart {
+	return f.pattern.rangeRecord.fallback.parts(start, end)
+}
+
+func (p rangeFallbackProgram) parts(start, end []Part) []RangePart {
+	parts := make([]RangePart, 0, len(start)+len(end)+len(p))
+	for _, step := range p {
+		switch step.kind {
+		case rangeFallbackStart:
+			parts = append(parts, rangeParts(start, SourceStartRange)...)
+		case rangeFallbackEnd:
+			parts = append(parts, rangeParts(end, SourceEndRange)...)
+		case rangeFallbackLiteral:
+			parts = appendRangeLiteralPart(parts, step.literal, SourceShared)
 		}
 	}
 	return parts
 }
 
 func (f *DateTimeFormat) appendFallbackRange(dst []byte, start, end []byte) []byte {
-	patternParts := f.pattern.rangeRecord.fallback
-	if len(patternParts) == 0 {
-		patternParts = partitionRangeFallbackPattern("")
-	}
-	for _, part := range patternParts {
-		switch part.Type {
-		case ecma402.PatternPartPlaceholder0:
+	return f.pattern.rangeRecord.fallback.appendTo(dst, start, end)
+}
+
+func (p rangeFallbackProgram) appendTo(dst, start, end []byte) []byte {
+	for _, step := range p {
+		switch step.kind {
+		case rangeFallbackStart:
 			dst = append(dst, start...)
-		case ecma402.PatternPartPlaceholder1:
+		case rangeFallbackEnd:
 			dst = append(dst, end...)
-		case ecma402.PatternPartLiteral:
-			dst = append(dst, part.Value...)
-		default:
-			dst = append(dst, "{"+part.Type+"}"...)
+		case rangeFallbackLiteral:
+			dst = append(dst, step.literal...)
 		}
 	}
 	return dst

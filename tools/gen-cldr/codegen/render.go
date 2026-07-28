@@ -11,18 +11,19 @@ import (
 )
 
 type RuntimeInput struct {
-	Manifest      ManifestInput
-	Locales       extract.Locales
-	LikelySubtags extract.LikelySubtags
-	Numbers       extract.Numbers
-	Currencies    extract.CurrencyData
-	Dates         extract.Dates
-	Preferences   cldr.PreferenceData
-	Metazones     extract.Metazones
-	Units         extract.Units
-	ListPatterns  extract.ListPatterns
-	RelativeTime  extract.RelativeTimeFields
-	DisplayNames  extract.DisplayNames
+	Manifest         ManifestInput
+	Locales          extract.Locales
+	LikelySubtags    extract.LikelySubtags
+	ScriptDirections map[string]bool
+	Numbers          extract.Numbers
+	Currencies       extract.CurrencyData
+	Dates            extract.Dates
+	Preferences      cldr.PreferenceData
+	Metazones        extract.Metazones
+	Units            extract.Units
+	ListPatterns     extract.ListPatterns
+	RelativeTime     extract.RelativeTimeFields
+	DisplayNames     extract.DisplayNames
 }
 
 type generatedFile struct {

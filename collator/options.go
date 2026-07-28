@@ -66,17 +66,17 @@ type Options struct {
 
 type config struct {
 	localeMatcher     string
-	localeMatcherSet  bool
+	hasLocaleMatcher  bool
 	usage             string
-	sensitivitySet    bool
+	hasSensitivity    bool
 	sensitivity       string
-	caseFirstSet      bool
+	hasCaseFirst      bool
 	caseFirst         string
 	numeric           bool
-	numericSet        bool
+	hasNumeric        bool
 	ignorePunctuation bool
 	collation         string
-	collationSet      bool
+	hasCollation      bool
 }
 
 func defaultConfig() config {
@@ -87,20 +87,20 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
 	ecma402.ApplyOption(&cfg.usage, opts.Usage)
-	ecma402.ApplyOptionInput(&cfg.sensitivity, &cfg.sensitivitySet, opts.Sensitivity)
-	ecma402.ApplyOptionInput(&cfg.caseFirst, &cfg.caseFirstSet, opts.CaseFirst)
-	ecma402.ApplyOptionInput(&cfg.numeric, &cfg.numericSet, opts.Numeric)
+	ecma402.ApplyOptionInput(&cfg.sensitivity, &cfg.hasSensitivity, opts.Sensitivity)
+	ecma402.ApplyOptionInput(&cfg.caseFirst, &cfg.hasCaseFirst, opts.CaseFirst)
+	ecma402.ApplyOptionInput(&cfg.numeric, &cfg.hasNumeric, opts.Numeric)
 	ecma402.ApplyOption(&cfg.ignorePunctuation, opts.IgnorePunctuation)
-	ecma402.ApplyUnicodeTypeOptionInput(&cfg.collation, &cfg.collationSet, "co", opts.Collation)
+	ecma402.ApplyUnicodeTypeOptionInput(&cfg.collation, &cfg.hasCollation, "co", opts.Collation)
 }
 
 func (cfg config) validate(locName string) error {
 	if err := ecma402.ValidateStringOptions(
 		collatorOwner,
 		locName,
-		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.localeMatcherSet),
+		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.hasLocaleMatcher),
 		usageOption(cfg.usage),
 	); err != nil {
 		return err
@@ -111,8 +111,8 @@ func (cfg config) validate(locName string) error {
 	if err := ecma402.ValidateStringOptions(
 		collatorOwner,
 		locName,
-		sensitivityOptionInput(cfg.sensitivity, cfg.sensitivitySet),
-		caseFirstOptionInput(cfg.caseFirst, cfg.caseFirstSet),
+		sensitivityOptionInput(cfg.sensitivity, cfg.hasSensitivity),
+		caseFirstOptionInput(cfg.caseFirst, cfg.hasCaseFirst),
 	); err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (cfg config) validate(locName string) error {
 			nil,
 		)
 	}
-	return ecma402.ValidateUnicodeTypeOptionInput(collatorOwner, "collation", cfg.collation, locName, cfg.collationSet)
+	return ecma402.ValidateUnicodeTypeOptionInput(collatorOwner, "collation", cfg.collation, locName, cfg.hasCollation)
 }
 
 func usageOption(value string) ecma402.StringOption {

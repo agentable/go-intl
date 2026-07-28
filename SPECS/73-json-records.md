@@ -153,4 +153,4 @@ DateTimeFormat branch-only resolved options (`hourCycle`, `hour12`, component fi
 | `segmenter.Segment` | `IsWordLike` | `isWordLike` | Word granularity records only |
 | `locale.WeekInfo` | `FirstDay` | `firstDay` | Always |
 | `locale.WeekInfo` | `Weekend` | `weekend` | Always |
-| `locale.TextInfo` | `Direction` | `direction` | Always |
+| `locale.TextInfo` | `Direction` | `direction` | When the direction is known |

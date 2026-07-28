@@ -643,31 +643,65 @@ func TestDateTimeFormatFormatEqualsFormatToPartsJoin(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		opts Options
-		date time.Time
+		name   string
+		locale string
+		opts   Options
+		date   time.Time
 	}{
 		{
-			name: "date",
-			opts: Options{Year: stringPtr(NumericFieldStyle), Month: stringPtr(ShortMonthStyle), Day: stringPtr(NumericFieldStyle)},
-			date: time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC),
+			name:   "date",
+			locale: "en-US",
+			opts:   Options{Year: stringPtr(NumericFieldStyle), Month: stringPtr(ShortMonthStyle), Day: stringPtr(NumericFieldStyle)},
+			date:   time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "date time connector",
-			opts: Options{Year: stringPtr(NumericFieldStyle), Month: stringPtr(ShortMonthStyle), Day: stringPtr(NumericFieldStyle), Hour: stringPtr(NumericFieldStyle), Minute: stringPtr(TwoDigitFieldStyle)},
-			date: time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC),
+			name:   "date time connector",
+			locale: "en-US",
+			opts:   Options{Year: stringPtr(NumericFieldStyle), Month: stringPtr(ShortMonthStyle), Day: stringPtr(NumericFieldStyle), Hour: stringPtr(NumericFieldStyle), Minute: stringPtr(TwoDigitFieldStyle)},
+			date:   time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC),
 		},
 		{
-			name: "24 hour skips day period",
-			opts: Options{Hour: stringPtr(NumericFieldStyle), DayPeriod: stringPtr(ShortFieldStyle), Hour12: boolPtr(false)},
-			date: time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC),
+			name:   "quoted style connector",
+			locale: "en-US",
+			opts:   Options{DateStyle: stringPtr(LongDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), TimeZone: stringPtr("UTC")},
+			date:   time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC),
+		},
+		{
+			name:   "non ASCII literals",
+			locale: "zh-CN",
+			opts:   Options{Year: stringPtr(NumericFieldStyle), Month: stringPtr(NumericMonthStyle), Day: stringPtr(NumericFieldStyle)},
+			date:   time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:   "fractional second",
+			locale: "en-US",
+			opts:   Options{Hour: stringPtr(NumericFieldStyle), Minute: stringPtr(TwoDigitFieldStyle), Second: stringPtr(TwoDigitFieldStyle), FractionalSecondDigits: intPtr(3), TimeZone: stringPtr("UTC")},
+			date:   time.Date(2026, time.May, 8, 9, 7, 6, 123_000_000, time.UTC),
+		},
+		{
+			name:   "short timezone name",
+			locale: "en-US",
+			opts:   Options{Hour: stringPtr(NumericFieldStyle), TimeZoneName: stringPtr(ShortTimeZoneName), TimeZone: stringPtr("America/Los_Angeles")},
+			date:   time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC),
+		},
+		{
+			name:   "long timezone name",
+			locale: "en-US",
+			opts:   Options{Hour: stringPtr(NumericFieldStyle), TimeZoneName: stringPtr(LongTimeZoneName), TimeZone: stringPtr("America/Los_Angeles")},
+			date:   time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC),
+		},
+		{
+			name:   "24 hour skips day period",
+			locale: "en-US",
+			opts:   Options{Hour: stringPtr(NumericFieldStyle), DayPeriod: stringPtr(ShortFieldStyle), Hour12: boolPtr(false)},
+			date:   time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC),
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			format, err := New(locale.List{intltest.Locale(t, "en-US")}, tc.opts)
+			format, err := New(locale.List{intltest.Locale(t, tc.locale)}, tc.opts)
 			if err != nil {
 				t.Fatalf("New(%s) error = %v", tc.name, err)
 			}

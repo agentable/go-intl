@@ -15,19 +15,7 @@ import (
 
 // Format formats a numeric value.
 func (f *NumberFormat) Format(v Value) string {
-	numeric := v.numeric
-	switch numeric.Kind {
-	case ecma402.NumericValueInt64:
-		if s, ok := formatFastInt64(numeric.Int64, f.integerFastPath); ok {
-			return s
-		}
-	case ecma402.NumericValueUint64:
-		if s, ok := formatFastUint64(numeric.Uint64, f.integerFastPath); ok {
-			return s
-		}
-	case ecma402.NumericValueDecimal:
-	}
-	return formatDecimalText(numeric.Decimal, &f.formatState)
+	return partsText(formatDecimalToPartsAppend(nil, v.numeric.Decimal, &f.formatState))
 }
 
 // FormatToParts formats a numeric value into ECMA-402 parts.
@@ -60,11 +48,7 @@ func formatDecimalToPartsAppend(parts []Part, d decimal.Decimal, state *decimalF
 		return applyStylePattern(parts, d, state)
 	}
 	if d.IsInf() {
-		if d.Negative() {
-			parts = applySpecialSignDisplay(append(parts, Part{Type: PartInfinity, Value: symbols.Infinity}), true, false, signDisplay, symbols)
-			return applyStylePattern(parts, d, state)
-		}
-		parts = applySpecialSignDisplay(append(parts, Part{Type: PartInfinity, Value: symbols.Infinity}), false, false, signDisplay, symbols)
+		parts = applySpecialSignDisplay(append(parts, Part{Type: PartInfinity, Value: symbols.Infinity}), d.Negative(), false, signDisplay, symbols)
 		return applyStylePattern(parts, d, state)
 	}
 	if style == PercentStyle {
@@ -87,50 +71,6 @@ func formatDecimalToPartsAppend(parts []Part, d decimal.Decimal, state *decimalF
 		rounded = result.Rounded
 	}
 	return applyStylePattern(parts, rounded, state)
-}
-
-func formatDecimalText(d decimal.Decimal, state *decimalFormatState) string {
-	resolved := state.resolved
-	style := resolved.Style
-	notation := resolved.Notation
-	signDisplay := resolved.SignDisplay
-	symbols := state.symbols
-	grouping := state.grouping
-	digitOptions := state.digitOptions
-	if d.IsNaN() {
-		text := applySpecialSignDisplayText(symbols.NaN, false, true, signDisplay, symbols)
-		return applyStylePatternText(text, d, state)
-	}
-	if d.IsInf() {
-		text := symbols.Infinity
-		if d.Negative() {
-			text = applySpecialSignDisplayText(text, true, false, signDisplay, symbols)
-			return applyStylePatternText(text, d, state)
-		}
-		text = applySpecialSignDisplayText(text, false, false, signDisplay, symbols)
-		return applyStylePatternText(text, d, state)
-	}
-	if style == PercentStyle {
-		d = decimal.MulInt(d, 100)
-	}
-	var text string
-	var rounded decimal.Decimal
-	switch notation {
-	case ScientificNotation, EngineeringNotation:
-		text, rounded = formatScientificText(d, notation, state)
-	case CompactNotation:
-		text, rounded = formatCompactText(d, state)
-	case StandardNotation:
-		result := ecma402nf.FormatNumericToString(d, digitOptions)
-		formatted := result.Formatted
-		if shouldUseGrouping(resolved.UseGrouping, formatted) {
-			formatted = groupDecimal(formatted, grouping)
-		}
-		text = localizeFormattedNumberText(formatted, symbols, resolved.NumberingSystem)
-		text = applySignDisplayText(text, formatted, d.Negative(), signDisplay, symbols)
-		rounded = result.Rounded
-	}
-	return applyStylePatternText(text, rounded, state)
 }
 
 func applyStylePattern(parts []Part, rounded decimal.Decimal, state *decimalFormatState) []Part {
@@ -156,42 +96,12 @@ func applyStylePattern(parts []Part, rounded decimal.Decimal, state *decimalForm
 	return localizeParts(parts, numberingSystem)
 }
 
-func applyStylePatternText(text string, rounded decimal.Decimal, state *decimalFormatState) string {
-	resolved := state.resolved
-	style := resolved.Style
-	if style == PercentStyle {
-		text += state.symbols.Percent
-	}
-	if style == CurrencyStyle {
-		if rounded.IsFinite() {
-			return applyCurrencyPatternText(text, pluralNumberString(rounded.String()), state.cardinalRule, resolved, state.currencyLoc, state.currency, state.symbols)
-		}
-		return applyCurrencyPatternForPluralText(text, "other", resolved, state.currencyLoc, state.currency, state.symbols)
-	}
-	if style == UnitStyle {
-		if rounded.IsFinite() {
-			plural := pluralCategory(state.cardinalRule, pluralNumberString(rounded.String()))
-			return applyUnitPatternForPluralText(text, plural, state.unit)
-		}
-		return applyUnitPatternForPluralText(text, pluralop.Other, state.unit)
-	}
-	return text
-}
-
 func applySpecialSignDisplay(parts []Part, negative bool, nan bool, signDisplay SignDisplay, symbols cldrnumber.NumberSymbols) []Part {
 	sign, ok := displaySign(signDisplay, negative, false, nan)
 	if !ok {
 		return parts
 	}
 	return prependPart(Part{Type: sign, Value: signValue(sign, symbols)}, parts)
-}
-
-func applySpecialSignDisplayText(text string, negative bool, nan bool, signDisplay SignDisplay, symbols cldrnumber.NumberSymbols) string {
-	sign, ok := displaySign(signDisplay, negative, false, nan)
-	if !ok {
-		return text
-	}
-	return signValue(sign, symbols) + text
 }
 
 func applySignDisplay(parts []Part, negative bool, signDisplay SignDisplay, symbols cldrnumber.NumberSymbols) []Part {
@@ -202,16 +112,6 @@ func applySignDisplay(parts []Part, negative bool, signDisplay SignDisplay, symb
 		return parts
 	}
 	return prependPart(Part{Type: sign, Value: signValue(sign, symbols)}, parts)
-}
-
-func applySignDisplayText(text, formatted string, negative bool, signDisplay SignDisplay, symbols cldrnumber.NumberSymbols) string {
-	text = withoutLeadingSignText(text, symbols)
-	zero := formattedNumberTextIsZero(formatted)
-	sign, ok := displaySign(signDisplay, negative, zero, false)
-	if !ok {
-		return text
-	}
-	return signValue(sign, symbols) + text
 }
 
 func prependPart(part Part, parts []Part) []Part {
@@ -261,20 +161,6 @@ func withoutLeadingSign(parts []Part) []Part {
 	return parts
 }
 
-func withoutLeadingSignText(text string, symbols cldrnumber.NumberSymbols) string {
-	if symbols.Minus != "" {
-		if rest, ok := strings.CutPrefix(text, symbols.Minus); ok {
-			return rest
-		}
-	}
-	if symbols.Plus != "" {
-		if rest, ok := strings.CutPrefix(text, symbols.Plus); ok {
-			return rest
-		}
-	}
-	return text
-}
-
 func numericPartsAreZero(parts []Part) bool {
 	sawDigit := false
 	for _, part := range parts {
@@ -294,54 +180,11 @@ func numericPartsAreZero(parts []Part) bool {
 	return sawDigit
 }
 
-func formattedNumberTextIsZero(formatted string) bool {
-	sawDigit := false
-	for _, r := range formatted {
-		if r < '0' || r > '9' {
-			continue
-		}
-		sawDigit = true
-		if r != '0' {
-			return false
-		}
-	}
-	return sawDigit
-}
-
 func signValue(sign PartType, symbols cldrnumber.NumberSymbols) string {
 	if sign == PartPlusSign {
 		return symbols.Plus
 	}
 	return symbols.Minus
-}
-
-func localizeNumberString(s string, symbols cldrnumber.NumberSymbols) string {
-	if symbols.Minus == "-" && symbols.Group == "," && symbols.Decimal == "." {
-		return s
-	}
-	var b strings.Builder
-	b.Grow(len(s))
-	for i := range len(s) {
-		switch s[i] {
-		case '-':
-			b.WriteString(symbols.Minus)
-		case ',':
-			b.WriteString(symbols.Group)
-		case '.':
-			b.WriteString(symbols.Decimal)
-		default:
-			b.WriteByte(s[i])
-		}
-	}
-	return b.String()
-}
-
-func localizeFormattedNumberText(s string, symbols cldrnumber.NumberSymbols, numberingSystem string) string {
-	s = localizeNumberString(s, symbols)
-	if numberingSystem == "" || numberingSystem == numbering.DefaultNumberingSystem {
-		return s
-	}
-	return ecma402.LocalizeDigits(s, numberingSystem)
 }
 
 func localizeParts(parts []Part, numberingSystem string) []Part {

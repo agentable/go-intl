@@ -109,7 +109,7 @@ func collatorOptionValues(cfg config) []ecma402.UnicodeExtensionOption {
 	if cfg.collation != "" {
 		out = append(out, ecma402.UnicodeExtensionOption{Key: ecma402.UnicodeExtensionKeyCollation, Value: cfg.collation})
 	}
-	if cfg.numericSet {
+	if cfg.hasNumeric {
 		value := "false"
 		if cfg.numeric {
 			value = "true"

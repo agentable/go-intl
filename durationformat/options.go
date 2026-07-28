@@ -66,9 +66,9 @@ type Options struct {
 
 type config struct {
 	localeMatcher       string
-	localeMatcherSet    bool
+	hasLocaleMatcher    bool
 	numberingSystem     string
-	numberingSystemSet  bool
+	hasNumberingSystem  bool
 	style               string
 	units               [unitCount]unitConfig
 	fractionalDigits    int
@@ -77,9 +77,9 @@ type config struct {
 
 type unitConfig struct {
 	style      string
-	styleSet   bool
+	hasStyle   bool
 	display    string
-	displaySet bool
+	hasDisplay bool
 }
 
 type resolvedUnitConfig struct {
@@ -95,8 +95,8 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
-	ecma402.ApplyOptionInput(&cfg.numberingSystem, &cfg.numberingSystemSet, opts.NumberingSystem)
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
+	ecma402.ApplyOptionInput(&cfg.numberingSystem, &cfg.hasNumberingSystem, opts.NumberingSystem)
 	ecma402.ApplyOption(&cfg.style, opts.Style)
 	cfg.units = optionUnitConfigs(opts)
 	ecma402.ApplyOptionInput(&cfg.fractionalDigits, &cfg.hasFractionalDigits, opts.FractionalDigits)
@@ -119,8 +119,8 @@ func optionUnitConfigs(opts Options) [unitCount]unitConfig {
 
 func optionUnitConfig(style, display *string) unitConfig {
 	var cfg unitConfig
-	ecma402.ApplyOptionInput(&cfg.style, &cfg.styleSet, style)
-	ecma402.ApplyOptionInput(&cfg.display, &cfg.displaySet, display)
+	ecma402.ApplyOptionInput(&cfg.style, &cfg.hasStyle, style)
+	ecma402.ApplyOptionInput(&cfg.display, &cfg.hasDisplay, display)
 	return cfg
 }
 
@@ -149,12 +149,12 @@ func (cfg config) validate(locName string) error {
 	if err := ecma402.ValidateStringOptions(
 		durationFormatOwner,
 		locName,
-		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.localeMatcherSet),
+		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.hasLocaleMatcher),
 		durationStyleOption(cfg.style),
 	); err != nil {
 		return err
 	}
-	if err := ecma402.ValidateUnicodeTypeOptionInput(durationFormatOwner, "numberingSystem", cfg.numberingSystem, locName, cfg.numberingSystemSet); err != nil {
+	if err := ecma402.ValidateUnicodeTypeOptionInput(durationFormatOwner, "numberingSystem", cfg.numberingSystem, locName, cfg.hasNumberingSystem); err != nil {
 		return err
 	}
 	return ecma402.ValidateIntegerOptions(durationFormatOwner, locName, ecma402.IntegerOption{
@@ -185,7 +185,7 @@ func resolveUnitOptions(cfg config, locName string) ([unitCount]resolvedUnitConf
 func getDurationUnitOptions(spec durationUnitSpec, unit unitConfig, baseStyle Style, prevStyle UnitStyle, loc string) (resolvedUnitConfig, error) {
 	style := UnitStyle(unit.style)
 	displayDefault := AlwaysDisplay
-	if !unit.styleSet {
+	if !unit.hasStyle {
 		switch {
 		case baseStyle == DigitalStyle:
 			style = spec.digitalDefault
@@ -210,7 +210,7 @@ func getDurationUnitOptions(spec durationUnitSpec, unit unitConfig, baseStyle St
 		displayDefault = AutoDisplay
 	}
 	display := Display(unit.display)
-	if !unit.displaySet {
+	if !unit.hasDisplay {
 		display = displayDefault
 	}
 	if err := ecma402.ValidateStringOptions(

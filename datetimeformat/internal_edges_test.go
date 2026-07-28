@@ -36,10 +36,32 @@ func TestDateTimeFormatPatternLiteralEdges(t *testing.T) {
 		resolved:   ResolvedOptions{Hour12: &hour12, NumberingSystem: "latn"},
 		uses24Hour: true,
 	}
-	got := format.formatPattern("H a", gregoryLocalTime(time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC)))
+	got := compilePatternProgram("H a").parts(&format, gregoryLocalTime(time.Date(2026, time.May, 8, 9, 0, 0, 0, time.UTC)))
 	want := []Part{{Type: PartHour, Value: "9"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("formatPattern(24h day period) = %#v, want trailing literal trimmed", got)
+	}
+
+	got = compilePatternProgram("H ''m").parts(&format, gregoryLocalTime(time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC)))
+	want = []Part{
+		{Type: PartHour, Value: "9"},
+		{Type: PartLiteral, Value: " "},
+		{Type: PartMinute, Value: "7"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("compiled empty quoted literal = %#v, want %#v", got, want)
+	}
+
+	rangeProgram := compileIntervalPattern("H ''m – H ''m")
+	rangeGot := rangeProgram.parts(
+		&format,
+		gregoryLocalTime(time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC)),
+		gregoryLocalTime(time.Date(2026, time.May, 8, 10, 8, 0, 0, time.UTC)),
+	)
+	for _, part := range rangeGot {
+		if part.Value == "" {
+			t.Fatalf("compiled interval contains empty part: %#v", rangeGot)
+		}
 	}
 
 	empty := DateTimeFormat{}
@@ -195,7 +217,7 @@ func TestDateTimeFormatFallbackRangeParts(t *testing.T) {
 	format := DateTimeFormat{
 		pattern: selectedPattern{
 			rangeRecord: rangePatternRecord{
-				fallback: partitionRangeFallbackPattern("{1} <- {0}"),
+				fallback: compileRangeFallbackProgram("{1} <- {0}"),
 			},
 		},
 	}
@@ -209,7 +231,7 @@ func TestDateTimeFormatFallbackRangeParts(t *testing.T) {
 		t.Fatalf("fallbackRangeParts(custom) = %#v, want %#v", got, want)
 	}
 
-	format = DateTimeFormat{}
+	format.pattern.rangeRecord.fallback = compileRangeFallbackProgram("")
 	got = format.fallbackRangeParts(start, end)
 	if joined := joinRangeParts(got); joined != "9 – 10" {
 		t.Fatalf("fallbackRangeParts(default) = %q, want 9 – 10", joined)

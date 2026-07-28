@@ -1,5 +1,7 @@
 package numberformat
 
+import "strings"
+
 type Part struct {
 	Type  PartType `json:"type"`
 	Value string   `json:"value"`
@@ -40,3 +42,16 @@ const (
 	PartCompact           PartType = "compact"
 	PartApproximatelySign PartType = "approximatelySign"
 )
+
+func partsText(parts []Part) string {
+	size := 0
+	for _, part := range parts {
+		size += len(part.Value)
+	}
+	var b strings.Builder
+	b.Grow(size)
+	for _, part := range parts {
+		b.WriteString(part.Value)
+	}
+	return b.String()
+}

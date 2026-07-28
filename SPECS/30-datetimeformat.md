@@ -342,9 +342,9 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 1. instant := t.UTC().UnixMilli()
 2. localTime := ToLocalTime(instant, calendar, location)
    // localTime = {era, year, month, day, weekday, hour, minute, second, ms, dst, offset}
-3. pattern := f.pattern // Has been resolved to selectedPattern(SPEC 31) in New
+3. program := f.pattern.program // Selected and compiled once in New
 4. parts := []Part{}
-5. for token in pattern:
+5. for token in program:
        if token is literal: parts += {Type: "literal", Value: token.text}
        else: parts += FormatField(localTime, token, dataLocale, numberingSystem)
 6. return parts
@@ -357,7 +357,7 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 3. ECMA-402 `ToLocalTime` semantics **MUST** be centralized behind one local-time projection path. Active `gregory` and `iso8601` use Gregorian fields, including ECMA-402 BCE display-year conversion (`year <= 0` formats as `1 - year`); future calendars must extend that projection instead of scattering calendar conditionals through pattern code.
 4. Pattern token → Field formatted lookup table **MUST** pass [SPEC 31 §Skeleton character table](./31-datetimeformat-skeleton.md).
 5. The `Part.Type` output by `FormatField` **MUST** qualify ECMA-402 §15.5.1 Table 9 for a total of 15 spec strings: `era | year | month | day | hour | minute | second | weekday | dayPeriod | timeZoneName | literal | fractionalSecond | relatedYear | yearName | unknown`. The option, resolved property, and pattern field remain `fractionalSecondDigits`; only the emitted part type is `fractionalSecond`, exposed as `PartFractionalSecond`. The AM/PM mark is triggered by the token `a/b/B` inside the pattern, but the output part type is still `"dayPeriod"` (spec §15.5.4), and `"ampm"` must not be emitted directly because it is not an ECMA-402 part type. `relatedYear / yearName / unknown` will not be emitted in Gregorian-only scope, but the constants must exist so consumer switches can stay exhaustive. **It is forbidden** to emit option names or non-spec strings such as `fractionalSecondDigits`, `hour24`, `hour11`, `dayperiod`, or `ampm` as part types.
-6. `DateTimeFormat` **MUST** cache `selectedPattern` when `New` is used, instead of repeatedly selecting the pattern in each `FormatToParts`. The selected record owns effective date/time formats, date+time interpolation, and the compiled range record used by both range sinks.
+6. `DateTimeFormat` **MUST** cache `selectedPattern` and compile its endpoint, date, time, interval, and distinguishing fallback programs in `New`. `Format`, `FormatToParts`, `FormatRange`, and `FormatRangeToParts` execute those immutable programs; they must not tokenize patterns, repeat skeleton lookup, adjust fields, or construct fallback patterns on the hot path. The selected record owns effective date/time formats, date+time interpolation, and the compiled range record used by both range sinks.
 7. `localeMatcher` and `formatMatcher` **MUST** be kept separate: `localeMatcher` only affects the CLDR data locale selection; `formatMatcher` only affects the component options → pattern selection. **BANNED** Substituting locale fallback results for formatMatcher decisions.
 8. Component-style `ResolvedOptions` **MUST** be projected from the effective selected patterns after matcher adjustments and appended fields, not copied from the caller's requested option bag. Fields absent from the effective pattern remain nil; hour-cycle fields are absent when the selected pattern has no hour.
 

@@ -41,43 +41,43 @@ type Options struct {
 
 type config struct {
 	calendar                  string
-	calendarSet               bool
+	hasCalendar               bool
 	numberingSystem           string
-	numberingSystemSet        bool
+	hasNumberingSystem        bool
 	localeMatcher             string
-	localeMatcherSet          bool
+	hasLocaleMatcher          bool
 	formatMatcher             string
-	formatMatcherSet          bool
+	hasFormatMatcher          bool
 	timeZone                  string
-	timeZoneSet               bool
+	hasTimeZone               bool
 	timeZoneName              string
-	timeZoneNameSet           bool
+	hasTimeZoneName           bool
 	weekday                   string
-	weekdaySet                bool
+	hasWeekday                bool
 	era                       string
-	eraSet                    bool
+	hasEra                    bool
 	year                      string
-	yearSet                   bool
+	hasYear                   bool
 	month                     string
-	monthSet                  bool
+	hasMonth                  bool
 	day                       string
-	daySet                    bool
+	hasDay                    bool
 	dayPeriod                 string
-	dayPeriodSet              bool
+	hasDayPeriod              bool
 	hour                      string
-	hourSet                   bool
+	hasHour                   bool
 	minute                    string
-	minuteSet                 bool
+	hasMinute                 bool
 	second                    string
-	secondSet                 bool
+	hasSecond                 bool
 	hourCycle                 string
-	hourCycleSet              bool
+	hasHourCycle              bool
 	hour12                    bool
 	hasHour12                 bool
 	dateStyle                 string
-	dateStyleSet              bool
+	hasDateStyle              bool
 	timeStyle                 string
-	timeStyleSet              bool
+	hasTimeStyle              bool
 	fractionalSecondDigits    int
 	hasFractionalSecondDigits bool
 }
@@ -87,25 +87,25 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	ecma402.ApplyUnicodeTypeOptionInput(&cfg.calendar, &cfg.calendarSet, "ca", opts.Calendar)
-	ecma402.ApplyUnicodeTypeOptionInput(&cfg.numberingSystem, &cfg.numberingSystemSet, "nu", opts.NumberingSystem)
-	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.localeMatcherSet, opts.LocaleMatcher)
-	ecma402.ApplyOptionInput(&cfg.formatMatcher, &cfg.formatMatcherSet, opts.FormatMatcher)
-	ecma402.ApplyOptionInput(&cfg.timeZone, &cfg.timeZoneSet, opts.TimeZone)
-	ecma402.ApplyOptionInput(&cfg.timeZoneName, &cfg.timeZoneNameSet, opts.TimeZoneName)
-	ecma402.ApplyOptionInput(&cfg.weekday, &cfg.weekdaySet, opts.Weekday)
-	ecma402.ApplyOptionInput(&cfg.era, &cfg.eraSet, opts.Era)
-	ecma402.ApplyOptionInput(&cfg.year, &cfg.yearSet, opts.Year)
-	ecma402.ApplyOptionInput(&cfg.month, &cfg.monthSet, opts.Month)
-	ecma402.ApplyOptionInput(&cfg.day, &cfg.daySet, opts.Day)
-	ecma402.ApplyOptionInput(&cfg.dayPeriod, &cfg.dayPeriodSet, opts.DayPeriod)
-	ecma402.ApplyOptionInput(&cfg.hour, &cfg.hourSet, opts.Hour)
-	ecma402.ApplyOptionInput(&cfg.minute, &cfg.minuteSet, opts.Minute)
-	ecma402.ApplyOptionInput(&cfg.second, &cfg.secondSet, opts.Second)
-	ecma402.ApplyOptionInput(&cfg.hourCycle, &cfg.hourCycleSet, opts.HourCycle)
+	ecma402.ApplyUnicodeTypeOptionInput(&cfg.calendar, &cfg.hasCalendar, "ca", opts.Calendar)
+	ecma402.ApplyUnicodeTypeOptionInput(&cfg.numberingSystem, &cfg.hasNumberingSystem, "nu", opts.NumberingSystem)
+	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
+	ecma402.ApplyOptionInput(&cfg.formatMatcher, &cfg.hasFormatMatcher, opts.FormatMatcher)
+	ecma402.ApplyOptionInput(&cfg.timeZone, &cfg.hasTimeZone, opts.TimeZone)
+	ecma402.ApplyOptionInput(&cfg.timeZoneName, &cfg.hasTimeZoneName, opts.TimeZoneName)
+	ecma402.ApplyOptionInput(&cfg.weekday, &cfg.hasWeekday, opts.Weekday)
+	ecma402.ApplyOptionInput(&cfg.era, &cfg.hasEra, opts.Era)
+	ecma402.ApplyOptionInput(&cfg.year, &cfg.hasYear, opts.Year)
+	ecma402.ApplyOptionInput(&cfg.month, &cfg.hasMonth, opts.Month)
+	ecma402.ApplyOptionInput(&cfg.day, &cfg.hasDay, opts.Day)
+	ecma402.ApplyOptionInput(&cfg.dayPeriod, &cfg.hasDayPeriod, opts.DayPeriod)
+	ecma402.ApplyOptionInput(&cfg.hour, &cfg.hasHour, opts.Hour)
+	ecma402.ApplyOptionInput(&cfg.minute, &cfg.hasMinute, opts.Minute)
+	ecma402.ApplyOptionInput(&cfg.second, &cfg.hasSecond, opts.Second)
+	ecma402.ApplyOptionInput(&cfg.hourCycle, &cfg.hasHourCycle, opts.HourCycle)
 	ecma402.ApplyOptionInput(&cfg.hour12, &cfg.hasHour12, opts.Hour12)
-	ecma402.ApplyOptionInput(&cfg.dateStyle, &cfg.dateStyleSet, opts.DateStyle)
-	ecma402.ApplyOptionInput(&cfg.timeStyle, &cfg.timeStyleSet, opts.TimeStyle)
+	ecma402.ApplyOptionInput(&cfg.dateStyle, &cfg.hasDateStyle, opts.DateStyle)
+	ecma402.ApplyOptionInput(&cfg.timeStyle, &cfg.hasTimeStyle, opts.TimeStyle)
 	ecma402.ApplyOptionInput(&cfg.fractionalSecondDigits, &cfg.hasFractionalSecondDigits, opts.FractionalSecondDigits)
 }
 
@@ -113,28 +113,28 @@ func (c config) validate(locName string) error {
 	if err := ecma402.ValidateStringOptions(
 		dateTimeFormatOwner,
 		locName,
-		dateTimeFormatMatcherOptionInput(c.formatMatcher, c.formatMatcherSet),
-		dateTimeZoneNameOptionInput(c.timeZoneName, c.timeZoneNameSet),
-		dateTimeFieldStyleOptionInput("weekday", c.weekday, c.weekdaySet),
-		dateTimeFieldStyleOptionInput("era", c.era, c.eraSet),
-		dateTimeNumericStyleOptionInput("year", c.year, c.yearSet),
-		dateTimeMonthStyleOptionInput(c.month, c.monthSet),
-		dateTimeNumericStyleOptionInput("day", c.day, c.daySet),
-		dateTimeFieldStyleOptionInput("dayPeriod", c.dayPeriod, c.dayPeriodSet),
-		dateTimeNumericStyleOptionInput("hour", c.hour, c.hourSet),
-		dateTimeNumericStyleOptionInput("minute", c.minute, c.minuteSet),
-		dateTimeNumericStyleOptionInput("second", c.second, c.secondSet),
-		dateTimeHourCycleOptionInput(c.hourCycle, c.hourCycleSet),
-		dateTimeStyleOptionInput("dateStyle", c.dateStyle, c.dateStyleSet),
-		dateTimeStyleOptionInput("timeStyle", c.timeStyle, c.timeStyleSet),
-		ecma402.LocaleMatcherOptionInput(c.localeMatcher, c.localeMatcherSet),
+		dateTimeFormatMatcherOptionInput(c.formatMatcher, c.hasFormatMatcher),
+		dateTimeZoneNameOptionInput(c.timeZoneName, c.hasTimeZoneName),
+		dateTimeFieldStyleOptionInput("weekday", c.weekday, c.hasWeekday),
+		dateTimeFieldStyleOptionInput("era", c.era, c.hasEra),
+		dateTimeNumericStyleOptionInput("year", c.year, c.hasYear),
+		dateTimeMonthStyleOptionInput(c.month, c.hasMonth),
+		dateTimeNumericStyleOptionInput("day", c.day, c.hasDay),
+		dateTimeFieldStyleOptionInput("dayPeriod", c.dayPeriod, c.hasDayPeriod),
+		dateTimeNumericStyleOptionInput("hour", c.hour, c.hasHour),
+		dateTimeNumericStyleOptionInput("minute", c.minute, c.hasMinute),
+		dateTimeNumericStyleOptionInput("second", c.second, c.hasSecond),
+		dateTimeHourCycleOptionInput(c.hourCycle, c.hasHourCycle),
+		dateTimeStyleOptionInput("dateStyle", c.dateStyle, c.hasDateStyle),
+		dateTimeStyleOptionInput("timeStyle", c.timeStyle, c.hasTimeStyle),
+		ecma402.LocaleMatcherOptionInput(c.localeMatcher, c.hasLocaleMatcher),
 	); err != nil {
 		return err
 	}
-	if err := ecma402.ValidateUnicodeTypeOptionInput(dateTimeFormatOwner, "calendar", c.calendar, locName, c.calendarSet); err != nil {
+	if err := ecma402.ValidateUnicodeTypeOptionInput(dateTimeFormatOwner, "calendar", c.calendar, locName, c.hasCalendar); err != nil {
 		return err
 	}
-	if err := ecma402.ValidateUnicodeTypeOptionInput(dateTimeFormatOwner, "numberingSystem", c.numberingSystem, locName, c.numberingSystemSet); err != nil {
+	if err := ecma402.ValidateUnicodeTypeOptionInput(dateTimeFormatOwner, "numberingSystem", c.numberingSystem, locName, c.hasNumberingSystem); err != nil {
 		return err
 	}
 	if err := ecma402.ValidateIntegerOptions(dateTimeFormatOwner, locName, ecma402.IntegerOption{

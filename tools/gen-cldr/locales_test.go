@@ -59,7 +59,7 @@ func TestRunGeneratesLocalesAndLikelySubtags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read locale/data.go: %v", err)
 	}
-	if !containsAll(string(payload), "package cldrlocale", "const _data", "_localeBlob", "_maximizeBlob", "_minimizeBlob", "_numberingBlob") {
+	if !containsAll(string(payload), "package cldrlocale", "const _data", "_localeBlob", "_maximizeBlob", "_minimizeBlob", "_directionBlob", "_numberingBlob") {
 		t.Fatalf("locale/data.go missing expected const payload:\n%s", payload)
 	}
 	// The _data const is emitted in 64-byte chunks, so locale tags can straddle a
@@ -188,6 +188,10 @@ func writeBaseCLDRFixture(t *testing.T, root string) {
 	available := `{"availableLocales":{"modern":["und","en","en-US","zh","zh-Hans","zh-Hans-CN"]}}`
 	if err := os.WriteFile(filepath.Join(root, "cldr-core", "availableLocales.json"), []byte(available), 0o666); err != nil {
 		t.Fatalf("write availableLocales: %v", err)
+	}
+	directions := `{"scriptMetadata":{"Latn":{"rtl":"NO"}}}`
+	if err := os.WriteFile(filepath.Join(root, "cldr-core", "scriptMetadata.json"), []byte(directions), 0o666); err != nil {
+		t.Fatalf("write scriptMetadata: %v", err)
 	}
 	likely := `{"supplemental":{"likelySubtags":{"en":"en_Latn_US","zh":"zh_Hans_CN","zh_Hant":"zh_Hant_TW"}}}`
 	supp := filepath.Join(root, "cldr-core", "supplemental")

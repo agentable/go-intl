@@ -251,8 +251,13 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 		},
 		{
 			name:  "text info",
-			value: locale.TextInfo{Direction: "ltr"},
+			value: locale.TextInfo{Direction: stringPtr("ltr")},
 			want:  []string{`"direction":"ltr"`},
+		},
+		{
+			name:   "text info omits unknown direction",
+			value:  locale.TextInfo{},
+			absent: []string{`"direction"`},
 		},
 		{
 			name:  "text info from rtl locale",

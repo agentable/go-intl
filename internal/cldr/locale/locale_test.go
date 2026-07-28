@@ -167,6 +167,28 @@ func TestSmokeSubtagsAndPreferences(t *testing.T) {
 	}
 }
 
+func TestTextDirection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		script string
+		want   string
+		ok     bool
+	}{
+		{script: "Latn", want: "ltr", ok: true},
+		{script: "Arab", want: "rtl", ok: true},
+		{script: "Sogd", want: "rtl", ok: true},
+		{script: "Zzzz"},
+		{script: ""},
+	}
+	for _, tc := range tests {
+		got, ok := TextDirection(tc.script)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("TextDirection(%q) = %q, %t; want %q, %t", tc.script, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
 func TestMaximizeSubtagsUsesLikelySubtagFallbackOrder(t *testing.T) {
 	t.Parallel()
 

@@ -85,13 +85,16 @@ type ZoneInfo struct {
     OffsetMs int64
     IsDST    bool
     Abbrv    string  // e.g. "EST" / "EDT"
-    Metazone string  // e.g. "America_Eastern", from CLDR metazoneInfo
 }
 ```
 
 `Default` is the single internal owner for the DateTimeFormat default time-zone provider. It canonicalizes IANA links and offset names the same way as explicit `Options.TimeZone`; tests may replace the provider with `OverrideDefaultForTest`, which returns ordinary resolution errors for unsupported names instead of panicking. No public diagnostic or configuration API is exposed.
 
 `LookupAt` **MUST** derive `ZoneInfo.IsDST` from the IANA transition selected by the target-local `time.Time` (`local.IsDST()`). Inferring DST by comparing January and July offsets is forbidden: Ramadan suspensions, permanent or negative DST, wartime rules, and southern-hemisphere transitions do not fit that model.
+
+`ZoneInfo` owns transition facts only. It must not carry a metazone field:
+instant-sensitive zone-to-metazone selection and localized metazone names belong
+to `internal/cldr/timezone`, where DateTimeFormat consumes them directly.
 
 ### 1.4 Identifier registry and primary projection <a id="canonicallink"></a>
 
