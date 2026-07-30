@@ -26,7 +26,7 @@ Current layout:
 
 ```text
 internal/ecma402/
-├── constants.go            # sanctioned unit constants
+├── unit_identifiers.go     # sanctioned unit identifier accessors
 ├── constructor_locale.go   # shared constructor ResolveLocale wrapper
 ├── decimal.go              # decimal-string bridge parsing and finite checks
 ├── doc.go                  # package boundary
@@ -34,7 +34,7 @@ internal/ecma402/
 ├── identifier.go           # currency/unit identifier validation
 ├── partition.go            # PartitionPattern
 ├── options.go              # production-used ECMA-402 option-resolution helpers
-├── types.go                # MathematicalValue, Part, and Pattern contracts
+├── pattern.go              # Part and Pattern contracts
 ├── numberformat/
 │   └── digits.go           # shared digit rounding pipeline
 ├── datetimeformat/
@@ -49,7 +49,7 @@ Rules:
 
 1. Root `internal/ecma402` contains formatter-independent algorithms only.
 2. Subpackages may import root `internal/ecma402`; subpackages must not import sibling formatter subpackages.
-3. `types.go` contains only cross-formatter data contracts, not algorithms.
+3. `pattern.go` contains only cross-formatter pattern contracts, not algorithms.
 4. Shared code must have at least one production caller. Tests alone do not justify an abstract operation.
 5. `internal/ecma402/numberformat.FormatNumericToString` is allowed to be consumed by both NumberFormat and PluralRules because ECMA-402 plural operand rounding is defined in terms of the NumberFormat digit pipeline subset and requires both the formatted string and rounded numeric value.
 
@@ -221,7 +221,7 @@ var slots sync.Map // map[*NumberFormat]map[string]any
 ## Acceptance Criteria
 
 - `internal/ecma402` contains only production-used algorithms, validators, constants, and shared types.
-- `internal/ecma402/types.go` contains `Part`, `Pattern`, and `MathematicalValue`, with no option discriminator.
+- `internal/ecma402/pattern.go` contains `Part` and `Pattern`, with no option discriminator.
 - `internal/ecma402/errors.go` declares `ErrInvalidOption` plus shared option-error context helpers.
 - Root `errors.go` exposes `ErrorKind`, `Error`, and exactly four reachable category sentinels; `internal/intlerr/errors_test.go` proves `errors.Is`, `errors.AsType`, `errors.ErrUnsupported`, and `expected ...; got ...` text behavior.
 - `ResolveConstructorLocale` has production constructor callers and internal tests for localeMatcher dispatch plus relevant-extension option override behavior.
