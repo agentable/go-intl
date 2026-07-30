@@ -1,13 +1,17 @@
 # SPEC 21 — Number Math & Decimal
 
 > **Status:** Active
-> **Authority:** ECMA-402 number-format algorithms are normative. This SPEC documents the current Go contract for the `internal/decimal` package, `Decimal` type, `ToIntlMathematicalValue`, nine ECMA-402 rounding modes, exact increment quantization, and trailing-zero arithmetic. ECMA-402 digit-option and rounding-branch resolution is owned by SPEC 20.
+> **Authority:** ECMA-402 number-format algorithms are normative. This SPEC documents the current Go contract for the `internal/decimal` package, `Decimal` type, typed numeric bridges, nine ECMA-402 rounding modes, exact increment quantization, and trailing-zero arithmetic. ECMA-402 digit-option and rounding-branch resolution is owned by SPEC 20.
 
 ---
 
 ## Overview
 
-ECMA-402 §6.4's `ToIntlMathematicalValue` normalizes any JS value (`Number` / `BigInt` / `String`) to an internal "mathematical value" concept, which can express `NaN`, `±Infinity`, and arbitrary precision decimal finite number `Finite(coeff, exp)`. This value is then consumed by abstract ops such as `ToRawPrecision` / `ToRawFixed` / `ComputeExponent` / `ApplyUnsignedRoundingMode`.
+ECMA-402's mathematical-value algorithms consume values that can express
+`NaN`, `±Infinity`, and arbitrary-precision finite decimals. JavaScript first
+normalizes dynamic values at its host boundary. Go instead exposes explicit
+`Int`, `Uint`, `Float`, `BigInt`, and `Decimal` constructors; those constructors
+produce one closed `NumericValue` record before formatter algorithms run.
 
 Generated reference uses `@formatjs/bigdecimal` to implement this data structure. Go uses `cockroachdb/apd/v3` (IEEE 754-2008 GDA Decimal) for finite/special-value representation, while ECMA-402 rounding uses exact coefficient/exponent arithmetic. No finite `apd.Context.Precision` participates in selecting rounding neighbours or ties.
 
@@ -40,14 +44,14 @@ require github.com/cockroachdb/apd/v3 v3.x.x
 | `math/big.Rat` | ❌ Reject | Purely rational; no `Log10` with directional rounding; ToRawPrecision is too expensive to implement |
 
 > **Why `cockroachdb/apd/v3`**:
-> 1. **GDA is isomorphic to Generated reference** - `apd.Form` enumeration (`Finite=0` / `Infinite=1` / `NaN=2` / `NaNSignaling=3`) directly corresponds to generated-reference `BigDecimal.specialValue`(`undefined` / `'POSITIVE_INFINITY'` / `'NEGATIVE_INFINITY'` / `'NaN'`); ported `ToIntlMathematicalValue` is 1:1 Translate.
+> 1. **GDA matches the required value forms** - `apd.Form` enumeration (`Finite=0` / `Infinite=1` / `NaN=2` / `NaNSignaling=3`) directly corresponds to the generated reference's finite and special-value representation.
 > 2. **Exact representation without precision policy** - apd owns the decimal coefficient, exponent, sign, and special forms. ECMA-402 neighbour selection remains exact for arbitrary-size `BigInt` and decimal-string inputs instead of inheriting a context precision.
 > 3. **Backend boundary** - formatter code consumes the narrow `Decimal` wrapper. Coefficient/exponent operations needed by rounding stay private and do not expose apd through public APIs.
 > 4. **Active maintenance** - cockroachdb main repository, continuous submission, Apache-2.0 compatible with go-intl license.
 >
 > **Rejected `shopspring/decimal` Details**:
 > - ❌ No NaN / +Inf / -Inf representation; direct `panic("decimal: NaN not supported")` during construction, violating the "no panic" red line.
-> - ❌ ECMA-402 `ToIntlMathematicalValue("NaN")` must be able to return NaN-shaped values (generated-reference `BigDecimal.NaN` singleton); when using `shopspring`, you must wrap a layer of "sentinel value" yourself. The amount of code is equivalent to apd but it loses the isomorphic advantage of GDA.
+> - ❌ Formatter `Float(math.NaN())` and `Decimal("NaN")` bridges must preserve a NaN-shaped value; `shopspring` would require a separate sentinel representation.
 > - ❌ Missing `Log10` native; ComputeExponent needs to implement `floor(log10(|x|))` by itself, and the accuracy boundary is difficult to control.
 >
 > **Rejected `math/big.Float`**:
@@ -64,7 +68,6 @@ require github.com/cockroachdb/apd/v3 v3.x.x
 internal/decimal/
 ├── decimal.go    ← Decimal wrapper and read-only value operations
 ├── from.go       ← exact typed construction
-├── math_value.go ← NumericValue conversion helpers
 ├── ops.go        ← exact arithmetic and sign operations
 ├── rounding.go   ← nine RoundingMode values + unsigned selection
 ├── quantize.go   ← exact increment quantization
@@ -93,14 +96,14 @@ package decimal
 
 import "github.com/cockroachdb/apd/v3"
 
-// Decimal is the normalized numerical representation of ECMA-402 §6.4 ToIntlMathematicalValue.
+// Decimal is the normalized numerical representation used by ECMA-402 math.
 // Packaging apd.Decimal; does not directly expose the apd type to facilitate backend switching in the future.
 //
 // Representation semantics:
 //   - Form == Finite:     value = (-1)^Negative × Coeff × 10^Exponent
 // - Form == Infinite: ±∞,Negative determining symbol
-// - Form == NaN: Quiet NaN(ECMA-402 ToIntlMathematicalValue does not distinguish between quiet/signaling)
-// - Form == NaNSignaling: used internally, will not be output from ToIntlMathematicalValue
+// - Form == NaN: Quiet NaN
+// - Form == NaNSignaling: signaling NaN retained only as a backend form
 type Decimal struct {
 inner apd.Decimal // Do not export: encapsulate apd implementation details
 }
@@ -184,7 +187,10 @@ func ParseString(s string) (Decimal, error)
 
 > **Why integer constructors live in `internal/decimal`**: NumberFormat and PluralRules both expose typed `Int`, `Uint`, and `BigInt` bridges. The exact conversion rule belongs to the decimal owner, so signed, unsigned, nil BigInt, and copied BigInt storage cannot drift between formatter packages.
 >
-> **Why `FromFloat64` uses string conversion instead of `apd.NewFromFloat`**: ECMA-402 `ToIntlMathematicalValue(float64)` requires spec §6.4 "convert via shortest round-trip string"; `apd.NewFromFloat` directly reads float64 binary bits, and will retain pseudo-precision such as `0.30000000000000004`.
+> **Why `FromFloat64` uses string conversion instead of `apd.NewFromFloat`**:
+> a JavaScript Number bridge carries the shortest round-trip decimal value of
+> its binary `float64`; `apd.NewFromFloat` instead exposes binary expansion
+> digits such as `0.30000000000000004`.
 
 ### 2.3 Arithmetic
 
@@ -231,74 +237,6 @@ func (d Decimal) String() string
 // prec is the number of decimal places (format='f') or the number of significant digits (format='g').
 func (d Decimal) Text(format byte, prec int) string
 ```
-
----
-
-<a id="tointlmathematicalvalue"></a>
-
-## 3. ToIntlMathematicalValue
-
-### 3.1 ECMA-402 §6.4 Algorithm
-
-```text
-ToIntlMathematicalValue(value):
-  1. primValue := ToPrimitive(value, hint=number)
-2. If primValue is BigInt: return (accurate Decimal of BigInt value,Form=Finite)
-3. If primValue is String:
-a. str := StringToNumber(primValue) # ES §7.1.4.1 Number literal
-b. If str = NaN: return NaN
-c. If str = ±Infinity: return ±Infinity
-d. Otherwise, return Finite (exact decimal)
-4. If primValue is Number:
-a. If IsNaN(primValue): return NaN
-b. If ±Infinity: return ±Infinity
-c. If -0: return -0 (sign bit reserved)
-d. Otherwise: Convert primValue to Decimal via "the shortest round-trip string"
-5. Otherwise: throw TypeError
-```
-
-### 3.2 Go signature
-
-```go
-// internal/decimal/from.go(signature)
-
-// ToIntlMathematicalValue implements ECMA-402 §6.4.
-//
-// Accept input (called uniformly by NumberFormat / PluralRules at the boundary):
-//   - nil / bool
-//   - int / int8 / int16 / int32 / int64
-//   - uint / uint8 / uint16 / uint32 / uint64 / uintptr
-//   - float32 / float64
-//   - *big.Int / big.Int
-//   - string(StringNumericLiteral)
-// - Decimal (through)
-//
-// Not accepted: big.Float, big.Rat, fmt.Stringer-only values, composite type,
-// or arbitrary structs.
-func ToIntlMathematicalValue(value any) (Decimal, error)
-```
-
-Call example:
-
-```go
-d, _ := decimal.ToIntlMathematicalValue(int64(98765))   // Finite, coeff=98765, exp=0
-d, _ = decimal.ToIntlMathematicalValue("3.14")          // Finite, coeff=314, exp=-2
-d, _ = decimal.ToIntlMathematicalValue(math.Inf(+1))    // PosInfinity
-d, _ = decimal.ToIntlMathematicalValue(math.NaN())      // NaNValue
-```
-
-### 3.3 Performance Target
-
-| Input type | telemetry target |
-|---------|------|
-| `int64` fast path | track with `BenchmarkFromInt64` and allocation reporting |
-| `float64`(not NaN/Inf) | track with decimal conversion benchmarks |
-| `string`("3.14"-level) | track with parse benchmarks |
-| `*big.Int` | track with constructor benchmarks |
-
-> **Why int64 telemetry**:NumberFormat hot path is called 1000+ times per ms in the messageformat-go unit test; ToIntlMathematicalValue should stay visible in reports without becoming a standalone merge blocker (SPEC 71).
->
-> **Why zero heap allocation**: `Decimal` is a value type; `FromInt64(int64)` internally uses `apd.Decimal.SetInt64` to write to the stack receiver and does not trigger `big.Int.New`.
 
 ---
 
@@ -544,14 +482,18 @@ shared digit formatting and plural operand logic.
 ### 6.2 Conversion owner
 
 ```go
-package decimal
+package ecma402
 
-func ToIntlMathematicalValue(value any) (Decimal, error)
+func DecimalNumericValue(value decimal.Decimal) NumericValue
+func Int64NumericValue(value int64) NumericValue
+func Uint64NumericValue(value uint64) NumericValue
+func Float64NumericValue(value float64) NumericValue
+func BigIntNumericValue(value *big.Int) NumericValue
 ```
 
-`ToIntlMathematicalValue` is an internal conversion helper for test and bridge
-call sites that still accept `any`. Formatter public APIs should prefer typed
-`Value` constructors so ordinary method calls do not repeat type switches.
+Package-local public `Value` constructors are the only formatter input boundary.
+They select one typed constructor above; decimal strings first pass through the
+operation-appropriate parser. The core has no dynamic coercion entrypoint.
 
 ---
 
@@ -624,18 +566,20 @@ d := decimal.NewFromString("NaN") // panic!
 d, _ := decimal.ParseString("NaN")  // d.IsNaN() == true
 ```
 
-### 8.3 ❌ Do not use `fmt.Sprintf` to convert value in hot path
+### 8.3 ❌ Do not add a dynamic coercion path
 
 ```go
-// ❌ Error: ~150 ns allocation per Format call
-s := fmt.Sprintf("%v", anyValue)
-d, _ := decimal.ParseString(s)
+// ❌ Wrong: the core inherits host-specific coercion rules.
+func Coerce(value any) decimal.Decimal
 
-// ✅ Correct: type switch + dedicated constructor
-d, err := decimal.ToIntlMathematicalValue(anyValue)
+// ✅ Correct: the public package exposes explicit typed bridges.
+v := numberformat.Int(42)
+d, err := numberformat.Decimal("9007199254740993")
 ```
 
-> **Why**: `fmt.Sprintf("%v", float64)` uses `%g` format; ECMA-402 ToIntlMathematicalValue requires "shortest round-trip"; both are inconsistent + Sprintf is significantly allocated on the hot path.
+> **Why**: JavaScript coercion is a host-language operation. An explicit Go
+> bridge keeps accepted types, errors, signed zero, and integer precision
+> visible in the API and executes conversion once before formatting.
 
 ### 8.4 ❌ Do not use `math/big.Float` as an ECMA-402 value
 
@@ -645,8 +589,8 @@ f := new(big.Float).SetFloat64(0.1)
 f.Add(f, big.NewFloat(0.2))
 fmt.Println(f.Text('g', -1))  // "0.30000000000000004"
 
-// ✅ Correct: Decimal
-d, _ := decimal.ToIntlMathematicalValue("0.3")
+// ✅ Correct: exact decimal-string bridge
+d, _ := decimal.ParseString("0.3")
 fmt.Println(d.String())  // "0.3"
 ```
 
@@ -743,17 +687,6 @@ type NumericValue struct {
 - [ ] `Abs`, `AbsDiffCmp`, `MulInt`, and `Scale10` preserve value semantics and do not mutate caller-owned inputs.
 - [ ] `Scale10` preserves NaN and infinities unchanged.
 
-### ToIntlMathematicalValue
-
-- [ ] `ToIntlMathematicalValue(int64(98765)).String() == "98765"`.
-- [ ] `ToIntlMathematicalValue("3.14").String() == "3.14"`.
-- [ ] `ToIntlMathematicalValue(math.NaN()).IsNaN() == true`.
-- [ ] `ToIntlMathematicalValue(math.Inf(+1)).IsInf() == true` and `Negative() == false`.
-- [ ] `ToIntlMathematicalValue(nil).String() == "0"`.
-- [ ] `BenchmarkToIntlMathematicalValue_Int64` appears in non-blocking benchmark telemetry.
-- [ ] `BenchmarkToIntlMathematicalValue_String_3p14` appears in non-blocking benchmark telemetry.
-- [ ] generated-reference `bigdecimal/tests/` All fixtures pass in `internal/decimal/from_test.go`.
-
 ### Rounding Modes
 
 - [ ] `RoundingMode` 9 constants; `String()` output spec verbatim name (`"halfCeil"` not `"half-ceil"`).
@@ -805,8 +738,7 @@ type NumericValue struct {
 - [ ] generated-reference `bigdecimal/tests/` All fixtures were ported to `internal/decimal/testdata/` and passed.
 - [ ] generated-reference `ecma402-abstract/NumberFormat/tests/{ApplyUnsignedRoundingMode,SetNumberFormatDigitOptions}.test.ts` fixture passed.
 - [ ] Use `t.Parallel()` for all tests.
-- [ ] `BenchmarkFromInt64` / `BenchmarkToIntlMathematicalValue_Int64` run on `task test:bench`, recorded to SPEC 71 §benchmark.
-- [ ] At least 1 `Example*` function demonstrating `ToIntlMathematicalValue` + `String`.
+- [ ] Relevant decimal construction benchmarks run through `task bench:run` and remain non-blocking telemetry.
 
 ---
 
@@ -828,7 +760,7 @@ type NumericValue struct {
 - `.references/formatjs/packages/ecma402-abstract/NumberFormat/SetNumberFormatDigitOptions.ts` —— `RoundingPriority` / `RoundingIncrement` / `roundingType` five-way branch
 - `.references/formatjs/packages/ecma402-abstract/NumberFormat/ApplyUnsignedRoundingMode.ts` —— `halfCeil` / `halfFloor` self-implementation path
 - `.references/formatjs/packages/ecma402-abstract/NumberFormat/GetUnsignedRoundingMode.ts`
-- `.references/formatjs/packages/ecma402-abstract/NumberFormat/ToIntlMathematicalValue.ts` —— spec §6.4 implementation
+- `.references/formatjs/packages/ecma402-abstract/ToIntlMathematicalValue.ts` —— JavaScript host-boundary coercion reference; not a Go core API
 - `.references/formatjs/packages/ecma402-abstract/NumberFormat/ToRawFixed.ts` / `ToRawPrecision.ts` —— RoundingMode consumer
 - `.references/formatjs/packages/ecma402-abstract/NumberFormat/ComputeExponent.ts` —— `Log10Floor` Consumer
 

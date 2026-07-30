@@ -78,6 +78,10 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 	if err != nil {
 		return nil, err
 	}
+	unitPatterns, err := unitPatternsForNumberFormat(unitLoc, resolved, cardinalRule, resolvedLocale.String())
+	if err != nil {
+		return nil, err
+	}
 	return &NumberFormat{
 		formatState: decimalFormatState{
 			resolved:     resolved,
@@ -87,7 +91,7 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 			cardinalRule: cardinalRule,
 			currencyLoc:  unitLoc,
 			currency:     currencyPatternsForNumberFormat(cldrLoc, unitLoc, resolved),
-			unit:         unitPatternsForNumberFormat(unitLoc, resolved),
+			unit:         unitPatterns,
 			compact:      compactPatternsForNumberFormat(cldrLoc, resolved),
 		},
 	}, nil

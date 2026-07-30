@@ -95,7 +95,7 @@ loc := f.timeZone // Already cached on New; never from a single input Location()
 > 3. `t.Round(0)` is recommended by Go pkg.go.dev; otherwise `Format(t1) != Format(t1.Round(0))` will have observable differences (monotonic clock affects equality testing).
 >
 > **Rejected**:
-> - **Accept `any` entry** (emulates JS `Date | number | string`) - Go type safety is weakened; and the messageformat-go bridge already holds `time.Time`.
+> - **Accept `any` entry** (emulates JS `Date | number | string`) - Go type safety is weakened and host coercion policy leaks into the formatter core.
 > - **Do not strip monotonic** - Output jitter, `Format(t) == Format(t)` is true but `t.Equal(t2) ⇒ Format(t) == Format(t2)` is not true.
 > - ** `t.Location()` that follows each input when TimeZone is not specified ** - This changes the formatter from an ECMA-402 fixed `[[TimeZone]]` object to a per-input display-zone helper and must be rejected.
 > - **Use `t.Year()/Month()/Day()` directly and ignore `Options.TimeZone`** —— This departs from ECMA-402 and breaks fixture byte equality.
@@ -133,7 +133,7 @@ df, _ := datetimeformat.New(locale.List{mustLocale("en-US")},
 5. `FractionalSecondDigits` **MUST** use `*int` to distinguish untransmitted and explicit illegal values; the call point uses `gointl.Int(n)`.
 6. `TimeZone` **MUST** use `*string`: `nil` means the ECMA-402 `undefined` branch and selects the system default, while `gointl.String("")` is an explicit unsupported time-zone identifier and returns a constructor error.
 
-> **Why**: typed value still retains ECMA-402 strings as wire/resolved forms, but lets Go call sites express legal values through constants. The conformance fixture and messageformat-go adapter do a mapping at the boundary and do not downgrade the public API to JSON form.
+> **Why**: typed values retain ECMA-402 strings as wire/resolved forms while letting Go call sites express legal values through constants. Fixture loaders and external adapters map at their own boundary and do not downgrade the public API to JSON form.
 >
 > **Rejected**: functional options + bare string - hidden state, not serializable, difficult to statically discover.
 
@@ -274,7 +274,6 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 > **Why**:
 > 1. ECMA-402 constructor allows unsupported but well-formed calendar to fall back through locale data negotiation; go-intl follows that boundary and keeps the promise truthful by exposing the adopted calendar in `ResolvedOptions`.
 > 2. The core difficulty of non-Gregorian pattern/calculation is the state machine of ICU `Calendar::computeFields` (~5000 lines of C++); the active generated payload does not contain equivalent data.
-> 3. messageformat-go’s current `:datetime` function only supports Gregorian.
 >
 > **Excluded until implemented**:
 > - **Buddhist** —— requires generated schema, year offset semantics, and conformance fixtures before it can be advertised.
@@ -439,7 +438,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 2. `Format` hot-path allocation counts are tracked with `b.ReportAllocs()`.
 3. Performance work must not change skeleton matching, time-zone canonicalization, calendar support, or parts semantics.
 
-> **Why**: The messageformat-go `:datetime` function may take N times `Format`;< 2 μs for each message to preserve the message layer SLA.
+> **Why**: formatter instances are commonly reused across repeated `Format` calls. Benchmarks keep that hot path visible without turning timing noise into a merge gate.
 
 ---
 

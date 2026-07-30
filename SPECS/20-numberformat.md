@@ -141,7 +141,7 @@ nf, _ := numberformat.New(mustLocaleList("en-US"),
 4. The `false` value of `useGrouping` is expressed by `UseGroupingFalse` on the Go side, and the underlying layer is still serialized as `"false"`.
 5. Verification **MUST** be completed centrally in `New`. Failure to wrap `ErrInvalidOption` and display the value passed in by the user.
 
-> **Why**: typed value still retains ECMA-402 strings as wire/resolved form, but improves the call point from "guessing strings" to "selecting explicit constants". The conformance fixture and messageformat-go adapter can do a mapping at the boundary without downgrading the internal public API to JSON form.
+> **Why**: typed values retain ECMA-402 strings as wire/resolved form while improving call sites from "guessing strings" to selecting explicit constants. Fixture loaders and external adapters map at their own boundary without downgrading the public API to JSON form.
 
 ---
 
@@ -179,6 +179,7 @@ Compact and scientific/engineering are adjusted in SetNumberFormatDigitOptions
 4. `currencyDisplay` ∈ `code | symbol | narrowSymbol | name`;`currencyDisplay="symbol"` is the ECMA-402 default value.
 5. `currencySign` ∈ `standard | accounting`, default `standard`.
 6. `unitDisplay` ∈ `short | narrow | long`, default `short`.
+7. A sanctioned `<numerator>-per-<denominator>` unit is resolved during construction. A generated direct pattern for the complete identifier takes precedence. When it is absent, the numerator keeps its plural-sensitive patterns and combines with a present denominator `perUnitPattern`, or with the validated generic compound pattern plus the denominator pattern selected for numeric value 1. Unit programs preserve whether `{0}` exists: a plural pattern without it omits the numeric partition. They keep the complete display phrase as one `unit` part and classify only whitespace adjacent to `{0}` as `literal`. Formatting must not parse the identifier, query CLDR, repair source patterns, or synthesize an English compound identifier fallback.
 
 > **Rejected**: `bojanz/currency` data is not CLDR straight out and is incompatible with fixture byte equality target.
 
@@ -281,7 +282,7 @@ MaximumSignificantDigits *int // Same as above
 
 > **Why**: ECMA-402 `resolvedOptions()` is an observable surface stipulated in the specification. Missing fields or wrong order are considered failures by the conformance test.
 
-> **Rejected**: Use `map[string]any` to express ResolvedOptions - type safety is lost, and the messageformat-go bridge requires a secondary assertion.
+> **Rejected**: Use `map[string]any` to express ResolvedOptions - type safety and compile-time property presence are lost, forcing every caller to repeat assertions.
 
 ---
 
@@ -290,7 +291,7 @@ MaximumSignificantDigits *int // Same as above
 `Format` and `FormatToParts` share the same main process `PartitionNumberPattern`, defined in `formatjs/.../PartitionNumberPattern.ts` + `format_to_parts.ts`:
 
 ```text
-1. x := ToIntlMathematicalValue(value)
+1. x := value.numeric.Decimal
 2. exponent := 0
 3. if notation=scientific|engineering|compact:
        exponent := ComputeExponent(nf, x, localeData)
@@ -306,7 +307,7 @@ MaximumSignificantDigits *int // Same as above
 
 **MUST** Rules:
 
-1. `ToIntlMathematicalValue` **MUST** be implemented using [SPEC 21 §ToIntlMathematicalValue](./21-number-math.md#tointlmathematicalvalue); **FORBIDDEN** to convert values via `fmt.Sprintf("%v", value)`.
+1. Public `Value` constructors **MUST** choose an explicit typed bridge and freeze an `internal/ecma402.NumericValue` before formatting; the core is **FORBIDDEN** to accept `any` or convert values via `fmt.Sprintf("%v", value)`.
 2. The `String` output by `FormatNumericToString` **MUST** retain trailing zeros forced by resolved digit options (for example `mnfd`) for subsequent OperandsRecord calculation of `v / w / f / t` (see [SPEC 40 §Operands](./40-pluralrules.md#operands)); it must not retain zeros solely because they appeared in the input literal.
 3. `NaN / +Inf / -Inf` **MUST** be expressed through `apd.Decimal.Form`, and **FORBIDDEN** to be transferred through `math.IsNaN(float64(...))`.
 4. The `[]Part` element `Type` output by `PartitionDigitParts` **MUST** qualify ECMA-402 §15.5.1 + Generated reference extension for a total of 16 enumeration strings: `integer | group | decimal | fraction | currency | percentSign | minusSign | plusSign | nan | infinity | unit | literal | exponentSeparator | exponentMinusSign | exponentInteger | compact | approximatelySign` (strictly aligned with `.references/formatjs/packages/ecma402-abstract/types/number.ts` `NumberFormatPartTypes`; **FORBIDDEN** to use `exponentSymbol`, the canonical name is `exponentSeparator`;`approximatelySign` only appears as part type when the formatting results of both ends of `FormatRange` are the same).
@@ -329,7 +330,7 @@ output; it does not call a public `pluralrules.PluralRules` instance.
    rule, err := plural.Rule(dataLocale, "cardinal") // resolved in New
    cat := rule(ops)
    ```
-2. `formattedDisplayDecimal` is the unlocalized decimal string after scaling the source value by `10^exponent` and applying the resolved digit options. Forced trailing zeros are retained.
+2. `formattedDisplayDecimal` is the unlocalized decimal string after scaling the source value by `10^-exponent` and applying the resolved digit options. Forced trailing zeros are retained.
 3. `exponent` is the compact exponent selected from generated compact pattern data, including the rounded-carry case where a value moves into the next compact magnitude.
 4. NumberFormat **MUST** resolve the exact generated cardinal rule for its constructor data locale in `New`. A missing rule is a constructor/data error; runtime formatting must not substitute English or an always-`other` rule. NumberFormat must not parse the plural DSL, copy generated plural rules, or hold a public `pluralrules.PluralRules` instance.
 5. Public `pluralrules.PluralRules` compact notation is a different observable operation: it selects the public plural category from the source decimal string plus the compact exponent. That contract is owned by [SPEC 40 §Compact Operand Contract](./40-pluralrules.md#compact-operand-contract).
@@ -345,8 +346,10 @@ output; it does not call a public `pluralrules.PluralRules` instance.
 1. `signDisplay = "negative"` and `"exceptZero"` are added in ES 2024 and must be implemented.
 2. `currencyDisplay = "narrowSymbol"` **MUST** fall back to `"symbol"` when CLDR data lacks narrow form.
 3. `currencySign = "accounting"` **MUST** use the CLDR accounting pattern; when the negative sub-pattern exists, the minus sign is consumed by the pattern, and when it does not exist, the explicit sign part is retained.
-4. Compact suffix selection **MUST** first determine the plural category according to §4.1, and then check CLDR `numbers.json` `decimalFormats.{short|long}.decimalFormat[length].decimal-format-pattern.<category>`; when category is missing, fall back to `other`.
-5. `useGrouping = "min2"` **MUST** only insert groups when the integer part is ≥ 5 bits (aligned generated-reference `useGrouping` implementation).
+4. `currencyDisplay = "name"` **MUST** use the same plural category for both the localized currency name and its generated `unitPattern-count-*` placement; unit patterns consume the same style category. The category comes from the unlocalized formatted decimal, not `Rounded.String()`: standard notation retains digit-option zeros such as `1.00`, while scientific, engineering, and compact mantissas are restored to their full magnitude with the selected exponent before operand construction. Compact suffix selection remains the separate scaled-mantissa contract in §4.1. A missing category falls back to `other`; a missing numbering-system row falls back to the validated default row inside the same locale. The constructor compiles all reachable placements once; formatting inserts the complete number partition at `{0}` and the selected localized name (or unknown code) at `{1}`.
+5. A currency-name pattern **MUST NOT** apply the currency-symbol accounting sub-pattern. The number partition retains its own sign, and any ALM/LRM/RLM carried around the CLDR sign symbol is emitted as adjacent `literal` parts so `FormatToParts` preserves native part boundaries.
+6. Compact suffix selection **MUST** first determine the plural category according to §4.1, and then check CLDR `numbers.json` `decimalFormats.{short|long}.decimalFormat[length].decimal-format-pattern.<category>`; when category is missing, fall back to `other`.
+7. `useGrouping = "min2"` **MUST** only insert groups when the integer part is ≥ 5 bits (aligned generated-reference `useGrouping` implementation).
 
 ---
 
@@ -354,7 +357,7 @@ output; it does not call a public `pluralrules.PluralRules` instance.
 
 **MUST** Rules:
 
-1. `FormatRange(a, b)` **MUST** implement ECMA-402 §15.5.7 `FormatNumericRange`: first format both ends separately, then use the endpoint visible text to decide the approximate branch, and only then call `CollapseNumberRange` to merge the same prefix/suffix for visibly different endpoints.
+1. `FormatRange(a, b)` and `FormatRangeToParts(a, b)` **MUST** consume one package-private number-range partition. That partition alone formats both endpoints, decides the approximate branch from visible endpoint text, selects the range separator, collapses shared affixes, and assigns sources. `FormatRange` only joins its `Value` fields; `FormatRangeToParts` returns the partition without recomputing range decisions.
 2. Approximate range equality **MUST** compare the final visible endpoint text produced by the NumberFormat partition pipeline. A rounded-decimal shortcut is forbidden because notation, exponent, sign, currency, unit, compact, and literal parts can make two equal rounded numeric values visibly different.
 3. `CollapseNumberRange` **MUST** consume the `NumberFormatPart{Type, Value}` sequence after approximate equality has failed. Prefix/suffix collapse remains package-local; **BANNED** sharing an abstract generic `CollapseRange[T]` with DateTimeFormat.
 4. The shared range literal **MUST** come from the constructor-resolved CLDR number symbols `rangeSign`; formatter code must not hard-code the English en dash. When the start range already carries a sign part, the literal may insert spacing around the locale range sign to match native ICU readability.
@@ -378,7 +381,9 @@ output; it does not call a public `pluralrules.PluralRules` instance.
 3. malformed decimal string **MUST** return `ErrInvalidValue`; silent fallback to `"NaN"` is prohibited.
 4. The conformance fixture can keep the unexported `formatValue(any)` adapter in the package, but it must not appear in the public API, README or root package.
 
-> **Why**: `fmt.Sprintf("%v", float64)` uses `%g` format, trailing-zero is inconsistent with ECMA-402 ToIntlMathematicalValue; walking Sprintf on the hot path is a significant performance penalty (~150 ns per allocation).
+> **Why**: an explicit typed bridge preserves integer magnitude, signed zero,
+> non-finite values, and decimal-string precision. Dynamic stringification
+> loses those contracts and adds coercion policy that belongs to the host.
 
 ---
 
@@ -421,7 +426,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 2. `Format(int64)` hot-path allocation counts are tracked with `b.ReportAllocs()`.
 3. Performance work must not change digit rounding ownership, parts semantics, or public API shape.
 
-> **Why**: messageformat-go is called within `:number`. Each message may be called N times `Format`; less than 1 μs to retain the message layer SLA.
+> **Why**: formatter instances are commonly reused across repeated `Format` calls. Benchmarks keep that hot path visible without turning timing noise into a merge gate.
 
 ---
 

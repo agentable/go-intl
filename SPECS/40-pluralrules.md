@@ -84,7 +84,7 @@ func (r *PluralRules) ResolvedOptions() ResolvedOptions
 4. `Select` **MUST** return `Other` for NaN and positive or negative infinity. `SelectRange` **MUST** return `ErrInvalidValue` only when an endpoint is NaN and **MUST** accept positive or negative infinity. `Decimal` **MUST** accept well-formed decimal strings plus `NaN`, `Infinity`, and `-Infinity`, and **MUST** return `ErrInvalidValue` for malformed strings. Finite decimal spellings denote mathematical values: input-only trailing zeros do not affect category or formatted range equality.
 5. `PluralRules` is an immutable value; all methods on `*PluralRules` must be concurrency-safe.
 6. `Options` is the only public configuration value; restoring functional options or multiple options merge is prohibited.
-7. The `Category.String()` return value **MUST** be consistent with the ECMA-402 string representation (to facilitate direct case branching of the `:plural` function of messageformat-go).
+7. The `Category.String()` return value **MUST** be the exact ECMA-402 category string so callers can branch without a second mapping table.
 8. `New` **MUST** resolve the exact generated cardinal or ordinal rule for its data locale and freeze that function on the formatter. Missing active-locale data is a constructor failure; `Select` is total only after successful construction and therefore returns `Category` without an error.
 
 > **Rejected**: public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal operands should use `Decimal`.
@@ -119,7 +119,7 @@ type Options struct {
 > **Why typed Options**:
 > 1. Go callers should see optional value boundaries at compile time; `Ordinal`, `CompactNotation`, and `HalfEvenRoundingMode` remain package vocabulary while `gointl.String(...)` expresses ECMA-402 option presence.
 > 2. A `Options` value is easier to compare, cache, and document than functional options, and it does not hide state in the closure execution order.
-> 3. If messageformat-go holds an ICU string, an explicit mapping should be done at the adapter boundary; the pressure of transparent transmission of the upstream string cannot be transferred to go-intl's long-term public API.
+> 3. Callers holding another vocabulary map it explicitly at their adapter boundary; upstream strings do not expand go-intl's public option set.
 >
 > **Rejected**: `WithType(string)` - scatter verification timing and make cache keys depend on closure order.
 > **Rejected**: Accepts both direct enum values and pointer strings - dual-rail input parameters = verification path bifurcation + cache key bifurcation.
@@ -514,7 +514,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 2. Integer select hot-path allocation counts are tracked with `b.ReportAllocs()`.
 3. Performance work must not change operands, compact exponent handling, or CLDR range semantics.
 
-> **Why**: The messageformat-go `:plural` function executes `Select` N times for each message containing complex variables; benchmark telemetry keeps this hot path visible without creating a merge gate.
+> **Why**: callers commonly reuse one rules instance for repeated `Select` calls; benchmark telemetry keeps this hot path visible without creating a merge gate.
 
 ---
 

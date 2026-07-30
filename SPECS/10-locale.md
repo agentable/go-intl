@@ -44,7 +44,7 @@ func (l Locale) Variants() []string
 ```
 
 > **Why**:
-> 1. **Reuse** - `language.Tag` has implemented BCP 47 parsing, normalization, `Base` / `Script` / `Region` / `Variants` access; the Go ecosystem (`x/text/message` / `x/text/currency` / `messageformat-go`) uniformly uses it as the underlying handle.
+> 1. **Reuse** - `language.Tag` implements BCP 47 parsing, normalization, and `Base` / `Script` / `Region` / `Variants` access; using the ecosystem's standard handle avoids a second parser and preserves interop.
 > 2. **Read-only model** - ECMA-402 `Intl.Locale.prototype` property is an accessor property and has no setter. The Go side must express the same immutable model with unexported fields + getters.
 > 3. **Semi-transparent transmission** - `language.Tag` can read the string value of `-u-` extended key through `TypeForKey("ca")`, etc., **but does not expose** it as a typed field, does not perform `numeric` string ↔ bool conversion, and does not recognize the literal validity of `caseFirst="false"`. go-intl must hold extension state itself.
 > 4. **Value type** - struct (not `*Locale`) maintains value semantics; the caller passes it by value, and `Locale` is an immutable snapshot.

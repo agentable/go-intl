@@ -58,6 +58,20 @@ func TestNumberRoundTrip(t *testing.T) {
 				}
 			}
 		}
+		for ns, plurals := range numbers.CurrencyNamePatterns {
+			for plural, want := range plurals {
+				if got := loc.CurrencyNamePattern(ns, plural); got != want {
+					t.Errorf("CurrencyNamePattern(%q, %q, %q) = %q, want %q", localeTag, ns, plural, got, want)
+				}
+			}
+		}
+		if defaults := numbers.CurrencyNamePatterns[numbers.DefaultNumberingSystem]; len(defaults) > 0 {
+			for plural, want := range defaults {
+				if got := loc.CurrencyNamePattern("missing-numbering-system", plural); got != want {
+					t.Errorf("CurrencyNamePattern(%q, missing numbering system, %q) = %q, want default %q", localeTag, plural, got, want)
+				}
+			}
+		}
 		for ns, displays := range numbers.CompactPatterns {
 			for display, exps := range displays {
 				for exp, plurals := range exps {

@@ -47,6 +47,34 @@ func TestUnitRoundTrip(t *testing.T) {
 		}
 	}
 
+	// Optional specialized per-unit patterns.
+	for _, row := range perUnitPatternRows(units) {
+		loc := resolveKernelLocale(t, row.locale)
+		got := unit.PerUnitPattern(loc, row.unit, row.width)
+		if got != row.pattern {
+			t.Errorf("PerUnitPattern(%q, %q, %q) = %q, want %q",
+				row.locale, row.unit, row.width, got, row.pattern)
+		}
+	}
+	missingPerUnit := 0
+	for localeTag, localeUnits := range units {
+		loc := resolveKernelLocale(t, localeTag)
+		for unitName, data := range localeUnits {
+			for _, width := range unitWidthOrder[:] {
+				if data.PerUnit[width] != "" || len(data.Patterns[width]) == 0 {
+					continue
+				}
+				missingPerUnit++
+				if got := unit.PerUnitPattern(loc, unitName, width); got != "" {
+					t.Errorf("PerUnitPattern(%q, %q, %q) = %q, want absent", localeTag, unitName, width, got)
+				}
+			}
+		}
+	}
+	if missingPerUnit == 0 {
+		t.Fatal("pinned unit data has no absent perUnitPattern state to round-trip")
+	}
+
 	// Supported-locale narrow index.
 	wantTags := sortedLocaleKeys(units)
 	gotTags := unit.SupportedLocales()
@@ -158,6 +186,18 @@ func TestUnitPatternKeyLayout(t *testing.T) {
 	if want := uint32(0x00000022); compound != want {
 		t.Fatalf("compoundUnitKeyValue() = %#08x, want %#08x", compound, want)
 	}
+
+	perUnit, err := perUnitPatternKeyValue(
+		map[string]uint64{"en": 2},
+		map[string]int{"meter": 7},
+		perUnitPatternRow{locale: "en", unit: "meter", width: "narrow"},
+	)
+	if err != nil {
+		t.Fatalf("perUnitPatternKeyValue() error = %v", err)
+	}
+	if want := uint32(0x00020720); perUnit != want {
+		t.Fatalf("perUnitPatternKeyValue() = %#08x, want %#08x", perUnit, want)
+	}
 }
 
 func TestReadRoundTripTestProfileUsesSharedProfileContract(t *testing.T) {
@@ -192,6 +232,7 @@ func unitTestData(locale string, names ...string) extract.Units {
 					name: {"other": "{0} " + name},
 				},
 			},
+			PerUnit:  map[string]string{"long": "{0} per " + name},
 			Compound: map[string]string{"long": "{0} per {1}"},
 		}
 	}

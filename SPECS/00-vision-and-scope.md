@@ -1,7 +1,7 @@
 # SPEC 00 — Vision, Scope, and Architecture
 
 > **Status:** Active contract (2026-05-20)
-> **Audience:** Maintainers and contributors of `go-intl` and its primary consumers (`messageformat-go`, `go-test`, and JS host integrations).
+> **Audience:** Maintainers, contributors, and callers of `go-intl`.
 > **Authority:** ECMA-402 is the behavioral authority. This document is the project-level memory for what `go-intl` is trying to be; focused SPECS (`10-locale.md`, `20-numberformat.md`, …) own individual surfaces and must change when ECMA-402 or the correctness target proves them too narrow.
 
 ---
@@ -14,7 +14,7 @@ The library exists because the Go ecosystem has no equivalent today:
 
 - Go stdlib provides Unicode primitives, but no locale-aware formatters.
 - `golang.org/x/text` provides Unicode/CLDR building blocks (`language.Tag`, `message`, `number`, `collate`, `feature/plural`) but is not ECMA-402, has gaps (no `DateTimeFormat`-equivalent, no resolved-options model, no `formatToParts`), and does not aim for ECMA-402 output parity.
-- Existing Go libraries (`translate-agent/intl`, `messageformat-go`) cover slices of the surface and would otherwise each reinvent the same locale-aware primitives.
+- Existing Go libraries cover slices of the surface and would otherwise each reinvent the same locale-aware primitives.
 
 **The mission:** give Agentable Go libraries — and any Go consumer who wants native JavaScript `Intl` semantics in Go — one shared, ECMA-402-faithful, CLDR-driven formatting layer.
 
@@ -25,7 +25,7 @@ The design posture is restraint first: the public API should feel inevitable, no
 - **Not a loose Go reinterpretation.** We mirror ECMA-402's public concepts and observable semantics. Go may use typed `Options`, `time.Time`, and returned `error` values, but only as type-system bridges for the same constructors, methods, options, resolved options, and error conditions.
 - **Not a superset of `golang.org/x/text`.** We *use* `language.Tag` and CLDR helpers from `x/text` where they fit; we do not re-export the rest of `x/text` under our name.
 - **Not an ICU port.** We do not link against ICU C/C++ libraries. CLDR data ships embedded as Go source.
-- **Not a translation system.** Message localization (string catalogs, plural-aware templates) is `messageformat-go`'s job. `go-intl` provides primitives that `messageformat-go` calls.
+- **Not a translation system.** String catalogs, plural-aware templates, rich text, and message evaluation belong to higher-level consumers; `go-intl` provides only ECMA-402 primitives.
 
 ---
 
@@ -104,7 +104,7 @@ Each concept has exactly one owner. Cross-links may explain dependencies, but th
 | [`11-locale-matching.md`](./11-locale-matching.md) | lookup and best-fit matching, `ResolveLocale`, supported-locales filtering |
 | [`12-abstract-operations.md`](./12-abstract-operations.md) | ECMA-402 option-shape abstract operations, internal slot conventions, root structured error details, abstract error boundaries |
 | [`20-numberformat.md`](./20-numberformat.md) | `numberformat` public API, option resolution, format parts, ranges, compact/scientific/unit/currency behavior |
-| [`21-number-math.md`](./21-number-math.md) | decimal backend, `ToIntlMathematicalValue`, rounding modes, rounding increments, mathematical value bridge |
+| [`21-number-math.md`](./21-number-math.md) | decimal backend, typed numeric bridges, rounding modes, rounding increments |
 | [`30-datetimeformat.md`](./30-datetimeformat.md) | `datetimeformat` public API, resolved options, date/time parts, range behavior |
 | [`31-datetimeformat-skeleton.md`](./31-datetimeformat-skeleton.md) | skeleton parsing, best-fit format matching, pattern scoring |
 | [`32-datetimeformat-tz.md`](./32-datetimeformat-tz.md) | time-zone identity/primary/region records, transition resolution, Gregorian calendar names, metazone display data |
@@ -117,7 +117,6 @@ Each concept has exactly one owner. Cross-links may explain dependencies, but th
 | [`46-segmenter.md`](./46-segmenter.md) | `segmenter` public API, UAX #29 binding via `uniseg`, byte-offset bridge |
 | [`50-cldr-data.md`](./50-cldr-data.md) | CLDR version pins, generated data layout, generator architecture, runtime data access API |
 | [`60-facade.md`](./60-facade.md) | root `go-intl` namespace, static common Intl functions, active constructor aliases, forbidden one-shot helpers |
-| [`61-messageformat-integration.md`](./61-messageformat-integration.md) | `messageformat-go` dependency direction and formatter adapter contract |
 | [`70-conformance.md`](./70-conformance.md) | fixture format, fixture sources, divergences, conformance gates |
 | [`71-benchmark.md`](./71-benchmark.md) | benchmark layout, non-blocking performance telemetry, benchstat workflow |
 | [`72-operation-ledger.md`](./72-operation-ledger.md) | public surface to ECMA-402 owner, implementation, and verification ledger |
@@ -175,7 +174,7 @@ type Locale struct {
 
 ### 4.2 Rationale
 
-- `language.Tag` already implements BCP 47 parsing, canonicalization, and matcher infrastructure used across the Go ecosystem (`x/text/message`, `x/text/currency`, `messageformat-go`'s plural module, `translate-agent/intl`). Reusing it preserves interop and avoids re-parsing locale strings at every boundary.
+- `language.Tag` already implements BCP 47 parsing, canonicalization, and matcher infrastructure used across the Go ecosystem. Reusing it preserves interop and avoids re-parsing locale strings at every boundary.
 - ECMA-402 exposes these values through read-only `Intl.Locale.prototype` accessors (`baseName`, `calendar`, `collation`, `hourCycle`, `caseFirst`, `numeric`, `numberingSystem`, etc.). Go must provide methods with the same meaning, not exported mutable fields.
 - A value type keeps `Locale` cheap to pass while preventing callers from constructing invalid internal state through struct literals.
 
@@ -211,7 +210,7 @@ go-intl/
     ├── ecma402/datetimeformat/  # skeleton parser and DateTimeFormat pattern matcher
     ├── ecma402/pluralrules/     # operands and plural categories
     ├── localematcher/      # ResolveLocale, lookup, best-fit, supported-locale filtering
-    ├── decimal/            # apd-backed Decimal for ToIntlMathematicalValue
+    ├── decimal/            # apd-backed Decimal representation and arithmetic
     ├── intlerr/            # Cycle-free implementation backing root error aliases
     ├── collation/          # Collator backend capability metadata
     ├── cldr/               # Generated CLDR data split by domain package
@@ -256,30 +255,18 @@ Decisions:
 
 ---
 
-## 6. Consumer Contract
+## 6. Consumer Boundary
 
-### 6.1 `messageformat-go` (primary consumer)
+External consumers may compose `go-intl` primitives behind their own adapters,
+caches, or host bindings. The dependency is one-way: consumers import the
+public formatter packages; `go-intl` does not import or expose types from an
+upper-layer consumer. Each consumer repository owns its option mapping,
+fallback behavior, cache lifecycle, integration tests, CI, and release process.
+This repository does not prescribe another repository's files or migration.
 
-`messageformat-go`'s `pkg/functions/` package today implements its own number/date/currency/unit formatting. The intended migration is:
-
-1. `messageformat-go` imports `go-intl` and rewrites its formatter-related built-in functions (`:integer`, `:number`, `:currency`, `:percent`, `:unit`, `:offset`, `:date`, `:datetime`, `:time`) as adapters that delegate to `go-intl`.
-2. `MessageFunctionContext.Locales()` (a `[]string`) is converted to `locale.List` via `locale.Parse`.
-
-**API stability requirement:** any change to `go-intl`'s formatter constructors or `ResolvedOptions` shape after `messageformat-go` integrates is a breaking change and requires a major version bump.
-
-### 6.2 `go-test` (secondary consumer)
-
-`go-test` already pulls `messageformat-go` transitively. Direct use of `go-intl` is optional and limited to locale-aware display in assertion output.
-
-### 6.3 `go-humanize` (non-consumer, by design)
-
-`go-humanize` is deliberately English-only and will not adopt `go-intl`. We preserve room for a future `humanize/i18n` shim, but it is not an active deliverable.
-
-### 6.4 JS host integrations
+### 6.1 JS host integrations
 
 If a JS host integration exposes `globalThis.Intl`, `go-intl` is the backing implementation. The active API must remain expressible as a JS host binding while preserving typed Go entrypoints: record structs marshal with ECMA-402 field names, constructor errors expose `*gointl.Error`, supported sets refuse unsupported tailoring honestly, and range methods preserve caller-provided order even when `start > end`.
-
-The maintained host consumer profile covers supported-locale exclusions, root supported-value include/exclude boundaries, and reversed range behavior for NumberFormat, DateTimeFormat, and PluralRules. Changes that break that profile are public contract changes and must update the owning SPEC before code or fixtures move.
 
 ---
 
@@ -326,7 +313,7 @@ The formerly open questions are resolved by focused SPECS:
 - [x] Public surface enumerated.
 - [x] Locale model decided (wrap `language.Tag`).
 - [x] Package layout and layering rules defined.
-- [x] Consumer contract recorded for `messageformat-go`, `go-test`, `go-humanize`, and JS host integrations.
+- [x] External consumer dependency boundary and JS host binding constraints recorded.
 - [x] Active boundaries stated.
 - [x] ECMA-402-over-SPECS authority model stated.
 - [x] Design decisions linked to focused SPECS.

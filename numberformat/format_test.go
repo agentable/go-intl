@@ -740,8 +740,8 @@ func TestNumberFormatFormatCurrencyNamePlural(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := format.Format(Float(1)); got != "1.00 US dollar" {
-		t.Fatalf("Format(1) = %q, want 1.00 US dollar", got)
+	if got := format.Format(Float(1)); got != "1.00 US dollars" {
+		t.Fatalf("Format(1) = %q, want 1.00 US dollars", got)
 	}
 	if got := format.Format(Float(2)); got != "2.00 US dollars" {
 		t.Fatalf("Format(2) = %q, want 2.00 US dollars", got)

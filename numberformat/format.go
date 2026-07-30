@@ -45,21 +45,21 @@ func formatDecimalToPartsAppend(parts []Part, d decimal.Decimal, state *decimalF
 	digitOptions := state.digitOptions
 	if d.IsNaN() {
 		parts = applySpecialSignDisplay(append(parts, Part{Type: PartNaN, Value: symbols.NaN}), false, true, signDisplay, symbols)
-		return applyStylePattern(parts, d, state)
+		return applyStylePattern(parts, stylePluralOperand{}, state)
 	}
 	if d.IsInf() {
 		parts = applySpecialSignDisplay(append(parts, Part{Type: PartInfinity, Value: symbols.Infinity}), d.Negative(), false, signDisplay, symbols)
-		return applyStylePattern(parts, d, state)
+		return applyStylePattern(parts, stylePluralOperand{}, state)
 	}
 	if style == PercentStyle {
 		d = decimal.MulInt(d, 100)
 	}
-	var rounded decimal.Decimal
+	var operand stylePluralOperand
 	switch notation {
 	case ScientificNotation, EngineeringNotation:
-		parts, rounded = formatScientificAppend(parts, d, notation, state)
+		parts, operand = formatScientificAppend(parts, d, notation, state)
 	case CompactNotation:
-		parts, rounded = formatCompactAppend(parts, d, state)
+		parts, operand = formatCompactAppend(parts, d, state)
 	case StandardNotation:
 		result := ecma402nf.FormatNumericToString(d, digitOptions)
 		formatted := result.Formatted
@@ -68,12 +68,18 @@ func formatDecimalToPartsAppend(parts []Part, d decimal.Decimal, state *decimalF
 		}
 		parts = appendDecimalParts(parts, formatted, symbols)
 		parts = applySignDisplay(parts, d.Negative(), signDisplay, symbols)
-		rounded = result.Rounded
+		operand = stylePluralOperand{formatted: result.Formatted, finite: true}
 	}
-	return applyStylePattern(parts, rounded, state)
+	return applyStylePattern(parts, operand, state)
 }
 
-func applyStylePattern(parts []Part, rounded decimal.Decimal, state *decimalFormatState) []Part {
+type stylePluralOperand struct {
+	formatted string
+	exponent  int
+	finite    bool
+}
+
+func applyStylePattern(parts []Part, operand stylePluralOperand, state *decimalFormatState) []Part {
 	resolved := state.resolved
 	style := resolved.Style
 	numberingSystem := resolved.NumberingSystem
@@ -81,14 +87,15 @@ func applyStylePattern(parts []Part, rounded decimal.Decimal, state *decimalForm
 		parts = append(parts, Part{Type: PartPercentSign, Value: state.symbols.Percent})
 	}
 	if style == CurrencyStyle {
-		if rounded.IsFinite() {
-			return localizeParts(applyCurrencyPattern(parts, pluralNumberString(rounded.String()), state.cardinalRule, resolved, state.currencyLoc, state.currency), numberingSystem)
+		if operand.finite {
+			plural := pluralCategoryForNotation(state.cardinalRule, operand.formatted, operand.exponent)
+			return localizeParts(applyCurrencyPatternForPlural(parts, plural, resolved, state.currencyLoc, state.currency), numberingSystem)
 		}
-		return localizeParts(applyCurrencyPatternForPlural(parts, "other", resolved, state.currencyLoc, state.currency), numberingSystem)
+		return localizeParts(applyCurrencyPatternForPlural(parts, pluralop.Other, resolved, state.currencyLoc, state.currency), numberingSystem)
 	}
 	if style == UnitStyle {
-		if rounded.IsFinite() {
-			plural := pluralCategory(state.cardinalRule, pluralNumberString(rounded.String()))
+		if operand.finite {
+			plural := pluralCategoryForNotation(state.cardinalRule, operand.formatted, operand.exponent)
 			return localizeParts(applyUnitPatternForPlural(parts, plural, state.unit), numberingSystem)
 		}
 		return localizeParts(applyUnitPatternForPlural(parts, pluralop.Other, state.unit), numberingSystem)

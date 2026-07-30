@@ -263,7 +263,7 @@ validated data and do not grow a second defensive grammar.
 2. Compatibility range: LDML TR35 §2.6.1 Date Field Symbol Table all characters.
 3. `parseDateTimeSkeleton` **must not** change the field character order; the output `Formats.Skeleton` field retains the original value of the input string.
 
-> **Why**: messageformat-go ICU MessageFormat parser will pass in skeleton string as function option; if it is incompatible, it cannot be integrated.
+> **Why**: skeleton syntax is a standardized interoperability boundary. Silently accepting an incompatible dialect would make patterns non-portable and errors unpredictable.
 
 ---
 

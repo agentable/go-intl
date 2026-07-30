@@ -108,6 +108,27 @@ func (l Locale) CurrencyPattern(numberingSystem, sign string) string {
 	return defaultCurrencyPattern
 }
 
+// CurrencyNamePattern returns the currency-name placement pattern for the
+// given numbering system and plural category. It falls back to "other" within
+// that numbering system, then repeats the lookup in the locale default.
+func (l Locale) CurrencyNamePattern(numberingSystem, plural string) string {
+	data, resolvedNumberingSystem := l.dataForResolvedNumberingSystem(numberingSystem)
+	if pattern := currencyNamePattern(data.currencyName[resolvedNumberingSystem], plural); pattern != "" {
+		return pattern
+	}
+	if resolvedNumberingSystem != data.defaultNumberingSystem {
+		return currencyNamePattern(data.currencyName[data.defaultNumberingSystem], plural)
+	}
+	return ""
+}
+
+func currencyNamePattern(patterns currencyNamePluralPatterns, plural string) string {
+	if pattern := patterns[plural]; pattern != "" {
+		return pattern
+	}
+	return patterns["other"]
+}
+
 // ScientificPattern returns the scientific pattern for the given numbering
 // system, defaulting to the locale's default numbering system when
 // numberingSystem is empty or has no generated pattern row.

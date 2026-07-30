@@ -159,7 +159,6 @@ Specification documents in [`SPECS/`](SPECS/) are maintained records of design c
 | [`46-segmenter.md`](SPECS/46-segmenter.md) | `segmenter` API, UAX #29 via `uniseg`, byte-offset bridge |
 | [`50-cldr-data.md`](SPECS/50-cldr-data.md) | CLDR pins, generated data layout, formatter supported-locale accessors, generator architecture |
 | [`60-facade.md`](SPECS/60-facade.md) | Root `Intl` namespace, static common functions, constructor aliases, and forbidden root one-shot APIs |
-| [`61-messageformat-integration.md`](SPECS/61-messageformat-integration.md) | `messageformat-go` adapter contract and dependency direction |
 | [`70-conformance.md`](SPECS/70-conformance.md) | Fixture format, FormatJS extractor, skip-list audit, divergences, conformance gates |
 | [`71-benchmark.md`](SPECS/71-benchmark.md) | Benchmark layout, non-blocking performance telemetry, benchstat workflow |
 | [`72-operation-ledger.md`](SPECS/72-operation-ledger.md) | Public surface to ECMA-402 owner, implementation, and verification ledger |
@@ -229,8 +228,11 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep Locale language-subtag transforms suffix-preserving: constructor language/script/region options and maximize/minimize may replace only those three subtags; variants, transformed extensions, Unicode extensions, and private use retain their canonical order. Numeric `firstDayOfWeek` aliases are constructor-option values, not valid `-u-fw-*` tag syntax.
 - Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it one constructor-resolved `ResolvedDigitOptions` record, including typed rounding mode and branch. Runtime formatting must not reparse options, infer a second rounding branch, or erase negative zero from the rounded result.
 - Keep NumberFormat string output as a projection of its canonical private parts partition. Do not restore parallel text renderers or integer-only fast paths that duplicate sign, grouping, notation, localization, currency, or unit semantics.
+- Keep compound-unit resolution constructor-owned and CLDR-driven: prefer a generated direct pattern for the complete identifier, then a denominator `perUnitPattern`, then the validated generic compound pattern. Preserve legal patterns that omit `{0}` and never synthesize display text from a raw `-per-` identifier.
+- Keep NumberFormat style plural selection on one unlocalized formatted operand: preserve digit-option zeros, restore a scientific, engineering, or compact mantissa to its full magnitude with the selected exponent, and retain that exponent as `c/e`. Currency name, currency-name placement, and unit pattern must consume that same category; do not rebuild it from `Rounded.String()` or erase visible zeros.
+- Keep `currencyDisplay="name"` placement on the generated plural-sensitive `unitPattern-count-*` rows for the resolved numbering system. Fall back to `other` within the same locale and insert the complete numeric parts partition into the constructor-compiled pattern; do not hard-code name order, ASCII spacing, or a separate accounting wrapper.
 - Keep generated plural-rule coverage total for every active data locale and both rule families. The generator and formatter constructors must fail when a rule is missing; do not restore English or always-`other` runtime fallback.
-- Keep compact plural contracts split: NumberFormat compact suffix selection uses the scaled visible display decimal plus compact exponent, while public PluralRules compact selection uses the source decimal string plus compact exponent.
+- Keep compact plural contracts split: NumberFormat compact suffix selection uses the scaled visible display decimal plus compact exponent; its outer currency/unit style selection restores that mantissa to full magnitude. Public PluralRules compact selection uses the source decimal string plus compact exponent.
 - Keep RelativeTimeFormat on one ECMAScript Number boundary. `Int` and `Uint` convert through `float64`, `Float` preserves signed zero, and literal lookup, tense, NumberFormat, and PluralRules all project that same normalized value; do not add an exact-decimal bridge or mode.
 - Keep DurationFormat on one ECMAScript Number boundary. Validate each public `float64` field as finite and integral, project it once to the exact represented integer, and perform sign, limit, rollup, and NumberFormat work without `int64` narrowing or later `float64` arithmetic.
 - Freeze constructor-derived hot-path state on formatter instances. Cached method calls must not redo locale negotiation, option validation, digit-option resolution, plural-rule lookup, interval-pattern selection, pattern tokenization, or embedded formatter construction. DateTimeFormat compiles endpoint, date/time, interval, and distinguishing cross-date fallback programs in `New`; DurationFormat composes constructor-resolved `NumberFormat` and `ListFormat` instances.
@@ -335,9 +337,10 @@ Primary local skills live in `.agents/skills/`. Use the narrowest skill that mat
 |-------|-------------|
 | [agent-md-writing](.agents/skills/agent-md-writing/) | Regenerating `CLAUDE.md` and preserving the `AGENTS.md` symlink |
 | [readme-writing](.agents/skills/readme-writing/) | Updating README usage documentation |
-| [library-docs-maintaining](.agents/skills/library-docs-maintaining/) | Refreshing `README.md`, `CLAUDE.md`, and `AGENTS.md` together |
+| [project-docs-maintaining](.agents/skills/project-docs-maintaining/) | Refreshing `README.md`, `CLAUDE.md`, and `AGENTS.md` together |
 | [spec-writing](.agents/skills/spec-writing/) | Creating or revising individual `SPECS/*.md` contracts |
-| [library-specs-maintaining](.agents/skills/library-specs-maintaining/) | Consolidating design/spec docs into `SPECS/` |
+| [project-specs-consolidating](.agents/skills/project-specs-consolidating/) | Consolidating scattered design and contract documents into `SPECS/` |
+| [improvement-proposing](.agents/skills/improvement-proposing/) | Auditing and pruning evidence-backed `improve.md` proposals |
 | [spec-gap-analyzing](.agents/skills/spec-gap-analyzing/) | Finding gaps between SPECS and code before implementation work |
 | [spec-gap-tasking](.agents/skills/spec-gap-tasking/) | Turning a spec-gap analysis into executable tasks |
 | [spec-reviewing](.agents/skills/spec-reviewing/) | Reviewing SPECS for completeness, consistency, and over-engineering before implementation |
@@ -346,6 +349,7 @@ Primary local skills live in `.agents/skills/`. Use the narrowest skill that mat
 | [code-simplifying](.agents/skills/code-simplifying/) | Simplifying recently changed code without changing behavior |
 | [code-deduplicating](.agents/skills/code-deduplicating/) | Extracting repeated patterns that appear three or more times |
 | [code-refactoring](.agents/skills/code-refactoring/) | Planning and applying focused refactors that reduce redundancy without broad rewrites |
+| [code-review](.agents/skills/code-review/) | Reviewing a concrete diff for correctness, requirements fit, and maintainability before close-out |
 | [architecture-audit](.agents/skills/architecture-audit/) | Auditing package boundaries, circular dependencies, and SPECS alignment |
 | [library-code-optimizing](.agents/skills/library-code-optimizing/) | Removing dead code and improving internal quality behavior-preservingly |
 | [library-code-modernizing](.agents/skills/library-code-modernizing/) | Running a folder-by-folder Go modernization pass |
@@ -355,17 +359,19 @@ Primary local skills live in `.agents/skills/`. Use the narrowest skill that mat
 | [library-ci-fixing](.agents/skills/library-ci-fixing/) | Repairing a failing GitHub Actions run from logs with the smallest root-cause fix |
 | [library-error-optimizing](.agents/skills/library-error-optimizing/) | Renaming, reorganizing, or deduplicating package errors |
 | [library-panic-optimizing](.agents/skills/library-panic-optimizing/) | Replacing unnecessary panics with errors and `Must*` wrappers |
-| [library-symbol-naming](.agents/skills/library-symbol-naming/) | Improving public and internal symbol names |
-| [library-file-naming](.agents/skills/library-file-naming/) | Aligning Go source/test filenames with package idiom |
+| [code-symbol-naming](.agents/skills/code-symbol-naming/) | Improving public and internal symbol names after concepts are settled |
+| [code-file-naming](.agents/skills/code-file-naming/) | Aligning Go source/test filenames with package idiom |
 | [library-legacy-pruning](.agents/skills/library-legacy-pruning/) | Removing deprecated APIs and old compatibility shims |
-| [library-surface-lock-pruning](.agents/skills/library-surface-lock-pruning/) | Deleting low-value public-surface lock tests and handing behavior gaps to test covering |
+| [code-surface-lock-pruning](.agents/skills/code-surface-lock-pruning/) | Deleting low-value public-surface lock tests and handing behavior gaps to test covering |
 | [library-test-covering](.agents/skills/library-test-covering/) | Raising package test coverage with production-grade tests |
 | [library-upgrade-latest](.agents/skills/library-upgrade-latest/) | Refreshing tooling, dependencies, and skills to the current library baseline |
 | [golangci-linting](.agents/skills/golangci-linting/) | Configuring or fixing golangci-lint v2 findings |
 | [taskfile-configuring](.agents/skills/taskfile-configuring/) | Editing `Taskfile.yml` tasks and dependencies |
 | [github-actions-configuring](.agents/skills/github-actions-configuring/) | Configuring or repairing GitHub Actions workflows for Go library CI |
 | [dependency-selecting](.agents/skills/dependency-selecting/) | Choosing Go dependencies when a SPEC requires one |
+| [concept-modeling](.agents/skills/concept-modeling/) | Clarifying and compressing overlapping concepts before naming or API work |
 | [research-analyzing](.agents/skills/research-analyzing/) | Structuring research over `.references/` before spec work |
+| [research-to-design-translating](.agents/skills/research-to-design-translating/) | Translating external research into locally owned, testable design decisions |
 | [research-writing](.agents/skills/research-writing/) | Writing research reports from reference projects |
 | [committing](.agents/skills/committing/) | Creating conventional commits for scoped repository changes |
 | [releasing](.agents/skills/releasing/) | Preparing and tagging a semantic version release |

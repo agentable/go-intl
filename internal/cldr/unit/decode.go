@@ -1,6 +1,7 @@
 // Hand-written decode layer for the unit domain. It expands domain-private const
-// blobs from data.go into unit-pattern, compound-pattern, and supported-index
-// records consumed by accessors.go, behind per-blob sync.Once gates.
+// blobs from data.go into unit-pattern, per-unit-pattern, compound-pattern, and
+// supported-index records consumed by accessors.go, behind per-blob sync.Once
+// gates.
 //
 // Locale handle ownership: packed unit keys use the locale index assigned by the
 // cldr/locale kernel. Borrowing that handle keeps generated unit data and
@@ -60,6 +61,9 @@ var (
 
 	compoundUnitOnce sync.Once
 	compoundUnitRows []compoundUnitPatternRecord
+
+	perUnitPatternOnce sync.Once
+	perUnitPatternRows []unitPatternRecord
 )
 
 func loadUnitPatterns() {
@@ -85,6 +89,11 @@ func loadCompoundUnits() {
 
 func decodeCompoundUnitPatternRecord(key uint32, r *codec.Reader) compoundUnitPatternRecord {
 	return compoundUnitPatternRecord{key: key, pattern: r.StringRef(_data)}
+}
+
+func loadPerUnitPatterns() {
+	r := codec.NewReader(_perUnitPatternBlob)
+	perUnitPatternRows = codec.Uint32DeltaSlice[unitPatternRecord](&r, decodeUnitPatternRecord)
 }
 
 var supported = codec.NewLazyStrings(_unitSupportedBlob, _data)

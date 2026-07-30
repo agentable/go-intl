@@ -70,15 +70,6 @@ func groupDecimal(s string, grouping digitGrouping) string {
 	return joinSignedDecimalParts(sign, grouped, fraction)
 }
 
-func joinDecimalParts(integer, fraction string) string {
-	var b strings.Builder
-	b.Grow(len(integer) + 1 + len(fraction))
-	b.WriteString(integer)
-	b.WriteByte('.')
-	b.WriteString(fraction)
-	return b.String()
-}
-
 func joinSignedDecimalParts(sign, integer, fraction string) string {
 	var b strings.Builder
 	b.Grow(len(sign) + len(integer) + 1 + len(fraction))

@@ -21,7 +21,10 @@ func TestLocaleKernelRoundTrip(t *testing.T) {
 
 	input := loadRoundTripSource(t)
 	locales := extract.ExtractLocales(input.source.Available)
-	likely := extract.ExtractLikelySubtags(input.source.LikelySubtags)
+	likely, err := extract.ExtractLikelySubtags(input.source.LikelySubtags)
+	if err != nil {
+		t.Fatalf("ExtractLikelySubtags: %v", err)
+	}
 	numbers := extract.ExtractNumbers(input.source.Numbers, input.profile)
 	preferences := input.source.Preference
 

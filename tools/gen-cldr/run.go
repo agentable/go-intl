@@ -95,7 +95,10 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 	}
 
 	locales := extract.ExtractLocales(source.Available)
-	likely := extract.ExtractLikelySubtags(source.LikelySubtags)
+	likely, err := extract.ExtractLikelySubtags(source.LikelySubtags)
+	if err != nil {
+		return fmt.Errorf("extract likely subtags: %w", err)
+	}
 	numbers := extract.ExtractNumbers(source.Numbers, profile.Locales)
 	currencies := extract.ExtractCurrencies(source.CurrencyFractions, source.Currencies, profile.Locales)
 	dates := extract.ExtractDates(source.Dates, profile.Locales)

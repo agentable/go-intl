@@ -19,6 +19,7 @@ type Numbers struct {
 	PercentPatterns        map[string]string
 	ScientificPatterns     map[string]string
 	CurrencyPatterns       map[string]map[string]string
+	CurrencyNamePatterns   map[string]map[string]string
 	CompactPatterns        map[string]map[string]map[int]map[string]string
 }
 
@@ -79,12 +80,13 @@ func loadNumbers(root string, locales []string) (map[string]Numbers, error) {
 			return nil, fmt.Errorf("numbers data missing for %s", locale)
 		}
 		num := Numbers{
-			Symbols:            make(map[string]NumberSymbols),
-			DecimalPatterns:    make(map[string]string),
-			PercentPatterns:    make(map[string]string),
-			ScientificPatterns: make(map[string]string),
-			CurrencyPatterns:   make(map[string]map[string]string),
-			CompactPatterns:    make(map[string]map[string]map[int]map[string]string),
+			Symbols:              make(map[string]NumberSymbols),
+			DecimalPatterns:      make(map[string]string),
+			PercentPatterns:      make(map[string]string),
+			ScientificPatterns:   make(map[string]string),
+			CurrencyPatterns:     make(map[string]map[string]string),
+			CurrencyNamePatterns: make(map[string]map[string]string),
+			CompactPatterns:      make(map[string]map[string]map[int]map[string]string),
 		}
 		rawDefault, ok := fields["defaultNumberingSystem"]
 		if !ok {
@@ -171,10 +173,23 @@ func loadNumberSystemFields(path, locale string, fields map[string]json.RawMessa
 	if err != nil {
 		return fmt.Errorf("parse %s currencyFormats-numberSystem-%s: %w", path, ns, err)
 	}
-	if currency["standard"] == "" {
+	if currency.sign["standard"] == "" {
 		return fmt.Errorf("currencyFormats-numberSystem-%s standard pattern missing for %s", ns, locale)
 	}
-	num.CurrencyPatterns[ns] = currency
+	if currency.name[pluralop.Other.String()] == "" && ns == num.DefaultNumberingSystem {
+		return fmt.Errorf("currencyFormats-numberSystem-%s unitPattern-count-other missing for %s", ns, locale)
+	}
+	for _, plural := range slices.Sorted(maps.Keys(currency.name)) {
+		pattern := currency.name[plural]
+		field := "unitPattern-count-" + plural
+		if err := validatePatternPlaceholders(field, pattern, "{0}", "{1}"); err != nil {
+			return fmt.Errorf("parse %s currencyFormats-numberSystem-%s: %w", path, ns, err)
+		}
+	}
+	if len(currency.name) > 0 {
+		num.CurrencyNamePatterns[ns] = currency.name
+	}
+	num.CurrencyPatterns[ns] = currency.sign
 	return nil
 }
 
@@ -265,17 +280,43 @@ func parseStandard(raw json.RawMessage) (string, error) {
 	return doc.Standard, nil
 }
 
-func parseCurrencyPatterns(raw json.RawMessage) (map[string]string, error) {
-	var doc struct {
-		Standard   string `json:"standard"`
-		Accounting string `json:"accounting"`
+type parsedCurrencyPatterns struct {
+	sign map[string]string
+	name map[string]string
+}
+
+func parseCurrencyPatterns(raw json.RawMessage) (parsedCurrencyPatterns, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return parsedCurrencyPatterns{}, err
 	}
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, err
+	out := parsedCurrencyPatterns{
+		sign: make(map[string]string),
+		name: make(map[string]string),
 	}
-	out := map[string]string{"standard": doc.Standard}
-	if doc.Accounting != "" {
-		out["accounting"] = doc.Accounting
+	for _, key := range slices.Sorted(maps.Keys(fields)) {
+		var value string
+		switch key {
+		case "standard", "accounting":
+			if err := json.Unmarshal(fields[key], &value); err != nil {
+				return parsedCurrencyPatterns{}, fmt.Errorf("parse %s: %w", key, err)
+			}
+			if value != "" {
+				out.sign[key] = value
+			}
+		default:
+			plural, ok, err := pluralCategoryFromField(key, "unitPattern-count-")
+			if err != nil {
+				return parsedCurrencyPatterns{}, fmt.Errorf("parse %s: %w", key, err)
+			}
+			if !ok {
+				continue
+			}
+			if err := json.Unmarshal(fields[key], &value); err != nil {
+				return parsedCurrencyPatterns{}, fmt.Errorf("parse %s: %w", key, err)
+			}
+			out.name[plural] = value
+		}
 	}
 	return out, nil
 }

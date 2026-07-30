@@ -228,7 +228,43 @@ if unit := format.ResolvedOptions().Unit; unit != nil {
 }
 ```
 
+Output:
+
+```text
+88 km/h
+kilometer-per-hour
+```
+
 Unit identifiers follow native `Intl.NumberFormat`: use canonical lowercase ECMA-402 identifiers such as `meter`, `microsecond`, or `kilometer-per-hour`.
+
+### Format Localized Currency Names
+
+Use `CurrencyDisplayName` when the caller needs localized words instead of a
+symbol. The formatter owns the locale-specific name placement and sign spacing;
+both the name and its position may change with the rounded value's plural
+category, so do not concatenate the currency name around formatted output.
+Visible fraction digits introduced by digit options and scientific,
+engineering, or compact exponents participate in that selection exactly as
+they do in native `Intl`.
+
+```go
+format, err := numberformat.New(mustLocaleList("sw"), numberformat.Options{
+	Style:           gointl.String(numberformat.CurrencyStyle),
+	Currency:        gointl.String("USD"),
+	CurrencyDisplay: gointl.String(numberformat.CurrencyDisplayName),
+})
+if err != nil {
+	return err
+}
+
+fmt.Println(format.Format(numberformat.Int(123)))
+```
+
+Output:
+
+```text
+dola za Marekani 123.00
+```
 
 ### Use Root Namespace Helpers
 
@@ -411,8 +447,9 @@ range data even when their mathematical rounded values compare equal.
 
 Compact plural selection follows native Intl behavior. Public `PluralRules`
 compact notation selects from the source decimal string plus the selected
-compact exponent; `NumberFormat` compact formatting separately chooses its
-compact suffix from the visible compact display decimal plus that exponent.
+compact exponent. `NumberFormat` separately chooses the compact suffix from
+the visible compact mantissa, while localized currency names and unit phrases
+use the rounded value at its original magnitude.
 
 Output:
 
@@ -686,10 +723,6 @@ task bench                # Produce a non-blocking benchmark report, optionally 
 task vuln                 # Run govulncheck
 task verify               # Run deps, fmt, vet, lint, test, conformance, data contract, and vuln checks
 ```
-
-The host consumer profile is exercised by `go test ./...`; it protects
-supported-set boundaries and reversed range behavior that host integrations
-depend on.
 
 Use `task codegraph:source` before structural exploration. The generated mirror
 excludes `.references/` and lives under ignored `.tmp/codegraph-source`, so

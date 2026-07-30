@@ -20,13 +20,15 @@ const (
 )
 
 // encodeUnits renders the const-only payload for the unit domain. It emits a
-// private _data string table plus three independent blobs, each prefixed by its
+// private _data string table plus independent blobs, each prefixed by its
 // record count:
 //
 //   - _unitPatternBlob:   sorted packed unit-pattern delta keys paired with
 //     pattern StringRefs.
 //   - _compoundUnitBlob:  sorted packed compound-unit delta keys paired with
 //     pattern StringRefs.
+//   - _perUnitPatternBlob: sorted packed specialized per-unit delta keys paired
+//     with pattern StringRefs.
 //   - _unitNameBlob:      the sorted unit-name table (id = index+1), so the
 //     decoder can rebuild the name->id map the pattern key packing needs.
 //   - _unitSupportedBlob: the unit-supported locale tags in sorted-locale order,
@@ -72,6 +74,16 @@ func encodeUnits(input RuntimeInput, table *StringTable) ([]byte, error) {
 		return nil, err
 	}
 
+	var perUnit blobEncoder
+	perUnitRows := perUnitPatternRows(data)
+	if err := appendUint32DeltaSlice(&perUnit, perUnitRows, func(row perUnitPatternRow) (uint32, error) {
+		return perUnitPatternKeyValue(localeIndex, unitIDs, row)
+	}, func(row perUnitPatternRow) {
+		perUnit.appendStringRef(table.Add(row.pattern))
+	}); err != nil {
+		return nil, err
+	}
+
 	var names blobEncoder
 	names.appendStringRefSlice(unitNames, table)
 
@@ -81,6 +93,7 @@ func encodeUnits(input RuntimeInput, table *StringTable) ([]byte, error) {
 	return renderPayloadFile("unit", table,
 		payloadBlob{"_unitPatternBlob", patterns.bytes()},
 		payloadBlob{"_compoundUnitBlob", compound.bytes()},
+		payloadBlob{"_perUnitPatternBlob", perUnit.bytes()},
 		payloadBlob{"_unitNameBlob", names.bytes()},
 		payloadBlob{"_unitSupportedBlob", supported.bytes()},
 	)
@@ -134,6 +147,24 @@ func compoundUnitKeyValue(localeIndex map[string]uint64, row compoundUnitPattern
 	return uint32(loc<<unitPatternWidthShift | width), nil
 }
 
+// perUnitPatternKeyValue packs a specialized per-unit key identically to the
+// runtime makePerUnitPatternKey.
+func perUnitPatternKeyValue(localeIndex map[string]uint64, unitIDs map[string]int, row perUnitPatternRow) (uint32, error) {
+	loc, err := localeIndexValue(localeIndex, row.locale)
+	if err != nil {
+		return 0, err
+	}
+	unitID, ok := unitIDs[row.unit]
+	if !ok {
+		return 0, fmt.Errorf("unit %q missing from unit ID table", row.unit)
+	}
+	width, ok := unitWidthOrdinal(row.width)
+	if !ok {
+		return 0, fmt.Errorf("unknown unit width %q", row.width)
+	}
+	return uint32(loc<<unitPatternLocaleShift | uint64(unitID)<<unitPatternUnitShift | width<<unitPatternWidthShift), nil
+}
+
 func unitWidthOrdinal(width string) (uint64, bool) {
 	return ordinalIn(unitWidthOrder[:], width)
 }
@@ -160,6 +191,13 @@ type unitPatternRow struct {
 
 type compoundUnitPatternRow struct {
 	locale  string
+	width   string
+	pattern string
+}
+
+type perUnitPatternRow struct {
+	locale  string
+	unit    string
 	width   string
 	pattern string
 }
@@ -211,6 +249,20 @@ func compoundUnitPatternRows(data extract.Units) []compoundUnitPatternRow {
 		for _, width := range unitWidthOrder[:] {
 			if pattern := compounds[width]; pattern != "" {
 				rows = append(rows, compoundUnitPatternRow{locale: locale, width: width, pattern: pattern})
+			}
+		}
+	}
+	return rows
+}
+
+func perUnitPatternRows(data extract.Units) []perUnitPatternRow {
+	var rows []perUnitPatternRow
+	for _, locale := range sortedLocaleKeys(data) {
+		for _, unit := range slices.Sorted(maps.Keys(data[locale])) {
+			for _, width := range unitWidthOrder[:] {
+				if pattern := data[locale][unit].PerUnit[width]; pattern != "" {
+					rows = append(rows, perUnitPatternRow{locale: locale, unit: unit, width: width, pattern: pattern})
+				}
 			}
 		}
 	}

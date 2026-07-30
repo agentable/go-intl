@@ -5,6 +5,8 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -361,6 +363,82 @@ func TestLoadNumbersRejectsMissingRequiredNumberSystemData(t *testing.T) {
 	}
 }
 
+func TestLoadNumbersPreservesCurrencyNamePlacementPatterns(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	mustWriteFile(t, filepath.Join(root, "cldr-numbers-full", "main", "sw", "numbers.json"), numbersDocumentForLocale("sw", `{
+		"defaultNumberingSystem": "arab",
+		"symbols-numberSystem-arab": `+minimalNumberSymbolsJSON+`,
+		"decimalFormats-numberSystem-arab": {"standard":"#,##0.###"},
+		"percentFormats-numberSystem-arab": {"standard":"#,##0%"},
+		"scientificFormats-numberSystem-arab": {"standard":"#E0"},
+		"currencyFormats-numberSystem-arab": {"standard":"¤#,##0.00","unitPattern-count-one":"{0} {1}","unitPattern-count-other":"{1} {0}"},
+		"symbols-numberSystem-latn": `+minimalNumberSymbolsJSON+`,
+		"decimalFormats-numberSystem-latn": {"standard":"#,##0.###"},
+		"percentFormats-numberSystem-latn": {"standard":"#,##0%"},
+		"scientificFormats-numberSystem-latn": {"standard":"#E0"},
+		"currencyFormats-numberSystem-latn": {"standard":"¤#,##0.00","unitPattern-count-one":"{0} then {1}"}
+	}`))
+
+	got, err := loadNumbers(root, []string{"sw"})
+	if err != nil {
+		t.Fatalf("loadNumbers() error = %v", err)
+	}
+	want := map[string]map[string]string{
+		"arab": {"one": "{0} {1}", "other": "{1} {0}"},
+		"latn": {"one": "{0} then {1}"},
+	}
+	if !maps.EqualFunc(got["sw"].CurrencyNamePatterns, want, maps.Equal) {
+		t.Errorf("loadNumbers() currency-name placement patterns = %#v, want %#v", got["sw"].CurrencyNamePatterns, want)
+	}
+}
+
+func TestLoadNumbersRejectsInvalidCurrencyNamePlacementPattern(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		pattern string
+		field   bool
+	}{
+		{name: "missing number placeholder", pattern: "{1}", field: true},
+		{name: "missing currency placeholder", pattern: "{0}", field: true},
+		{name: "duplicate placeholder", pattern: "{0} {1} {1}", field: true},
+		{name: "missing default row"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			currencyField := `"currencyFormats-numberSystem-latn": {"standard":"¤#,##0.00"}`
+			if tc.field {
+				currencyField = `"currencyFormats-numberSystem-latn": {"standard":"¤#,##0.00","unitPattern-count-other":` + strconv.Quote(tc.pattern) + `}`
+			}
+			doc := numbersDocument(`{
+				"defaultNumberingSystem": "latn",
+				"symbols-numberSystem-latn": ` + minimalNumberSymbolsJSON + `,
+				"decimalFormats-numberSystem-latn": {"standard":"#,##0.###"},
+				"percentFormats-numberSystem-latn": {"standard":"#,##0%"},
+				"scientificFormats-numberSystem-latn": {"standard":"#E0"},
+				` + currencyField + `
+			}`)
+			root := t.TempDir()
+			mustWriteFile(t, filepath.Join(root, "cldr-numbers-full", "main", "en", "numbers.json"), doc)
+
+			_, err := loadNumbers(root, []string{"en"})
+			if err == nil {
+				t.Fatal("loadNumbers() succeeded, want error")
+			}
+			for _, want := range []string{"en", "latn"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("loadNumbers() error = %q, want locale and numbering system context containing %q", err, want)
+				}
+			}
+		})
+	}
+}
+
 func TestLoadCurrencyFractions(t *testing.T) {
 	t.Parallel()
 
@@ -543,20 +621,30 @@ func TestParseCurrencyPatterns(t *testing.T) {
 	tests := []struct {
 		name string
 		raw  string
-		want map[string]string
+		want parsedCurrencyPatterns
 	}{
 		{
 			name: "standard and accounting",
 			raw:  `{"standard":"¤#,##0.00","accounting":"¤#,##0.00;(¤#,##0.00)"}`,
-			want: map[string]string{
-				"standard":   "¤#,##0.00",
-				"accounting": "¤#,##0.00;(¤#,##0.00)",
+			want: parsedCurrencyPatterns{
+				sign: map[string]string{
+					"standard":   "¤#,##0.00",
+					"accounting": "¤#,##0.00;(¤#,##0.00)",
+				},
 			},
 		},
 		{
 			name: "standard only",
 			raw:  `{"standard":"¤#,##0.00"}`,
-			want: map[string]string{"standard": "¤#,##0.00"},
+			want: parsedCurrencyPatterns{sign: map[string]string{"standard": "¤#,##0.00"}},
+		},
+		{
+			name: "currency name placement",
+			raw:  `{"standard":"¤#,##0.00","unitPattern-count-one":"{0} {1}","unitPattern-count-other":"{1} {0}"}`,
+			want: parsedCurrencyPatterns{
+				sign: map[string]string{"standard": "¤#,##0.00"},
+				name: map[string]string{"one": "{0} {1}", "other": "{1} {0}"},
+			},
 		},
 	}
 	for _, tc := range tests {
@@ -567,8 +655,18 @@ func TestParseCurrencyPatterns(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parseCurrencyPatterns(%s) error = %v", tc.raw, err)
 			}
-			assertStringMap(t, "parseCurrencyPatterns("+tc.name+")", got, tc.want)
+			assertStringMap(t, "parseCurrencyPatterns("+tc.name+").sign", got.sign, tc.want.sign)
+			assertStringMap(t, "parseCurrencyPatterns("+tc.name+").name", got.name, tc.want.name)
 		})
+	}
+}
+
+func TestParseCurrencyPatternsRejectsInvalidPluralCategory(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseCurrencyPatterns(json.RawMessage(`{"standard":"¤#,##0.00","unitPattern-count-invalid":"{0} {1}","unitPattern-count-other":"{0} {1}"}`))
+	if err == nil {
+		t.Fatal("parseCurrencyPatterns() succeeded, want invalid plural category error")
 	}
 }
 
@@ -704,9 +802,13 @@ const minimalNumberSymbolsJSON = `{
 }`
 
 func numbersDocument(fields string) string {
+	return numbersDocumentForLocale("en", fields)
+}
+
+func numbersDocumentForLocale(locale, fields string) string {
 	return `{
 		"main": {
-			"en": {
+			"` + locale + `": {
 				"numbers": ` + fields + `
 			}
 		}

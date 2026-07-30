@@ -9,13 +9,14 @@ import (
 	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 )
 
-func TestExtractUnitsKeepsSanctionedUnitData(t *testing.T) {
+func TestExtractUnitsKeepsWellFormedUnitData(t *testing.T) {
 	t.Parallel()
 
 	rawUnits := cldr.Units{
-		"hertz":     testUnitData("hertz"),
-		"milligram": testUnitData("milligram"),
-		"newton":    testUnitData("newton"),
+		"hertz":              testUnitData("hertz"),
+		"kilometer-per-hour": testUnitData("kilometer-per-hour"),
+		"milligram":          testUnitData("milligram"),
+		"newton":             testUnitData("newton"),
 	}
 	for _, unit := range unitid.SanctionedSimpleUnitIdentifiers() {
 		rawUnits[unit] = testUnitData(unit)
@@ -28,7 +29,8 @@ func TestExtractUnitsKeepsSanctionedUnitData(t *testing.T) {
 	}
 
 	gotNames := slices.Sorted(maps.Keys(gotUnits))
-	wantNames := unitid.SanctionedSimpleUnitIdentifiers()
+	wantNames := append(unitid.SanctionedSimpleUnitIdentifiers(), "kilometer-per-hour")
+	slices.Sort(wantNames)
 	if !slices.Equal(gotNames, wantNames) {
 		t.Fatalf("ExtractUnits(...) units = %v, want %v", gotNames, wantNames)
 	}
@@ -36,6 +38,9 @@ func TestExtractUnitsKeepsSanctionedUnitData(t *testing.T) {
 		if _, ok := gotUnits[unit]; ok {
 			t.Fatalf("ExtractUnits(...) kept unsanctioned unit %q", unit)
 		}
+	}
+	if got := gotUnits["meter"].PerUnit["long"]; got != "{0} per meter" {
+		t.Fatalf("ExtractUnits(...) meter per-unit pattern = %q, want %q", got, "{0} per meter")
 	}
 }
 
@@ -71,6 +76,7 @@ func testUnitData(unit string) cldr.UnitData {
 				unit: {"other": "{0} " + unit},
 			},
 		},
+		PerUnit:  map[string]string{"long": "{0} per " + unit},
 		Compound: map[string]string{"long": "{0} per {1}"},
 	}
 }

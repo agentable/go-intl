@@ -300,7 +300,6 @@ Rules:
 - [ ] Supported-value accessors live in the root package, conventionally in `supported.go`, without creating public data-layer packages.
 - [ ] The root package does not expose `SupportedValueKey`, `SupportedValue*` constants, or `SupportedValuesOf`.
 - [ ] `numberformat`, `datetimeformat`, `pluralrules`, `listformat`, `relativetimeformat`, `durationformat`, `displaynames`, `collator`, and `segmenter` own their own `SupportedLocalesOf` functions.
-- [ ] `go list -deps ./...` confirms `go-intl` does not depend on `messageformat-go`.
 
 ---
 

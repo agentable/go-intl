@@ -1,6 +1,6 @@
 // Hand-written accessor layer for the unit domain. It exposes unit patterns,
-// compound patterns, and the narrow supported-locale index over lazily decoded
-// const blobs.
+// specialized per-unit patterns, compound patterns, and the narrow
+// supported-locale index over lazily decoded const blobs.
 
 package unit
 
@@ -45,6 +45,25 @@ func CompoundUnitPattern(loc Locale, width string) string {
 	return ""
 }
 
+// PerUnitPattern returns the specialized denominator pattern for a (locale,
+// unit, width) tuple, or "" when CLDR has no specialized pattern or any
+// component is unrecognized.
+func PerUnitPattern(loc Locale, unit, width string) string {
+	unitID := unitNameID(unit)
+	widthID := unitWidthID(width)
+	if unitID == 0 || widthID == 0 {
+		return ""
+	}
+	key := makePerUnitPatternKey(loc, unitID, widthID)
+	perUnitPatternOnce.Do(loadPerUnitPatterns)
+	if i, ok := slices.BinarySearchFunc(perUnitPatternRows, key, func(row unitPatternRecord, key uint32) int {
+		return cmp.Compare(row.key, key)
+	}); ok {
+		return perUnitPatternRows[i].pattern
+	}
+	return ""
+}
+
 // SupportedLocales returns the unit-supported locale tags in sorted-locale
 // order. It reads only the narrow supported blob and never triggers the pattern
 // or compound blob decode.
@@ -58,6 +77,10 @@ func makeUnitPatternKey(loc Locale, unitID, width, plural uint32) uint32 {
 
 func makeCompoundUnitPatternKey(loc Locale, width uint32) uint32 {
 	return uint32(loc)<<4 | width
+}
+
+func makePerUnitPatternKey(loc Locale, unitID, width uint32) uint32 {
+	return uint32(loc)<<16 | unitID<<8 | width<<4
 }
 
 // unitNameID resolves a unit name to its 1-based id, or 0 when unknown. The id

@@ -70,7 +70,8 @@ func encodeNumbers(input RuntimeInput, table *StringTable) ([]byte, error) {
 
 // encodeNumberLocale serializes one locale's numberData in the fixed order the
 // decoder reads it: default numbering system, symbols-by-NS, decimal/percent/
-// scientific pattern maps, currency style map, and compact pattern tree.
+// scientific pattern maps, currency style map, currency-name placement map,
+// and compact pattern tree.
 func encodeNumberLocale(e *blobEncoder, n cldr.Numbers, table *StringTable) {
 	e.appendStringRef(table.Add(n.DefaultNumberingSystem))
 	encodeNumberSymbols(e, n.Symbols, table)
@@ -78,6 +79,7 @@ func encodeNumberLocale(e *blobEncoder, n cldr.Numbers, table *StringTable) {
 	e.appendStringRefMap(n.PercentPatterns, table)
 	e.appendStringRefMap(n.ScientificPatterns, table)
 	encodeCurrencyPatterns(e, n.CurrencyPatterns, table)
+	encodeCurrencyNamePatterns(e, n.CurrencyNamePatterns, table)
 	encodeCompactPatterns(e, n.CompactPatterns, table)
 }
 
@@ -97,6 +99,14 @@ func encodeNumberSymbols(e *blobEncoder, symbols map[string]cldr.NumberSymbols, 
 func encodeCurrencyPatterns(e *blobEncoder, values map[string]map[string]string, table *StringTable) {
 	appendStringRefKeyMap(e, values, table, func(signPatterns map[string]string) {
 		e.appendStringRefMap(signPatterns, table)
+	})
+}
+
+// encodeCurrencyNamePatterns serializes the ns -> plural -> placement pattern
+// tree. The same plural category selects the localized name and its position.
+func encodeCurrencyNamePatterns(e *blobEncoder, values map[string]map[string]string, table *StringTable) {
+	appendStringRefKeyMap(e, values, table, func(pluralPatterns map[string]string) {
+		e.appendStringRefMap(pluralPatterns, table)
 	})
 }
 

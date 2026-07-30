@@ -50,11 +50,11 @@ Each semantic domain is a Go package under `internal/cldr/<domain>/` with a gene
 
 | `internal/cldr/<domain>` | CLDR source | Extract fields |
 |---------------------------|-------------|----------------|
-| `number` | `cldr-numbers-full/main/<locale>/numbers.json` | symbols (decimal/group/percent/plus/minus/NaN/Infinity/timeSeparator), decimal/percent/currency/scientific/compact formats, numbering systems |
+| `number` | `cldr-numbers-full/main/<locale>/numbers.json` | symbols (decimal/group/percent/plus/minus/NaN/Infinity/timeSeparator), decimal/percent/currency/scientific/compact formats, plural-sensitive currency-name placement patterns, numbering systems |
 | `date` | `cldr-dates-full/main/<locale>/ca-gregorian.json` | era / month / weekday / day-period names (stand-alone × format, wide / abbreviated / narrow), date/time/dateTime formats, availableFormats, intervalFormats, day-period rules |
 | `timezone` | `cldr-core/supplemental/metaZones.json` + `cldr-dates-full/main/<locale>/timeZoneNames.json` | zone → metazone mapping, metazone display names (long / short × generic / standard / daylight), exemplarCity, GMT/hour/region formatting patterns, metazone period boundaries |
 | `currency` | `cldr-numbers-full/main/<locale>/currencies.json` + `cldr-core/supplemental/currencyData.json` | currency display names (long / short / narrow), plural forms, defaultFractionDigits, cashDigits, rounding |
-| `unit` | `cldr-units-full/main/<locale>/units.json` | NumberFormat-sanctioned unit plural patterns, DurationFormat duration unit patterns (long / short / narrow), compound unit patterns, unit-supported locales |
+| `unit` | `cldr-units-full/main/<locale>/units.json` | NumberFormat-sanctioned simple and direct compound plural patterns, optional denominator-specific `perUnitPattern`, generic compound unit patterns, DurationFormat duration unit patterns (long / short / narrow), unit-supported locales |
 | `list` | `cldr-misc-full/main/<locale>/listPatterns.json` | `conjunction` / `disjunction` / `unit` × `long` / `short` / `narrow` pair/start/middle/end patterns |
 | `relativetime` | `cldr-dates-full/main/<locale>/dateFields.json` | long/short/narrow relative and relativeTime patterns for year/quarter/month/week/day/hour/minute/second |
 | `displaynames` | `cldr-localenames-full/main/<locale>/*.json` (+ currency names imported from the `currency` domain) | language / region / script / calendar / dateTimeField display names |
@@ -358,6 +358,17 @@ MUST rules:
 
 > **Why**: Any non-deterministic order produces byte-diff noise and can break the `Undefined` sentinel that every domain's locale-index stream is keyed against.
 
+### 5.7 Likely-subtag source validation
+
+`tools/gen-cldr/extract.ExtractLikelySubtags` validates the pinned CLDR source
+before producing maximize/minimize records. Keys must be fully consumed
+language, language-script, language-region, or language-script-region forms;
+values must be full language-script-region triples. Both sides reuse
+`internal/localeid` subtag validators and canonicalizers. Empty, misplaced,
+extra, variant, extension, private-use, and normalized-duplicate source forms
+fail generation with the original key and value in the error; none may be
+silently truncated or overwritten.
+
 ---
 
 ## 6. Data Access API
@@ -381,6 +392,7 @@ func Manifest() ManifestInfo
 // internal/cldr/number
 func SupportedLocales() []string
 func SupportedNumberingSystems() []string
+func (Locale) CurrencyNamePattern(numberingSystem, plural string) string
 // + symbols / decimal / percent / currency / compact pattern accessors keyed by Locale
 
 // internal/cldr/date
@@ -403,6 +415,7 @@ func TimeZonesForRegion(region string) []string
 // internal/cldr/unit
 func SupportedLocales() []string
 func UnitPattern(loc Locale, unit, width, plural string) string
+func PerUnitPattern(loc Locale, unit, width string) string
 func CompoundUnitPattern(loc Locale, width string) string
 
 // internal/cldr/{list,relativetime,displaynames}
@@ -416,8 +429,10 @@ MUST rules:
 2. `internal/localematcher` **MUST NOT** import any `internal/cldr` package. Its own generated profile supplies distance facts; formatter constructors inject generated supported-locale slices and the locale-kernel maximizer.
 3. Root `Intl.supportedValuesOf` accessors consume the owning domain's narrow index (§1.2), except time zones, which consume the exact primary projection of `internal/tz` identifier records. Root `supportedValuesOf("collation")` uses `internal/collation`, not the CLDR candidate list, so it advertises only values the active Collator can apply.
 4. `SupportedCalendars()` derives from date calendar payload keys, maps CLDR `"gregorian"` → ECMA-402 `"gregory"`, and appends `"iso8601"` only when Gregorian data exists. `SupportedNumberingSystems()` includes the full ECMA-402 simple digit set even when the profile generates no matching CLDR symbol payload.
-5. Number-domain decimal, percent, scientific, symbol, and currency pattern accessors must fall back from a requested numbering-system row to the locale default numbering-system row when the requested row is absent. Compact pattern accessors keep missing tuple results empty so NumberFormat can distinguish unavailable compact formats from base pattern defaults.
-6. The root `internal/cldr/` directory is not a Go package. It must contain version metadata and domain subdirectories only; no production code may import a retired root CLDR package.
+5. Number-domain decimal, percent, scientific, symbol, and currency-symbol accessors must fall back from a requested numbering-system row to the locale default numbering-system row when the requested row is absent. Currency-name placement additionally falls back from a missing plural category to `other` before applying the same-locale numbering-system fallback. Compact pattern accessors keep missing tuple results empty so NumberFormat can distinguish unavailable compact formats from base pattern defaults.
+6. Number generation must preserve every recognized `currencyFormats-numberSystem-*/unitPattern-count-{zero,one,two,few,many,other}` row, validate exactly one `{0}` and `{1}` in each present row, reject unknown plural suffixes, and require `other` for the locale's default numbering-system row. Missing categories and non-default rows remain absent so `CurrencyNamePattern` can apply its bounded same-locale fallback.
+7. Unit generation must preserve every CLDR row whose de-namespaced identifier passes `IsWellFormedUnitIdentifier`, including direct compound rows. It validates that every generic compound pattern contains exactly one `{0}` and `{1}`, and that every present `perUnitPattern` contains exactly one `{0}`. A missing direct or `perUnitPattern` row is preserved as absence so NumberFormat can choose the next composition path; plural unit patterns may legitimately omit `{0}` and must not be repaired.
+8. The root `internal/cldr/` directory is not a Go package. It must contain version metadata and domain subdirectories only; no production code may import a retired root CLDR package.
 
 > **Why**: `availableLocales.json` may list locales without complete formatter payload; supported lists must come from real payload, or `ResolveLocale` could hit a payload-less locale and drift the fallback from Generated reference.
 
@@ -435,7 +450,14 @@ The `internal/` path segment forces every domain package private. Formatter publ
 
 ### 7.2 Snapshot / contract test
 
-`internal/cldr/locale/snapshot_test.go` regenerates every generated file under `internal/cldr` and byte-compares it with the committed payload. `task data:check` regenerates all products into one temporary `internal/` tree, compares the complete generated-header-owned path set and bytes (including the private identity products in `internal/localeid`, `internal/localematcher`, and `internal/tz`), runs the nested generator test/vet proof, then runs `task data:contract`. The locale package holds the data-shape gate (`datashape_test.go`) used by that final contract step.
+`task data:check` is the sole byte-identity orchestration gate. It regenerates
+all products into one temporary `internal/` tree, compares the complete
+generated-header-owned path set and bytes in both directions (including the
+private identity products in `internal/localeid`, `internal/localematcher`, and
+`internal/tz`), runs the nested generator test/vet proof, then runs
+`task data:contract`. The locale package retains manifest, header, runtime
+contract, and data-shape tests; per-domain generator tests retain production
+decoder/accessor round trips.
 
 ### 7.3 Conformance integration
 

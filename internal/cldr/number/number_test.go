@@ -221,6 +221,33 @@ func TestSmokeGermanNumberSymbols(t *testing.T) {
 	}
 }
 
+func TestSmokeCurrencyNamePatterns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, locale, numberingSystem, plural, want string
+	}{
+		{name: "English other", locale: "en", plural: "other", want: "{0} {1}"},
+		{name: "Swahili one", locale: "sw", plural: "one", want: "{0} {1}"},
+		{name: "Swahili other", locale: "sw", plural: "other", want: "{1} {0}"},
+		{name: "missing category uses other", locale: "sw", plural: "few", want: "{1} {0}"},
+		{name: "missing numbering system uses default category", locale: "sw", numberingSystem: "missing-numbering-system", plural: "one", want: "{0} {1}"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			loc, ok := ResolveLocale(tc.locale)
+			if !ok {
+				t.Fatalf("ResolveLocale(%q) = false, want true", tc.locale)
+			}
+			if got := loc.CurrencyNamePattern(tc.numberingSystem, tc.plural); got != tc.want {
+				t.Errorf("CurrencyNamePattern(%q, %q, %q) = %q, want %q", tc.locale, tc.numberingSystem, tc.plural, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCompactPatternMissingTupleReturnsEmpty(t *testing.T) {
 	t.Parallel()
 

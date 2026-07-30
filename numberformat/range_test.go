@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/decimal"
@@ -154,6 +155,43 @@ func TestNumberFormatFormatRangeToParts(t *testing.T) {
 	}
 	if got := mustFormatRangeToParts(t, format, Float(1), Float(2)); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FormatRangeToParts(1, 2) = %#v, want %#v", got, want)
+	}
+}
+
+func TestNumberFormatRangeTextEqualsPartsJoin(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		opts       Options
+		start, end Value
+	}{
+		{name: "distinct", start: Int(1), end: Int(2)},
+		{name: "signed", start: Int(-1), end: Int(2)},
+		{name: "reversed", start: Int(2), end: Int(1)},
+		{name: "infinity", start: Int(1), end: Float(math.Inf(1))},
+		{name: "approximate", opts: Options{MaximumFractionDigits: intPtr(0)}, start: Float(1.1), end: Float(1.2)},
+		{name: "scientific", opts: Options{Notation: stringPtr(ScientificNotation), MaximumFractionDigits: intPtr(0)}, start: Int(1000), end: Int(10000)},
+		{name: "currency collapse", opts: Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD"), CurrencyDisplay: stringPtr(CurrencyDisplayCode)}, start: Int(1), end: Int(2)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			format, err := New(locale.List{intltest.Locale(t, "en")}, tc.opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := mustFormatRange(t, format, tc.start, tc.end)
+			parts := mustFormatRangeToParts(t, format, tc.start, tc.end)
+			var joined strings.Builder
+			for _, part := range parts {
+				joined.WriteString(part.Value)
+			}
+			if got := joined.String(); got != text {
+				t.Errorf("FormatRangeToParts join = %q, want FormatRange %q", got, text)
+			}
+		})
 	}
 }
 

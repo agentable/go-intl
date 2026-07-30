@@ -11,7 +11,7 @@ import (
 	pluralop "github.com/agentable/go-intl/internal/plural"
 )
 
-func formatCompactAppend(parts []Part, d decimal.Decimal, state *decimalFormatState) ([]Part, decimal.Decimal) {
+func formatCompactAppend(parts []Part, d decimal.Decimal, state *decimalFormatState) ([]Part, stylePluralOperand) {
 	symbols := state.symbols
 	resolved := state.resolved
 	signDisplay := resolved.SignDisplay
@@ -28,7 +28,7 @@ func formatCompactAppend(parts []Part, d decimal.Decimal, state *decimalFormatSt
 	}
 	parts = appendDecimalParts(parts, formatted, symbols)
 	parts = applySignDisplay(parts, d.Negative(), signDisplay, symbols)
-	return pattern.append(parts), result.Rounded
+	return pattern.append(parts), stylePluralOperand{formatted: result.Formatted, exponent: entry.exponent, finite: true}
 }
 
 func resolveCompactPattern(d decimal.Decimal, digitOptions ecma402nf.ResolvedDigitOptions, compact compactPatternSet) (decimal.Decimal, compactPatternEntry) {
@@ -48,7 +48,7 @@ func compactPatternForFormatted(entry compactPatternEntry, formatted string, car
 	return entry.pattern(category)
 }
 
-func formatScientificAppend(parts []Part, d decimal.Decimal, notation Notation, state *decimalFormatState) ([]Part, decimal.Decimal) {
+func formatScientificAppend(parts []Part, d decimal.Decimal, notation Notation, state *decimalFormatState) ([]Part, stylePluralOperand) {
 	symbols := state.symbols
 	resolved := state.resolved
 	signDisplay := resolved.SignDisplay
@@ -56,7 +56,7 @@ func formatScientificAppend(parts []Part, d decimal.Decimal, notation Notation, 
 	digitOptions := state.digitOptions
 	exponent, ok := ecma402nf.ScientificExponent(d, digitOptions, notation == EngineeringNotation)
 	if !ok {
-		return append(parts, Part{Type: PartNaN, Value: symbols.NaN}), decimal.NaNValue
+		return append(parts, Part{Type: PartNaN, Value: symbols.NaN}), stylePluralOperand{}
 	}
 	scaled := decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent came from decimal.Log10Floor int32.
 	result := ecma402nf.FormatNumericToString(scaled, digitOptions)
@@ -67,13 +67,14 @@ func formatScientificAppend(parts []Part, d decimal.Decimal, notation Notation, 
 	parts = appendDecimalParts(parts, formatted, symbols)
 	parts = applySignDisplay(parts, d.Negative(), signDisplay, symbols)
 	parts = append(parts, Part{Type: PartExponentSeparator, Value: symbols.Exponential})
+	pluralExponent := exponent
 	if exponent < 0 {
 		parts = append(parts, Part{Type: PartExponentMinusSign, Value: symbols.Minus})
 		exponent = -exponent
 	}
 	exponentInteger := strconv.Itoa(exponent)
 	parts = append(parts, Part{Type: PartExponentInteger, Value: exponentInteger})
-	return parts, result.Rounded
+	return parts, stylePluralOperand{formatted: result.Formatted, exponent: pluralExponent, finite: true}
 }
 
 type compactPatternSet struct {
@@ -145,6 +146,7 @@ func compileCompactAffixPattern(pattern string) compactAffixPattern {
 	if pattern == "" {
 		return compactAffixPattern{}
 	}
+	pattern, _, _ = strings.Cut(pattern, ";")
 	start, end := numberPatternBounds(pattern)
 	if start < 0 {
 		return compactAffixPattern{set: true}

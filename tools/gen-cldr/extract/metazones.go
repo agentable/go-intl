@@ -51,7 +51,7 @@ func ExtractUnits(raw map[string]cldr.Units, locales []string) Units {
 		}
 		extracted := make(cldr.Units)
 		for unit, data := range units {
-			if unitid.IsSanctionedSimpleUnitIdentifier(unit) {
+			if unitid.IsWellFormedUnitIdentifier(unit) {
 				extracted[unit] = data
 			}
 		}

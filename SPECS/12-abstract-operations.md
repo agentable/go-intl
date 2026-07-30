@@ -62,7 +62,7 @@ Surviving algorithms keep spec or reference names when that name remains honest:
 | pattern partition | `PartitionPattern` |
 | currency syntax | `IsWellFormedCurrencyCode` |
 | sanctioned unit syntax | `IsSanctionedSimpleUnitIdentifier` / `IsWellFormedUnitIdentifier` |
-| mathematical value conversion | `ToIntlMathematicalValue`, `ParseDecimalInput`, `ParseFiniteDecimalInput`, `RequireFiniteDecimalInput` |
+| typed mathematical-value bridge | `NumericValue`, `DecimalNumericValue`, `Int64NumericValue`, `Uint64NumericValue`, `Float64NumericValue`, `BigIntNumericValue`, `ParseDecimalInput`, `ParseFiniteDecimalInput`, `RequireFiniteDecimalInput` |
 | constructor locale negotiation | `ResolveConstructorLocale` typed wrapper around locale-list, matcher, default-locale, and relevant-extension processing |
 | option resolution | `options.One`, `LocaleMatcherAlgorithm`, `LocaleMatcherOption` / `LocaleMatcherOptionInput`, `SupportedLocalesOf`, `InvalidStringOption`, `InvalidIntegerOption`, Unicode type option validators, `GetOption`-family helpers or typed equivalents that preserve ECMA-402 semantics |
 | digit rounding and padding stage | `numberformat.FormatNumericToString` |
@@ -202,9 +202,16 @@ var slots sync.Map // map[*NumberFormat]map[string]any
 
 ## 6. Math Value Boundary
 
-`internal/ecma402.MathematicalValue` is the narrow interface shared across the abstract layer. The concrete decimal backend lives in `internal/decimal`.
+`internal/ecma402.NumericValue` is the closed record shared across the abstract
+layer. Package-local public `Value` constructors select an explicit Go bridge
+(`Int`, `Uint`, `Float`, `BigInt`, or `Decimal`) and produce that record. The
+concrete decimal representation and arithmetic live in `internal/decimal`.
 
-`ToIntlMathematicalValue` may delegate to `internal/decimal`; callers should not duplicate numeric coercion or parse decimal strings ad hoc. Public decimal-string bridges must use `ParseDecimalInput` when `NaN` / infinities are legal and `ParseFiniteDecimalInput` or `RequireFiniteDecimalInput` when the native operation rejects non-finite values.
+The Go core does not accept `any` and does not emulate JavaScript
+`ToPrimitive` coercion. Public decimal-string bridges use `ParseDecimalInput`
+when `NaN` / infinities are legal and `ParseFiniteDecimalInput` or
+`RequireFiniteDecimalInput` when the native operation rejects non-finite
+values. Host adapters must choose one typed bridge before entering the core.
 
 ## Forbidden
 

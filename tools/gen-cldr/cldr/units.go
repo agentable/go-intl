@@ -15,6 +15,7 @@ type Units map[string]UnitData
 
 type UnitData struct {
 	Patterns map[string]map[string]map[string]string
+	PerUnit  map[string]string
 	Compound map[string]string
 }
 
@@ -62,9 +63,9 @@ func loadUnits(root string, locales []string) (map[string]Units, error) {
 			if err != nil {
 				return nil, fmt.Errorf("parse %s %s units: %w", path, width, err)
 			}
-			compoundPattern, ok := unitCompoundPattern(widthUnits)
-			if !ok {
-				return nil, fmt.Errorf("parse %s %s units: compoundUnitPattern missing", path, width)
+			compoundPattern, err := unitCompoundPattern(widthUnits)
+			if err != nil {
+				return nil, fmt.Errorf("parse %s %s units: %w", path, width, err)
 			}
 			compound[width] = compoundPattern
 			for _, key := range slices.Sorted(maps.Keys(widthUnits)) {
@@ -88,6 +89,15 @@ func loadUnits(root string, locales []string) (map[string]Units, error) {
 					data.Patterns[width] = make(map[string]map[string]string)
 				}
 				data.Patterns[width][unit] = patterns
+				if perUnit, ok := fields["perUnitPattern"]; ok {
+					if err := validatePatternPlaceholders("perUnitPattern", perUnit, "{0}"); err != nil {
+						return nil, fmt.Errorf("parse %s %s: %w", width, key, err)
+					}
+					if data.PerUnit == nil {
+						data.PerUnit = make(map[string]string)
+					}
+					data.PerUnit[width] = perUnit
+				}
 				units[unit] = data
 			}
 		}
@@ -115,10 +125,25 @@ func parseUnitWidth(raw json.RawMessage) (map[string]map[string]string, error) {
 	return widthUnits, nil
 }
 
-func unitCompoundPattern(widthUnits map[string]map[string]string) (string, bool) {
+func unitCompoundPattern(widthUnits map[string]map[string]string) (string, error) {
 	fields := widthUnits["per"]
 	pattern := fields["compoundUnitPattern"]
-	return pattern, pattern != ""
+	if pattern == "" {
+		return "", fmt.Errorf("compoundUnitPattern missing")
+	}
+	if err := validatePatternPlaceholders("compoundUnitPattern", pattern, "{0}", "{1}"); err != nil {
+		return "", err
+	}
+	return pattern, nil
+}
+
+func validatePatternPlaceholders(name, pattern string, placeholders ...string) error {
+	for _, placeholder := range placeholders {
+		if count := strings.Count(pattern, placeholder); count != 1 {
+			return fmt.Errorf("%s expected exactly one %s placeholder, got %d in %q", name, placeholder, count, pattern)
+		}
+	}
+	return nil
 }
 
 func unitPluralPatterns(fields map[string]string) (map[string]string, error) {
@@ -153,12 +178,15 @@ func sanctionedUnitKeySet() map[string]bool {
 }
 
 func unitIdentifierFromCLDRKey(key string) (string, bool) {
-	if !unitLoaderSanctionedKeys[key] {
-		return "", false
-	}
 	_, unit, ok := strings.Cut(key, "-")
 	if !ok {
 		return "", false
 	}
-	return unit, true
+	if unitLoaderSanctionedKeys[key] {
+		return unit, true
+	}
+	if strings.Contains(unit, "-per-") && unitid.IsWellFormedUnitIdentifier(unit) {
+		return unit, true
+	}
+	return "", false
 }

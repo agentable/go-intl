@@ -26,6 +26,7 @@ func TestSupportedLocalesDoesNotDecodePatternBlobs(t *testing.T) {
 	}
 	testcontract.AssertNarrowStringIndexDoesNotLoad(t, "SupportedLocales", SupportedLocales,
 		testcontract.LoadProbe{Name: "unit pattern blob", Loaded: func() bool { return unitPatterns != nil }},
+		testcontract.LoadProbe{Name: "per-unit pattern blob", Loaded: func() bool { return perUnitPatternRows != nil }},
 		testcontract.LoadProbe{Name: "compound unit blob", Loaded: func() bool { return compoundUnitRows != nil }},
 		testcontract.LoadProbe{Name: "unit name table", Loaded: func() bool { return unitNameIDs != nil }},
 	)
@@ -65,6 +66,18 @@ func TestSmokeKnownPatterns(t *testing.T) {
 
 	if got, want := CompoundUnitPattern(loc, "long"), "{0} per {1}"; got != want {
 		t.Errorf("CompoundUnitPattern(en, long) = %q, want %q", got, want)
+	}
+	for _, tc := range []struct {
+		unit, width, want string
+	}{
+		{"meter", "long", "{0} per meter"},
+		{"meter", "short", "{0}/m"},
+		{"meter", "narrow", "{0}/m"},
+		{"megabyte", "long", ""},
+	} {
+		if got := PerUnitPattern(loc, tc.unit, tc.width); got != tc.want {
+			t.Errorf("PerUnitPattern(en, %q, %q) = %q, want %q", tc.unit, tc.width, got, tc.want)
+		}
 	}
 }
 
@@ -125,7 +138,13 @@ func TestBinarySearchedBlobsStrictlyAscending(t *testing.T) {
 			t.Fatalf("compound unit keys not strictly ascending at %d: %d then %d", i, compoundUnitRows[i-1].key, compoundUnitRows[i].key)
 		}
 	}
-	if len(unitPatterns) == 0 || len(compoundUnitRows) == 0 {
+	perUnitPatternOnce.Do(loadPerUnitPatterns)
+	for i := 1; i < len(perUnitPatternRows); i++ {
+		if perUnitPatternRows[i].key <= perUnitPatternRows[i-1].key {
+			t.Fatalf("per-unit pattern keys not strictly ascending at %d: %d then %d", i, perUnitPatternRows[i-1].key, perUnitPatternRows[i].key)
+		}
+	}
+	if len(unitPatterns) == 0 || len(compoundUnitRows) == 0 || len(perUnitPatternRows) == 0 {
 		t.Fatal("decoded unit blobs are empty; payload or decoder is broken")
 	}
 }

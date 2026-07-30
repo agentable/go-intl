@@ -4,6 +4,8 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -31,10 +33,15 @@ func TestLoadUnitsExtractsPatternsAndCompound(t *testing.T) {
 							"length-meter": {
 								"unitPattern-count-one": "{0} meter",
 								"unitPattern-count-other": "{0} meters",
+								"perUnitPattern": "{0} per meter",
 								"displayName": "meters"
 							},
 							"temperature-celsius": {
 								"unitPattern-count-other": "{0} degrees Celsius"
+							},
+							"speed-kilometer-per-hour": {
+								"unitPattern-count-one": "{0} kilometer per hour",
+								"unitPattern-count-other": "{0} kilometers per hour"
 							},
 							"power2-meter": {
 								"unitPattern-count-other": "{0} square meters"
@@ -52,6 +59,9 @@ func TestLoadUnitsExtractsPatternsAndCompound(t *testing.T) {
 						},
 						"length-meter": {
 							"unitPattern-count-other": "{0} m"
+						},
+						"speed-kilometer-per-hour": {
+							"unitPattern-count-other": "{0} km/h"
 						}
 					},
 					"narrow": {
@@ -60,6 +70,9 @@ func TestLoadUnitsExtractsPatternsAndCompound(t *testing.T) {
 						},
 						"length-meter": {
 							"unitPattern-count-other": "{0}m"
+						},
+						"speed-kilometer-per-hour": {
+							"unitPattern-count-other": "{0}km/h"
 						}
 					}
 				}
@@ -70,6 +83,9 @@ func TestLoadUnitsExtractsPatternsAndCompound(t *testing.T) {
 	got, err := loadUnits(root, []string{undefinedLocale, "en", "missing"})
 	if err != nil {
 		t.Fatalf("loadUnits() error = %v", err)
+	}
+	if got := got["en"]["meter"].PerUnit["long"]; got != "{0} per meter" {
+		t.Fatalf("loadUnits() meter long perUnitPattern = %q, want %q", got, "{0} per meter")
 	}
 	want := map[string]Units{
 		"en": {
@@ -91,6 +107,21 @@ func TestLoadUnitsExtractsPatternsAndCompound(t *testing.T) {
 					},
 					"narrow": {
 						"meter": {"other": "{0}m"},
+					},
+				},
+				PerUnit:  map[string]string{"long": "{0} per meter"},
+				Compound: wantUnitCompound(),
+			},
+			"kilometer-per-hour": {
+				Patterns: map[string]map[string]map[string]string{
+					"long": {
+						"kilometer-per-hour": {"one": "{0} kilometer per hour", "other": "{0} kilometers per hour"},
+					},
+					"short": {
+						"kilometer-per-hour": {"other": "{0} km/h"},
+					},
+					"narrow": {
+						"kilometer-per-hour": {"other": "{0}km/h"},
 					},
 				},
 				Compound: wantUnitCompound(),
@@ -348,6 +379,75 @@ func TestLoadUnitsRejectsMissingCompoundPattern(t *testing.T) {
 	}
 }
 
+func TestLoadUnitsRejectsMalformedCompositionPatterns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		compound   string
+		perUnit    string
+		wantFields []string
+	}{
+		{
+			name:       "generic missing numerator",
+			compound:   "per {1}",
+			perUnit:    "{0} per meter",
+			wantFields: []string{"en", "long", "compoundUnitPattern", "{0}"},
+		},
+		{
+			name:       "generic duplicate denominator",
+			compound:   "{0} per {1} ({1})",
+			perUnit:    "{0} per meter",
+			wantFields: []string{"en", "long", "compoundUnitPattern", "{1}"},
+		},
+		{
+			name:       "per-unit missing value",
+			compound:   "{0} per {1}",
+			perUnit:    "per meter",
+			wantFields: []string{"en", "long", "length-meter", "perUnitPattern", "{0}"},
+		},
+		{
+			name:       "per-unit duplicate value",
+			compound:   "{0} per {1}",
+			perUnit:    "{0} per meter ({0})",
+			wantFields: []string{"en", "long", "length-meter", "perUnitPattern", "{0}"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			mustWriteFile(t, filepath.Join(root, "cldr-units-full", "main", "en", "units.json"), unitCompositionFixture(tc.compound, tc.perUnit))
+
+			_, err := loadUnits(root, []string{"en"})
+			if err == nil {
+				t.Fatal("loadUnits() succeeded, want error")
+			}
+			for _, field := range tc.wantFields {
+				if !strings.Contains(err.Error(), field) {
+					t.Errorf("loadUnits() error = %q, want field %q", err, field)
+				}
+			}
+		})
+	}
+}
+
+func TestLoadUnitsAllowsMissingPerUnitPattern(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	mustWriteFile(t, filepath.Join(root, "cldr-units-full", "main", "en", "units.json"), unitCompositionFixture("{0} per {1}", ""))
+
+	got, err := loadUnits(root, []string{"en"})
+	if err != nil {
+		t.Fatalf("loadUnits() error = %v", err)
+	}
+	if got := got["en"]["meter"].PerUnit; got != nil {
+		t.Fatalf("loadUnits() meter PerUnit = %#v, want nil", got)
+	}
+}
+
 func TestLoadUnitsRejectsMissingUnitPatterns(t *testing.T) {
 	t.Parallel()
 
@@ -414,6 +514,7 @@ func TestUnitIdentifierFromCLDRKey(t *testing.T) {
 	}{
 		{name: "simple", key: "length-meter", want: "meter", ok: true},
 		{name: "hyphenated unit", key: "length-mile-scandinavian", want: "mile-scandinavian", ok: true},
+		{name: "direct compound unit", key: "speed-kilometer-per-hour", want: "kilometer-per-hour", ok: true},
 		{name: "missing namespace", key: "meter", ok: false},
 		{name: "empty unit", key: "length-", ok: false},
 		{name: "unknown namespace", key: "unknown-meter", ok: false},
@@ -440,6 +541,18 @@ func wantUnitCompound() map[string]string {
 	}
 }
 
+func unitCompositionFixture(compound, perUnit string) string {
+	perUnitField := ""
+	if perUnit != "" {
+		perUnitField = `,"perUnitPattern":` + strconv.Quote(perUnit)
+	}
+	return `{"main":{"en":{"units":{` +
+		`"long":{"per":{"compoundUnitPattern":` + strconv.Quote(compound) + `},"length-meter":{"unitPattern-count-other":"{0} meters"` + perUnitField + `}},` +
+		`"short":{"per":{"compoundUnitPattern":"{0}/{1}"},"length-meter":{"unitPattern-count-other":"{0} m"}},` +
+		`"narrow":{"per":{"compoundUnitPattern":"{0}/{1}"},"length-meter":{"unitPattern-count-other":"{0}m"}}` +
+		`}}}}`
+}
+
 func assertUnitsByLocale(t *testing.T, name string, got, want map[string]Units) {
 	t.Helper()
 
@@ -453,7 +566,8 @@ func unitsEqual(got, want Units) bool {
 }
 
 func unitDataEqual(got, want UnitData) bool {
-	return maps.Equal(got.Compound, want.Compound) &&
+	return maps.Equal(got.PerUnit, want.PerUnit) &&
+		maps.Equal(got.Compound, want.Compound) &&
 		maps.EqualFunc(got.Patterns, want.Patterns, unitWidthPatternsEqual)
 }
 

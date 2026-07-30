@@ -34,6 +34,7 @@ type numberData struct {
 	symbols                      numberSymbolsByNumberingSystem
 	decimal, percent, scientific numberPatternsByNumberingSystem
 	currency                     currencyPatternsByNumberingSystem
+	currencyName                 currencyNamePatternsByNumberingSystem
 	compact                      compactPatternsByNumberingSystem
 }
 
@@ -42,6 +43,9 @@ type numberPatternsByNumberingSystem map[string]string
 
 type currencyPatternsByNumberingSystem map[string]currencySignPatterns
 type currencySignPatterns map[string]string
+
+type currencyNamePatternsByNumberingSystem map[string]currencyNamePluralPatterns
+type currencyNamePluralPatterns map[string]string
 
 type compactPatternsByNumberingSystem map[string]compactDisplayPatterns
 type compactDisplayPatterns map[string]compactExponentPatterns
@@ -74,6 +78,7 @@ func decodeNumberLocale(r *codec.Reader) numberData {
 		percent:                decodeNumberPatterns(r),
 		scientific:             decodeNumberPatterns(r),
 		currency:               decodeCurrencyPatterns(r),
+		currencyName:           decodeCurrencyNamePatterns(r),
 		compact:                decodeCompactPatterns(r),
 	}
 }
@@ -110,6 +115,12 @@ func decodeCurrencyPatterns(r *codec.Reader) currencyPatternsByNumberingSystem {
 
 func decodeCurrencyPatternSet(r *codec.Reader) currencySignPatterns {
 	return currencySignPatterns(r.StringRefMap(_data))
+}
+
+func decodeCurrencyNamePatterns(r *codec.Reader) currencyNamePatternsByNumberingSystem {
+	return codec.StringRefKeyMap[currencyNamePluralPatterns](r, _data, func(r *codec.Reader) currencyNamePluralPatterns {
+		return currencyNamePluralPatterns(r.StringRefMap(_data))
+	})
 }
 
 func decodeCompactPatterns(r *codec.Reader) compactPatternsByNumberingSystem {

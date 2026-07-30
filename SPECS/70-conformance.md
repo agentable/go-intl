@@ -68,7 +68,7 @@ Each fixture **MUST** conform to the following schema (JSON object):
 7. The `options` field **MUST** maintain the original ECMA-402 spec naming (`maximumFractionDigits` instead of `MaximumFractionDigits`); the Go-side harness is mapped to a typed `Options` value when loading.
 8. **It is prohibited** to embed JS functions, callbacks, and Date literals in fixtures; parts that cannot be mechanically extracted are classified according to the SPEC §2.4 process.
 
-> **Why**: The unified schema is universal across formatters, and the harness can be shared; a schema is also the contract for future integration testing of messageformat-go.
+> **Why**: The unified schema is universal across formatters and lets the shared harness validate every active surface without formatter-specific fixture loaders.
 > **Rejected**: Each formatter custom schema (NumberFormat `"value"` vs DateTimeFormat `"date"`) - 4 sets of harness, 4 sets of loaders, DRY violation.
 
 ### 1.3 Manifest
@@ -178,28 +178,6 @@ The new category must be implemented in the same PR of extractor, `tools/check-c
 
 > **Why**: The extraction script is the only trusted bridge between reference tests and go-intl; idempotence ensures that diff is readable when upgrading references.
 > **Rejected**: Blind AST full porting - Incomplete AST rules can generate fixtures that look formal but have incorrect input/options. Rather write complex sources into the source/reason skip-list than generate untrusted fixtures.
-
-### 2.3 Consumer Profile Fixtures
-
-Consumer profiles live under `testdata/consumer/<consumer>/intl-profile.json`. They are cross-surface compatibility fixtures, not a replacement for formatter conformance fixtures. Use them when a real host or adapter depends on a small set of observable boundaries that span packages.
-
-Active profile:
-
-| Consumer | Fixture | Runner | Scope |
-|----------|---------|--------|-------|
-| JS host integration | host consumer profile | `consumer_profile_test.go` | Supported-set exclusions, root supported-value include/exclude boundaries, and reversed range behavior for NumberFormat, DateTimeFormat, and PluralRules |
-
-Rules:
-
-1. Consumer profiles must be JSON objects loaded only from `_test.go` files.
-2. They may assert cross-package host contracts; they must not duplicate broad ECMA-402 output matrices that belong in formatter conformance fixtures.
-3. They may assert that unsupported capabilities stay unadvertised through supported-value or supported-locale accessors, such as collator tailoring, DateTimeFormat calendar supported values, or Segmenter dictionary/CJK locales. Constructor fallback behavior belongs in success fixtures, not error fixtures, when ECMA-402 treats the request as locale negotiation input.
-4. They must preserve caller-provided range order. Reversed ranges are valid inputs for NumberFormat, DateTimeFormat, and PluralRules unless the owning formatter SPEC says otherwise.
-5. A profile change that weakens support boundaries or output behavior must update the owning SPEC first.
-6. Consumer profiles must not force public `map[string]any` APIs. Host-boundary needs are served by typed Go APIs plus JSON-marshallable ECMA-402 records.
-
-> **Why**: Host adapters need a thin contract that cuts across root supported values, constructor supported locales, and range behavior. A profile keeps that dependency visible without turning README examples or per-package fixtures into consumer-specific code.
-> **Rejected**: Baking consumer behavior into production adapters or README prose only. Tests must protect the host contract, and SPECS must explain why the protection exists.
 
 ---
 
@@ -356,7 +334,6 @@ governance rules that cannot be proven by a Go test.
 | Native witness validation enforces required topics, constructor error/refusal coverage, and explicit intentional gaps. | `tools/conformance/node_witness.go`; `tools/conformance/node_witness_test.go`; `tools/conformance/product_contract_test.go`; `task conformance:verify` | Satisfied |
 | `.skip-list.json` audits non-extracted and partially extracted reference sources with `source`, `category`, `route`, and `reason`. | `.skip-list.json`; `tools/conformance/coverage.go`; `tools/conformance/coverage_test.go` | Satisfied |
 | Generated-reference versions remain pinned and visible to fixture regeneration. | `tools/.gen-versions`; `Taskfile.yml` `conformance:witness` | Satisfied |
-| The active JS host consumer profile protects cross-surface supported-set and reversed-range boundaries without replacing formatter fixtures. | `testdata/consumer/go-typescript/intl-profile.json`; `consumer_profile_test.go`; `SPECS/00-vision-and-scope.md` | Satisfied |
 
 ### Divergences And XFAIL
 
@@ -390,8 +367,7 @@ governance rules that cannot be proven by a Go test.
 
 The maintainer-review requirement for `divergences.md` changes cannot be
 verified from repository-local Go tests; it belongs in branch protection or PR
-review policy. The active host consumer profile is a narrow cross-surface
-contract gate, not a substitute for per-formatter conformance fixtures.
+review policy.
 
 ---
 
