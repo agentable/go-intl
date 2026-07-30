@@ -1,6 +1,8 @@
 package locale
 
 import (
+	"fmt"
+
 	"golang.org/x/text/language"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
@@ -58,5 +60,9 @@ func (l Locale) Minimize() Locale {
 }
 
 func mustLanguageTag(s string) language.Tag {
-	return language.MustParse(s)
+	tag, err := language.Parse(s)
+	if err != nil {
+		panic(fmt.Errorf("locale: invalid internally constructed language tag: %w", err))
+	}
+	return tag
 }

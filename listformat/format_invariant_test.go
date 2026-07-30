@@ -1,6 +1,10 @@
 package listformat
 
-import "testing"
+import (
+	"errors"
+	"strings"
+	"testing"
+)
 
 // TestCompileListTemplatePanicsOnMalformed locks the Must* invariant: the
 // generator guarantees embedded list patterns are well-formed, so a parse
@@ -10,8 +14,16 @@ func TestCompileListTemplatePanicsOnMalformed(t *testing.T) {
 	t.Parallel()
 
 	defer func() {
-		if recover() == nil {
-			t.Fatal("compileListTemplate did not panic on malformed pattern")
+		recovered := recover()
+		err, ok := recovered.(error)
+		if !ok {
+			t.Fatalf("panic value = %#v, want error", recovered)
+		}
+		if !strings.HasPrefix(err.Error(), "listformat: malformed embedded CLDR list pattern: ") {
+			t.Fatalf("panic error = %q, want listformat attribution", err)
+		}
+		if errors.Unwrap(err) == nil {
+			t.Fatalf("panic error = %v, want wrapped parser error", err)
 		}
 	}()
 	compileListTemplate("{") // unmatched placeholder: PartitionPattern rejects it

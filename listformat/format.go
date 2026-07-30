@@ -37,7 +37,7 @@ func compileListTemplates(pattern cldrlist.ListPattern) listTemplates {
 func compileListTemplate(text string) ecma402.Pattern {
 	parts, err := ecma402.PartitionPattern(text)
 	if err != nil {
-		panic(fmt.Sprintf("listformat: malformed embedded CLDR list pattern %q: %v", text, err))
+		panic(fmt.Errorf("listformat: malformed embedded CLDR list pattern: %w", err))
 	}
 	return parts
 }

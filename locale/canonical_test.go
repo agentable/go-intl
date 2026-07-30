@@ -1,10 +1,31 @@
 package locale
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 )
+
+func TestMustLanguageTagPanicsWithAttributedError(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		recovered := recover()
+		err, ok := recovered.(error)
+		if !ok {
+			t.Fatalf("panic value = %#v, want error", recovered)
+		}
+		if !strings.HasPrefix(err.Error(), "locale: invalid internally constructed language tag: ") {
+			t.Fatalf("panic error = %q, want locale attribution", err)
+		}
+		if errors.Unwrap(err) == nil {
+			t.Fatalf("panic error = %v, want wrapped parser error", err)
+		}
+	}()
+	_ = mustLanguageTag("not a language tag")
+}
 
 func TestMaximize(t *testing.T) {
 	t.Parallel()
