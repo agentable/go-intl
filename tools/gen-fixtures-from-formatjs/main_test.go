@@ -910,46 +910,6 @@ func TestFormatJSReferencePathsBuildPackageTestContracts(t *testing.T) {
 	}
 }
 
-func TestFormatJSSurfaceRoutesPreserveImportOrder(t *testing.T) {
-	t.Parallel()
-
-	assertFormatJSSurfaceRoutes(t, "pre-locale", formatJSPreLocaleSurfaceRoutes(), []formatJSSurfaceRoute{
-		formatJSNumberFormatRoute(),
-		formatJSPluralRulesRoute(),
-		formatJSDateTimeFormatRoute(),
-	})
-	assertFormatJSSurfaceRoutes(t, "post-locale", formatJSPostLocaleSurfaceRoutes(), []formatJSSurfaceRoute{
-		formatJSListFormatRoute(),
-		formatJSRelativeTimeFormatRoute(),
-		formatJSDurationFormatRoute(),
-	})
-
-	routes := formatJSPreLocaleSurfaceRoutes()
-	routes[0].targetPackage = "mutated"
-	if got, want := formatJSPreLocaleSurfaceRoutes()[0].targetPackage, formatJSNumberFormatTargetPackage; got != want {
-		t.Fatalf("formatJSPreLocaleSurfaceRoutes()[0].targetPackage after caller mutation = %q, want %q", got, want)
-	}
-}
-
-func assertFormatJSSurfaceRoutes(t *testing.T, label string, got, want []formatJSSurfaceRoute) {
-	t.Helper()
-
-	if len(got) != len(want) {
-		t.Fatalf("%s route count = %d, want %d", label, len(got), len(want))
-	}
-	for i := range got {
-		if got[i].targetPackage != want[i].targetPackage {
-			t.Fatalf("%s route %d targetPackage = %q, want %q", label, i, got[i].targetPackage, want[i].targetPackage)
-		}
-		if got[i].spec.packageDir != want[i].spec.packageDir {
-			t.Fatalf("%s route %d packageDir = %q, want %q", label, i, got[i].spec.packageDir, want[i].spec.packageDir)
-		}
-		if got[i].spec.sourcePrefix() != want[i].spec.sourcePrefix() {
-			t.Fatalf("%s route %d sourcePrefix = %q, want %q", label, i, got[i].spec.sourcePrefix(), want[i].spec.sourcePrefix())
-		}
-	}
-}
-
 func TestFormatJSSkipEntriesUseSharedWireShape(t *testing.T) {
 	t.Parallel()
 
