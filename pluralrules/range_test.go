@@ -1,9 +1,14 @@
 package pluralrules
 
 import (
+	"errors"
+	"math"
 	"testing"
 
+	"github.com/agentable/go-intl/internal/decimal"
+	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/internal/intltest"
+	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/locale"
 )
 
@@ -114,6 +119,77 @@ func TestPluralRulesSelectRangeUsesFormattedEqualityAfterRounding(t *testing.T) 
 	}
 }
 
+func TestPluralRulesSelectRangeAcceptsInfinity(t *testing.T) {
+	t.Parallel()
+
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	positiveInfinity, err := Decimal("Infinity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	negativeInfinity, err := Decimal("-Infinity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name       string
+		start, end Value
+	}{
+		{name: "positive_start", start: Float(math.Inf(1)), end: Int(1)},
+		{name: "positive_end", start: Int(1), end: Float(math.Inf(1))},
+		{name: "negative_start", start: Float(math.Inf(-1)), end: Int(1)},
+		{name: "negative_end", start: Int(1), end: Float(math.Inf(-1))},
+		{name: "equal_positive", start: Float(math.Inf(1)), end: Float(math.Inf(1))},
+		{name: "decimal_tokens", start: positiveInfinity, end: negativeInfinity},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := rules.SelectRange(tc.start, tc.end)
+			if err != nil || got != Other {
+				t.Fatalf("SelectRange() = %s, %v; want %s, nil", got, err, Other)
+			}
+		})
+	}
+}
+
+func TestPluralRulesSelectRangeRejectsNaN(t *testing.T) {
+	t.Parallel()
+
+	rules, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decimalNaN, err := Decimal("NaN")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name       string
+		start, end Value
+		field      string
+	}{
+		{name: "float_start", start: Float(math.NaN()), end: Int(1), field: "start"},
+		{name: "float_end", start: Int(1), end: Float(math.NaN()), field: "end"},
+		{name: "decimal_start", start: decimalNaN, end: Int(1), field: "start"},
+		{name: "decimal_end", start: Int(1), end: decimalNaN, field: "end"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := rules.SelectRange(tc.start, tc.end)
+			if !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
+				t.Fatalf("SelectRange() error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
+			}
+			testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", tc.field, "NaN", "en")
+			testcontract.AssertErrorExpected(t, err, "a numeric value other than NaN")
+		})
+	}
+}
+
 func TestPluralRulesUnsignedSelectionWrappers(t *testing.T) {
 	t.Parallel()
 
@@ -121,11 +197,8 @@ func TestPluralRulesUnsignedSelectionWrappers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := rules.Select(Uint(uint64(1))); got != One {
-		t.Fatalf("SelectUint(1) = %s, want %s", got, One)
-	}
-	if got := rules.Select(Uint(2)); got != Other {
-		t.Fatalf("SelectUint64(2) = %s, want %s", got, Other)
+	if got := mustRangeCategory(rules.SelectRange(Uint(uint64(1)), Uint(uint64(2)))); got != Other {
+		t.Fatalf("SelectRangeUint(1, 2) = %s, want %s", got, Other)
 	}
 	if got := mustRangeCategory(rules.SelectRange(Uint(uint64(1)), Uint(uint64(1)))); got != One {
 		t.Fatalf("SelectRangeUint(1, 1) = %s, want %s", got, One)
