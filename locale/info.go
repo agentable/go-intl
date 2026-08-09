@@ -7,7 +7,6 @@ import (
 
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
-	internalcollation "github.com/agentable/go-intl/internal/collation"
 	"github.com/agentable/go-intl/internal/localeid"
 	"github.com/agentable/go-intl/internal/tz"
 )
@@ -66,8 +65,7 @@ func (l Locale) GetCollations() []string {
 	if l.ext.collation != "" {
 		return []string{l.ext.collation}
 	}
-	values := internalcollation.SupportedCollationsForLocale(l.BaseName())
-	return values[1:]
+	return nil
 }
 
 func (l Locale) GetHourCycles() []string {

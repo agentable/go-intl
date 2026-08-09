@@ -90,11 +90,9 @@ func TestNodeWitnessPredicateHelpersRequireObservableFields(t *testing.T) {
 
 	expected := "ok"
 	expectedOK := false
-	comparison := -1
 	resolved := json.RawMessage(`{"locale":"en-US"}`)
 	parts := []Part{{Type: "integer", Value: "1"}}
 	rangeParts := []RangePart{{Type: "integer", Value: "1", Source: "shared"}}
-	segments := []SegmentRecord{{Segment: "word"}}
 
 	tests := []struct {
 		name     string
@@ -119,44 +117,6 @@ func TestNodeWitnessPredicateHelpersRequireObservableFields(t *testing.T) {
 				{Source: "manual", Feature: string(nodeFeatureCanonicalize), Expected: &expected},
 				{Source: nodeWitnessSource(nodeSourceLocaleCanonicalization), Feature: string(nodeFeatureSelect), Expected: &expected},
 				{Source: nodeWitnessSource(nodeSourceLocaleCanonicalization), Feature: string(nodeFeatureCanonicalize)},
-			},
-		},
-		{
-			name:  "comparison",
-			match: nodeWitnessHasComparison(nodeSourceCollator),
-			valid: Fixture{Source: nodeWitnessSource(nodeSourceCollator), ExpectedComparison: &comparison},
-			invalids: []Fixture{
-				{Source: "manual", ExpectedComparison: &comparison},
-				{Source: nodeWitnessSource(nodeSourceCollator)},
-			},
-		},
-		{
-			name:  "comparison resolved",
-			match: nodeWitnessHasComparisonResolved(nodeSourceCollatorOptionContract),
-			valid: Fixture{Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedComparison: &comparison, ExpectedResolved: resolved},
-			invalids: []Fixture{
-				{Source: "manual", ExpectedComparison: &comparison, ExpectedResolved: resolved},
-				{Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedComparison: &comparison},
-				{Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedResolved: resolved},
-			},
-		},
-		{
-			name:  "comparison resolved id",
-			match: nodeWitnessHasComparisonResolvedForID(nodeSourceCollatorOptionContract, "numeric-option-overrides-locale-extension"),
-			valid: Fixture{ID: "collator-node-v26-numeric-option-overrides-locale-extension", Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedComparison: &comparison, ExpectedResolved: resolved},
-			invalids: []Fixture{
-				{ID: "collator-node-v26-case-first-upper-contract", Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedComparison: &comparison, ExpectedResolved: resolved},
-				{ID: "collator-node-v26-numeric-option-overrides-locale-extension", Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedComparison: &comparison},
-				{ID: "collator-node-v26-numeric-option-overrides-locale-extension", Source: nodeWitnessSource(nodeSourceCollatorOptionContract), ExpectedResolved: resolved},
-			},
-		},
-		{
-			name:  "segments",
-			match: nodeWitnessHasSegments(nodeSourceSegmenter),
-			valid: Fixture{Source: nodeWitnessSource(nodeSourceSegmenter), ExpectedSegments: segments},
-			invalids: []Fixture{
-				{Source: "manual", ExpectedSegments: segments},
-				{Source: nodeWitnessSource(nodeSourceSegmenter)},
 			},
 		},
 		{

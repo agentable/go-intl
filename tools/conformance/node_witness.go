@@ -24,37 +24,29 @@ const (
 type nodeWitnessSourceSuffix string
 
 const (
-	nodeSourceLocale                          nodeWitnessSourceSuffix = "locale"
-	nodeSourceLocaleCanonicalization          nodeWitnessSourceSuffix = "locale:canonicalization"
-	nodeSourceLocaleInfo                      nodeWitnessSourceSuffix = "locale:info"
-	nodeSourceLocaleErrors                    nodeWitnessSourceSuffix = "locale:errors"
-	nodeSourceNumberFormat                    nodeWitnessSourceSuffix = "numberformat"
-	nodeSourceNumberFormatResolvedOptions     nodeWitnessSourceSuffix = "numberformat:resolved-options"
-	nodeSourceNumberFormatErrors              nodeWitnessSourceSuffix = "numberformat:errors"
-	nodeSourceNumberFormatEdge                nodeWitnessSourceSuffix = "numberformat:edge"
-	nodeSourceDateTimeFormat                  nodeWitnessSourceSuffix = "datetimeformat"
-	nodeSourceDateTimeFormatErrors            nodeWitnessSourceSuffix = "datetimeformat:errors"
-	nodeSourceDateTimeFormatEdge              nodeWitnessSourceSuffix = "datetimeformat:edge"
-	nodeSourceDateTimeFormatDeepContract      nodeWitnessSourceSuffix = "datetimeformat:p4-deep-contract"
-	nodeSourcePluralRules                     nodeWitnessSourceSuffix = "pluralrules"
-	nodeSourcePluralRulesErrors               nodeWitnessSourceSuffix = "pluralrules:errors"
-	nodeSourceListFormat                      nodeWitnessSourceSuffix = "listformat"
-	nodeSourceListFormatErrors                nodeWitnessSourceSuffix = "listformat:errors"
-	nodeSourceRelativeTimeFormat              nodeWitnessSourceSuffix = "relativetimeformat"
-	nodeSourceRelativeTimeFormatErrors        nodeWitnessSourceSuffix = "relativetimeformat:errors"
-	nodeSourceDurationFormat                  nodeWitnessSourceSuffix = "durationformat"
-	nodeSourceDurationFormatErrors            nodeWitnessSourceSuffix = "durationformat:errors"
-	nodeSourceDurationFormatDigital           nodeWitnessSourceSuffix = "durationformat:digital"
-	nodeSourceDisplayNames                    nodeWitnessSourceSuffix = "displaynames"
-	nodeSourceDisplayNamesErrors              nodeWitnessSourceSuffix = "displaynames:errors"
-	nodeSourceCollator                        nodeWitnessSourceSuffix = "collator"
-	nodeSourceCollatorErrors                  nodeWitnessSourceSuffix = "collator:errors"
-	nodeSourceCollatorOptionContract          nodeWitnessSourceSuffix = "collator:option-contract"
-	nodeSourceCollatorBackendProof            nodeWitnessSourceSuffix = "collator:backend-proof"
-	nodeSourceSegmenter                       nodeWitnessSourceSuffix = "segmenter"
-	nodeSourceSegmenterErrors                 nodeWitnessSourceSuffix = "segmenter:errors"
-	nodeSourceSegmenterLocaleContract         nodeWitnessSourceSuffix = "segmenter:locale-contract"
-	nodeSourceSegmenterTailoredLocaleContract nodeWitnessSourceSuffix = "segmenter:tailored-locale-contract"
+	nodeSourceLocale                      nodeWitnessSourceSuffix = "locale"
+	nodeSourceLocaleCanonicalization      nodeWitnessSourceSuffix = "locale:canonicalization"
+	nodeSourceLocaleInfo                  nodeWitnessSourceSuffix = "locale:info"
+	nodeSourceLocaleErrors                nodeWitnessSourceSuffix = "locale:errors"
+	nodeSourceNumberFormat                nodeWitnessSourceSuffix = "numberformat"
+	nodeSourceNumberFormatResolvedOptions nodeWitnessSourceSuffix = "numberformat:resolved-options"
+	nodeSourceNumberFormatErrors          nodeWitnessSourceSuffix = "numberformat:errors"
+	nodeSourceNumberFormatEdge            nodeWitnessSourceSuffix = "numberformat:edge"
+	nodeSourceDateTimeFormat              nodeWitnessSourceSuffix = "datetimeformat"
+	nodeSourceDateTimeFormatErrors        nodeWitnessSourceSuffix = "datetimeformat:errors"
+	nodeSourceDateTimeFormatEdge          nodeWitnessSourceSuffix = "datetimeformat:edge"
+	nodeSourceDateTimeFormatDeepContract  nodeWitnessSourceSuffix = "datetimeformat:p4-deep-contract"
+	nodeSourcePluralRules                 nodeWitnessSourceSuffix = "pluralrules"
+	nodeSourcePluralRulesErrors           nodeWitnessSourceSuffix = "pluralrules:errors"
+	nodeSourceListFormat                  nodeWitnessSourceSuffix = "listformat"
+	nodeSourceListFormatErrors            nodeWitnessSourceSuffix = "listformat:errors"
+	nodeSourceRelativeTimeFormat          nodeWitnessSourceSuffix = "relativetimeformat"
+	nodeSourceRelativeTimeFormatErrors    nodeWitnessSourceSuffix = "relativetimeformat:errors"
+	nodeSourceDurationFormat              nodeWitnessSourceSuffix = "durationformat"
+	nodeSourceDurationFormatErrors        nodeWitnessSourceSuffix = "durationformat:errors"
+	nodeSourceDurationFormatDigital       nodeWitnessSourceSuffix = "durationformat:digital"
+	nodeSourceDisplayNames                nodeWitnessSourceSuffix = "displaynames"
+	nodeSourceDisplayNamesErrors          nodeWitnessSourceSuffix = "displaynames:errors"
 )
 
 type nodeFixtureFeature string
@@ -159,15 +151,6 @@ func nodeWitnessCoverageMatrix() []nodeWitnessCoverageTopic {
 		requiredNodeTopic("durationformat", "digital parts and resolved options", nodeWitnessHasPartsResolved(nodeSourceDurationFormatDigital)),
 		requiredNodeTopic("displaynames", "smoke display name lookup", nodeWitnessHasDisplayNameLookup(nodeSourceDisplayNames)),
 		requiredNodeTopic("displaynames", "constructor error/refusal", nodeWitnessHasError(nodeSourceDisplayNamesErrors)),
-		requiredNodeTopic("collator", "smoke compare", nodeWitnessHasComparison(nodeSourceCollator)),
-		requiredNodeTopic("collator", "constructor error/refusal", nodeWitnessHasError(nodeSourceCollatorErrors)),
-		requiredNodeTopic("collator", "option resolved contracts", nodeWitnessHasComparisonResolved(nodeSourceCollatorOptionContract)),
-		requiredNodeTopic("collator", "numeric option overrides locale extension", nodeWitnessHasComparisonResolvedForID(nodeSourceCollatorOptionContract, "numeric-option-overrides-locale-extension")),
-		requiredNodeTopic("collator", "backend ordering proof", nodeWitnessHasComparisonResolved(nodeSourceCollatorBackendProof)),
-		requiredNodeTopic("segmenter", "smoke segmentation", nodeWitnessHasSegments(nodeSourceSegmenter)),
-		requiredNodeTopic("segmenter", "constructor error/refusal", nodeWitnessHasError(nodeSourceSegmenterErrors)),
-		requiredNodeTopic("segmenter", "advertised locale word/sentence contract", nodeWitnessHasSegments(nodeSourceSegmenterLocaleContract)),
-		requiredNodeTopic("segmenter", "tailored locale withheld contract", nodeWitnessHasSegments(nodeSourceSegmenterTailoredLocaleContract)),
 	}
 }
 
@@ -224,22 +207,6 @@ func nodeWitnessHasExpectedForFeature(suffix nodeWitnessSourceSuffix, feature no
 	return nodeWitnessFixtureMatcherForFeature(suffix, feature, nodeWitnessFixtureHasExpected)
 }
 
-func nodeWitnessHasComparison(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
-	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasComparison)
-}
-
-func nodeWitnessHasComparisonResolved(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
-	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasComparisonResolved)
-}
-
-func nodeWitnessHasComparisonResolvedForID(suffix nodeWitnessSourceSuffix, idPart string) func(Fixture) bool {
-	return nodeWitnessFixtureMatcherForID(suffix, idPart, nodeWitnessFixtureHasComparisonResolved)
-}
-
-func nodeWitnessHasSegments(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
-	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasSegments)
-}
-
 func nodeWitnessHasError(suffix nodeWitnessSourceSuffix) func(Fixture) bool {
 	return nodeWitnessFixtureMatcher(suffix, nodeWitnessFixtureHasError)
 }
@@ -294,14 +261,6 @@ func nodeWitnessHasExpectedPartsResolved(suffix nodeWitnessSourceSuffix, idPart 
 	return nodeWitnessFixtureMatcherForID(suffix, idPart, nodeWitnessFixtureHasExpectedPartsResolved)
 }
 
-func nodeWitnessFixtureHasComparisonResolved(f Fixture) bool {
-	return nodeWitnessFixtureHasComparison(f) && nodeWitnessFixtureHasResolved(f)
-}
-
-func nodeWitnessFixtureHasComparison(f Fixture) bool {
-	return f.ExpectedComparison != nil
-}
-
 func nodeWitnessFixtureHasExpected(f Fixture) bool {
 	return f.Expected != nil
 }
@@ -312,10 +271,6 @@ func nodeWitnessFixtureHasError(f Fixture) bool {
 
 func nodeWitnessFixtureHasDisplayNameLookup(f Fixture) bool {
 	return f.Expected != nil && f.ExpectedOK != nil
-}
-
-func nodeWitnessFixtureHasSegments(f Fixture) bool {
-	return len(f.ExpectedSegments) > 0
 }
 
 func nodeWitnessFixtureHasPartsResolved(f Fixture) bool {

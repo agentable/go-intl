@@ -476,9 +476,6 @@ func TestFixtureHasNativeExpectationRecognizesObservableFields(t *testing.T) {
 
 	text := "ok"
 	ok := true
-	comparison := 0
-	byteIndex := 0
-	wordLike := true
 
 	tests := []struct {
 		name    string
@@ -492,9 +489,7 @@ func TestFixtureHasNativeExpectationRecognizesObservableFields(t *testing.T) {
 		{name: "expected parts", fixture: Fixture{ExpectedParts: []Part{{Type: "integer", Value: "1"}}}, want: true},
 		{name: "expected range", fixture: Fixture{ExpectedRange: &text}, want: true},
 		{name: "expected range parts", fixture: Fixture{ExpectedRangeParts: []RangePart{{Type: "integer", Value: "1", Source: "shared"}}}, want: true},
-		{name: "expected comparison", fixture: Fixture{ExpectedComparison: &comparison}, want: true},
 		{name: "expected resolved options", fixture: Fixture{ExpectedResolved: json.RawMessage(`{"locale":"en"}`)}, want: true},
-		{name: "expected segments", fixture: Fixture{ExpectedSegments: []SegmentRecord{{Segment: "a", CodeUnitIndex: 0, ByteIndex: &byteIndex, IsWordLike: &wordLike}}}, want: true},
 		{name: "error code", fixture: Fixture{ErrorCode: "RangeError"}, want: true},
 	}
 

@@ -1,6 +1,6 @@
 # SPEC 10 — Locale
 
-> **Status:** Revised (2026-05-20)
+> **Status:** Revised (2026-08-09)
 > **Priority:** High (all formatter input types; blocking SPEC 11 / 20 / 30 / 40 / 60)
 > **Authority:** ECMA-402 `.references/ecma402/spec/locale.html` is a normative source. This SPEC records the current of `locale.Locale` type, ECMA-402 `Intl.Locale` alignment, parsing and normalization, `Maximize` / `Minimize`, read-only property getter, `String` / `Equal` / `MarshalText` / `UnmarshalText` Go contracts.
 
@@ -112,7 +112,7 @@ type Options struct {
 `language.Tag` is the only `golang.org/x/text` type allowed in the public API. `Locale.Tag()` and
 `FromTag` together constitute the BCP 47 bridge of the Go ecosystem and must meet
 `FromTag(l.Tag()).Tag() == l.Tag()`. Other `x/text` types, including
-`display.Tags`, `collate.Collator`, `transform.Transformer`, `message.Printer`
+`display.Tags`, `transform.Transformer`, `message.Printer`
 etc., can only be left as implementation details within unexported fields, unexported functions or internal packages.
 BCP 47 language, script, region, and variant subtag shape checks live in
 `internal/localeid`; constructor options, locale parsing, and internal code
@@ -322,7 +322,7 @@ m := loc.Maximize()
 | Type | Field/Method | Materialization Timing |
 |------|------------|---------|
 | **Simple getter**(spec `Intl.Locale.prototype.<name>` getter) | `Calendar()` / `Collation()` / `HourCycle()` / `CaseFirst()` / `Numeric()` / `NumberingSystem()` / `FirstDayOfWeek()` | **Prepared on construction** (read directly from the BCP 47 `-u-` extended key; zero additional cost) |
-| **Candidate list method** (spec `Intl.Locale.prototype.get<Name>s()` method) | `GetCalendars()` / `GetCollations()` / `GetHourCycles()` / `GetNumberingSystems()` / `GetTimeZones()` / `GetWeekInfo()` / `GetTextInfo()` | **Calculated on each call** from its owning generated data; not cached |
+| **Candidate list method** (spec `Intl.Locale.prototype.get<Name>s()` method) | `GetCalendars()` / `GetCollations()` / `GetHourCycles()` / `GetNumberingSystems()` / `GetTimeZones()` / `GetWeekInfo()` / `GetTextInfo()` | **Calculated on each call**; `GetCollations()` projects explicit locale state, while the other methods read their owning generated data; not cached |
 
 ### 5.2 Candidate list method signature
 
@@ -333,9 +333,9 @@ m := loc.Maximize()
 // Corresponds to ECMA-402 sec-intl.locale.prototype.getCalendars.
 func (l Locale) GetCalendars() []string
 
-// GetCollations returns the collation list supported by active Collator; explicit Locale.Collation() only returns this value when it is not empty.
-// ECMA-402 AvailableCanonicalCollations is implementation-defined; this method cannot select CLDR candidates
-// The collation identifier is treated as an implemented Collator tailoring capability.
+// GetCollations returns Locale.Collation() as a singleton when it is present.
+// It returns nil when the locale has no explicit collation and does not infer
+// implementation-defined candidates from CLDR.
 func (l Locale) GetCollations() []string
 
 // GetHourCycles returns hour cycle preferences (by priority).
@@ -617,7 +617,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 ### Getter
 
 - [ ] Simple fields (7 extended fields) are pre-parsed during construction in `Parse` / `New` (§5.1 table).
-- [ ] Candidate list methods `GetCalendars` / `GetCollations` / `GetHourCycles` / `GetNumberingSystems` / `GetTimeZones` / `GetWeekInfo` / `GetTextInfo` read their owning generated data on each call and do not cache it into the struct. `GetTimeZones` uses explicit-region `internal/tz` records, including the full Canadian projection and `IN` → `Asia/Kolkata`.
+- [ ] Candidate list methods do not cache results into the struct. `GetCollations` projects the explicit locale collation as a singleton or returns nil; the other candidate-list methods read their owning generated data on each call. `GetTimeZones` uses explicit-region `internal/tz` records, including the full Canadian projection and `IN` → `Asia/Kolkata`.
 - [ ] When explicit `Calendar` is not empty, `GetCalendars()` returns a single-element list.
 - [ ] `WeekInfo` / `TextInfo` type signature is consistent with §5.2.
 

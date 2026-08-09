@@ -192,11 +192,11 @@ func TestStringOptionExpectedUsesPreciseSingleValueCopy(t *testing.T) {
 func TestValidateSupportedStringOptions(t *testing.T) {
 	t.Parallel()
 
-	if err := ValidateSupportedStringOptions("collator", "en-US", RequiredStringOption("usage", "sort", "sort")); err != nil {
+	if err := ValidateSupportedStringOptions("formatter", "en-US", RequiredStringOption("mode", "sort", "sort")); err != nil {
 		t.Fatalf("ValidateSupportedStringOptions(sort) error = %v, want nil", err)
 	}
 
-	err := ValidateSupportedStringOptions("collator", "en-US", RequiredStringOption("usage", "search", "sort"))
+	err := ValidateSupportedStringOptions("formatter", "en-US", RequiredStringOption("mode", "search", "sort"))
 	if !errors.Is(err, ErrUnsupportedOption) {
 		t.Fatalf("ValidateSupportedStringOptions(search) error = %v, want ErrUnsupportedOption", err)
 	}
@@ -204,8 +204,8 @@ func TestValidateSupportedStringOptions(t *testing.T) {
 	if !ok {
 		t.Fatalf("ValidateSupportedStringOptions(search) error = %T, want Error", err)
 	}
-	if detail.Owner != "collator" || detail.Kind != "unsupportedOption" || detail.Name != "usage" || detail.Value != "search" || detail.Locale != "en-US" {
-		t.Fatalf("Error = %+v, want collator unsupported usage search en-US", detail)
+	if detail.Owner != "formatter" || detail.Kind != "unsupportedOption" || detail.Name != "mode" || detail.Value != "search" || detail.Locale != "en-US" {
+		t.Fatalf("Error = %+v, want formatter unsupported mode search en-US", detail)
 	}
 	if detail.Expected != `"sort"` {
 		t.Fatalf("Error.Expected = %q, want %q", detail.Expected, `"sort"`)

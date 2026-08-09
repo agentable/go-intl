@@ -167,14 +167,13 @@ tasks:
     cmds:
       - '{{.GOLANGCI_LINT_BINARY}} version'
       - echo "Running golangci-lint..."
-      - '{{.GOLANGCI_LINT_BINARY}} run --timeout=30m --concurrency=1 --path-prefix=.'
+      - '{{.GOLANGCI_LINT_BINARY}} run --timeout=30m --concurrency=1 --allow-serial-runners --path-prefix=.'
 
   tidy-lint:
     desc: Check if go.mod and go.sum are tidy
     cmds:
       - echo "Checking go.mod and go.sum are tidy..."
-      - go mod tidy
-      - git diff --exit-code -- go.mod go.sum
+      - go mod tidy -diff
 
   yamllint:
     desc: Run yamllint
@@ -317,8 +316,6 @@ tasks:
       - go test ./internal/numbering
       - go test ./internal/localeid
       - go test ./internal/localematcher
-      - go test -run 'Test(SupportedLocalesReturnsCopy|SupportedCollationsReturnsCopy)$' ./internal/collation
-      - go test -run 'TestSupportedLocales(ExcludesTailoredLocales|ReturnsSnapshot)$' ./internal/segmentation
       - go -C tools/gen-plural-rules test ./...
 
   build:size:
@@ -391,7 +388,7 @@ tasks:
         -skip-list .skip-list.json
         -coverage
         -node-witness
-        ./locale ./numberformat ./datetimeformat ./pluralrules ./listformat ./relativetimeformat ./durationformat ./displaynames ./collator ./segmenter
+        ./locale ./numberformat ./datetimeformat ./pluralrules ./listformat ./relativetimeformat ./durationformat ./displaynames
 
   conformance:witness:
     desc: Refresh generated Node Intl witness fixtures with the active node binary

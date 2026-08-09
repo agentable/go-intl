@@ -120,18 +120,16 @@ func TestLocaleInfoGetters(t *testing.T) {
 		t.Fatalf("GetCalendars() with calendar = %#v", got)
 	}
 	if got := parseLocaleForTest("und").GetCollations(); len(got) != 0 {
-		t.Fatalf("GetCollations(und) = %#v, want no unrelated backend collations", got)
+		t.Fatalf("GetCollations(und) = %#v, want no implicit collations", got)
 	}
-	if got := loc.GetCollations(); len(got) != 0 {
-		t.Fatalf("GetCollations(en-US) = %#v, want no German collation tailoring", got)
+	if got := loc.GetCollations(); got != nil {
+		t.Fatalf("GetCollations(en-US) = %#v, want no implicit collations", got)
 	}
 	if got := parseLocaleForTest("tlh").GetCollations(); len(got) != 0 {
-		t.Fatalf("GetCollations(tlh) = %#v, want no unmatched backend collations", got)
+		t.Fatalf("GetCollations(tlh) = %#v, want no implicit collations", got)
 	}
-	if got := parseLocaleForTest("de-DE").GetCollations(); !slices.Contains(got, "phonebk") {
-		t.Fatalf("GetCollations(de-DE) = %#v, want locale-scoped phonebk", got)
-	} else {
-		testcontract.AssertStringSliceSortedUnique(t, "GetCollations(de-DE)", got)
+	if got := parseLocaleForTest("de-DE").GetCollations(); len(got) != 0 {
+		t.Fatalf("GetCollations(de-DE) = %#v, want no implicit collations", got)
 	}
 	withCollation, err := New("en-US", Options{Collation: stringPtr("phonebk")})
 	if err != nil {

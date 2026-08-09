@@ -3,7 +3,7 @@
 // It exposes common namespace functions and aliases for the active
 // Intl.Locale, Intl.NumberFormat, Intl.DateTimeFormat, Intl.PluralRules,
 // Intl.ListFormat, Intl.RelativeTimeFormat, Intl.DurationFormat,
-// Intl.DisplayNames, Intl.Collator, and Intl.Segmenter constructor packages.
+// and Intl.DisplayNames constructor packages.
 // Formatter construction and formatting methods live in those packages.
 //
 // Import formatter subpackages directly when an application needs one

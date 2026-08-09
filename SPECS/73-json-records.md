@@ -1,8 +1,8 @@
 # SPEC 73 — JSON Record Field Names
 
-> **Status:** Revised (2026-06-15)
-> **Priority:** Medium (host-boundary stability for resolved options, parts, and locale info records)
-> **Authority:** ECMA-402 resolvedOptions objects, part records, segment records, and locale info records define observable JSON field names. Go struct fields are typed bridges only.
+> **Status:** Revised (2026-08-09)
+> **Priority:** Medium (host-boundary stability for resolved options, parts, duration records, and locale info records)
+> **Authority:** ECMA-402 resolvedOptions objects, part records, duration records, and locale info records define observable JSON field names. Go struct fields are typed bridges only.
 
 ---
 
@@ -24,8 +24,6 @@ The guard must exercise host-boundary records through real constructors or publi
 - DateTimeFormat style shortcuts versus granular date/time fields.
 - DurationFormat duration records and `fractionalDigits` option presence.
 - DisplayNames language-only `languageDisplay`.
-- Collator `collation` default and backend-specialized values.
-- Segmenter word records, including `isWordLike` and omitted `ByteIndex`.
 - Locale info records, including week information and text direction.
 
 Adding a public record field or changing `omitempty` behavior without updating this guard is a SPEC violation.
@@ -125,15 +123,6 @@ DateTimeFormat branch-only resolved options (`hourCycle`, `hour12`, component fi
 | `displaynames.ResolvedOptions` | `Type` | `type` | Always |
 | `displaynames.ResolvedOptions` | `Fallback` | `fallback` | Always |
 | `displaynames.ResolvedOptions` | `LanguageDisplay` | `languageDisplay` | Language type only |
-| `collator.ResolvedOptions` | `Locale` | `locale` | Always |
-| `collator.ResolvedOptions` | `Usage` | `usage` | Always |
-| `collator.ResolvedOptions` | `Sensitivity` | `sensitivity` | Always |
-| `collator.ResolvedOptions` | `CaseFirst` | `caseFirst` | Always |
-| `collator.ResolvedOptions` | `Collation` | `collation` | Always |
-| `collator.ResolvedOptions` | `Numeric` | `numeric` | Always |
-| `collator.ResolvedOptions` | `IgnorePunctuation` | `ignorePunctuation` | Always |
-| `segmenter.ResolvedOptions` | `Locale` | `locale` | Always |
-| `segmenter.ResolvedOptions` | `Granularity` | `granularity` | Always |
 
 ---
 
@@ -146,11 +135,6 @@ DateTimeFormat branch-only resolved options (`hourCycle`, `hour12`, component fi
 | Range `Part` | `Source` | `source` | Range parts only |
 | `relativetimeformat.Part` | `Unit` | `unit` | Non-literal numeric parts |
 | `durationformat.Part` | `Unit` | `unit` | Non-literal unit parts |
-| `segmenter.Segment` | `Segment` | `segment` | Always |
-| `segmenter.Segment` | `CodeUnitIndex` | `index` | Always |
-| `segmenter.Segment` | `ByteIndex` | omitted | Internal Go bridge only |
-| `segmenter.Segment` | `Input` | `input` | Always |
-| `segmenter.Segment` | `IsWordLike` | `isWordLike` | Word granularity records only |
 | `locale.WeekInfo` | `FirstDay` | `firstDay` | Always |
 | `locale.WeekInfo` | `Weekend` | `weekend` | Always |
 | `locale.TextInfo` | `Direction` | `direction` | When the direction is known |

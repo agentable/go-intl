@@ -38,34 +38,24 @@ type witness struct {
 	PluralRulesErrors      []fixture           `json:"pluralRulesErrors"`
 	DisplayNamesSmoke      []fixture           `json:"displayNamesSmoke"`
 	DisplayNamesErrors     []fixture           `json:"displayNamesErrors"`
-	CollatorSmoke          []fixture           `json:"collatorSmoke"`
-	CollatorErrors         []fixture           `json:"collatorErrors"`
-	CollatorOptions        []fixture           `json:"collatorOptions"`
-	CollatorBackendProof   []fixture           `json:"collatorBackendProof"`
-	SegmenterSmoke         []fixture           `json:"segmenterSmoke"`
-	SegmenterErrors        []fixture           `json:"segmenterErrors"`
-	SegmenterLocale        []fixture           `json:"segmenterLocale"`
-	SegmenterTailored      []fixture           `json:"segmenterTailored"`
 	SupportedValues        nodeSupportedValues `json:"supportedValues"`
 }
 
 type fixture struct {
-	ID                 string                      `json:"id"`
-	Source             string                      `json:"source"`
-	Locale             string                      `json:"locale"`
-	Feature            string                      `json:"feature,omitempty"`
-	Options            map[string]any              `json:"options"`
-	Input              any                         `json:"input"`
-	Expected           *string                     `json:"expected,omitempty"`
-	ExpectedOK         *bool                       `json:"expectedOk,omitempty"`
-	ExpectedLocales    []string                    `json:"expectedLocales,omitempty"`
-	ExpectedParts      []conformance.Part          `json:"expectedParts,omitempty"`
-	ExpectedRange      *string                     `json:"expectedRange,omitempty"`
-	ExpectedRangeParts []conformance.RangePart     `json:"expectedRangeParts,omitempty"`
-	ExpectedComparison *int                        `json:"expectedComparison,omitempty"`
-	ExpectedResolved   any                         `json:"expectedResolvedOptions,omitempty"`
-	ExpectedSegments   []conformance.SegmentRecord `json:"expectedSegments,omitempty"`
-	ErrorCode          string                      `json:"errorCode,omitempty"`
+	ID                 string                  `json:"id"`
+	Source             string                  `json:"source"`
+	Locale             string                  `json:"locale"`
+	Feature            string                  `json:"feature,omitempty"`
+	Options            map[string]any          `json:"options"`
+	Input              any                     `json:"input"`
+	Expected           *string                 `json:"expected,omitempty"`
+	ExpectedOK         *bool                   `json:"expectedOk,omitempty"`
+	ExpectedLocales    []string                `json:"expectedLocales,omitempty"`
+	ExpectedParts      []conformance.Part      `json:"expectedParts,omitempty"`
+	ExpectedRange      *string                 `json:"expectedRange,omitempty"`
+	ExpectedRangeParts []conformance.RangePart `json:"expectedRangeParts,omitempty"`
+	ExpectedResolved   any                     `json:"expectedResolvedOptions,omitempty"`
+	ErrorCode          string                  `json:"errorCode,omitempty"`
 }
 
 type nodeSupportedValues struct {
@@ -357,65 +347,6 @@ function displayNamesErrorFixture(topic, locale, options, input) {
   return constructorErrorFixture('displaynames', topic, locale, options, input, Intl.DisplayNames, 'invalidOption');
 }
 
-function compareSign(value) {
-  if (value < 0) {
-    return -1;
-  }
-  if (value > 0) {
-    return 1;
-  }
-  return 0;
-}
-
-function collatorFixture(topic, sourceTopic, locale, options, input, includeResolvedOptions = false) {
-  const collator = new Intl.Collator(locale, options);
-  const fixture = {
-    id: id('collator', topic),
-    source: sourceTopic ? source('collator', sourceTopic) : sourceRoot('collator'),
-    locale,
-    options,
-    input,
-    expectedComparison: compareSign(collator.compare(input.left, input.right)),
-  };
-  if (includeResolvedOptions) {
-    fixture.expectedResolvedOptions = collator.resolvedOptions();
-  }
-  return fixture;
-}
-
-function collatorErrorFixture(topic, locale, options, input) {
-  return constructorErrorFixture('collator', topic, locale, options, input, Intl.Collator, 'invalidOption');
-}
-
-function segmentRecords(segmenter, input) {
-  return Array.from(segmenter.segment(input), segment => {
-    const record = {
-      segment: segment.segment,
-      codeUnitIndex: segment.index,
-    };
-    if (Object.prototype.hasOwnProperty.call(segment, 'isWordLike')) {
-      record.isWordLike = segment.isWordLike;
-    }
-    return record;
-  });
-}
-
-function segmenterFixture(topic, sourceTopic, locale, options, input) {
-  const segmenter = new Intl.Segmenter(locale, options);
-  return {
-    id: id('segmenter', topic),
-    source: sourceTopic ? source('segmenter', sourceTopic) : sourceRoot('segmenter'),
-    locale,
-    options,
-    input,
-    expectedSegments: segmentRecords(segmenter, input),
-  };
-}
-
-function segmenterErrorFixture(topic, locale, options, input) {
-  return constructorErrorFixture('segmenter', topic, locale, options, input, Intl.Segmenter);
-}
-
 function constructorErrorFixture(surface, topic, locale, options, input, constructor, errorCode = 'invalid_option') {
   try {
     new constructor(locale, options);
@@ -444,27 +375,8 @@ function expectedRootFixture(surface, topic, locale, options, input, expected) {
 }
 
 const supportedValues = {};
-for (const key of ['calendar', 'collation', 'currency', 'numberingSystem', 'timeZone', 'unit']) {
+for (const key of ['calendar', 'currency', 'numberingSystem', 'timeZone', 'unit']) {
   supportedValues[key] = Intl.supportedValuesOf(key);
-}
-
-const segmenterLocaleContracts = [];
-for (const {locale, word, sentence} of [
-  {locale: 'en', word: 'Hello, world!', sentence: 'Hello. World!'},
-  {locale: 'en-US', word: 'Hello, world!', sentence: 'Hello. World!'},
-  {locale: 'en-GB', word: 'Hello, world!', sentence: 'Hello. World!'},
-  {locale: 'ar', word: 'مرحبا، عالم!', sentence: 'مرحبا. عالم!'},
-  {locale: 'de', word: 'Hallo, Welt!', sentence: 'Hallo. Welt!'},
-  {locale: 'es', word: 'Hola, mundo!', sentence: 'Hola. Mundo!'},
-  {locale: 'fr', word: 'Bonjour, le monde!', sentence: 'Bonjour. Monde!'},
-  {locale: 'hi', word: 'नमस्ते दुनिया!', sentence: 'नमस्ते. दुनिया!'},
-  {locale: 'it', word: 'Ciao, mondo!', sentence: 'Ciao. Mondo!'},
-  {locale: 'pt', word: 'Olá, mundo!', sentence: 'Olá. Mundo!'},
-  {locale: 'ru', word: 'Привет, мир!', sentence: 'Привет. Мир!'},
-]) {
-  const topicLocale = locale.toLowerCase();
-  segmenterLocaleContracts.push(segmenterFixture(topicLocale + '-word-contract', 'locale-contract', locale, {granularity: 'word'}, word));
-  segmenterLocaleContracts.push(segmenterFixture(topicLocale + '-sentence-contract', 'locale-contract', locale, {granularity: 'sentence'}, sentence));
 }
 
 const witness = {
@@ -554,43 +466,6 @@ const witness = {
   ],
   displayNamesErrors: [
     displayNamesErrorFixture('invalid-type', 'en-US', {type: 'bad'}, 'en'),
-  ],
-  collatorSmoke: [
-    collatorFixture('basic-order', '', 'en', {}, {left: 'a', right: 'b'}),
-    collatorFixture('numeric-order', '', 'en', {numeric: true}, {left: '2', right: '10'}),
-    collatorFixture('base-sensitivity', '', 'en', {sensitivity: 'base'}, {left: 'a', right: 'á'}),
-    collatorFixture('ignore-punctuation', '', 'en', {ignorePunctuation: true}, {left: 'a-b', right: 'ab'}),
-  ],
-  collatorErrors: [
-    collatorErrorFixture('invalid-sensitivity', 'en-US', {sensitivity: 'bad'}, {left: 'a', right: 'b'}),
-  ],
-  collatorOptions: [
-    collatorFixture('search-usage-contract', 'option-contract', 'en', {usage: 'search'}, {left: 'a', right: 'a'}, true),
-    collatorFixture('numeric-locale-extension-contract', 'option-contract', 'en-u-kn-true', {}, {left: 'item2', right: 'item10'}, true),
-    collatorFixture('numeric-option-overrides-locale-extension-contract', 'option-contract', 'en-u-kn-true', {numeric: false}, {left: 'item2', right: 'item10'}, true),
-    collatorFixture('case-first-upper-contract', 'option-contract', 'en', {caseFirst: 'upper'}, {left: 'A', right: 'a'}, true),
-    collatorFixture('case-first-lower-contract', 'option-contract', 'en', {caseFirst: 'lower'}, {left: 'A', right: 'a'}, true),
-    collatorFixture('locale-case-first-upper-contract', 'option-contract', 'en-u-kf-upper', {}, {left: 'A', right: 'a'}, true),
-    collatorFixture('german-phonebook-option-contract', 'option-contract', 'de', {collation: 'phonebk'}, {left: 'ae', right: 'ä'}, true),
-    collatorFixture('german-phonebook-locale-contract', 'option-contract', 'de-u-co-phonebk', {}, {left: 'ae', right: 'ä'}, true),
-  ],
-  collatorBackendProof: [
-    collatorFixture('swedish-z-before-a-ring', 'backend-proof', 'sv', {}, {left: 'z', right: 'å'}, true),
-    collatorFixture('swedish-a-ring-before-a-umlaut', 'backend-proof', 'sv', {}, {left: 'å', right: 'ä'}, true),
-    collatorFixture('swedish-a-umlaut-before-o-umlaut', 'backend-proof', 'sv', {}, {left: 'ä', right: 'ö'}, true),
-  ],
-  segmenterSmoke: [
-    segmenterFixture('word-hello-world', '', 'en', {granularity: 'word'}, 'Hello, world!'),
-    segmenterFixture('grapheme-emoji-index', '', 'en', {granularity: 'grapheme'}, 'a🙂b'),
-  ],
-  segmenterErrors: [
-    segmenterErrorFixture('invalid-granularity', 'en-US', {granularity: 'bad'}, 'hello'),
-  ],
-  segmenterLocale: segmenterLocaleContracts,
-  segmenterTailored: [
-    segmenterFixture('th-word-tailored-contract', 'tailored-locale-contract', 'th', {granularity: 'word'}, 'ภาษาไทยภาษาไทย'),
-    segmenterFixture('ja-word-tailored-contract', 'tailored-locale-contract', 'ja', {granularity: 'word'}, '東京都に行く'),
-    segmenterFixture('zh-hant-word-tailored-contract', 'tailored-locale-contract', 'zh-Hant', {granularity: 'word'}, '中文測試'),
   ],
   supportedValues: {
     source: source('intl', 'supportedValuesOf'),

@@ -240,94 +240,11 @@ cat <<'JSON'
       "errorCode": "invalidOption"
     }
   ],
-  "collatorSmoke": [
-    {
-      "id": "collator-node-v26-basic-order",
-      "source": "node:v26.0.0:collator",
-      "locale": "en",
-      "options": {},
-      "input": {"left": "a", "right": "b"},
-      "expectedComparison": -1
-    }
-  ],
-  "collatorErrors": [
-    {
-      "id": "collator-node-v26-invalid-sensitivity",
-      "source": "node:v26.0.0:collator:errors",
-      "locale": "en-US",
-      "options": {"sensitivity": "bad"},
-      "input": {"left": "a", "right": "b"},
-      "errorCode": "invalidOption"
-    }
-  ],
-  "collatorOptions": [
-    {
-      "id": "collator-node-v26-numeric-locale-extension-contract",
-      "source": "node:v26.0.0:collator:option-contract",
-      "locale": "en-u-kn-true",
-      "options": {},
-      "input": {"left": "item2", "right": "item10"},
-      "expectedComparison": -1,
-      "expectedResolvedOptions": {"locale": "en-u-kn", "usage": "sort", "sensitivity": "variant", "ignorePunctuation": false, "collation": "default", "numeric": true, "caseFirst": "false"}
-    }
-  ],
-  "collatorBackendProof": [
-    {
-      "id": "collator-node-v26-swedish-z-before-a-ring",
-      "source": "node:v26.0.0:collator:backend-proof",
-      "locale": "sv",
-      "options": {},
-      "input": {"left": "z", "right": "å"},
-      "expectedComparison": -1,
-      "expectedResolvedOptions": {"locale": "sv", "usage": "sort", "sensitivity": "variant", "ignorePunctuation": false, "collation": "default", "numeric": false, "caseFirst": "false"}
-    }
-  ],
-  "segmenterSmoke": [
-    {
-      "id": "segmenter-node-v26-word-hello-world",
-      "source": "node:v26.0.0:segmenter",
-      "locale": "en",
-      "options": {"granularity": "word"},
-      "input": "Hello",
-      "expectedSegments": [{"segment": "Hello", "codeUnitIndex": 0, "isWordLike": true}]
-    }
-  ],
-  "segmenterErrors": [
-    {
-      "id": "segmenter-node-v26-invalid-granularity",
-      "source": "node:v26.0.0:segmenter:errors",
-      "locale": "en-US",
-      "options": {"granularity": "bad"},
-      "input": "hello",
-      "errorCode": "invalid_option"
-    }
-  ],
-  "segmenterLocale": [
-    {
-      "id": "segmenter-node-v26-en-word-contract",
-      "source": "node:v26.0.0:segmenter:locale-contract",
-      "locale": "en",
-      "options": {"granularity": "word"},
-      "input": "Hello",
-      "expectedSegments": [{"segment": "Hello", "codeUnitIndex": 0, "isWordLike": true}]
-    }
-  ],
-  "segmenterTailored": [
-    {
-      "id": "segmenter-node-v26-th-word-tailored-contract",
-      "source": "node:v26.0.0:segmenter:tailored-locale-contract",
-      "locale": "th",
-      "options": {"granularity": "word"},
-      "input": "ภาษาไทย",
-      "expectedSegments": [{"segment": "ภาษา", "codeUnitIndex": 0, "isWordLike": true}]
-    }
-  ],
   "supportedValues": {
     "source": "node:v26.0.0:intl:supportedValuesOf",
     "versions": {"node": "26.0.0", "icu": "78.1", "cldr": "48.0", "tz": "2025b"},
     "values": {
       "calendar": ["gregory", "iso8601"],
-      "collation": ["emoji"],
       "unit": ["acre"]
     }
   }
@@ -444,50 +361,9 @@ JSON
 		`"source": "node:v26.0.0:displaynames:errors"`,
 		`"errorCode": "invalidOption"`,
 	)
-	assertFileContainsAll(t, "collator smoke witness fixture", filepath.Join(out, "collator", "testdata", "conformance", "node-v26", "smoke.json"),
-		`"id": "collator-node-v26-basic-order"`,
-		`"source": "node:v26.0.0:collator"`,
-		`"expectedComparison": -1`,
-	)
-	assertFileContainsAll(t, "collator error witness fixture", filepath.Join(out, "collator", "testdata", "conformance", "node-v26", "errors.json"),
-		`"id": "collator-node-v26-invalid-sensitivity"`,
-		`"source": "node:v26.0.0:collator:errors"`,
-		`"errorCode": "invalidOption"`,
-	)
-	assertFileContainsAll(t, "collator option witness fixture", filepath.Join(out, "collator", "testdata", "conformance", "node-v26", "options.json"),
-		`"id": "collator-node-v26-numeric-locale-extension-contract"`,
-		`"source": "node:v26.0.0:collator:option-contract"`,
-		`"expectedResolvedOptions"`,
-	)
-	assertFileContainsAll(t, "collator backend proof witness fixture", filepath.Join(out, "collator", "testdata", "conformance", "node-v26", "backend-proof.json"),
-		`"id": "collator-node-v26-swedish-z-before-a-ring"`,
-		`"source": "node:v26.0.0:collator:backend-proof"`,
-		`"expectedResolvedOptions"`,
-	)
-	assertFileContainsAll(t, "segmenter smoke witness fixture", filepath.Join(out, "segmenter", "testdata", "conformance", "node-v26", "smoke.json"),
-		`"id": "segmenter-node-v26-word-hello-world"`,
-		`"source": "node:v26.0.0:segmenter"`,
-		`"expectedSegments"`,
-	)
-	assertFileContainsAll(t, "segmenter error witness fixture", filepath.Join(out, "segmenter", "testdata", "conformance", "node-v26", "errors.json"),
-		`"id": "segmenter-node-v26-invalid-granularity"`,
-		`"source": "node:v26.0.0:segmenter:errors"`,
-		`"errorCode": "invalid_option"`,
-	)
-	assertFileContainsAll(t, "segmenter locale contract fixture", filepath.Join(out, "segmenter", "testdata", "conformance", "node-v26", "locale-contract.json"),
-		`"id": "segmenter-node-v26-en-word-contract"`,
-		`"source": "node:v26.0.0:segmenter:locale-contract"`,
-		`"expectedSegments"`,
-	)
-	assertFileContainsAll(t, "segmenter tailored contract fixture", filepath.Join(out, "segmenter", "testdata", "conformance", "node-v26", "tailored-locale-contract.json"),
-		`"id": "segmenter-node-v26-th-word-tailored-contract"`,
-		`"source": "node:v26.0.0:segmenter:tailored-locale-contract"`,
-		`"expectedSegments"`,
-	)
 	assertFileContainsAll(t, "supported-values witness", filepath.Join(out, "testdata", "native", "node-v26", "supported-values.json"),
 		`"source": "node:v26.0.0:intl:supportedValuesOf"`,
 		`"calendar"`,
-		`"collation"`,
 		`"unit"`,
 		`"icu": "78.1"`,
 	)
@@ -2200,8 +2076,6 @@ func TestWitnessFixtureFilesMapsGeneratedGroups(t *testing.T) {
 		RelativeTimeSmoke:  []fixture{{ID: "relative-smoke"}},
 		PluralRulesErrors:  []fixture{{ID: "plural-errors"}},
 		DisplayNamesSmoke:  []fixture{{ID: "displaynames-smoke"}},
-		CollatorOptions:    []fixture{{ID: "collator-options"}},
-		SegmenterLocale:    []fixture{{ID: "segmenter-locale"}},
 		NumberFormatErrors: nil,
 	}
 	files := witnessFixtureFiles(witness, "node-v26")
@@ -2218,8 +2092,6 @@ func TestWitnessFixtureFilesMapsGeneratedGroups(t *testing.T) {
 		{path: "relativetimeformat/testdata/conformance/node-v26/smoke.json", id: "relative-smoke"},
 		{path: "pluralrules/testdata/conformance/node-v26/errors.json", id: "plural-errors"},
 		{path: "displaynames/testdata/conformance/node-v26/smoke.json", id: "displaynames-smoke"},
-		{path: "collator/testdata/conformance/node-v26/options.json", id: "collator-options"},
-		{path: "segmenter/testdata/conformance/node-v26/locale-contract.json", id: "segmenter-locale"},
 	} {
 		if !witnessFixtureFilesContains(files, want.path, want.id) {
 			t.Fatalf("witnessFixtureFiles() missing %s for %s", want.id, want.path)

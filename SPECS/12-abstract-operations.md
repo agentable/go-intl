@@ -1,6 +1,6 @@
 # SPEC 12 — ECMA-402 Abstract Operations
 
-> **Status:** Revised (2026-05-20)
+> **Status:** Revised (2026-08-09)
 > **Priority:** High
 > **Authority:** This SPEC defines the current `internal/ecma402/` contract. Normative source: `.references/ecma402/spec/`. Generated references are an implementation reference, not the authority.
 
@@ -82,8 +82,6 @@ The option validation contract starts in public formatter constructors:
 - `relativetimeformat.New(locale.List, Options)`
 - `durationformat.New(locale.List, Options)`
 - `displaynames.New(locale.List, Options)`
-- `collator.New(locale.List, Options)`
-- `segmenter.New(locale.List, Options)`
 
 Those constructors validate enum values, numeric ranges, identifiers, and unsupported locale/data combinations before a formatter is returned. After construction, hot-path methods do not return option errors.
 

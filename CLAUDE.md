@@ -1,6 +1,6 @@
 # go-intl
 
-Go implementation of the active ECMA-402 Intl surface: `Locale`, `NumberFormat`, `DateTimeFormat`, `PluralRules`, `ListFormat`, `RelativeTimeFormat`, `DurationFormat`, `DisplayNames`, `Collator`, `Segmenter`, and the root `go-intl` namespace. The compatibility target is the ECMA-402 specification in `.references/ecma402/spec/`; FormatJS is the vendored readable implementation reference used to validate observable behavior.
+Go implementation of the active ECMA-402 Intl surface: `Locale`, `NumberFormat`, `DateTimeFormat`, `PluralRules`, `ListFormat`, `RelativeTimeFormat`, `DurationFormat`, `DisplayNames`, and the root `go-intl` namespace. The compatibility target is the ECMA-402 specification in `.references/ecma402/spec/`; FormatJS is the vendored readable implementation reference used to validate observable behavior.
 
 For human usage examples, read [`README.md`](README.md). This file is the development guide for AI coding agents; [`AGENTS.md`](AGENTS.md) is a symlink to it.
 
@@ -57,13 +57,10 @@ go-intl/
 ├── relativetimeformat/    # Intl.RelativeTimeFormat relative time formatting and parts
 ├── durationformat/        # Intl.DurationFormat duration formatting and parts
 ├── displaynames/          # Intl.DisplayNames code-to-name lookup
-├── collator/              # Intl.Collator locale-sensitive compare/sort
-├── segmenter/             # Intl.Segmenter grapheme/word/sentence segmentation
 ├── option/                # Zero-dependency leaf: Int/Bool/String pointer helpers for optional scalar options; re-exported by root as gointl.Int/Bool/String
 ├── internal/
 │   ├── ecma402/           # Shared ECMA-402 abstract operations
 │   ├── cldr/              # Per-domain CLDR packages (number/date/currency/unit/list/relativetime/timezone/displaynames/plural) + locale kernel + codec; const-only data.go, hand-written decode.go/accessors.go
-│   ├── collation/         # Collator backend capability metadata
 │   ├── decimal/           # apd-backed decimal math for Intl mathematical values
 │   ├── localematcher/     # Lookup/best-fit locale matching
 │   └── tz/                # Generated IANA/CLDR identifier registry + Go transition resolution
@@ -155,14 +152,12 @@ Specification documents in [`SPECS/`](SPECS/) are maintained records of design c
 | [`42-relativetimeformat.md`](SPECS/42-relativetimeformat.md) | `relativetimeformat` API, relative field data, number/plural composition, parts |
 | [`43-durationformat.md`](SPECS/43-durationformat.md) | `durationformat` API, duration records, unit options, formatting, parts |
 | [`44-displaynames.md`](SPECS/44-displaynames.md) | `displaynames` API, type/style/fallback semantics, CLDR localenames data |
-| [`45-collator.md`](SPECS/45-collator.md) | `collator` API, `x/text/collate` mapping, sensitivity/numeric/caseFirst behavior |
-| [`46-segmenter.md`](SPECS/46-segmenter.md) | `segmenter` API, UAX #29 via `uniseg`, byte-offset bridge |
 | [`50-cldr-data.md`](SPECS/50-cldr-data.md) | CLDR pins, generated data layout, formatter supported-locale accessors, generator architecture |
 | [`60-facade.md`](SPECS/60-facade.md) | Root `Intl` namespace, static common functions, constructor aliases, and forbidden root one-shot APIs |
 | [`70-conformance.md`](SPECS/70-conformance.md) | Fixture format, FormatJS extractor, skip-list audit, divergences, conformance gates |
 | [`71-benchmark.md`](SPECS/71-benchmark.md) | Benchmark layout, non-blocking performance telemetry, benchstat workflow |
 | [`72-operation-ledger.md`](SPECS/72-operation-ledger.md) | Public surface to ECMA-402 owner, implementation, and verification ledger |
-| [`73-json-records.md`](SPECS/73-json-records.md) | JSON field names and presence policy for resolved options, parts, segment records, and locale info |
+| [`73-json-records.md`](SPECS/73-json-records.md) | JSON field names and presence policy for resolved options, parts, duration records, and locale info |
 
 ## References Index
 
@@ -182,7 +177,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 
 - **KISS** - One representation per concept: one `Locale`, one option struct per formatter, one formatter type per ECMA-402 surface.
 - **DRY** - Shared ECMA-402 rules live in `internal/ecma402`; generated CLDR data is consumed through per-domain accessor packages under `internal/cldr/<domain>` (number, date, timezone, currency, unit, list, relativetime, displaynames, plural) plus the `internal/cldr/locale` kernel.
-- **YAGNI** - The active surface is exactly the ten ECMA-402 constructors plus the root namespace helpers (`getCanonicalLocales` and typed supported-value accessors). New ECMA-402 additions wait for a new edition.
+- **YAGNI** - The active surface is exactly the eight implemented ECMA-402 constructors plus the root namespace helpers (`getCanonicalLocales` and typed supported-value accessors). A constructor enters only with a complete implementation.
 - **Native Intl alignment over local invention** - Public APIs must map to ECMA-402 constructors, methods, options, resolved options, part records, range sources, or error conditions. Go type bridges are allowed; new semantics are not.
 - **Errors as teachers** - Constructor errors name the option, value, and locale whenever possible.
 - **Never:** accidental complexity, feature gravity, abstraction theater, configurability cope, or documentation masquerading as code.
@@ -191,7 +186,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 
 - **Intl namespace first** - The root package is not a constructor and should not behave like a per-locale session object. It represents the JavaScript `Intl` namespace as closely as Go allows.
 - **Constructor-property parity** - Keep active root constructor aliases as the Go bridge for ECMA-402 `Intl.<Constructor>` properties. Do not delete aliases to reduce aggregate root import cost; document that cost and recommend direct constructor packages for one-formatter services.
-- **Native API mapping is mandatory** - Before adding or changing exported API, identify the exact ECMA-402 JavaScript owner: `Intl`, `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.PluralRules`, `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DurationFormat`, `Intl.DisplayNames`, `Intl.Collator`, or `Intl.Segmenter`. If no native owner exists, do not add it unless it is a narrow Go typed bridge for an existing native operation.
+- **Native API mapping is mandatory** - Before adding or changing exported API, identify the exact ECMA-402 JavaScript owner: `Intl`, `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.PluralRules`, `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DurationFormat`, or `Intl.DisplayNames`. If no native owner exists, do not add it unless it is a narrow Go typed bridge for an existing native operation.
 - **Public surface earns its place** - Exported symbols must be recorded in SPECS/72 with an ECMA-402 owner or narrow typed-bridge rationale. ECMA-402 abstract operations stay in `internal/*`; callers see native owners, not implementation steps.
 - **Constructor parity** - Formatter `New` functions mirror `new Intl.<Constructor>(locales, options)`: callers pass exactly one typed `Options` value, and zero-valued `Options{}` means the ECMA-402 empty options object.
 - **Typed bridges only** - Typed Go values such as `numberformat.Int` and `numberformat.Decimal` are bridges for JavaScript methods like `format(value)`; they must not introduce behavior that native Intl lacks.
@@ -214,17 +209,15 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep `ResolveConstructorLocale` narrow. It owns shared requested-locale preparation, `localeMatcher` dispatch, default-locale fallback, and relevant-extension merging only; formatter packages still own CLDR data fallback, unsupported-option errors, pattern/data selection, numbering-system defaults, and embedded formatter construction.
 - Keep best-fit distance facts in the generated CLDR `written-new` profile owned by `internal/localematcher`. Preserve rule order, `oneway`, match-variable containment, paradigm penalties, and the 838 threshold; do not add formatter-local pair tables, fixed same/other-language fallbacks, or `language.Matcher` confidence.
 - Keep likely-subtag maximization on the CLDR fallback order (full tag, language-region, language-script, language, `und`-script, `und`-region, `und`) while preserving caller-supplied subtags. Matcher Tier 2 and Tier 3 receive that maximizer from constructors rather than reimplementing it.
-- Keep formatter supported locale lists generated from actual CLDR payload maps or truthful engine capability accessors. Constructor `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` with generated accessors instead of duplicating matcher, filtering, or requested-locale dedupe loops.
+- Keep formatter supported locale lists generated from actual CLDR payloads. Constructor `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` with generated accessors instead of duplicating matcher, filtering, or requested-locale dedupe loops.
 - Keep shared string and integer option validation in `internal/ecma402`. Formatter packages pass formatter-owned allowed values through helpers such as `RequiredStringOption`, `OptionalStringOption`, `InvalidStringOption`, and `InvalidIntegerOption`; do not hand-roll equivalent `switch` or `slices.Contains` loops.
-- Keep root supported-value accessors in the root package, conventionally in `supported.go`, backed by CLDR/tz data, active collation capability, or ECMA-402 sanctioned constants. Do not create public `cldr`, `ecma402`, or `supported` packages for this data. Calendars must include `iso8601`; numbering systems must include the ECMA-402 simple digit table; do not add ad hoc runtime lists.
+- Keep root supported-value accessors in the root package, conventionally in `supported.go`, backed by CLDR/tz data or ECMA-402 sanctioned constants. Do not create public `cldr`, `ecma402`, or `supported` packages for this data. Calendars must include `iso8601`; numbering systems must include the ECMA-402 simple digit table; do not add ad hoc runtime lists.
 - Keep `DateTimeFormat` calendar support tied to `internal/cldr/date.SupportedCalendars()` and generated date data; do not copy calendar allow-lists into constructors.
 - Keep time-zone facts separated by owner. The pinned official IANA archive owns the complete Zone/Link set and `zone.tab` region membership; pinned CLDR BCP47 timezone records own ECMA/ICU primary selection and rename state; `internal/tz` owns the generated immutable registry; Go `time/tzdata` owns transition bytes; `internal/cldr/timezone` owns localized display names only.
 - Keep the IANA identity source reproducible through `tools/gen-cldr/tzdata.json`, its SHA-256-verified cache, generated manifest hashes, and `task data:check`. The Go transition-data version must not be older than the identity pin; exact equality with CLDR display data is not required.
 - Keep generated-data verification structural and fail closed. `tools/data-preflight` validates pins before generation; `tools/check-generated-data` derives ownership from generated headers, compares the complete relative-path set in both directions, then compares bytes. Do not restore hand-maintained per-file diff lists.
 - Keep DisplayNames lookup inside the resolved data locale and its truncation parent chain. Missing data is resolved by the public `fallback` option; never borrow an English name from an unrelated locale.
 - Keep text direction generated from pinned CLDR `scriptMetadata.json`. `locale.TextInfo.Direction` is `*string`: known LTR/RTL is present, unknown direction is nil and omitted from JSON; do not restore a hand-written script list or guessed LTR default.
-- Keep `Segmenter` supported locales honest. Do not advertise dictionary or CJK-tailored locales such as `km`, `lo`, `my`, `th`, `ja`, or `zh-Hant` until the active segmentation backend supports their word-boundary behavior. Its static capability gate requires lookup containment so generated best-fit distances cannot expand the explicit allowlist across languages.
-- Keep `Segmenter` backend dependencies license-compatible. Do not add a mandatory `github.com/agentable/go-segment` dependency to the public MIT module while go-segment remains commercial-only; use an internal, optional, relicensed, or separately licensed integration and preserve the existing Segmenter API and fixtures.
 - Keep Locale language-subtag transforms suffix-preserving: constructor language/script/region options and maximize/minimize may replace only those three subtags; variants, transformed extensions, Unicode extensions, and private use retain their canonical order. Numeric `firstDayOfWeek` aliases are constructor-option values, not valid `-u-fw-*` tag syntax.
 - Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it one constructor-resolved `ResolvedDigitOptions` record, including typed rounding mode and branch. Runtime formatting must not reparse options, infer a second rounding branch, or erase negative zero from the rounded result.
 - Keep NumberFormat string output as a projection of its canonical private parts partition. Do not restore parallel text renderers or integer-only fast paths that duplicate sign, grouping, notation, localization, currency, or unit semantics.
@@ -236,7 +229,6 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep RelativeTimeFormat on one ECMAScript Number boundary. `Int` and `Uint` convert through `float64`, `Float` preserves signed zero, and literal lookup, tense, NumberFormat, and PluralRules all project that same normalized value; do not add an exact-decimal bridge or mode.
 - Keep DurationFormat on one ECMAScript Number boundary. Validate each public `float64` field as finite and integral, project it once to the exact represented integer, and perform sign, limit, rollup, and NumberFormat work without `int64` narrowing or later `float64` arithmetic.
 - Freeze constructor-derived hot-path state on formatter instances. Cached method calls must not redo locale negotiation, option validation, digit-option resolution, plural-rule lookup, interval-pattern selection, pattern tokenization, or embedded formatter construction. DateTimeFormat compiles endpoint, date/time, interval, and distinguishing cross-date fallback programs in `New`; DurationFormat composes constructor-resolved `NumberFormat` and `ListFormat` instances.
-- Keep copyable formatter values from copying synchronization primitives after use. Collator copies share one private pointer state containing resolved options and the backend pool; do not place `sync.Pool`, mutexes, or other no-copy state directly on the public value.
 - Keep constructor and `SupportedLocalesOf` options aligned with the JavaScript single-options-object model. Public Go entrypoints receive exactly one typed `Options` value; use `Options{}` for omitted or empty JS options instead of variadic `Options`.
 - Keep NumberFormat unit identifiers exact and case-sensitive. `Unit("METER")` must not silently become `"meter"`; native `Intl.NumberFormat` rejects non-canonical unit casing.
 - Represent optional scalar input options as pointers (`*int`, `*bool`, `*string`) and use root helpers `gointl.Int`, `gointl.Bool`, and `gointl.String` at call sites. Constructor code must copy pointed-to scalar values into internal config before storing anything on formatter instances.
@@ -292,7 +284,6 @@ When you encounter a bug, limitation, or unexpected behavior in a dependency:
 |------------|---------|
 | `golang.org/x/text` | BCP 47 parsing, `language.Tag`, and Unicode/CLDR building blocks |
 | `github.com/cockroachdb/apd/v3` | Decimal math backend for Intl mathematical values and rounding |
-| `github.com/rivo/uniseg` | Unicode text segmentation backend for `Intl.Segmenter` |
 
 Add runtime dependencies only when an active SPEC requires them.
 

@@ -34,9 +34,7 @@ type Fixture struct {
 	ExpectedParts      []Part          `json:"expectedParts,omitempty"`
 	ExpectedRange      *string         `json:"expectedRange,omitempty"`
 	ExpectedRangeParts []RangePart     `json:"expectedRangeParts,omitempty"`
-	ExpectedComparison *int            `json:"expectedComparison,omitempty"`
 	ExpectedResolved   json.RawMessage `json:"expectedResolvedOptions,omitempty"`
-	ExpectedSegments   []SegmentRecord `json:"expectedSegments,omitempty"`
 	ErrorCode          string          `json:"errorCode,omitempty"`
 }
 
@@ -69,13 +67,6 @@ type RangePart struct {
 	Type   string `json:"type"`
 	Value  string `json:"value"`
 	Source string `json:"source"`
-}
-
-type SegmentRecord struct {
-	Segment       string `json:"segment"`
-	CodeUnitIndex int    `json:"codeUnitIndex"`
-	ByteIndex     *int   `json:"byteIndex,omitempty"`
-	IsWordLike    *bool  `json:"isWordLike,omitempty"`
 }
 
 type fixtureField string
@@ -258,9 +249,7 @@ func fixtureHasNativeExpectation(fixture Fixture) bool {
 		len(fixture.ExpectedParts) > 0 ||
 		fixture.ExpectedRange != nil ||
 		len(fixture.ExpectedRangeParts) > 0 ||
-		fixture.ExpectedComparison != nil ||
 		len(fixture.ExpectedResolved) > 0 ||
-		len(fixture.ExpectedSegments) > 0 ||
 		fixture.ErrorCode != ""
 }
 

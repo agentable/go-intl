@@ -1,6 +1,6 @@
 # SPEC 00 — Vision, Scope, and Architecture
 
-> **Status:** Active contract (2026-05-20)
+> **Status:** Active contract (2026-08-09)
 > **Audience:** Maintainers, contributors, and callers of `go-intl`.
 > **Authority:** ECMA-402 is the behavioral authority. This document is the project-level memory for what `go-intl` is trying to be; focused SPECS (`10-locale.md`, `20-numberformat.md`, …) own individual surfaces and must change when ECMA-402 or the correctness target proves them too narrow.
 
@@ -8,12 +8,12 @@
 
 ## 1. Vision
 
-`go-intl` is a Go implementation of the **ECMA-402 Internationalization API**. It exposes the same active surface that JavaScript developers know as the `Intl` namespace plus `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.PluralRules`, `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DurationFormat`, `Intl.DisplayNames`, `Intl.Collator`, and `Intl.Segmenter`. Public API shape, option names, option values, resolved options, parts, range sources, and error boundaries are governed by ECMA-402 first. Readable implementation references and native-engine witnesses are evidence, not product authorities.
+`go-intl` is a Go implementation of the **ECMA-402 Internationalization API**. It exposes the active `Intl` namespace plus `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.PluralRules`, `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DurationFormat`, and `Intl.DisplayNames`. Public API shape, option names, option values, resolved options, parts, range sources, and error boundaries are governed by ECMA-402 first. Readable implementation references and native-engine witnesses are evidence, not product authorities.
 
 The library exists because the Go ecosystem has no equivalent today:
 
 - Go stdlib provides Unicode primitives, but no locale-aware formatters.
-- `golang.org/x/text` provides Unicode/CLDR building blocks (`language.Tag`, `message`, `number`, `collate`, `feature/plural`) but is not ECMA-402, has gaps (no `DateTimeFormat`-equivalent, no resolved-options model, no `formatToParts`), and does not aim for ECMA-402 output parity.
+- `golang.org/x/text` provides Unicode/CLDR building blocks (`language.Tag`, `message`, `number`, `feature/plural`) but is not ECMA-402, has gaps (no `DateTimeFormat`-equivalent, no resolved-options model, no `formatToParts`), and does not aim for ECMA-402 output parity.
 - Existing Go libraries cover slices of the surface and would otherwise each reinvent the same locale-aware primitives.
 
 **The mission:** give Agentable Go libraries — and any Go consumer who wants native JavaScript `Intl` semantics in Go — one shared, ECMA-402-faithful, CLDR-driven formatting layer.
@@ -44,6 +44,12 @@ Support tiers:
 | Complete | The surface matches ECMA-402 observable behavior for the advertised data/locale set. | Covered by conformance fixtures and normal tests. |
 | Narrowed implementation gap | The surface intentionally refuses or withholds unsupported behavior to avoid false support. | Owning SPEC must name current behavior, rationale, `review_after`, and removal path. |
 | Accepted divergence | A generated or native fixture exists and go-intl intentionally differs from the reference for an implementation-defined or data-version reason. | Must be in `testdata/divergences.md` with owner, reason, review date, witness where required, and removal path. |
+
+An ECMA-402 constructor enters the public surface only when its methods and
+legal options are complete for every advertised locale and data set. A narrowed
+data boundary may constrain an otherwise complete constructor; it cannot
+justify publishing an incomplete constructor, backend seam, or capability
+matrix.
 
 > **Why**: The cleanest API is the one that tells the truth. A narrowed surface is acceptable only when it prevents false correctness and has an exit path; it is not a permanent product philosophy.
 >
@@ -113,14 +119,12 @@ Each concept has exactly one owner. Cross-links may explain dependencies, but th
 | [`42-relativetimeformat.md`](./42-relativetimeformat.md) | `relativetimeformat` public API, relative field data, NumberFormat/PluralRules composition |
 | [`43-durationformat.md`](./43-durationformat.md) | `durationformat` public API, duration records, unit options, NumberFormat/ListFormat composition |
 | [`44-displaynames.md`](./44-displaynames.md) | `displaynames` public API, type/style/fallback semantics, CLDR localenames data |
-| [`45-collator.md`](./45-collator.md) | `collator` public API, x/text/collate binding, sensitivity/caseFirst/numeric mapping |
-| [`46-segmenter.md`](./46-segmenter.md) | `segmenter` public API, UAX #29 binding via `uniseg`, byte-offset bridge |
 | [`50-cldr-data.md`](./50-cldr-data.md) | CLDR version pins, generated data layout, generator architecture, runtime data access API |
 | [`60-facade.md`](./60-facade.md) | root `go-intl` namespace, static common Intl functions, active constructor aliases, forbidden one-shot helpers |
 | [`70-conformance.md`](./70-conformance.md) | fixture format, fixture sources, divergences, conformance gates |
 | [`71-benchmark.md`](./71-benchmark.md) | benchmark layout, non-blocking performance telemetry, benchstat workflow |
 | [`72-operation-ledger.md`](./72-operation-ledger.md) | public surface to ECMA-402 owner, implementation, and verification ledger |
-| [`73-json-records.md`](./73-json-records.md) | JSON field names and presence policy for resolved options, parts, segment records, and locale info |
+| [`73-json-records.md`](./73-json-records.md) | JSON field names and presence policy for resolved options, parts, duration records, and locale info |
 
 > **Why**: The project has enough surface area that "read SPEC 00" is no longer precise enough. The map routes every design question to one owner and prevents duplicate mini-specs in CLAUDE.md, README.md, tests, or source comments.
 >
@@ -130,7 +134,7 @@ Each concept has exactly one owner. Cross-links may explain dependencies, but th
 
 ## 3. Public Surface
 
-The maintained surface is the minimum viable API needed by the primary consumers:
+The maintained surface is the smallest coherent API needed by the primary consumers:
 
 | Package | Type / function | Mirrors |
 |---------|-----------------|---------|
@@ -142,19 +146,20 @@ The maintained surface is the minimum viable API needed by the primary consumers
 | `github.com/agentable/go-intl/relativetimeformat` | `RelativeTimeFormat`, `New`, `SupportedLocalesOf`, typed `Format*`, typed parts methods, `.ResolvedOptions` | `Intl.RelativeTimeFormat` |
 | `github.com/agentable/go-intl/durationformat` | `DurationFormat`, `New`, `SupportedLocalesOf`, `.Format`, `.FormatToParts`, `.ResolvedOptions` | `Intl.DurationFormat` |
 | `github.com/agentable/go-intl/displaynames` | `DisplayNames`, `New`, `SupportedLocalesOf`, `.Of`, `.ResolvedOptions` | `Intl.DisplayNames` |
-| `github.com/agentable/go-intl/collator` | `Collator`, `New`, `SupportedLocalesOf`, `.Compare`, `.ResolvedOptions` | `Intl.Collator` |
-| `github.com/agentable/go-intl/segmenter` | `Segmenter`, `New`, `SupportedLocalesOf`, `.Segment`, `.ResolvedOptions` | `Intl.Segmenter` |
 | `github.com/agentable/go-intl` (root) | `GetCanonicalLocales`, root supported-value accessors, active constructor type aliases, `ErrorKind`, `Error`, root category sentinels | `Intl` namespace object, constructor-property bridge, plus Go error bridge for ECMA-402 `RangeError` / `TypeError`-equivalent failures |
 
 The root package mirrors the JavaScript `Intl` namespace object as closely as Go allows. JavaScript `Intl` is not a constructor and has no per-locale instance state; therefore root `New`, root typed one-shot helpers, and root cache controls are outside the long-term public surface. JavaScript `Intl` also exposes constructor properties; root type aliases are the current Go bridge for that shape and must not be removed merely to reduce aggregate root import cost. Detailed formatter options live in their formatter packages.
 
 Every exported API must have an identified native JavaScript owner before it is added. Go-only typed bridges are allowed only when they preserve a native operation's semantics while replacing JavaScript dynamic values with Go types; they must not widen the observable Intl surface.
 
-Public ECMA-402 record structs (`ResolvedOptions`, parts, range parts, locale info, segments, and duration records) must marshal to JSON with the same camelCase field names that the corresponding JavaScript record exposes. Omitted JavaScript properties are represented by nil pointer fields plus `omitempty`, not by ambiguous zero values. This JSON shape is a host-boundary bridge, not permission to replace typed Go APIs with `map[string]any`.
+Public ECMA-402 record structs (`ResolvedOptions`, parts, range parts, locale info, and duration records) must marshal to JSON with the same camelCase field names that the corresponding JavaScript record exposes. Omitted JavaScript properties are represented by nil pointer fields plus `omitempty`, not by ambiguous zero values. This JSON shape is a host-boundary bridge, not permission to replace typed Go APIs with `map[string]any`.
 
 ### 3.1 Outside the active surface
 
-All ten ECMA-402 active constructors are implemented. Future ECMA-402 additions (any new `Intl.*` constructor that ships in a later edition) join the active surface only after a new SPEC plus package implementation lands.
+Other ECMA-402 constructors are outside this library's public contract. A
+constructor joins the active surface only when its owning SPEC, complete package
+implementation, conformance evidence, and root namespace integration land
+together.
 
 ---
 
@@ -202,8 +207,6 @@ go-intl/
 ├── relativetimeformat/     # Intl.RelativeTimeFormat
 ├── durationformat/         # Intl.DurationFormat
 ├── displaynames/           # Intl.DisplayNames
-├── collator/               # Intl.Collator
-├── segmenter/              # Intl.Segmenter
 └── internal/
     ├── ecma402/            # Production-used abstract operations, constructor-locale wrapper, validators
     ├── ecma402/numberformat/    # digit option resolution and FormatNumericToString
@@ -212,7 +215,6 @@ go-intl/
     ├── localematcher/      # ResolveLocale, lookup, best-fit, supported-locale filtering
     ├── decimal/            # apd-backed Decimal representation and arithmetic
     ├── intlerr/            # Cycle-free implementation backing root error aliases
-    ├── collation/          # Collator backend capability metadata
     ├── cldr/               # Generated CLDR data split by domain package
     │   ├── codec/          # generated-blob decoding helpers
     │   ├── locale/         # locale kernel, likely subtags, preferences, profile gates
@@ -242,7 +244,7 @@ CLDR data is **compiled into Go source** via a generator under `tools/gen-cldr/`
 Decisions:
 
 - **No runtime JSON parsing.** All decoding happens at generation time.
-- **Single CLDR profile, honest supported sets.** `tools/locale-profile.json` lists the generated CLDR payload target for number, date, plural, list, relative time, duration, display names, units, currency, and time-zone display. CLDR-backed constructors derive `SupportedLocalesOf` from the generated payloads they consume; non-CLDR engines such as `collator` and `segmenter` own narrower engine-specific supported sets. No constructor may advertise a locale before its backing data or boundary algorithm can support it. See SPEC 50 §1.3 and SPEC 46 §5.
+- **Single CLDR profile, honest supported sets.** `tools/locale-profile.json` lists the generated CLDR payload target for number, date, plural, list, relative time, duration, display names, units, currency, and time-zone display. Constructors derive `SupportedLocalesOf` from the generated payloads they consume. No constructor may advertise a locale before its backing data can support it. See SPEC 50 §1.3.
 - **CLDR version is pinned.** The pinned version lives in `internal/cldr/VERSION` and is referenced by the generator. Changing it is a SPEC-affecting decision.
 
 ### 5.4 Time-zone strategy
@@ -272,7 +274,7 @@ If a JS host integration exposes `globalThis.Intl`, `go-intl` is the backing imp
 
 ## 7. Active Boundaries
 
-`go-intl` grows only when a real consumer or ECMA-402 correctness gap justifies the next step. The active constructor surface is exactly the ten implemented ECMA-402 constructors plus the root `Intl` namespace:
+`go-intl` grows only when a real consumer or ECMA-402 correctness gap justifies the next step. The active constructor surface is exactly the eight implemented ECMA-402 constructors plus the root `Intl` namespace:
 
 - `locale`
 - `numberformat`
@@ -282,13 +284,11 @@ If a JS host integration exposes `globalThis.Intl`, `go-intl` is the backing imp
 - `relativetimeformat`
 - `durationformat`
 - `displaynames`
-- `collator`
-- `segmenter`
 - root `go-intl`
 
 Until a new ECMA-402 edition expands the surface:
 
-- new Intl families require their own SPEC before implementation;
+- new Intl families enter only with an owning SPEC and complete implementation;
 - optimization work must preserve the public API and byte-equal output;
 - data-size work must keep runtime CLDR data embedded in generated Go source.
 

@@ -1,7 +1,6 @@
 package gointl
 
 import (
-	"github.com/agentable/go-intl/collator"
 	"github.com/agentable/go-intl/datetimeformat"
 	"github.com/agentable/go-intl/displaynames"
 	"github.com/agentable/go-intl/durationformat"
@@ -11,7 +10,6 @@ import (
 	"github.com/agentable/go-intl/numberformat"
 	"github.com/agentable/go-intl/pluralrules"
 	"github.com/agentable/go-intl/relativetimeformat"
-	"github.com/agentable/go-intl/segmenter"
 )
 
 // Locale is the root Intl.Locale constructor-property alias for locale.Locale.
@@ -44,12 +42,6 @@ type DurationFormat = durationformat.DurationFormat
 // DisplayNames is the root Intl.DisplayNames constructor-property alias for
 // displaynames.DisplayNames.
 type DisplayNames = displaynames.DisplayNames
-
-// Collator is the root Intl.Collator constructor-property alias for collator.Collator.
-type Collator = collator.Collator
-
-// Segmenter is the root Intl.Segmenter constructor-property alias for segmenter.Segmenter.
-type Segmenter = segmenter.Segmenter
 
 // GetCanonicalLocales returns the Intl.getCanonicalLocales canonical locale list.
 //

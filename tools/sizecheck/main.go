@@ -276,14 +276,11 @@ func main() {
 		directFormatterCase("relativetimeformat", "relativetimeformat"),
 		directFormatterCase("durationformat", "durationformat"),
 		directFormatterCase("displaynames", "displaynames"),
-		directFormatterCase("collator", "collator"),
-		directFormatterCase("segmenter", "segmenter"),
 		{
 			name: "all-formatters",
 			source: `package main
 
 import (
-	"github.com/agentable/go-intl/collator"
 	"github.com/agentable/go-intl/datetimeformat"
 	"github.com/agentable/go-intl/displaynames"
 	"github.com/agentable/go-intl/durationformat"
@@ -291,7 +288,6 @@ import (
 	"github.com/agentable/go-intl/numberformat"
 	"github.com/agentable/go-intl/pluralrules"
 	"github.com/agentable/go-intl/relativetimeformat"
-	"github.com/agentable/go-intl/segmenter"
 )
 
 func main() {
@@ -302,8 +298,6 @@ func main() {
 	_, _ = relativetimeformat.New(nil, relativetimeformat.Options{})
 	_, _ = durationformat.New(nil, durationformat.Options{})
 	_, _ = displaynames.New(nil, displaynames.Options{})
-	_, _ = collator.New(nil, collator.Options{})
-	_, _ = segmenter.New(nil, segmenter.Options{})
 }`,
 		},
 	}

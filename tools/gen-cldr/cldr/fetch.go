@@ -14,7 +14,6 @@ var requiredPackages = [...]string{
 	"cldr-localenames-full",
 	"cldr-misc-full",
 	"cldr-numbers-full",
-	"cldr-segments-full",
 	"cldr-units-full",
 }
 

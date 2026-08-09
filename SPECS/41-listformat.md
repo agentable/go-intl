@@ -8,7 +8,7 @@
 
 Defines the active `listformat.ListFormat` public API, constructor option model, CLDR list-pattern data contract, `format`, `formatToParts`, and `supportedLocalesOf` behavior for `Intl.ListFormat`.
 
-This SPEC owns only `Intl.ListFormat`. `Intl.RelativeTimeFormat` is owned by SPEC 42 and `Intl.DurationFormat` is owned by SPEC 43. It does not promote `Collator`, `DisplayNames`, or `Segmenter`, and it does not add root one-shot helpers.
+This SPEC owns only `Intl.ListFormat`. `Intl.RelativeTimeFormat` is owned by SPEC 42 and `Intl.DurationFormat` is owned by SPEC 43. It does not promote unrelated constructors or add root one-shot helpers.
 
 This SPEC does not redefine:
 

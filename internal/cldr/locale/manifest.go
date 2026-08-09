@@ -143,7 +143,6 @@ var dataManifest = DataManifest{
 		{Name: "cldr-json/cldr-localenames-full/package.json", SHA256: "bf4e24361f5082c36903fd8970b1987f6d2da17ffbf034d6dabd26711e291433"},
 		{Name: "cldr-json/cldr-misc-full/package.json", SHA256: "0501f9e509f4803809f190202d3f6cc83c7e93f7de5bec6045f570d0b72f118a"},
 		{Name: "cldr-json/cldr-numbers-full/package.json", SHA256: "448d8ae0faec1ddbc054f718b1836a0e59bfcbf1adfa8040e051d610895dc8fe"},
-		{Name: "cldr-json/cldr-segments-full/package.json", SHA256: "68f2a92355659c6b62907294c01a21a063b519aba1c86b5d6033602d706cd463"},
 		{Name: "cldr-json/cldr-units-full/package.json", SHA256: "f8355f47c0c3e23992c8b33f9bbed4f912464ed1e81789730c17ad9418b41141"},
 	},
 }

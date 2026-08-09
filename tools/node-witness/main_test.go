@@ -209,88 +209,6 @@ cat <<'JSON'
       "errorCode": "invalidOption"
     }
   ],
-  "collatorSmoke": [
-    {
-      "id": "collator-node-v26-basic-order",
-      "source": "node:v26.0.0:collator",
-      "locale": "en",
-      "options": {},
-      "input": {"left": "a", "right": "b"},
-      "expectedComparison": -1
-    }
-  ],
-  "collatorErrors": [
-    {
-      "id": "collator-node-v26-invalid-sensitivity",
-      "source": "node:v26.0.0:collator:errors",
-      "locale": "en-US",
-      "options": {"sensitivity": "bad"},
-      "input": {"left": "a", "right": "b"},
-      "errorCode": "invalidOption"
-    }
-  ],
-  "collatorOptions": [
-    {
-      "id": "collator-node-v26-numeric-locale-extension-contract",
-      "source": "node:v26.0.0:collator:option-contract",
-      "locale": "en-u-kn-true",
-      "options": {},
-      "input": {"left": "item2", "right": "item10"},
-      "expectedComparison": -1,
-      "expectedResolvedOptions": {"locale": "en-u-kn", "usage": "sort", "sensitivity": "variant", "ignorePunctuation": false, "collation": "default", "numeric": true, "caseFirst": "false"}
-    }
-  ],
-  "collatorBackendProof": [
-    {
-      "id": "collator-node-v26-swedish-z-before-a-ring",
-      "source": "node:v26.0.0:collator:backend-proof",
-      "locale": "sv",
-      "options": {},
-      "input": {"left": "z", "right": "å"},
-      "expectedComparison": -1,
-      "expectedResolvedOptions": {"locale": "sv", "usage": "sort", "sensitivity": "variant", "ignorePunctuation": false, "collation": "default", "numeric": false, "caseFirst": "false"}
-    }
-  ],
-  "segmenterSmoke": [
-    {
-      "id": "segmenter-node-v26-word-hello-world",
-      "source": "node:v26.0.0:segmenter",
-      "locale": "en",
-      "options": {"granularity": "word"},
-      "input": "Hello",
-      "expectedSegments": [{"segment": "Hello", "codeUnitIndex": 0, "isWordLike": true}]
-    }
-  ],
-  "segmenterErrors": [
-    {
-      "id": "segmenter-node-v26-invalid-granularity",
-      "source": "node:v26.0.0:segmenter:errors",
-      "locale": "en-US",
-      "options": {"granularity": "bad"},
-      "input": "hello",
-      "errorCode": "invalid_option"
-    }
-  ],
-  "segmenterLocale": [
-    {
-      "id": "segmenter-node-v26-en-word-contract",
-      "source": "node:v26.0.0:segmenter:locale-contract",
-      "locale": "en",
-      "options": {"granularity": "word"},
-      "input": "Hello",
-      "expectedSegments": [{"segment": "Hello", "codeUnitIndex": 0, "isWordLike": true}]
-    }
-  ],
-  "segmenterTailored": [
-    {
-      "id": "segmenter-node-v26-th-word-tailored-contract",
-      "source": "node:v26.0.0:segmenter:tailored-locale-contract",
-      "locale": "th",
-      "options": {"granularity": "word"},
-      "input": "ภาษาไทย",
-      "expectedSegments": [{"segment": "ภาษา", "codeUnitIndex": 0, "isWordLike": true}]
-    }
-  ],
   "supportedValues": {
     "source": "node:v26.0.0:intl:supportedValuesOf",
     "versions": {"node": "26.0.0", "icu": "78.1"},
@@ -326,14 +244,6 @@ JSON
 		`"pluralRulesErrors": [`,
 		`"displayNamesSmoke": [`,
 		`"displayNamesErrors": [`,
-		`"collatorSmoke": [`,
-		`"collatorErrors": [`,
-		`"collatorOptions": [`,
-		`"collatorBackendProof": [`,
-		`"segmenterSmoke": [`,
-		`"segmenterErrors": [`,
-		`"segmenterLocale": [`,
-		`"segmenterTailored": [`,
 		`"supportedValues": {`,
 		`"calendar": [`,
 	} {

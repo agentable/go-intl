@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentable/go-intl/collator"
 	"github.com/agentable/go-intl/datetimeformat"
 	"github.com/agentable/go-intl/displaynames"
 	"github.com/agentable/go-intl/durationformat"
@@ -16,7 +15,6 @@ import (
 	"github.com/agentable/go-intl/numberformat"
 	"github.com/agentable/go-intl/pluralrules"
 	"github.com/agentable/go-intl/relativetimeformat"
-	"github.com/agentable/go-intl/segmenter"
 )
 
 func TestECMA402RecordJSONShapes(t *testing.T) {
@@ -43,9 +41,6 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 		DateStyle: stringPtr(datetimeformat.MediumDateTimeStyle),
 		TimeStyle: stringPtr(datetimeformat.ShortDateTimeStyle),
 	}).ResolvedOptions()
-	phonebookCollation := "phonebk"
-	defaultCollator := mustCollator(t, collator.Options{}).ResolvedOptions()
-	phonebookCollator := mustCollatorFor(t, "de", collator.Options{Collation: &phonebookCollation}).ResolvedOptions()
 	defaultDuration := mustDurationFormat(t, durationformat.Options{}).ResolvedOptions()
 	fractionalDuration := mustDurationFormat(t, durationformat.Options{
 		Style:            stringPtr(durationformat.LongStyle),
@@ -58,9 +53,6 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 		Type:            stringPtr(displaynames.Language),
 		LanguageDisplay: stringPtr(displaynames.StandardLanguageDisplay),
 	}).ResolvedOptions()
-	wordSegmenter := mustSegmenter(t, segmenter.Options{Granularity: stringPtr(segmenter.WordGranularity)}).ResolvedOptions()
-	wordSegment := mustFirstSegment(t, "hello!", segmenter.WordGranularity)
-	wordPunctuation := mustSegmentAt(t, "hello!", segmenter.WordGranularity, 1)
 	rtlTextInfo := intltest.Locale(t, "ar").GetTextInfo()
 
 	tests := []struct {
@@ -214,37 +206,6 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 			want:  []string{`"type":"language"`, `"languageDisplay":"standard"`},
 		},
 		{
-			name:  "collator resolved options includes default collation",
-			value: defaultCollator,
-			want:  []string{`"caseFirst":"false"`, `"collation":"default"`, `"numeric":false`},
-		},
-		{
-			name:  "collator resolved options includes backend collation",
-			value: phonebookCollator,
-			want:  []string{`"locale":"de"`, `"collation":"phonebk"`},
-		},
-		{
-			name:   "segment record uses code unit index",
-			value:  segmenter.Segment{Segment: "🙂", CodeUnitIndex: 2, ByteIndex: 4, Input: "a🙂", IsWordLike: false},
-			want:   []string{`"segment":"🙂"`, `"index":2`, `"input":"a🙂"`},
-			absent: []string{`"ByteIndex"`, `"byteIndex"`, `"isWordLike"`},
-		},
-		{
-			name:  "segment word record includes word-like true",
-			value: wordSegment,
-			want:  []string{`"segment":"hello"`, `"index":0`, `"input":"hello!"`, `"isWordLike":true`},
-		},
-		{
-			name:  "segment word record includes word-like false",
-			value: wordPunctuation,
-			want:  []string{`"segment":"!"`, `"index":5`, `"input":"hello!"`, `"isWordLike":false`},
-		},
-		{
-			name:  "segmenter resolved options",
-			value: wordSegmenter,
-			want:  []string{`"locale":"en"`, `"granularity":"word"`},
-		},
-		{
 			name:  "week info uses ECMA weekday numbers",
 			value: locale.WeekInfo{FirstDay: time.Sunday, Weekend: []time.Weekday{time.Saturday, time.Sunday}},
 			want:  []string{`"firstDay":7`, `"weekend":[6,7]`},
@@ -366,22 +327,6 @@ func mustDisplayNames(t *testing.T, opts displaynames.Options) *displaynames.Dis
 	return names
 }
 
-func mustCollator(t *testing.T, opts collator.Options) *collator.Collator {
-	t.Helper()
-
-	return mustCollatorFor(t, "en", opts)
-}
-
-func mustCollatorFor(t *testing.T, tag string, opts collator.Options) *collator.Collator {
-	t.Helper()
-
-	c, err := collator.New(locale.List{intltest.Locale(t, tag)}, opts)
-	if err != nil {
-		t.Fatalf("collator.New() error = %v", err)
-	}
-	return c
-}
-
 func mustDurationFormat(t *testing.T, opts durationformat.Options) *durationformat.DurationFormat {
 	t.Helper()
 
@@ -390,37 +335,6 @@ func mustDurationFormat(t *testing.T, opts durationformat.Options) *durationform
 		t.Fatalf("durationformat.New() error = %v", err)
 	}
 	return format
-}
-
-func mustFirstSegment(t *testing.T, input string, granularity segmenter.Granularity) segmenter.Segment {
-	t.Helper()
-
-	return mustSegmentAt(t, input, granularity, 0)
-}
-
-func mustSegmenter(t *testing.T, opts segmenter.Options) *segmenter.Segmenter {
-	t.Helper()
-
-	s, err := segmenter.New(locale.List{intltest.Locale(t, "en")}, opts)
-	if err != nil {
-		t.Fatalf("segmenter.New() error = %v", err)
-	}
-	return s
-}
-
-func mustSegmentAt(t *testing.T, input string, granularity segmenter.Granularity, index int) segmenter.Segment {
-	t.Helper()
-
-	s := mustSegmenter(t, segmenter.Options{Granularity: stringPtr(granularity)})
-	i := 0
-	for segment := range s.Segment(input).All() {
-		if i == index {
-			return segment
-		}
-		i++
-	}
-	t.Fatalf("Segment(%q).All() returned fewer than %d records", input, index+1)
-	return segmenter.Segment{}
 }
 
 func mustMarshalJSON(t *testing.T, value any) string {

@@ -1,8 +1,8 @@
 # SPEC 70 — Conformance Test Strategy
 
-> **Status:** Revised (2026-05-20)
+> **Status:** Revised (2026-08-09)
 > **Type:** Flow + Schema + Rule — defines how go-intl proves ECMA-402 observable behavior through generated-reference and native fixtures.
-> **Authority:** ECMA-402 and native/reference fixtures define observable behavior. This spec records the conformance fixture format, fixture sources, divergence handling, correctness gates, and XFAIL discipline. Per-formatter SPECS (10/20/30/40/41/42/43/44/45/46) record their own option semantics; this spec records how those semantics are *verified* against the reference implementations.
+> **Authority:** ECMA-402 and native/reference fixtures define observable behavior. This spec records the conformance fixture format, fixture sources, divergence handling, correctness gates, and XFAIL discipline. Per-formatter SPECS (10/20/30/40/41/42/43/44) record their own option semantics; this spec records how those semantics are *verified* against the reference implementations.
 
 ---
 

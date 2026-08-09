@@ -4,7 +4,6 @@ import (
 	cldrcurrency "github.com/agentable/go-intl/internal/cldr/currency"
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
-	"github.com/agentable/go-intl/internal/collation"
 	"github.com/agentable/go-intl/internal/ecma402"
 	"github.com/agentable/go-intl/internal/tz"
 )
@@ -15,14 +14,6 @@ import (
 // The returned slice is sorted, canonical, and independent.
 func SupportedCalendars() []string {
 	return cldrdate.SupportedCalendars()
-}
-
-// SupportedCollations returns the active Collator backend collation identifiers
-// for Intl.supportedValuesOf("collation").
-//
-// The returned slice is sorted, canonical, and independent.
-func SupportedCollations() []string {
-	return collation.SupportedCollations()
 }
 
 // SupportedCurrencies returns the currency identifiers for

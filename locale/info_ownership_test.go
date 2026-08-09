@@ -32,7 +32,7 @@ func TestGetCalendarsReturnsOnlyActiveCalendars(t *testing.T) {
 func TestLocaleInfoGettersReturnIndependentSlices(t *testing.T) {
 	t.Parallel()
 	loc := intltest.Locale(t, "en-US")
-	de := intltest.Locale(t, "de-DE")
+	de := intltest.Locale(t, "de-DE-u-co-phonebk")
 
 	cases := []struct {
 		name string

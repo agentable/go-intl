@@ -29,20 +29,6 @@
       "persian",
       "roc"
     ],
-    "collation": [
-      "compat",
-      "dict",
-      "emoji",
-      "eor",
-      "phonebk",
-      "phonetic",
-      "pinyin",
-      "searchjl",
-      "stroke",
-      "trad",
-      "unihan",
-      "zhuyin"
-    ],
     "currency": [
       "AED",
       "AFN",

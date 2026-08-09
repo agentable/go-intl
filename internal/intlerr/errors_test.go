@@ -121,7 +121,7 @@ func TestNewInvalidCodeExpectedUsesCallerGuidance(t *testing.T) {
 func TestNewUnsupportedOptionExpectedUsesCallerGuidance(t *testing.T) {
 	t.Parallel()
 
-	err := NewUnsupportedOptionExpected("collator", "caseFirst", "upper", "en", `"false"`, errDetailSentinel)
+	err := NewUnsupportedOptionExpected("formatter", "mode", "search", "en", `"sort"`, errDetailSentinel)
 	if !errors.Is(err, ErrUnsupportedOption) {
 		t.Fatalf("NewUnsupportedOptionExpected() error = %v, want ErrUnsupportedOption", err)
 	}
@@ -135,7 +135,7 @@ func TestNewUnsupportedOptionExpectedUsesCallerGuidance(t *testing.T) {
 	if !ok {
 		t.Fatalf("NewUnsupportedOptionExpected() error = %T, want *Error", err)
 	}
-	if detail.Expected != `"false"` {
+	if detail.Expected != `"sort"` {
 		t.Fatalf("Error.Expected = %q, want caller guidance", detail.Expected)
 	}
 }
@@ -254,7 +254,7 @@ func TestNamedConstructorsWrapSentinelsAndContext(t *testing.T) {
 func TestUnsupportedKindWithCustomCauseMatchesStdlibUnsupported(t *testing.T) {
 	t.Parallel()
 
-	err := New(UnsupportedOption, "collator", "usage", "search", "en", errDetailSentinel)
+	err := New(UnsupportedOption, "formatter", "mode", "search", "en", errDetailSentinel)
 	if !errors.Is(err, ErrUnsupportedOption) {
 		t.Fatalf("New(UnsupportedOption) error = %v, want ErrUnsupportedOption", err)
 	}

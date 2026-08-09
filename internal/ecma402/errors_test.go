@@ -39,7 +39,7 @@ func TestInvalidOptionErrorExpectedWrapsCause(t *testing.T) {
 func TestUnsupportedStringOptionErrorWrapsSentinelAndCarriesContext(t *testing.T) {
 	t.Parallel()
 
-	err := ecma402.UnsupportedStringOptionError("collator", ecma402.RequiredStringOption("usage", "search", "sort"), "en")
+	err := ecma402.UnsupportedStringOptionError("formatter", ecma402.RequiredStringOption("mode", "search", "sort"), "en")
 	if !errors.Is(err, errors.ErrUnsupported) {
 		t.Fatalf("UnsupportedStringOptionError() error = %v, want errors.ErrUnsupported", err)
 	}
@@ -47,8 +47,8 @@ func TestUnsupportedStringOptionErrorWrapsSentinelAndCarriesContext(t *testing.T
 	if !ok {
 		t.Fatalf("UnsupportedStringOptionError() error = %T, want OptionError", err)
 	}
-	if optErr.Owner != "collator" || optErr.Kind != "unsupportedOption" || optErr.Name != "usage" || optErr.Value != "search" || optErr.Locale != "en" {
-		t.Fatalf("OptionError = %+v, want collator unsupported usage search en", optErr)
+	if optErr.Owner != "formatter" || optErr.Kind != "unsupportedOption" || optErr.Name != "mode" || optErr.Value != "search" || optErr.Locale != "en" {
+		t.Fatalf("OptionError = %+v, want formatter unsupported mode search en", optErr)
 	}
 	if optErr.Expected != `"sort"` {
 		t.Fatalf("OptionError.Expected = %q, want allowed supported value", optErr.Expected)
@@ -58,7 +58,7 @@ func TestUnsupportedStringOptionErrorWrapsSentinelAndCarriesContext(t *testing.T
 func TestUnsupportedOptionErrorExpectedCarriesGuidance(t *testing.T) {
 	t.Parallel()
 
-	err := ecma402.UnsupportedOptionErrorExpected("collator", "caseFirst", "upper", "en", `"false"`, nil)
+	err := ecma402.UnsupportedOptionErrorExpected("formatter", "mode", "search", "en", `"sort"`, nil)
 	if !errors.Is(err, errors.ErrUnsupported) {
 		t.Fatalf("UnsupportedOptionErrorExpected() error = %v, want errors.ErrUnsupported", err)
 	}
@@ -66,7 +66,7 @@ func TestUnsupportedOptionErrorExpectedCarriesGuidance(t *testing.T) {
 	if !ok {
 		t.Fatalf("UnsupportedOptionErrorExpected() error = %T, want OptionError", err)
 	}
-	if optErr.Expected != `"false"` {
+	if optErr.Expected != `"sort"` {
 		t.Fatalf("OptionError.Expected = %q, want caller guidance", optErr.Expected)
 	}
 }

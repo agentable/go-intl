@@ -31,22 +31,20 @@ const (
 )
 
 type fixture struct {
-	ID                 string                      `json:"id"`
-	Source             string                      `json:"source"`
-	Locale             string                      `json:"locale"`
-	Feature            string                      `json:"feature,omitempty"`
-	Options            map[string]any              `json:"options"`
-	Input              any                         `json:"input"`
-	Expected           *string                     `json:"expected,omitempty"`
-	ExpectedOK         *bool                       `json:"expectedOk,omitempty"`
-	ExpectedLocales    []string                    `json:"expectedLocales,omitempty"`
-	ExpectedParts      []conformance.Part          `json:"expectedParts,omitempty"`
-	ExpectedRange      *string                     `json:"expectedRange,omitempty"`
-	ExpectedRangeParts []conformance.RangePart     `json:"expectedRangeParts,omitempty"`
-	ExpectedComparison *int                        `json:"expectedComparison,omitempty"`
-	ExpectedResolved   any                         `json:"expectedResolvedOptions,omitempty"`
-	ExpectedSegments   []conformance.SegmentRecord `json:"expectedSegments,omitempty"`
-	ErrorCode          string                      `json:"errorCode,omitempty"`
+	ID                 string                  `json:"id"`
+	Source             string                  `json:"source"`
+	Locale             string                  `json:"locale"`
+	Feature            string                  `json:"feature,omitempty"`
+	Options            map[string]any          `json:"options"`
+	Input              any                     `json:"input"`
+	Expected           *string                 `json:"expected,omitempty"`
+	ExpectedOK         *bool                   `json:"expectedOk,omitempty"`
+	ExpectedLocales    []string                `json:"expectedLocales,omitempty"`
+	ExpectedParts      []conformance.Part      `json:"expectedParts,omitempty"`
+	ExpectedRange      *string                 `json:"expectedRange,omitempty"`
+	ExpectedRangeParts []conformance.RangePart `json:"expectedRangeParts,omitempty"`
+	ExpectedResolved   any                     `json:"expectedResolvedOptions,omitempty"`
+	ErrorCode          string                  `json:"errorCode,omitempty"`
 }
 
 const (
@@ -111,14 +109,6 @@ type nodeWitness struct {
 	PluralRulesErrors      []fixture           `json:"pluralRulesErrors"`
 	DisplayNamesSmoke      []fixture           `json:"displayNamesSmoke"`
 	DisplayNamesErrors     []fixture           `json:"displayNamesErrors"`
-	CollatorSmoke          []fixture           `json:"collatorSmoke"`
-	CollatorErrors         []fixture           `json:"collatorErrors"`
-	CollatorOptions        []fixture           `json:"collatorOptions"`
-	CollatorBackendProof   []fixture           `json:"collatorBackendProof"`
-	SegmenterSmoke         []fixture           `json:"segmenterSmoke"`
-	SegmenterErrors        []fixture           `json:"segmenterErrors"`
-	SegmenterLocale        []fixture           `json:"segmenterLocale"`
-	SegmenterTailored      []fixture           `json:"segmenterTailored"`
 	SupportedValues        nodeSupportedValues `json:"supportedValues"`
 }
 
@@ -271,14 +261,6 @@ func witnessFixtureFiles(witness nodeWitness, nodeDir string) []nodeWitnessFixtu
 		nodeConformanceFixtureFile("pluralrules", nodeDir, "errors.json", witness.PluralRulesErrors),
 		nodeConformanceFixtureFile("displaynames", nodeDir, "smoke.json", witness.DisplayNamesSmoke),
 		nodeConformanceFixtureFile("displaynames", nodeDir, "errors.json", witness.DisplayNamesErrors),
-		nodeConformanceFixtureFile("collator", nodeDir, "smoke.json", witness.CollatorSmoke),
-		nodeConformanceFixtureFile("collator", nodeDir, "errors.json", witness.CollatorErrors),
-		nodeConformanceFixtureFile("collator", nodeDir, "options.json", witness.CollatorOptions),
-		nodeConformanceFixtureFile("collator", nodeDir, "backend-proof.json", witness.CollatorBackendProof),
-		nodeConformanceFixtureFile("segmenter", nodeDir, "smoke.json", witness.SegmenterSmoke),
-		nodeConformanceFixtureFile("segmenter", nodeDir, "errors.json", witness.SegmenterErrors),
-		nodeConformanceFixtureFile("segmenter", nodeDir, "locale-contract.json", witness.SegmenterLocale),
-		nodeConformanceFixtureFile("segmenter", nodeDir, "tailored-locale-contract.json", witness.SegmenterTailored),
 	}
 }
 

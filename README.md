@@ -8,11 +8,11 @@ A Go implementation of the active ECMA-402 `Intl` API with typed constructors an
 
 ## Features
 
-- **Native Intl alignment**: Public packages map to the active `Intl` constructors: `Locale`, `NumberFormat`, `DateTimeFormat`, `PluralRules`, `ListFormat`, `RelativeTimeFormat`, `DurationFormat`, `DisplayNames`, `Collator`, and `Segmenter`.
+- **Native Intl alignment**: Public packages map to the active `Intl` constructors: `Locale`, `NumberFormat`, `DateTimeFormat`, `PluralRules`, `ListFormat`, `RelativeTimeFormat`, `DurationFormat`, and `DisplayNames`.
 - **Typed Go bridge**: Parse locale strings into `locale.List`, then pass `time.Time`, typed option structs, and typed numeric values while preserving ECMA-402 behavior.
 - **Root namespace**: The root package represents the JavaScript `Intl` namespace as an aggregate facade; production services that need one formatter should import that constructor package directly.
 - **Reusable formatters**: Construct once and reuse; constructors resolve locale, options, and data so repeated formatting stays on the cached path.
-- **Host-friendly records**: Resolved options, parts, ranges, locale info, segments, and durations marshal with ECMA-402 JSON field names for API and JS-host boundaries.
+- **Host-friendly records**: Resolved options, parts, ranges, locale info, and durations marshal with ECMA-402 JSON field names for API and JS-host boundaries.
 - **Structured errors**: Root sentinels work with `errors.Is`, and `gointl.Error` exposes stable kind, owner, option, value, locale, and expected-value guidance.
 - **CLDR-backed data**: Ship generated CLDR data as Go source; applications do not load JSON, ICU, or time-zone data files at runtime.
 - **Reference fixtures**: Verify formatter output against ECMA-402-derived FormatJS fixtures and native Intl snapshots.
@@ -92,8 +92,6 @@ May 8, 2026
 | `github.com/agentable/go-intl/relativetimeformat` | Locale-sensitive relative-time formatting and parts. |
 | `github.com/agentable/go-intl/durationformat` | Locale-sensitive duration formatting and parts. |
 | `github.com/agentable/go-intl/displaynames` | Localized names for languages, regions, scripts, currencies, calendars, and date-time fields. |
-| `github.com/agentable/go-intl/collator` | Locale-sensitive string comparison for sorting. |
-| `github.com/agentable/go-intl/segmenter` | Unicode grapheme, word, and sentence segmentation for supported locales. |
 | `github.com/agentable/go-intl/option` | Zero-dependency `Int`/`Bool`/`String` pointer helpers for optional scalar options; usable without importing the aggregate root. |
 
 Prefer constructor subpackages in services that need one formatter. Importing `github.com/agentable/go-intl` is an aggregate facade: it mirrors the JavaScript `Intl` namespace and therefore imports every active constructor surface for namespace helpers and type aliases. Use the root package for `GetCanonicalLocales`, root supported-value accessors, or when you intentionally want the full `Intl` namespace shape.
@@ -108,7 +106,6 @@ The Go packages follow the ownership of the native JavaScript `Intl` API:
 |------------|----|
 | `Intl.getCanonicalLocales(locales)` | `gointl.GetCanonicalLocales(locales)` |
 | `Intl.supportedValuesOf("calendar")` | `gointl.SupportedCalendars()` |
-| `Intl.supportedValuesOf("collation")` | `gointl.SupportedCollations()` |
 | `Intl.supportedValuesOf("currency")` | `gointl.SupportedCurrencies()` |
 | `Intl.supportedValuesOf("numberingSystem")` | `gointl.SupportedNumberingSystems()` |
 | `Intl.supportedValuesOf("timeZone")` | `gointl.SupportedTimeZones()` |
@@ -128,10 +125,6 @@ The Go packages follow the ownership of the native JavaScript `Intl` API:
 | `Intl.DurationFormat.supportedLocalesOf(locales, options)` | `durationformat.SupportedLocalesOf(locales, options)` |
 | `new Intl.DisplayNames(locales, options)` | `displaynames.New(locales, options)` |
 | `Intl.DisplayNames.supportedLocalesOf(locales, options)` | `displaynames.SupportedLocalesOf(locales, options)` |
-| `new Intl.Collator(locales, options)` | `collator.New(locales, options)` |
-| `Intl.Collator.supportedLocalesOf(locales, options)` | `collator.SupportedLocalesOf(locales, options)` |
-| `new Intl.Segmenter(locales, options)` | `segmenter.New(locales, options)` |
-| `Intl.Segmenter.supportedLocalesOf(locales, options)` | `segmenter.SupportedLocalesOf(locales, options)` |
 
 ## Usage
 
@@ -285,7 +278,8 @@ fmt.Println(locales[0])
 fmt.Println(units[:3])
 ```
 
-Root supported-value accessors cover calendars, collations, currencies, numbering systems, time zones, and units. Collation currently reports only identifiers the active backend can apply truthfully.
+Root supported-value accessors cover calendars, currencies, numbering systems,
+time zones, and units.
 
 Use `gointl.Int`, `gointl.Bool`, and `gointl.String` for optional option fields where ECMA-402 distinguishes omitted from an explicit zero, false, or empty value.
 
@@ -391,8 +385,8 @@ fmt.Println(string(data))
 ```
 
 `locale.Locale` marshals as its canonical BCP 47 string. Parts, range parts,
-`durationformat.Duration`, locale `WeekInfo` / `TextInfo`, and
-`segmenter.Segment` also use ECMA-402 field names.
+`durationformat.Duration` and locale `WeekInfo` / `TextInfo` also use ECMA-402
+field names.
 
 ### Format Dates and Ranges
 
@@ -531,9 +525,10 @@ integer before validation and rollup, so represented values such as `1e20`
 nanoseconds are not narrowed to `int64`; fractions, NaN, and infinities return
 `gointl.ErrInvalidValue`.
 
-### Name Codes, Sort Text, and Segment Strings
+### Name Codes
 
-Use the remaining constructor packages when you need display names, collation, or text boundaries:
+Use `displaynames` for localized names of language, region, script, currency,
+calendar, and date-time field codes:
 
 ```go
 locales := mustLocaleList("en")
@@ -551,26 +546,6 @@ if err != nil {
 if ok {
 	fmt.Println(region)
 }
-
-coll, err := collator.New(locales, collator.Options{})
-if err != nil {
-	return err
-}
-words := []string{"z", "a", "ä"}
-slices.SortFunc(words, coll.Compare)
-fmt.Println(words)
-
-seg, err := segmenter.New(locales, segmenter.Options{
-	Granularity: segmenter.WordGranularity,
-})
-if err != nil {
-	return err
-}
-for part := range seg.Segment("Hello, world.").All() {
-	if part.IsWordLike {
-		fmt.Println(part.Segment)
-	}
-}
 ```
 
 ## Supported Data
@@ -579,16 +554,12 @@ for part := range seg.Segment("Hello, world.").All() {
 number, date, plural, list, relative time, duration, display-name, unit,
 currency, and time-zone display data. Constructor `SupportedLocalesOf` methods
 derive support from the payload family they use, so a locale is advertised only
-when the backing data or engine can support it.
+when the backing data can support it.
 
 The default data profile is a curated product shape, not a hidden compatibility
-matrix: 104 locale tags, CLDR 48.1.0, ICU 78, and IANA tzdata 2025b. Most
-CLDR-backed constructors share that generated profile. `Collator` and
-`Segmenter` are intentionally engine-specific: `Collator` follows
-`golang.org/x/text/collate`, and `Segmenter` currently reports only locales
-whose UAX #29 boundaries do not require dictionary or CJK tailoring. For example,
-`ja`, `th`, and `zh-Hant` are not advertised by `segmenter.SupportedLocalesOf`
-until tailored segmentation lands.
+matrix: 104 locale tags, CLDR 48.1.0, ICU 78, and IANA tzdata 2025b. Active
+CLDR-backed constructors share that generated profile while deriving their
+supported locales from the payloads they actually consume.
 
 To broaden generated CLDR coverage, add tags to `tools/locale-profile.json` and
 run `task data`. Any profile expansion must also include behavior evidence
@@ -603,8 +574,7 @@ Locale parsing accepts BCP 47 tags through `golang.org/x/text/language`.
 Root supported-value accessors return ECMA-402 values: calendars are `gregory`
 and `iso8601`, numbering systems include the simple digit systems from
 ECMA-402, units come from the sanctioned unit list, currencies come from CLDR,
-time zones come from the generated IANA/CLDR identifier registry, and
-collations come from the active collation backend.
+and time zones come from the generated IANA/CLDR identifier registry.
 
 DateTimeFormat currently formats Gregorian/ISO calendar data. Well-formed but
 unsupported calendar requests participate in locale negotiation and fall back to
@@ -634,10 +604,8 @@ methods do not silently sort the range.
 
 | JavaScript shape | Go shape | Why |
 |------------------|----------|-----|
-| `collator.compare(x, y)` returns `-1 \| 0 \| 1` | `Collator.Compare(x, y) int` returning standard `-`/`0`/`+` | Matches `slices.SortFunc` and `bytes.Compare`. |
 | `displayNames.of(code)` returns `string \| undefined` or throws `RangeError` | `DisplayNames.Of(code) (string, bool, error)` | `ok` distinguishes missing data; `error` distinguishes invalid code shape. |
 | `locale.getTextInfo().direction` may be unavailable when script metadata is unknown | `locale.TextInfo.Direction *string` | `nil` preserves absence instead of inventing an LTR default. |
-| `segmenter.segment(s)` returns a JS iterable of `{ segment, index, isWordLike }` | `Segments.All() iter.Seq[Segment]` with `Segment.CodeUnitIndex` and `Segment.ByteIndex` | Mirrors ECMA-402 while still supporting Go string offsets. |
 | JS `new Intl.X(locales, options?)` | `New(locales, opts Options)` accepting a `locale.List` plus exactly one typed `Options` value | Callers express omitted locales with `nil` / `locale.List{}` and use `Options{}` for the empty or omitted JS options object. |
 | `format(value)` accepting `Number \| BigInt \| string` | Opaque `numberformat.Value` constructors plus `Format`, `FormatToParts`, `FormatRange`, and `FormatRangeToParts` | Preserves type safety without a public `any` hot path. |
 | Resolved option properties that JS omits when inactive (e.g. PluralRules `compactDisplay`, DateTimeFormat component fields, or DisplayNames `languageDisplay`) | Pointer fields on `ResolvedOptions` that are `nil` when the spec hides them | Distinguishes "not set" from "explicitly zero" without ambiguity. |

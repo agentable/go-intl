@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentable/go-intl/collator"
 	"github.com/agentable/go-intl/datetimeformat"
 	"github.com/agentable/go-intl/displaynames"
 	"github.com/agentable/go-intl/durationformat"
@@ -20,10 +19,8 @@ import (
 	cldrplural "github.com/agentable/go-intl/internal/cldr/plural"
 	cldrrelativetime "github.com/agentable/go-intl/internal/cldr/relativetime"
 	cldrunit "github.com/agentable/go-intl/internal/cldr/unit"
-	internalcollation "github.com/agentable/go-intl/internal/collation"
 	"github.com/agentable/go-intl/internal/ecma402"
 	"github.com/agentable/go-intl/internal/intltest"
-	internalsegmentation "github.com/agentable/go-intl/internal/segmentation"
 	"github.com/agentable/go-intl/internal/testcontract"
 	"github.com/agentable/go-intl/internal/tz"
 	"github.com/agentable/go-intl/listformat"
@@ -31,7 +28,6 @@ import (
 	"github.com/agentable/go-intl/numberformat"
 	"github.com/agentable/go-intl/pluralrules"
 	"github.com/agentable/go-intl/relativetimeformat"
-	"github.com/agentable/go-intl/segmenter"
 )
 
 func TestSupportedLocalesOfMatchesCapabilityAccessors(t *testing.T) {
@@ -89,20 +85,6 @@ func TestSupportedLocalesOfMatchesCapabilityAccessors(t *testing.T) {
 			supported: cldrdisplaynames.SupportedLocales(),
 			filter: func(requested locale.List) (locale.List, error) {
 				return displaynames.SupportedLocalesOf(requested, displaynames.Options{LocaleMatcher: String(displaynames.LookupLocaleMatcher)})
-			},
-		},
-		{
-			name:      "Collator",
-			supported: internalcollation.SupportedLocales(),
-			filter: func(requested locale.List) (locale.List, error) {
-				return collator.SupportedLocalesOf(requested, collator.Options{LocaleMatcher: String(collator.LookupLocaleMatcher)})
-			},
-		},
-		{
-			name:      "Segmenter",
-			supported: internalsegmentation.SupportedLocales(),
-			filter: func(requested locale.List) (locale.List, error) {
-				return segmenter.SupportedLocalesOf(requested, segmenter.Options{LocaleMatcher: String(segmenter.LookupLocaleMatcher)})
 			},
 		},
 	}
@@ -183,22 +165,6 @@ func TestSupportedLocalesConstructFormatters(t *testing.T) {
 			supported: cldrdisplaynames.SupportedLocales(),
 			construct: func(locales locale.List) error {
 				_, err := displaynames.New(locales, displaynames.Options{Type: String(displaynames.Language)})
-				return err
-			},
-		},
-		{
-			name:      "Collator",
-			supported: internalcollation.SupportedLocales(),
-			construct: func(locales locale.List) error {
-				_, err := collator.New(locales, collator.Options{})
-				return err
-			},
-		},
-		{
-			name:      "Segmenter",
-			supported: internalsegmentation.SupportedLocales(),
-			construct: func(locales locale.List) error {
-				_, err := segmenter.New(locales, segmenter.Options{})
 				return err
 			},
 		},
@@ -296,17 +262,6 @@ func TestSupportedValuesAreBackedByConstructors(t *testing.T) {
 		})
 	}
 
-	for _, collation := range SupportedCollations() {
-		t.Run("collation/"+collation, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := collator.New(en, collator.Options{Collation: String(collation)})
-			if err != nil {
-				t.Fatalf("Collator collation %q error = %v", collation, err)
-			}
-		})
-	}
-
 	for _, currency := range SupportedCurrencies() {
 		t.Run("currency/"+currency, func(t *testing.T) {
 			t.Parallel()
@@ -367,7 +322,6 @@ type supportedValueTest struct {
 func supportedValueTests() []supportedValueTest {
 	return []supportedValueTest{
 		{name: "calendar", values: SupportedCalendars, want: cldrdate.SupportedCalendars},
-		{name: "collation", values: SupportedCollations, want: internalcollation.SupportedCollations},
 		{name: "currency", values: SupportedCurrencies, want: cldrcurrency.SupportedCodes},
 		{name: "numberingSystem", values: SupportedNumberingSystems, want: cldrnumber.SupportedNumberingSystems},
 		{name: "timeZone", values: SupportedTimeZones, want: tz.SupportedTimeZones},
@@ -403,12 +357,6 @@ func TestNodeSupportedValuesWitnessIsReferenceOnly(t *testing.T) {
 	}
 	if slices.Contains(SupportedCalendars(), "buddhist") {
 		t.Fatal("go-intl must not mirror Node calendar values until DateTimeFormat can format them truthfully")
-	}
-	if !slices.Contains(witness.Values["collation"], "emoji") {
-		t.Fatal("native supported-values witness must record Node's broader collation support")
-	}
-	if slices.Contains(SupportedCollations(), "emoji") {
-		t.Fatal("go-intl must not mirror Node collation values until Collator can apply them truthfully")
 	}
 }
 

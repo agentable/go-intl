@@ -1,8 +1,8 @@
 # SPEC 60 — Root `Intl` Namespace
 
-> **Status:** Revised (2026-05-31)
+> **Status:** Revised (2026-08-09)
 > **Type:** Consumer API Spec — defines the public entry surface for the root `go-intl` package.
-> **Authority:** ECMA-402 `.references/ecma402/spec/intl.html` is the normative source. This spec records the current root package contract. SPECS 10/20/30/40/41/42/43/44/45/46 record the active constructor package contracts.
+> **Authority:** ECMA-402 `.references/ecma402/spec/intl.html` is the normative source. This spec records the current root package contract. SPECS 10/20/30/40/41/42/43/44 record the active constructor package contracts.
 
 ---
 
@@ -31,12 +31,10 @@ Formatter construction and behavior live in the active constructor packages:
 - `relativetimeformat`
 - `durationformat`
 - `displaynames`
-- `collator`
-- `segmenter`
 
 The root package exposes active constructor aliases as the Go bridge for ECMA-402 constructor properties, plus static common namespace functions. It must not contain formatting logic.
 
-All ten ECMA-402 active constructors are aliased on the root package once each package passes its own conformance gate.
+All eight active constructors are aliased on the root package once each package passes its own conformance gate.
 
 ---
 
@@ -49,7 +47,6 @@ package gointl
 
 func GetCanonicalLocales(locales locale.List) locale.List
 func SupportedCalendars() []string
-func SupportedCollations() []string
 func SupportedCurrencies() []string
 func SupportedNumberingSystems() []string
 func SupportedTimeZones() []string
@@ -62,7 +59,6 @@ Mapping:
 |----|----------|
 | `GetCanonicalLocales` | `Intl.getCanonicalLocales(locales)` after locale parsing has occurred at the Go boundary |
 | `SupportedCalendars` | `Intl.supportedValuesOf("calendar")` |
-| `SupportedCollations` | `Intl.supportedValuesOf("collation")` |
 | `SupportedCurrencies` | `Intl.supportedValuesOf("currency")` |
 | `SupportedNumberingSystems` | `Intl.supportedValuesOf("numberingSystem")` |
 | `SupportedTimeZones` | `Intl.supportedValuesOf("timeZone")` |
@@ -90,8 +86,6 @@ type ListFormat = listformat.ListFormat
 type RelativeTimeFormat = relativetimeformat.RelativeTimeFormat
 type DurationFormat = durationformat.DurationFormat
 type DisplayNames = displaynames.DisplayNames
-type Collator = collator.Collator
-type Segmenter = segmenter.Segmenter
 ```
 
 Construction still belongs to the constructor packages:
@@ -105,8 +99,6 @@ lf, err := listformat.New(locales, listformat.Options{})
 rtf, err := relativetimeformat.New(locales, relativetimeformat.Options{})
 df, err := durationformat.New(locales, durationformat.Options{})
 dn, err := displaynames.New(locales, displaynames.Options{Type: gointl.String(displaynames.Language)})
-col, err := collator.New(locales, collator.Options{})
-seg, err := segmenter.New(locales, segmenter.Options{})
 ```
 
 > **Why**: JavaScript can write `new Intl.NumberFormat(...)` because `Intl.NumberFormat` is a constructor property. Go cannot expose a package-level property that acts like a subpackage constructor without either hiding the real package or introducing a misleading factory. Type aliases are the current Go bridge for constructor-property parity: they preserve the visible namespace relationship while the constructor packages preserve typed options and package ownership.
@@ -211,7 +203,6 @@ Supported accessors:
 | Function | Source |
 |----------|--------|
 | `SupportedCalendars` | generated CLDR calendar identifiers plus ECMA-402 required constants such as `iso8601` |
-| `SupportedCollations` | active `collator` backend collation identifiers that can be truthfully applied through locale-scoped Collator collation requests, currently sourced from `golang.org/x/text/collate.Supported()` |
 | `SupportedCurrencies` | generated CLDR / ISO 4217 currency identifiers |
 | `SupportedNumberingSystems` | ECMA-402 simple digit numbering systems plus generated CLDR numbering-system identifiers |
 | `SupportedTimeZones` | primary projection of the generated `internal/tz` IANA/CLDR identifier registry |
@@ -227,7 +218,7 @@ Required behavior:
 Implementation rules:
 
 1. Keep these functions in the root `gointl` package; do not move them to public `cldr`, `ecma402`, or `supported` packages.
-2. Keep source packages private: CLDR-backed values come from `internal/cldr`, active collation capability comes from `internal/collation`, and sanctioned unit identifiers come from `internal/ecma402`.
+2. Keep source packages private: CLDR-backed values come from `internal/cldr`, time-zone identifiers come from `internal/tz`, and sanctioned unit identifiers come from `internal/ecma402`.
 3. Contract tests may verify the root package uses those owned data sources, but must not require the accessors to live in `intl.go`.
 
 ---
@@ -244,8 +235,6 @@ listformat.SupportedLocalesOf(locales locale.List, opts listformat.Options) (loc
 relativetimeformat.SupportedLocalesOf(locales locale.List, opts relativetimeformat.Options) (locale.List, error)
 durationformat.SupportedLocalesOf(locales locale.List, opts durationformat.Options) (locale.List, error)
 displaynames.SupportedLocalesOf(locales locale.List, opts displaynames.Options) (locale.List, error)
-collator.SupportedLocalesOf(locales locale.List, opts collator.Options) (locale.List, error)
-segmenter.SupportedLocalesOf(locales locale.List, opts segmenter.Options) (locale.List, error)
 ```
 
 Mapping:
@@ -259,8 +248,6 @@ Mapping:
 | `relativetimeformat.SupportedLocalesOf` | `Intl.RelativeTimeFormat.supportedLocalesOf` |
 | `durationformat.SupportedLocalesOf` | `Intl.DurationFormat.supportedLocalesOf` |
 | `displaynames.SupportedLocalesOf` | `Intl.DisplayNames.supportedLocalesOf` |
-| `collator.SupportedLocalesOf` | `Intl.Collator.supportedLocalesOf` |
-| `segmenter.SupportedLocalesOf` | `Intl.Segmenter.supportedLocalesOf` |
 
 The root package must not duplicate these methods. This preserves package ownership and avoids root-level formatter option re-exports.
 
@@ -299,7 +286,7 @@ Rules:
 - [ ] Supported-value accessors cover exactly the ECMA-402 keys in this spec and return generated canonical values.
 - [ ] Supported-value accessors live in the root package, conventionally in `supported.go`, without creating public data-layer packages.
 - [ ] The root package does not expose `SupportedValueKey`, `SupportedValue*` constants, or `SupportedValuesOf`.
-- [ ] `numberformat`, `datetimeformat`, `pluralrules`, `listformat`, `relativetimeformat`, `durationformat`, `displaynames`, `collator`, and `segmenter` own their own `SupportedLocalesOf` functions.
+- [ ] `numberformat`, `datetimeformat`, `pluralrules`, `listformat`, `relativetimeformat`, `durationformat`, and `displaynames` own their own `SupportedLocalesOf` functions.
 
 ---
 
@@ -316,6 +303,4 @@ Rules:
 - SPEC 42 — RelativeTimeFormat
 - SPEC 43 — DurationFormat
 - SPEC 44 — DisplayNames
-- SPEC 45 — Collator
-- SPEC 46 — Segmenter
 - SPEC 50 — CLDR Data

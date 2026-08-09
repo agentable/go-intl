@@ -35,8 +35,6 @@ func TestSizeCasesCoverP4MeasurementBoundaries(t *testing.T) {
 		"relativetimeformat",
 		"durationformat",
 		"displaynames",
-		"collator",
-		"segmenter",
 		"all-formatters",
 	} {
 		if !slices.Contains(names, name) {
