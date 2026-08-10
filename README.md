@@ -406,10 +406,7 @@ start := time.Date(2026, time.May, 8, 14, 30, 0, 0, time.UTC)
 end := start.Add(2 * time.Hour)
 
 fmt.Println(format.Format(start))
-rangeText, err := format.FormatRange(start, end)
-if err != nil {
-	return err
-}
+rangeText := format.FormatRange(start, end)
 fmt.Println(rangeText)
 ```
 
@@ -593,6 +590,11 @@ Go's embedded `time/tzdata` supplies transition bytes.
 endpoint order. A later first argument is valid and remains `startRange`; the
 methods do not silently sort the range.
 
+After `datetimeformat.New` succeeds, `Format`, `FormatToParts`, `FormatRange`,
+and `FormatRangeToParts` accept typed `time.Time` values and return their
+results directly. Locale, option, and time-zone failures remain construction
+errors.
+
 ## Known Divergences
 
 `go-intl` matches observable ECMA-402 output where it can and documents every accepted difference. Two categories exist:
@@ -627,11 +629,12 @@ being excluded from active fixture matching.
 
 ## Error Handling
 
-Constructors and formatter methods return errors that work with the root
-sentinels in `github.com/agentable/go-intl`. Most caller-fixable failures also
-carry `*gointl.Error`, which is useful for config UIs, API errors, and host
-bindings that need stable machine-readable context. The human error string uses
-an `expected ...; got ...` shape and omits internal ECMA-402 abstract-operation
+Constructors and formatter methods with reachable caller-fixable failures
+return errors that work with the root sentinels in
+`github.com/agentable/go-intl`. Most such failures also carry `*gointl.Error`,
+which is useful for config UIs, API errors, and host bindings that need stable
+machine-readable context. The human error string uses an
+`expected ...; got ...` shape and omits internal ECMA-402 abstract-operation
 names.
 
 | Error | Meaning |

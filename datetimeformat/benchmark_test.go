@@ -39,9 +39,7 @@ func BenchmarkDateTimeFormat_DateTimeRange_Cached(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, err := format.FormatRange(start, end); err != nil {
-			b.Fatal(err)
-		}
+		_ = format.FormatRange(start, end)
 	}
 }
 

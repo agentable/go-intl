@@ -8,26 +8,20 @@ import (
 	"github.com/agentable/go-intl/internal/ecma402"
 )
 
-func (f *DateTimeFormat) FormatRange(start, end time.Time) (string, error) {
-	r, err := f.normalizeRange(start, end)
-	if err != nil {
-		return "", err
-	}
+func (f *DateTimeFormat) FormatRange(start, end time.Time) string {
+	r := f.normalizeRange(start, end)
 	if r.relation.equal {
-		return f.Format(r.start), nil
+		return f.Format(r.start)
 	}
-	return string(f.appendRange(nil, f.pattern, r)), nil
+	return string(f.appendRange(nil, f.pattern, r))
 }
 
-func (f *DateTimeFormat) FormatRangeToParts(start, end time.Time) ([]RangePart, error) {
-	r, err := f.normalizeRange(start, end)
-	if err != nil {
-		return nil, err
-	}
+func (f *DateTimeFormat) FormatRangeToParts(start, end time.Time) []RangePart {
+	r := f.normalizeRange(start, end)
 	if r.relation.equal {
-		return rangeParts(f.FormatToParts(r.start), SourceShared), nil
+		return rangeParts(f.FormatToParts(r.start), SourceShared)
 	}
-	return f.formatRangeParts(f.pattern, r), nil
+	return f.formatRangeParts(f.pattern, r)
 }
 
 func (f *DateTimeFormat) formatRangeParts(pattern selectedPattern, r normalizedRange) []RangePart {
@@ -67,12 +61,12 @@ type normalizedRange struct {
 	relation   rangeRelation
 }
 
-func (f *DateTimeFormat) normalizeRange(start, end time.Time) (normalizedRange, error) {
+func (f *DateTimeFormat) normalizeRange(start, end time.Time) normalizedRange {
 	location := f.location
 	start = start.Round(0)
 	end = end.Round(0)
 	if start.Equal(end) {
-		return normalizedRange{start: start, relation: rangeRelation{equal: true}}, nil
+		return normalizedRange{start: start, relation: rangeRelation{equal: true}}
 	}
 	start, startLocal := gregoryTimeInLocation(start, location)
 	_, endLocal := gregoryTimeInLocation(end, location)
@@ -89,7 +83,7 @@ func (f *DateTimeFormat) normalizeRange(start, end time.Time) (normalizedRange, 
 		startLocal: startLocal,
 		endLocal:   endLocal,
 		relation:   relation,
-	}, nil
+	}
 }
 
 func (f *DateTimeFormat) formatIntervalRangeToParts(pattern selectedPattern, relation rangeRelation, start, end localTime) ([]RangePart, bool) {

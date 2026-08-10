@@ -30,22 +30,12 @@ func TestMain(m *testing.M) {
 
 func mustFormatRange(t *testing.T, f *DateTimeFormat, start, end time.Time) string {
 	t.Helper()
-
-	out, err := f.FormatRange(start, end)
-	if err != nil {
-		t.Fatalf("FormatRange(%v, %v) error = %v", start, end, err)
-	}
-	return out
+	return f.FormatRange(start, end)
 }
 
 func mustFormatRangeToParts(t *testing.T, f *DateTimeFormat, start, end time.Time) []RangePart {
 	t.Helper()
-
-	parts, err := f.FormatRangeToParts(start, end)
-	if err != nil {
-		t.Fatalf("FormatRangeToParts(%v, %v) error = %v", start, end, err)
-	}
-	return parts
+	return f.FormatRangeToParts(start, end)
 }
 
 func joinPartValues(parts []Part) string {
@@ -1828,17 +1818,11 @@ func TestDateTimeFormatRangePreservesReversedInputOrder(t *testing.T) {
 	}
 	start := time.Date(2027, time.June, 10, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC)
-	got, err := format.FormatRange(start, end)
-	if err != nil {
-		t.Fatalf("FormatRange(reversed) error = %v", err)
-	}
+	got := format.FormatRange(start, end)
 	if want := "Jun 10, 2027\u2009–\u2009May 8, 2026"; got != want {
 		t.Fatalf("FormatRange(reversed) = %q, want %q", got, want)
 	}
-	parts, err := format.FormatRangeToParts(start, end)
-	if err != nil {
-		t.Fatalf("FormatRangeToParts(reversed) error = %v", err)
-	}
+	parts := format.FormatRangeToParts(start, end)
 	if joined := joinRangePartValues(parts); joined != got {
 		t.Fatalf("joined FormatRangeToParts(reversed) = %q, want %q", joined, got)
 	}
@@ -1898,17 +1882,11 @@ func TestDateTimeFormatRangePreservesReversedTimeAndFallbackOrder(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := format.FormatRange(tc.start, tc.end)
-			if err != nil {
-				t.Fatalf("FormatRange(reversed) error = %v", err)
-			}
+			got := format.FormatRange(tc.start, tc.end)
 			if got != tc.want {
 				t.Fatalf("FormatRange(reversed) = %q, want %q", got, tc.want)
 			}
-			parts, err := format.FormatRangeToParts(tc.start, tc.end)
-			if err != nil {
-				t.Fatalf("FormatRangeToParts(reversed) error = %v", err)
-			}
+			parts := format.FormatRangeToParts(tc.start, tc.end)
 			if joined := joinRangePartValues(parts); joined != got {
 				t.Fatalf("joined FormatRangeToParts(reversed) = %q, want %q", joined, got)
 			}

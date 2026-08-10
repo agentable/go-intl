@@ -35,14 +35,8 @@ func TestDateTimeRangeTextAndPartsShareExecutionDecisions(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				text, err := format.FormatRange(tc.start, tc.end)
-				if err != nil {
-					t.Fatal(err)
-				}
-				parts, err := format.FormatRangeToParts(tc.start, tc.end)
-				if err != nil {
-					t.Fatal(err)
-				}
+				text := format.FormatRange(tc.start, tc.end)
+				parts := format.FormatRangeToParts(tc.start, tc.end)
 				if joined := joinRangePartValues(parts); joined != text {
 					t.Fatalf("joined range parts = %q, want text %q; parts=%#v", joined, text, parts)
 				}

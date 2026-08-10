@@ -53,8 +53,8 @@ func New(locales locale.List, opts Options) (*DateTimeFormat, error)
 
 func (f *DateTimeFormat) Format(t time.Time) string
 func (f *DateTimeFormat) FormatToParts(t time.Time) []Part
-func (f *DateTimeFormat) FormatRange(start, end time.Time) (string, error)
-func (f *DateTimeFormat) FormatRangeToParts(start, end time.Time) ([]RangePart, error)
+func (f *DateTimeFormat) FormatRange(start, end time.Time) string
+func (f *DateTimeFormat) FormatRangeToParts(start, end time.Time) []RangePart
 func (f *DateTimeFormat) ResolvedOptions() ResolvedOptions
 ```
 
@@ -62,12 +62,12 @@ func (f *DateTimeFormat) ResolvedOptions() ResolvedOptions
 
 1. `New` **MUST** complete all option syntax verification, locale/options negotiation, and `*time.Location` parsing during the construction period, and `error` will be returned on failure.
 2. `New` accepts a `Options` value. `New(locales, Options{})` is equivalent to JS passing an empty options object or omitting options; multiple options objects are not Go API shapes and are rejected by the compiler.
-3. Ordinary success paths for `Format` / `FormatToParts` / `FormatRange` / `FormatRangeToParts` **MUST NOT** return option errors. `FormatRange` / `FormatRangeToParts` return `ErrInvalidValue` for caller-fixable runtime range errors such as `start > end`.
+3. After successful construction, `Format` / `FormatToParts` / `FormatRange` / `FormatRangeToParts` **MUST** return direct results for the accepted `time.Time` domain. Locale, option, and time-zone failures belong to `New`; the range methods do not add a method-level error or reject endpoint order.
 4. `DateTimeFormat` is an immutable value; all methods on `*DateTimeFormat` must be concurrency safe.
 5. Formatter options **MUST** adopt the typed `Options` value (same as SPEC 20), and functional options are prohibited from being used as a common main path.
 6. `ResolvedOptions` **MUST** return an immutable snapshot (value type); the results of multiple calls are equal.
 
-> **Why**: Centralized error handling during construction; `Format` does not return error and is byte-checked by conformance fixtures. The parsing of `*time.Location` (`time.LoadLocation`) cannot be redone in the `Format` phase (violating the hot path zero allocation rule).
+> **Why**: Error handling is centralized during construction; all four typed formatting methods return direct results and are byte-checked by conformance fixtures. The parsing of `*time.Location` (`time.LoadLocation`) cannot be redone in the `Format` phase (violating the hot path zero allocation rule).
 
 ### 1.2 Input type
 
@@ -386,7 +386,7 @@ Type string // Strict enumeration, not open
    return apply(intervalFallback, distinguishingEndpointPattern, start, end)
    ```
 2. `intervalFormats` and `intervalFormatFallback` data **MUST** be obtained from the constructor-resolved `internal/cldr/date.GregorianFor(loc)` data (CLDR `ca-gregorian.json` `dateTimeFormats.intervalFormats`).
-3. `FormatRangeToParts` **MUST** return the `[]Part` element with the `Source` field (`"startRange" | "endRange" | "shared"`); the `Part` type is expanded to:
+3. `FormatRangeToParts` **MUST** return `[]RangePart` elements with the `Source` field (`"startRange" | "endRange" | "shared"`):
    ```go
    type RangePart struct {
 Type string // Same as Part.Type
@@ -444,7 +444,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 
 ## 9. Forbidden
 
-- **BANNED** Do not invent additional errors when the `Format` / `FormatToParts` / `FormatRange` path returns option error; Go typed input cannot express JavaScript invalid Date.
+- **BANNED** Do not add method-level errors to `Format` / `FormatToParts` / `FormatRange` / `FormatRangeToParts`; the accepted Go `time.Time` domain has no JavaScript invalid Date state.
 - **DOWN** Calling `time.LoadLocation` on the `Format` path - `*time.Location` must be cached when `New` is used.
 - **BANNED** Check CLDR time zone display name in `Format` path - `metaZones` data must be materialized at `New` time.
 - **NO** Generating calendar pattern data (including Buddhist year offsets) outside of the Gregorian pattern payload before the §3.1 removal path is complete; this is a current implementation boundary, not a permanent range shrinkage.

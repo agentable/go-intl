@@ -27,10 +27,7 @@ func TestFormatRangeNumericMinute(t *testing.T) {
 	start := time.Date(2026, 1, 1, 9, 5, 0, 0, time.UTC)
 	end := time.Date(2026, 1, 1, 9, 7, 0, 0, time.UTC)
 
-	got, err := f.FormatRange(start, end)
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := f.FormatRange(start, end)
 	const want = "9:05\u2009\u2013\u20099:07 AM"
 	if got != want {
 		t.Errorf("FormatRange = %q, want %q", got, want)
