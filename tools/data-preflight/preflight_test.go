@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -134,6 +136,39 @@ func TestCheckDataPinsRejectsCorruptPinInputs(t *testing.T) {
 			err := checkDataPins(fixture.config)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("checkDataPins() error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestCheckDataPinsPreservesMissingInputCause(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path func(preflightConfig) string
+	}{
+		{name: "version file", path: func(config preflightConfig) string { return config.versionFile }},
+		{name: "CLDR package manifest", path: func(config preflightConfig) string { return config.packageFile }},
+		{name: "tzdata lock", path: func(config preflightConfig) string { return config.tzLockFile }},
+		{name: "Go transition data", path: func(config preflightConfig) string { return config.goUpdateFile }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newPreflightFixture(t)
+			path := tc.path(fixture.config)
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+
+			err := checkDataPins(fixture.config)
+			if !errors.Is(err, fs.ErrNotExist) {
+				t.Fatalf("checkDataPins() error = %v, want fs.ErrNotExist", err)
+			}
+			if !strings.Contains(err.Error(), path) {
+				t.Fatalf("checkDataPins() error = %v, want path %q", err, path)
 			}
 		})
 	}
