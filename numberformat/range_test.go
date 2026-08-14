@@ -396,7 +396,7 @@ func TestNumberFormatFormatRangeToPartsCollapsesCurrency(t *testing.T) {
 		t.Fatalf("FormatRange(1, 2) = %q, want USD1.00–2.00", got)
 	}
 	want := []RangePart{
-		{Type: PartCurrency, Value: "USD", Source: SourceStartRange},
+		{Type: PartCurrency, Value: "USD", Source: SourceShared},
 		{Type: PartInteger, Value: "1", Source: SourceStartRange},
 		{Type: PartDecimal, Value: ".", Source: SourceStartRange},
 		{Type: PartFraction, Value: "00", Source: SourceStartRange},
@@ -407,5 +407,216 @@ func TestNumberFormatFormatRangeToPartsCollapsesCurrency(t *testing.T) {
 	}
 	if got := mustFormatRangeToParts(t, format, Float(1), Float(2)); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FormatRangeToParts(1, 2) = %#v, want %#v", got, want)
+	}
+}
+
+func TestNumberFormatRangeUsesPluralRangeCategory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("czech long meter", func(t *testing.T) {
+		t.Parallel()
+
+		format, err := New(locale.List{intltest.Locale(t, "cs")}, Options{
+			Style:       stringPtr(UnitStyle),
+			Unit:        stringPtr("meter"),
+			UnitDisplay: stringPtr(LongUnitDisplay),
+		})
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		const want = "2–1 metrů"
+		if got := mustFormatRange(t, format, Int(2), Int(1)); got != want {
+			t.Fatalf("FormatRange() = %q, want %q", got, want)
+		}
+		wantParts := []RangePart{
+			{Type: PartInteger, Value: "2", Source: SourceStartRange},
+			{Type: PartLiteral, Value: "–", Source: SourceShared},
+			{Type: PartInteger, Value: "1", Source: SourceEndRange},
+			{Type: PartLiteral, Value: " ", Source: SourceShared},
+			{Type: PartUnit, Value: "metrů", Source: SourceShared},
+		}
+		if got := mustFormatRangeToParts(t, format, Int(2), Int(1)); !reflect.DeepEqual(got, wantParts) {
+			t.Fatalf("FormatRangeToParts() = %#v, want %#v", got, wantParts)
+		}
+	})
+
+	t.Run("czech USD display name", func(t *testing.T) {
+		t.Parallel()
+
+		format, err := New(locale.List{intltest.Locale(t, "cs")}, Options{
+			Style:                 stringPtr(CurrencyStyle),
+			Currency:              stringPtr("USD"),
+			CurrencyDisplay:       stringPtr(CurrencyDisplayName),
+			MaximumFractionDigits: intPtr(0),
+		})
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		const want = "2–1 amerických dolarů"
+		if got := mustFormatRange(t, format, Int(2), Int(1)); got != want {
+			t.Fatalf("FormatRange() = %q, want %q", got, want)
+		}
+		wantParts := []RangePart{
+			{Type: PartInteger, Value: "2", Source: SourceStartRange},
+			{Type: PartLiteral, Value: "–", Source: SourceShared},
+			{Type: PartInteger, Value: "1", Source: SourceEndRange},
+			{Type: PartLiteral, Value: " ", Source: SourceShared},
+			{Type: PartCurrency, Value: "amerických dolarů", Source: SourceShared},
+		}
+		if got := mustFormatRangeToParts(t, format, Int(2), Int(1)); !reflect.DeepEqual(got, wantParts) {
+			t.Fatalf("FormatRangeToParts() = %#v, want %#v", got, wantParts)
+		}
+	})
+}
+
+func TestNumberFormatRangeCollapsesCallerVisibleAffixes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		locale  string
+		options Options
+		start   Value
+		end     Value
+		want    string
+		parts   []RangePart
+	}{
+		{
+			name:   "negative percent shares paired affixes",
+			locale: "en",
+			options: Options{
+				Style:                 stringPtr(PercentStyle),
+				MaximumFractionDigits: intPtr(0),
+			},
+			start: Float(-0.01), end: Float(-0.02), want: "-1–2%",
+			parts: []RangePart{
+				{Type: PartMinusSign, Value: "-", Source: SourceShared},
+				{Type: PartInteger, Value: "1", Source: SourceStartRange},
+				{Type: PartLiteral, Value: "–", Source: SourceShared},
+				{Type: PartInteger, Value: "2", Source: SourceEndRange},
+				{Type: PartPercentSign, Value: "%", Source: SourceShared},
+			},
+		},
+		{
+			name:   "unit suffix collapses",
+			locale: "fr",
+			options: Options{
+				Style:       stringPtr(UnitStyle),
+				Unit:        stringPtr("kilometer-per-hour"),
+				UnitDisplay: stringPtr(LongUnitDisplay),
+			},
+			start: Int(1), end: Int(2), want: "1–2\u00a0kilomètres par heure",
+			parts: []RangePart{
+				{Type: PartInteger, Value: "1", Source: SourceStartRange},
+				{Type: PartLiteral, Value: "–", Source: SourceShared},
+				{Type: PartInteger, Value: "2", Source: SourceEndRange},
+				{Type: PartLiteral, Value: "\u00a0", Source: SourceShared},
+				{Type: PartUnit, Value: "kilomètres par heure", Source: SourceShared},
+			},
+		},
+		{
+			name:   "narrow unit suffix collapses",
+			locale: "en",
+			options: Options{
+				Style:       stringPtr(UnitStyle),
+				Unit:        stringPtr("meter"),
+				UnitDisplay: stringPtr(NarrowUnitDisplay),
+			},
+			start: Int(1), end: Int(2), want: "1–2m",
+			parts: []RangePart{
+				{Type: PartInteger, Value: "1", Source: SourceStartRange},
+				{Type: PartLiteral, Value: "–", Source: SourceShared},
+				{Type: PartInteger, Value: "2", Source: SourceEndRange},
+				{Type: PartUnit, Value: "m", Source: SourceShared},
+			},
+		},
+		{
+			name:   "negative unit keeps endpoint signs",
+			locale: "en",
+			options: Options{
+				Style:       stringPtr(UnitStyle),
+				Unit:        stringPtr("meter"),
+				UnitDisplay: stringPtr(LongUnitDisplay),
+			},
+			start: Int(-1), end: Int(-2), want: "-1 – -2 meters",
+			parts: []RangePart{
+				{Type: PartMinusSign, Value: "-", Source: SourceStartRange},
+				{Type: PartInteger, Value: "1", Source: SourceStartRange},
+				{Type: PartLiteral, Value: " – ", Source: SourceShared},
+				{Type: PartMinusSign, Value: "-", Source: SourceEndRange},
+				{Type: PartInteger, Value: "2", Source: SourceEndRange},
+				{Type: PartLiteral, Value: " ", Source: SourceShared},
+				{Type: PartUnit, Value: "meters", Source: SourceShared},
+			},
+		},
+		{
+			name:   "negative currency name keeps endpoint signs",
+			locale: "en",
+			options: Options{
+				Style:                 stringPtr(CurrencyStyle),
+				Currency:              stringPtr("USD"),
+				CurrencyDisplay:       stringPtr(CurrencyDisplayName),
+				MaximumFractionDigits: intPtr(0),
+			},
+			start: Int(-1), end: Int(-2), want: "-1 – -2 US dollars",
+			parts: []RangePart{
+				{Type: PartMinusSign, Value: "-", Source: SourceStartRange},
+				{Type: PartInteger, Value: "1", Source: SourceStartRange},
+				{Type: PartLiteral, Value: " – ", Source: SourceShared},
+				{Type: PartMinusSign, Value: "-", Source: SourceEndRange},
+				{Type: PartInteger, Value: "2", Source: SourceEndRange},
+				{Type: PartLiteral, Value: " ", Source: SourceShared},
+				{Type: PartCurrency, Value: "US dollars", Source: SourceShared},
+			},
+		},
+		{
+			name:   "accounting currency prefix and suffix",
+			locale: "en-US",
+			options: Options{
+				Style:        stringPtr(CurrencyStyle),
+				Currency:     stringPtr("USD"),
+				CurrencySign: stringPtr(AccountingCurrencySign),
+			},
+			start: Int(-1), end: Int(-2), want: "($1.00–2.00)",
+			parts: []RangePart{
+				{Type: PartLiteral, Value: "(", Source: SourceShared},
+				{Type: PartCurrency, Value: "$", Source: SourceShared},
+				{Type: PartInteger, Value: "1", Source: SourceStartRange},
+				{Type: PartDecimal, Value: ".", Source: SourceStartRange},
+				{Type: PartFraction, Value: "00", Source: SourceStartRange},
+				{Type: PartLiteral, Value: "–", Source: SourceShared},
+				{Type: PartInteger, Value: "2", Source: SourceEndRange},
+				{Type: PartDecimal, Value: ".", Source: SourceEndRange},
+				{Type: PartFraction, Value: "00", Source: SourceEndRange},
+				{Type: PartLiteral, Value: ")", Source: SourceShared},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			format, err := New(locale.List{intltest.Locale(t, tc.locale)}, tc.options)
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			if got := mustFormatRange(t, format, tc.start, tc.end); got != tc.want {
+				t.Fatalf("FormatRange() = %q, want %q", got, tc.want)
+			}
+			parts := mustFormatRangeToParts(t, format, tc.start, tc.end)
+			if got := rangePartsText(parts); got != tc.want {
+				t.Fatalf("joined FormatRangeToParts() = %q, want %q; parts=%#v", got, tc.want, parts)
+			}
+			if tc.parts != nil && !reflect.DeepEqual(parts, tc.parts) {
+				t.Fatalf("FormatRangeToParts() = %#v, want %#v", parts, tc.parts)
+			}
+			seenShared := false
+			for _, part := range parts {
+				seenShared = seenShared || part.Source == SourceShared
+			}
+			if !seenShared {
+				t.Fatalf("FormatRangeToParts() has no shared affix or separator: %#v", parts)
+			}
+		})
 	}
 }

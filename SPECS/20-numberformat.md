@@ -365,6 +365,22 @@ output; it does not call a public `pluralrules.PluralRules` instance.
 6. `FormatRange` / `FormatRangeToParts` **MUST** return `ErrInvalidValue` for `NaN` endpoints instead of signaling errors with empty strings or nil parts. Positive and negative infinity remain valid ECMA-402 mathematical values and must format through the normal parts pipeline.
 7. `a > b` **MUST NOT** be locally normalized, transposed, rejected, or added `~`; numeric ranges are formatted in input order and then collapsed.
 8. When the formatted endpoint visible text is the same, output shared `approximatelySign` part + shared digital parts (for example, when the maximum fraction digits is 0, `1.1–1.2` outputs `~1`).
+9. After visible endpoint equality has failed, plural-sensitive unit patterns and
+   `currencyDisplay = "name"` patterns **MUST** select one shared modifier from
+   the cardinal range category. The category is resolved from the two formatted
+   style operands through the generated explicit CLDR pair when present and
+   `Other` on a sparse-table miss, as owned by
+   [SPEC 40 §PluralRanges data](./40-pluralrules.md#plural-ranges). The formatter
+   freezes the required data locale and cardinal rule in `New`; range methods
+   must not construct public PluralRules, copy range data, or change symbol/code
+   currency and single-value formatting paths.
+10. Collapse **MUST** preserve exact `RangeSource` attribution. Shared affixes,
+    including compatible unit/currency phrases, accounting wrappers, and the
+    paired identical sign and percent affixes used by negative or explicitly
+    signed percent ranges, use `shared`; endpoint numeric partitions retain
+    `startRange` and `endRange`. A sign that cannot participate in the complete
+    compatible affix pair remains endpoint-specific, and separator spacing must
+    be chosen from the endpoint parts that remain after collapse.
 
 > **Why**: NumberFormatPart and DateTimeFormatPart have different fields (`unit | currency | percentSign | exponentInteger` vs `era | year | month | ...`). Although the collapse algorithm has the same structure (removing suffixes), it works on different part fields; Generated references are also implemented separately.
 >
@@ -456,6 +472,7 @@ green.
 | FormatJS `format`, `formatToParts`, `formatRange`, and `formatRangeToParts` fixtures are byte-equal except accepted divergence/XFAIL records. | `numberformat/conformance_unified_test.go`; `numberformat/testdata/conformance/formatjs/*.json`; `task conformance:verify` | Satisfied |
 | Compact `zh-TW` output stays source-owned by the generated FormatJS lane, including `format(98765) == "9.9\u842c"`. | `numberformat/testdata/conformance/formatjs/notation-compact-zh-tw-test-ts.json` | Satisfied |
 | Constructor, invalid option, NaN, decimal parse, accounting sign, compact long, and rounding-priority behavior are covered by package tests and Node/manual fixtures. | `numberformat/format_test.go`; `numberformat/resolved_options_test.go`; `numberformat/range_test.go`; `numberformat/testdata/conformance/node-v26/*.json`; `numberformat/testdata/conformance/manual/*.json` | Satisfied |
+| Number ranges select shared unit and currency-name morphology from the cardinal range category, and paired sign/percent affixes preserve native text, parts, and sources. | `numberformat/range_test.go`; `numberformat/testdata/conformance/node-v26/edge.json`; `tools/node-witness/main.go`; `tools/conformance/product_contract_test.go`; `task conformance:verify` | Satisfied |
 | Resolved optional scalar fields preserve ECMA-402 absence semantics with pointers. | `numberformat/resolved_options_test.go`; `numberformat/conformance_unified_test.go` | Satisfied |
 | NumberFormat compact suffix selection is independent from public PluralRules compact source-decimal selection. | `compact_contract_test.go`; SPEC 40 Node compact fixtures | Satisfied |
 | NumberFormat keeps decimal rounding centralized in `internal/ecma402/numberformat` and does not expose public compact-plural helpers. | `internal/ecma402/numberformat/*`; absence of `SelectFormatted` / `ResolvePlural` in Go source | Satisfied |

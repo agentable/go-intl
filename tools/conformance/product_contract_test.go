@@ -67,6 +67,27 @@ func TestNumberFormatResolvedOptionContractsExist(t *testing.T) {
 	}
 }
 
+func TestNumberFormatRangeNodeContractsExist(t *testing.T) {
+	t.Parallel()
+
+	fixtures := loadPackageFixtures(t, "numberformat")
+	byID := fixturesByID(fixtures)
+	for id, want := range map[string]string{
+		nodeWitnessFixtureID("numberformat", "czech-plural-range-unit"):          "2–1 metrů",
+		nodeWitnessFixtureID("numberformat", "czech-plural-range-currency-name"): "2–1 amerických dolarů",
+		nodeWitnessFixtureID("numberformat", "negative-percent-range-affixes"):   "-1–2%",
+	} {
+		fixture := requireFixtureByID(t, byID, id, "NumberFormat range node contract")
+		if fixture.ExpectedRange == nil || *fixture.ExpectedRange != want {
+			t.Fatalf("fixture %q expectedRange = %v, want %q", id, fixture.ExpectedRange, want)
+		}
+		if len(fixture.ExpectedRangeParts) == 0 {
+			t.Fatalf("fixture %q missing expectedRangeParts", id)
+		}
+		requireExpectedResolvedOptions(t, fixture)
+	}
+}
+
 func TestDisplayNamesResolvedOptionContractsExist(t *testing.T) {
 	t.Parallel()
 

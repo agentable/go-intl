@@ -409,6 +409,9 @@ const witness = {
     numberFormatEdgeFixture('rounding-priority-more-precision', 'en', {minimumSignificantDigits: 2, maximumFractionDigits: 0, roundingPriority: 'morePrecision'}, 1.234),
     numberFormatEdgeFixture('compact-plural-few', 'ru', {notation: 'compact', compactDisplay: 'long'}, 2000),
     numberFormatRangeEdgeFixture('range-collapse', 'en', {maximumFractionDigits: 0}, 1.2, 1.4),
+    numberFormatRangeEdgeFixture('czech-plural-range-unit', 'cs', {style: 'unit', unit: 'meter', unitDisplay: 'long'}, 2, 1),
+    numberFormatRangeEdgeFixture('czech-plural-range-currency-name', 'cs', {style: 'currency', currency: 'USD', currencyDisplay: 'name', maximumFractionDigits: 0}, 2, 1),
+    numberFormatRangeEdgeFixture('negative-percent-range-affixes', 'en', {style: 'percent', maximumFractionDigits: 0}, -0.01, -0.02),
   ],
   numberFormatResolved: [
     numberFormatFixture('resolved-decimal-default', 'en', {}, 12345.6),

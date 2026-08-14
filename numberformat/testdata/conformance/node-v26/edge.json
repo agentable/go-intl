@@ -200,5 +200,181 @@
       "trailingZeroDisplay": "auto",
       "useGrouping": "auto"
     }
+  },
+  {
+    "id": "numberformat-node-v26-czech-plural-range-unit",
+    "source": "node:v26.0.0:numberformat:edge",
+    "locale": "cs",
+    "options": {
+      "style": "unit",
+      "unit": "meter",
+      "unitDisplay": "long"
+    },
+    "input": {
+      "end": 1,
+      "start": 2
+    },
+    "expectedRange": "2–1 metrů",
+    "expectedRangeParts": [
+      {
+        "type": "integer",
+        "value": "2",
+        "source": "startRange"
+      },
+      {
+        "type": "literal",
+        "value": "–",
+        "source": "shared"
+      },
+      {
+        "type": "integer",
+        "value": "1",
+        "source": "endRange"
+      },
+      {
+        "type": "literal",
+        "value": " ",
+        "source": "shared"
+      },
+      {
+        "type": "unit",
+        "value": "metrů",
+        "source": "shared"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "locale": "cs",
+      "maximumFractionDigits": 3,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "auto",
+      "signDisplay": "auto",
+      "style": "unit",
+      "trailingZeroDisplay": "auto",
+      "unit": "meter",
+      "unitDisplay": "long",
+      "useGrouping": "auto"
+    }
+  },
+  {
+    "id": "numberformat-node-v26-czech-plural-range-currency-name",
+    "source": "node:v26.0.0:numberformat:edge",
+    "locale": "cs",
+    "options": {
+      "currency": "USD",
+      "currencyDisplay": "name",
+      "maximumFractionDigits": 0,
+      "style": "currency"
+    },
+    "input": {
+      "end": 1,
+      "start": 2
+    },
+    "expectedRange": "2–1 amerických dolarů",
+    "expectedRangeParts": [
+      {
+        "type": "integer",
+        "value": "2",
+        "source": "startRange"
+      },
+      {
+        "type": "literal",
+        "value": "–",
+        "source": "shared"
+      },
+      {
+        "type": "integer",
+        "value": "1",
+        "source": "endRange"
+      },
+      {
+        "type": "literal",
+        "value": " ",
+        "source": "shared"
+      },
+      {
+        "type": "currency",
+        "value": "amerických dolarů",
+        "source": "shared"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "currency": "USD",
+      "currencyDisplay": "name",
+      "currencySign": "standard",
+      "locale": "cs",
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "auto",
+      "signDisplay": "auto",
+      "style": "currency",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": "auto"
+    }
+  },
+  {
+    "id": "numberformat-node-v26-negative-percent-range-affixes",
+    "source": "node:v26.0.0:numberformat:edge",
+    "locale": "en",
+    "options": {
+      "maximumFractionDigits": 0,
+      "style": "percent"
+    },
+    "input": {
+      "end": -0.02,
+      "start": -0.01
+    },
+    "expectedRange": "-1–2%",
+    "expectedRangeParts": [
+      {
+        "type": "minusSign",
+        "value": "-",
+        "source": "shared"
+      },
+      {
+        "type": "integer",
+        "value": "1",
+        "source": "startRange"
+      },
+      {
+        "type": "literal",
+        "value": "–",
+        "source": "shared"
+      },
+      {
+        "type": "integer",
+        "value": "2",
+        "source": "endRange"
+      },
+      {
+        "type": "percentSign",
+        "value": "%",
+        "source": "shared"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "auto",
+      "signDisplay": "auto",
+      "style": "percent",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": "auto"
+    }
   }
 ]

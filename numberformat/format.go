@@ -24,6 +24,7 @@ func (f *NumberFormat) FormatToParts(v Value) []Part {
 }
 
 type decimalFormatState struct {
+	dataLocale   string
 	resolved     ResolvedOptions
 	symbols      cldrnumber.NumberSymbols
 	grouping     digitGrouping
@@ -36,6 +37,11 @@ type decimalFormatState struct {
 }
 
 func formatDecimalToPartsAppend(parts []Part, d decimal.Decimal, state *decimalFormatState) []Part {
+	parts, operand := formatDecimalOperandToPartsAppend(parts, d, state)
+	return applyStylePattern(parts, operand, state)
+}
+
+func formatDecimalOperandToPartsAppend(parts []Part, d decimal.Decimal, state *decimalFormatState) ([]Part, stylePluralOperand) {
 	resolved := state.resolved
 	style := resolved.Style
 	notation := resolved.Notation
@@ -45,11 +51,11 @@ func formatDecimalToPartsAppend(parts []Part, d decimal.Decimal, state *decimalF
 	digitOptions := state.digitOptions
 	if d.IsNaN() {
 		parts = applySpecialSignDisplay(append(parts, Part{Type: PartNaN, Value: symbols.NaN}), false, true, signDisplay, symbols)
-		return applyStylePattern(parts, stylePluralOperand{}, state)
+		return parts, stylePluralOperand{}
 	}
 	if d.IsInf() {
 		parts = applySpecialSignDisplay(append(parts, Part{Type: PartInfinity, Value: symbols.Infinity}), d.Negative(), false, signDisplay, symbols)
-		return applyStylePattern(parts, stylePluralOperand{}, state)
+		return parts, stylePluralOperand{}
 	}
 	if style == PercentStyle {
 		d = decimal.MulInt(d, 100)
@@ -70,7 +76,7 @@ func formatDecimalToPartsAppend(parts []Part, d decimal.Decimal, state *decimalF
 		parts = applySignDisplay(parts, d.Negative(), signDisplay, symbols)
 		operand = stylePluralOperand{formatted: result.Formatted, finite: true}
 	}
-	return applyStylePattern(parts, operand, state)
+	return parts, operand
 }
 
 type stylePluralOperand struct {
@@ -80,6 +86,17 @@ type stylePluralOperand struct {
 }
 
 func applyStylePattern(parts []Part, operand stylePluralOperand, state *decimalFormatState) []Part {
+	return applyStylePatternForPlural(parts, stylePluralCategory(operand, state.cardinalRule), state)
+}
+
+func stylePluralCategory(operand stylePluralOperand, cardinalRule pluralRuleFunc) pluralop.Category {
+	if !operand.finite {
+		return pluralop.Other
+	}
+	return pluralCategoryForNotation(cardinalRule, operand.formatted, operand.exponent)
+}
+
+func applyStylePatternForPlural(parts []Part, plural pluralop.Category, state *decimalFormatState) []Part {
 	resolved := state.resolved
 	style := resolved.Style
 	numberingSystem := resolved.NumberingSystem
@@ -87,18 +104,10 @@ func applyStylePattern(parts []Part, operand stylePluralOperand, state *decimalF
 		parts = append(parts, Part{Type: PartPercentSign, Value: state.symbols.Percent})
 	}
 	if style == CurrencyStyle {
-		if operand.finite {
-			plural := pluralCategoryForNotation(state.cardinalRule, operand.formatted, operand.exponent)
-			return localizeParts(applyCurrencyPatternForPlural(parts, plural, resolved, state.currencyLoc, state.currency), numberingSystem)
-		}
-		return localizeParts(applyCurrencyPatternForPlural(parts, pluralop.Other, resolved, state.currencyLoc, state.currency), numberingSystem)
+		return localizeParts(applyCurrencyPatternForPlural(parts, plural, resolved, state.currencyLoc, state.currency), numberingSystem)
 	}
 	if style == UnitStyle {
-		if operand.finite {
-			plural := pluralCategoryForNotation(state.cardinalRule, operand.formatted, operand.exponent)
-			return localizeParts(applyUnitPatternForPlural(parts, plural, state.unit), numberingSystem)
-		}
-		return localizeParts(applyUnitPatternForPlural(parts, pluralop.Other, state.unit), numberingSystem)
+		return localizeParts(applyUnitPatternForPlural(parts, plural, state.unit), numberingSystem)
 	}
 	return localizeParts(parts, numberingSystem)
 }

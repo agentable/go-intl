@@ -337,29 +337,17 @@ func renderCategoriesFile(cardinal, ordinal map[string][]Rule) string
 **MUST** Rules:
 
 1. `pluralRanges.json` data **MUST** be in the same pipeline codegen as `plurals.json` / `ordinals.json`, and output to `internal/cldr/plural/range_rules.go`.
-2. Form:
+2. The generated artifact remains sparse and exposes whether the requested
+   category pair has an explicit CLDR row:
    ```go
-   type rangeKey struct {
-       Start, End pluralop.Category
-   }
-
-   func Range(loc, typ string, start, end pluralop.Category) (pluralop.Category, bool) {
-       if typ != "cardinal" {
-           return pluralop.Other, false
-       }
-       ranges, ok := cardinalRanges[loc]
-       if !ok {
-           return pluralop.Other, false
-       }
-       result, ok := ranges[rangeKey{start, end}]
-       return result, ok
-   }
-
-   var cardinalRanges = map[string]map[rangeKey]pluralop.Category{
-       // ...
+   func CardinalRange(loc string, start, end pluralop.Category) (pluralop.Category, bool) {
+       // Generated lookup returns ok=false when no explicit row exists.
    }
    ```
-3. accessor:`Range(loc, typ string, start, end Category) (Category, bool)`, bool indicates whether the table is hit (used for fallback decision-making).
+3. The handwritten `ResolveCardinalRange` wrapper **MUST** return the generated
+   result for an explicit row and `Other` for a miss. Runtime fallback policy
+   must not be emitted into `range_rules.go` or represented as fabricated CLDR
+   rows.
 
 ---
 
@@ -433,27 +421,26 @@ function SelectRange(start, end Value) Category:
     if sResult.formatted == eResult.formatted:
         return sResult.category
 
-// Step 2: locale does not have pluralRanges data → fall back to eCat(end-class)
-    rangeMap, ok := pluralRanges[localeData]
-    if !ok:
-        return eResult.category
-
-// Step 3: Check pluralRanges["${sCat}_${eCat}"]; fall back to eCat if missed
-    cat, ok := rangeMap[{sResult.category, eResult.category}]
-    if !ok:
-        return eResult.category
-    return cat
+// Step 2: Resolve the explicit cardinal row; return Other on a sparse-table miss.
+    return ResolveCardinalRange(localeData, sResult.category, eResult.category)
 ```
 
 **MUST** Rules:
 
-1. The three-step sequence **MUST** strictly follow ECMA-402 §16.5.4.
+1. The sequence **MUST** preserve ECMA-402 `ResolvePluralRange`: resolve both
+   endpoints, short-circuit equal formatted strings, then invoke the
+   implementation-defined range-category resolver.
 2. "Formatted string equality" determination **MUST** pass `FormatNumericToString(start) == FormatNumericToString(end)` string comparison, **not** pass `decimal.Cmp`. Mathematical equality alone is insufficient because digit options can make distinct values visibly equal (for example, `1.1` and `1.2` with `maximumFractionDigits=0`); conversely, `1`, `1.0`, and `1.00` are the same mathematical input and must not differ solely by parser scale.
-3. When there is no `pluralRanges` data in the locale, it **MUST** fall back to `eCat`(end-class), and **is prohibited** from falling back to `sCat` or return an error.
-4. `rangeMap` misses `(sCat, eCat)` **MUST** fallback to `eCat`, and is **disabled** from automatically trying heuristic fallbacks such as `(sCat, Other)` or `(Other, eCat)`.
+3. A cardinal explicit-row hit **MUST** return its generated category. Missing
+   locale data or a missing `(sCat, eCat)` row **MUST** return `Other` without
+   retrying heuristic pairs such as `(sCat, Other)` or `(Other, eCat)`.
+4. Ordinal range selection has no generated range table and **MUST** retain its
+   end-category behavior.
 5. A NaN start or end **MUST** return `ErrInvalidValue`. Positive and negative infinity **MUST** resolve to `Other` with their special-value formatted strings and continue through the same equality and range-category steps.
 
-> **Why**: Step 1 short-circuiting "1–1" is the solidified behavior of Generated reference; step 2 falling back to end-class is explicitly specified by ECMA-402 §16.5.4; heuristic fallback will introduce inconsistencies with Generated reference.
+> **Why**: ECMA-402 defines `PluralRuleSelectRange` as implementation-defined
+> and permits `Other`. ICU returns `Other` when its sparse plural-range table
+> has no row, while preserving explicit CLDR results.
 >
 > **Rejected**: Math comparison short-circuiting step 1 - inconsistent with reference behavior.
 > **Rejected**: Error (no ranges data) - Consistency conflict with `Select` which does not return error.
@@ -529,7 +516,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - **BANNED** `SelectFormatted` / `ResolvePlural` exposed as public API - NumberFormat compact path selection via internal operand builder and generated cardinal rule.
 - **FORBIDDEN** NumberFormat Copy plural DSL or rule table - plural category is only allowed from `internal/cldr/plural` codegen.
 - **Disabled** Mathematical comparison short-circuit `SelectRange` step 1 (string comparison required).
-- **BANNED** `SelectRange` heuristic fallback (`(sCat, Other)` / `(Other, eCat)` etc.) - must strictly fallback to `eCat`.
+- **BANNED** `SelectRange` heuristic fallback (`(sCat, Other)` / `(Other, eCat)` etc.) or end-category fallback for a missing cardinal row - must return `Other`.
 - **BANNED** `PluralCategories` hardcodes all 6 class lists - must be looked up from codegen data.
 - **BANNED** `panic` any user path.
 - **disable** codegen from outputting unused operand expressions (should-emit optimization).

@@ -57,14 +57,11 @@ func selectRangeCategories(startCategory Category, endCategory Category, f *Plur
 	if f.resolved.Type != Cardinal {
 		return endCategory
 	}
-	if category, ok := plural.CardinalRange(
+	return Category(plural.ResolveCardinalRange(
 		f.dataLocale,
 		pluralop.Category(startCategory),
 		pluralop.Category(endCategory),
-	); ok {
-		return Category(category)
-	}
-	return endCategory
+	))
 }
 
 func invalidRangeValue(name, value, loc string, err error) error {

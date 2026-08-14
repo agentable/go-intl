@@ -84,6 +84,7 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 	}
 	return &NumberFormat{
 		formatState: decimalFormatState{
+			dataLocale:   dataLocale,
 			resolved:     resolved,
 			symbols:      symbols,
 			grouping:     grouping,

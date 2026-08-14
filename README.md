@@ -434,7 +434,9 @@ an error for invalid runtime endpoints such as `NaN`.
 
 `SelectRange` follows the same digit-option formatting path as `Select`: if two
 decimal endpoints format to different strings, they fall through to CLDR plural
-range data even when their mathematical rounded values compare equal.
+range data even when their mathematical rounded values compare equal. Cardinal
+ranges use the locale's explicit category-pair result when present and return
+`other` when that pair is not defined.
 
 Compact plural selection follows native Intl behavior. Public `PluralRules`
 compact notation selects from the source decimal string plus the selected

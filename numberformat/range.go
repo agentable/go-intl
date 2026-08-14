@@ -2,9 +2,11 @@ package numberformat
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/agentable/go-intl/internal/cldr/plural"
 	"github.com/agentable/go-intl/internal/decimal"
 	"github.com/agentable/go-intl/internal/ecma402"
 )
@@ -27,21 +29,43 @@ func partitionNumberRange(start, end decimal.Decimal, formatState *decimalFormat
 	if start.IsNaN() || end.IsNaN() {
 		return nil, invalidNumberRange(start, end, formatState.resolved.Locale.String())
 	}
-	startParts := formatDecimalToPartsAppend(nil, start, formatState)
-	endParts := formatDecimalToPartsAppend(nil, end, formatState)
+	startNumberParts, startOperand := formatDecimalOperandToPartsAppend(nil, start, formatState)
+	endNumberParts, endOperand := formatDecimalOperandToPartsAppend(nil, end, formatState)
+	startParts := applyStylePattern(slices.Clone(startNumberParts), startOperand, formatState)
+	endParts := applyStylePattern(slices.Clone(endNumberParts), endOperand, formatState)
 	if partValuesEqual(startParts, endParts) {
 		out := make([]RangePart, len(startParts)+1)
 		out[0] = RangePart{Type: PartApproximatelySign, Value: formatState.symbols.ApproxSign, Source: SourceShared}
 		fillRangeParts(out[1:], startParts, SourceShared)
 		return out, nil
 	}
+	if rangeUsesPluralCategory(formatState.resolved) {
+		category := plural.ResolveCardinalRange(
+			formatState.dataLocale,
+			stylePluralCategory(startOperand, formatState.cardinalRule),
+			stylePluralCategory(endOperand, formatState.cardinalRule),
+		)
+		startParts = applyStylePatternForPlural(startNumberParts, category, formatState)
+		endParts = applyStylePatternForPlural(endNumberParts, category, formatState)
+	}
+	prefix, startParts, endParts, suffix := collapseRangeEndpointParts(startParts, endParts)
 	separator := numberRangeSeparator(startParts, formatState.symbols.RangeSign)
-	startParts, endParts = collapseRangeEndpointParts(startParts, endParts)
-	out := make([]RangePart, len(startParts)+1+len(endParts))
-	fillRangeParts(out[:len(startParts)], startParts, SourceStartRange)
-	out[len(startParts)] = RangePart{Type: PartLiteral, Value: separator, Source: SourceShared}
-	fillRangeParts(out[len(startParts)+1:], endParts, SourceEndRange)
+	out := make([]RangePart, len(prefix)+len(startParts)+1+len(endParts)+len(suffix))
+	n := len(prefix)
+	fillRangeParts(out[:n], prefix, SourceShared)
+	fillRangeParts(out[n:n+len(startParts)], startParts, SourceStartRange)
+	n += len(startParts)
+	out[n] = RangePart{Type: PartLiteral, Value: separator, Source: SourceShared}
+	n++
+	fillRangeParts(out[n:n+len(endParts)], endParts, SourceEndRange)
+	n += len(endParts)
+	fillRangeParts(out[n:], suffix, SourceShared)
 	return out, nil
+}
+
+func rangeUsesPluralCategory(resolved ResolvedOptions) bool {
+	return resolved.Style == UnitStyle ||
+		(resolved.Style == CurrencyStyle && ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) == CurrencyDisplayName)
 }
 
 func rangePartsText(parts []RangePart) string {
@@ -86,20 +110,52 @@ func fillRangeParts(out []RangePart, parts []Part, source RangeSource) {
 	}
 }
 
-func collapseRangeEndpointParts(startParts, endParts []Part) ([]Part, []Part) {
-	if count := collapsiblePartSuffixCount(startParts); partWidth(startParts[len(startParts)-count:]) > 1 {
-		return startParts[:len(startParts)-count], endParts
+func collapseRangeEndpointParts(startParts, endParts []Part) (prefix, start, end, suffix []Part) {
+	prefixCount := commonCollapsiblePrefixCount(startParts, endParts)
+	suffixCount := compatibleCollapsibleSuffixCount(startParts[prefixCount:], endParts[prefixCount:])
+	prefixWidth := partWidth(startParts[:prefixCount])
+	suffixWidth := partWidth(startParts[len(startParts)-suffixCount:])
+
+	sharedPrefix := startParts[:prefixCount]
+	sharedSuffix := endParts[len(endParts)-suffixCount:]
+	// Paired patterns wrap both endpoints with one logical affix pair. Signs
+	// share only with a paired percent suffix; units and currency names keep an
+	// identical sign on each endpoint.
+	if prefixCount > 0 && suffixCount > 0 && prefixWidth+suffixWidth > 1 &&
+		(!containsSignPart(sharedPrefix) || containsPartType(sharedSuffix, PartPercentSign)) {
+		return sharedPrefix, startParts[prefixCount : len(startParts)-suffixCount], endParts[prefixCount : len(endParts)-suffixCount], sharedSuffix
 	}
-	if count := collapsiblePartPrefixCount(endParts); partWidth(endParts[:count]) > 1 {
-		return startParts, endParts[count:]
+	if suffixWidth > 1 || containsPartType(sharedSuffix, PartUnit) {
+		return nil, startParts[:len(startParts)-suffixCount], endParts[:len(endParts)-suffixCount], endParts[len(endParts)-suffixCount:]
 	}
-	return startParts, endParts
+	if prefixWidth > 1 {
+		return startParts[:prefixCount], startParts[prefixCount:], endParts[prefixCount:], nil
+	}
+	return nil, startParts, endParts, nil
 }
 
-func collapsiblePartSuffixCount(parts []Part) int {
+func containsSignPart(parts []Part) bool {
+	return containsPartType(parts, PartMinusSign) || containsPartType(parts, PartPlusSign)
+}
+
+func containsPartType(parts []Part, typ PartType) bool {
+	for _, part := range parts {
+		if part.Type == typ {
+			return true
+		}
+	}
+	return false
+}
+
+func compatibleCollapsibleSuffixCount(startParts, endParts []Part) int {
 	count := 0
-	for i := len(parts) - 1; i >= 0; i-- {
-		if !isCollapsibleRangePart(parts[i].Type) {
+	for count < len(startParts) && count < len(endParts) {
+		start := startParts[len(startParts)-1-count]
+		end := endParts[len(endParts)-1-count]
+		if !isCollapsibleRangePart(start.Type) || start.Type != end.Type {
+			break
+		}
+		if start.Value != end.Value && start.Type != PartUnit && start.Type != PartCurrency {
 			break
 		}
 		count++
@@ -107,10 +163,12 @@ func collapsiblePartSuffixCount(parts []Part) int {
 	return count
 }
 
-func collapsiblePartPrefixCount(parts []Part) int {
+func commonCollapsiblePrefixCount(startParts, endParts []Part) int {
 	count := 0
-	for _, part := range parts {
-		if !isCollapsibleRangePart(part.Type) {
+	for count < len(startParts) && count < len(endParts) {
+		start := startParts[count]
+		end := endParts[count]
+		if !isCollapsibleRangePart(start.Type) || start != end {
 			break
 		}
 		count++

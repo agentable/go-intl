@@ -1016,6 +1016,76 @@ func TestNumberFormatFormatCompactLong(t *testing.T) {
 	}
 }
 
+func TestNumberFormatNotationPartsRemainStyleAware(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		locale  string
+		options Options
+		value   Value
+		want    string
+		parts   []Part
+	}{
+		{
+			name:   "negative scientific percent",
+			locale: "en",
+			options: Options{
+				Style:                 stringPtr(PercentStyle),
+				Notation:              stringPtr(ScientificNotation),
+				MaximumFractionDigits: intPtr(0),
+			},
+			value: Float(-0.0012),
+			want:  "-1E-1%",
+			parts: []Part{{Type: PartMinusSign, Value: "-"}, {Type: PartInteger, Value: "1"}, {Type: PartExponentSeparator, Value: "E"}, {Type: PartExponentMinusSign, Value: "-"}, {Type: PartExponentInteger, Value: "1"}, {Type: PartPercentSign, Value: "%"}},
+		},
+		{
+			name:   "engineering currency name",
+			locale: "en-US",
+			options: Options{
+				Style:                 stringPtr(CurrencyStyle),
+				Currency:              stringPtr("USD"),
+				CurrencyDisplay:       stringPtr(CurrencyDisplayName),
+				Notation:              stringPtr(EngineeringNotation),
+				MaximumFractionDigits: intPtr(1),
+			},
+			value: Int(12_345),
+			want:  "12.3E3 US dollars",
+			parts: []Part{{Type: PartInteger, Value: "12"}, {Type: PartDecimal, Value: "."}, {Type: PartFraction, Value: "3"}, {Type: PartExponentSeparator, Value: "E"}, {Type: PartExponentInteger, Value: "3"}, {Type: PartLiteral, Value: " "}, {Type: PartCurrency, Value: "US dollars"}},
+		},
+		{
+			name:   "long compact unit",
+			locale: "en",
+			options: Options{
+				Style:          stringPtr(UnitStyle),
+				Unit:           stringPtr("meter"),
+				UnitDisplay:    stringPtr(LongUnitDisplay),
+				Notation:       stringPtr(CompactNotation),
+				CompactDisplay: stringPtr(LongCompactDisplay),
+			},
+			value: Int(2_000_000),
+			want:  "2 million meters",
+			parts: []Part{{Type: PartInteger, Value: "2"}, {Type: PartLiteral, Value: " "}, {Type: PartCompact, Value: "million"}, {Type: PartLiteral, Value: " "}, {Type: PartUnit, Value: "meters"}},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			format, err := New(locale.List{intltest.Locale(t, tc.locale)}, tc.options)
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			if got := format.Format(tc.value); got != tc.want {
+				t.Fatalf("Format() = %q, want %q", got, tc.want)
+			}
+			if got := format.FormatToParts(tc.value); !reflect.DeepEqual(got, tc.parts) {
+				t.Fatalf("FormatToParts() = %#v, want %#v", got, tc.parts)
+			}
+		})
+	}
+}
+
 func TestNumberFormatRoundingOptions(t *testing.T) {
 	t.Parallel()
 

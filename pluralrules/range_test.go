@@ -26,6 +26,8 @@ func TestPluralRulesSelectRange(t *testing.T) {
 		{name: "english equal", locale: "en", start: 1, end: 1, want: One},
 		{name: "french equal zero", locale: "fr", start: 0, end: 0, want: One},
 		{name: "french one to other", locale: "fr", start: 0, end: 2, want: Other},
+		{name: "czech missing few to one", locale: "cs", start: 2, end: 1, want: Other},
+		{name: "czech explicit one to few", locale: "cs", start: 1, end: 2, want: Few},
 		{name: "chinese fallback", locale: "zh", start: 1, end: 5, want: Other},
 	}
 	for _, tc := range tests {
