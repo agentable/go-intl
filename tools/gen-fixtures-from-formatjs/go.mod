@@ -1,6 +1,6 @@
 module github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs
 
-go 1.26.5
+go 1.27
 
 require github.com/agentable/go-intl v0.0.0
 
