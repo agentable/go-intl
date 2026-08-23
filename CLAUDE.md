@@ -43,6 +43,23 @@ go test -bench=. -benchmem ./numberformat/
 go test ./tools/check-conformance ./tools/conformance
 ```
 
+## Release Inventory
+
+The repository publishes one coordinated release set:
+
+| Module | Tag |
+|--------|-----|
+| `github.com/agentable/go-intl` | `vX.Y.Z` |
+| `github.com/agentable/go-intl/tools/gen-cldr` | `tools/gen-cldr/vX.Y.Z` |
+| `github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs` | `tools/gen-fixtures-from-formatjs/vX.Y.Z` |
+| `github.com/agentable/go-intl/tools/gen-plural-rules` | `tools/gen-plural-rules/vX.Y.Z` |
+
+All four modules use the same version, selected as the next patch after the
+highest current version in the set. Their tags must be annotated, point to the
+same commit, and be pushed together with one explicit atomic tag push. Nested
+example, test, integration, reference, and validation modules are verified but
+not published unless this inventory explicitly adds them.
+
 ## Architecture
 
 ```text
