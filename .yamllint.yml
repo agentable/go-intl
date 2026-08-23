@@ -26,4 +26,5 @@ ignore: |
   .references/
   .agents/
   .claude/
+  .tmp/
   testdata/

@@ -317,8 +317,23 @@ tasks:
   data:contract:
     desc: Verify generated CLDR data contracts without regeneration
     cmds:
-      - go test -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile|GeneratedDataShape)$' ./internal/cldr/locale
-      - go test -run 'Test(SupportedCodesDoesNotDecodeOtherBlobs|NarrowIndexDoesNotDecodeMainBlobs|SupportedCalendarsReturnsCopy|SupportedLocalesDoesNotDecode(NameBlobs|PatternBlob|NumberBlob|FieldBlob|PatternBlobs)|GeneratedNumberingSystemExtrasHaveRuntimePayload|RuntimeNumberingSystemPayloadsAreAdvertised)$' ./internal/cldr/currency ./internal/cldr/date ./internal/cldr/displaynames ./internal/cldr/list ./internal/cldr/number ./internal/cldr/relativetime ./internal/cldr/timezone ./internal/cldr/unit
+      # yamllint disable rule:line-length
+      - >-
+        go test
+        -run 'Test(CLDRGeneratedDataContract|ManifestMatchesLocaleProfile|DefaultDataProfilePolicy|CLDRBackedSupportedLocalesReflectProfile|GeneratedDataShape)$'
+        ./internal/cldr/locale
+      - >-
+        go test
+        -run 'Test(SupportedCodesDoesNotDecodeOtherBlobs|NarrowIndexDoesNotDecodeMainBlobs|SupportedCalendarsReturnsCopy|SupportedLocalesDoesNotDecode(NameBlobs|PatternBlob|NumberBlob|FieldBlob|PatternBlobs)|GeneratedNumberingSystemExtrasHaveRuntimePayload|RuntimeNumberingSystemPayloadsAreAdvertised)$'
+        ./internal/cldr/currency
+        ./internal/cldr/date
+        ./internal/cldr/displaynames
+        ./internal/cldr/list
+        ./internal/cldr/number
+        ./internal/cldr/relativetime
+        ./internal/cldr/timezone
+        ./internal/cldr/unit
+      # yamllint enable rule:line-length
       - go test ./internal/cldr/plural
       - go test ./internal/numbering
       - go test ./internal/localeid
@@ -395,7 +410,14 @@ tasks:
         -skip-list .skip-list.json
         -coverage
         -node-witness
-        ./locale ./numberformat ./datetimeformat ./pluralrules ./listformat ./relativetimeformat ./durationformat ./displaynames
+        ./locale
+        ./numberformat
+        ./datetimeformat
+        ./pluralrules
+        ./listformat
+        ./relativetimeformat
+        ./durationformat
+        ./displaynames
 
   conformance:witness:
     desc: Refresh generated Node Intl witness fixtures with the active node binary

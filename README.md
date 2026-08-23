@@ -23,7 +23,7 @@ A Go implementation of the active ECMA-402 `Intl` API with typed constructors an
 go get github.com/agentable/go-intl
 ```
 
-Requires **Go 1.27+**.
+Requires **Go 1.27.0**.
 
 ## Quick Start
 
