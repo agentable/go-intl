@@ -1,14 +1,15 @@
 package testcontract
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"strconv"
 	"testing"
 
 	"github.com/agentable/go-intl/tools/conformance"
 )
 
-type ResolvedOptionsFixture map[string]json.RawMessage
+type ResolvedOptionsFixture map[string]jsontext.Value
 
 func ExpectedResolvedOptions(t testing.TB, fixture conformance.Fixture) ResolvedOptionsFixture {
 	t.Helper()
@@ -110,7 +111,7 @@ func formatResolvedString[T ~string](value T) string {
 	return strconv.Quote(string(value))
 }
 
-func decodeExpectedResolved(t testing.TB, name string, raw json.RawMessage, out any) {
+func decodeExpectedResolved(t testing.TB, name string, raw jsontext.Value, out any) {
 	t.Helper()
 
 	if err := json.Unmarshal(raw, out); err != nil {

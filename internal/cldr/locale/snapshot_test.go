@@ -2,7 +2,8 @@ package cldrlocale_test
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -208,7 +209,7 @@ func readLocaleProfile(t *testing.T, root string) []string {
 	if err != nil {
 		t.Fatalf("read locale profile: %v", err)
 	}
-	var fields map[string]json.RawMessage
+	var fields map[string]jsontext.Value
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		t.Fatalf("parse locale profile fields: %v", err)
 	}

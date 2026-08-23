@@ -230,7 +230,7 @@ func (l *Locale) UnmarshalText(text []byte) error
 
 > **Why**: `encoding.TextMarshaler` is the Go standard interface; after implementation, `json.Marshal(loc)` / `yaml.Marshal(loc)` will automatically use canonical String(), without the need for the consumer to write a custom marshaler.
 >
-> **Rejected**: `MarshalJSON` / `UnmarshalJSON` both coexist (redundant, `encoding/json` automatically falls back to TextMarshaler).
+> **Rejected**: `MarshalJSON` / `UnmarshalJSON` both coexist (redundant, `encoding/json/v2` automatically falls back to TextMarshaler).
 
 ### 3.4 JSON host-boundary records
 

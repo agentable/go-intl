@@ -1,7 +1,8 @@
 package displaynames
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"testing"
 
@@ -60,7 +61,7 @@ func TestConformanceDisplayNamesOptionsPreserveExplicitEmptyString(t *testing.T)
 	t.Parallel()
 
 	_, err := New(intltest.LocaleList(t, "en"), conformanceDisplayNamesOptions(t, conformance.Fixture{
-		Options: json.RawMessage(`{"type":"language","style":""}`),
+		Options: jsontext.Value(`{"type":"language","style":""}`),
 	}))
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want %v", err, intlerr.ErrInvalidOption)

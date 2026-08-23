@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"maps"
 	"os"
 	"path/filepath"
@@ -1082,7 +1082,7 @@ func assertFixtureJSONSummaries(t *testing.T, name string, fixtures []fixture, w
 func mustJSON(t *testing.T, value any) string {
 	t.Helper()
 
-	data, err := json.Marshal(value)
+	data, err := json.Marshal(value, json.Deterministic(true))
 	if err != nil {
 		t.Fatalf("marshal %T: %v", value, err)
 	}

@@ -1,8 +1,9 @@
 package locale
 
 import (
-	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"reflect"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/testcontract"
@@ -48,7 +49,7 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 	})
 }
 
-func assertConformanceLocaleJSON(t *testing.T, got any, want json.RawMessage) {
+func assertConformanceLocaleJSON(t *testing.T, got any, want jsontext.Value) {
 	t.Helper()
 
 	if len(want) == 0 {
@@ -71,15 +72,7 @@ func jsonEqual(a, b []byte) bool {
 	if err := json.Unmarshal(b, &want); err != nil {
 		return false
 	}
-	gotJSON, err := json.Marshal(got)
-	if err != nil {
-		return false
-	}
-	wantJSON, err := json.Marshal(want)
-	if err != nil {
-		return false
-	}
-	return bytes.Equal(gotJSON, wantJSON)
+	return reflect.DeepEqual(got, want)
 }
 
 func conformanceLocaleError(t *testing.T, code string) error {

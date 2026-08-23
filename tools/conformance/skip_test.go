@@ -1,7 +1,7 @@
 package conformance
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"os"
 	"os/exec"
@@ -489,7 +489,7 @@ func TestFixtureHasNativeExpectationRecognizesObservableFields(t *testing.T) {
 		{name: "expected parts", fixture: Fixture{ExpectedParts: []Part{{Type: "integer", Value: "1"}}}, want: true},
 		{name: "expected range", fixture: Fixture{ExpectedRange: &text}, want: true},
 		{name: "expected range parts", fixture: Fixture{ExpectedRangeParts: []RangePart{{Type: "integer", Value: "1", Source: "shared"}}}, want: true},
-		{name: "expected resolved options", fixture: Fixture{ExpectedResolved: json.RawMessage(`{"locale":"en"}`)}, want: true},
+		{name: "expected resolved options", fixture: Fixture{ExpectedResolved: jsontext.Value(`{"locale":"en"}`)}, want: true},
 		{name: "error code", fixture: Fixture{ErrorCode: "RangeError"}, want: true},
 	}
 

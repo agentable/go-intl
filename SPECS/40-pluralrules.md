@@ -269,7 +269,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 **MUST** Rules:
 
 1. The codegen entrance **MUST** be located in `tools/gen-plural-rules/main.go`, an independent Go module (independent `go.mod`, which does not pollute the main module dependency graph).
-2. codegen **MUST** remain stdlib-only: read CLDR JSON with `encoding/json`, construct the output with deterministic strings, and finally format it with `go/format`; **disallow** `dave/jennifer` or other codegen frameworks.
+2. codegen **MUST** remain stdlib-only: read CLDR JSON with `encoding/json/v2`, construct the output with deterministic strings, and finally format it with `go/format`; **disallow** `dave/jennifer` or other codegen frameworks.
 3. The input **MUST** be pinned CLDR JSON: `cldr-core/supplemental/plurals.json` + `ordinals.json` + `pluralRanges.json`, version pinned through [SPEC 50 §Version Pin](./50-cldr-data.md#version-pin).
 4. Output location (each emitted with the generated header; hand-written `rules.go` and `doc.go` in the same package are not generator outputs):
    - `internal/cldr/plural/cardinal_rules.go`

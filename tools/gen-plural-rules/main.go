@@ -1,7 +1,8 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"fmt"
 	"go/format"
@@ -184,13 +185,13 @@ func parsePluralRulesJSON(path string, kind pluralRuleKind) (map[string][]Rule, 
 	return out, nil
 }
 
-func readSupplementalMap(path, key string) (json.RawMessage, error) {
+func readSupplementalMap(path, key string) (jsontext.Value, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	var doc struct {
-		Supplemental map[string]json.RawMessage `json:"supplemental"`
+		Supplemental map[string]jsontext.Value `json:"supplemental"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)

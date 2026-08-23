@@ -1,7 +1,7 @@
 package cldr
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -439,32 +439,32 @@ func TestRequiredStyleFormatsRejectsInvalidInput(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		values map[string]json.RawMessage
+		values map[string]jsontext.Value
 	}{
 		{
 			name: "missing style",
-			values: map[string]json.RawMessage{
-				"long":   json.RawMessage(`"MMMM d, y"`),
-				"medium": json.RawMessage(`"MMM d, y"`),
-				"short":  json.RawMessage(`"M/d/yy"`),
+			values: map[string]jsontext.Value{
+				"long":   jsontext.Value(`"MMMM d, y"`),
+				"medium": jsontext.Value(`"MMM d, y"`),
+				"short":  jsontext.Value(`"M/d/yy"`),
 			},
 		},
 		{
 			name: "empty style",
-			values: map[string]json.RawMessage{
-				"full":   json.RawMessage(`""`),
-				"long":   json.RawMessage(`"MMMM d, y"`),
-				"medium": json.RawMessage(`"MMM d, y"`),
-				"short":  json.RawMessage(`"M/d/yy"`),
+			values: map[string]jsontext.Value{
+				"full":   jsontext.Value(`""`),
+				"long":   jsontext.Value(`"MMMM d, y"`),
+				"medium": jsontext.Value(`"MMM d, y"`),
+				"short":  jsontext.Value(`"M/d/yy"`),
 			},
 		},
 		{
 			name: "invalid style",
-			values: map[string]json.RawMessage{
-				"full":   json.RawMessage(`["bad"]`),
-				"long":   json.RawMessage(`"MMMM d, y"`),
-				"medium": json.RawMessage(`"MMM d, y"`),
-				"short":  json.RawMessage(`"M/d/yy"`),
+			values: map[string]jsontext.Value{
+				"full":   jsontext.Value(`["bad"]`),
+				"long":   jsontext.Value(`"MMMM d, y"`),
+				"medium": jsontext.Value(`"MMM d, y"`),
+				"short":  jsontext.Value(`"M/d/yy"`),
 			},
 		},
 	}
@@ -484,23 +484,23 @@ func TestIntervalFormatsRejectsInvalidInput(t *testing.T) {
 
 	tests := []struct {
 		name string
-		raw  json.RawMessage
+		raw  jsontext.Value
 	}{
 		{
 			name: "missing fallback",
-			raw:  json.RawMessage(`{"yMd":{"d":"M/d/y - M/d/y"}}`),
+			raw:  jsontext.Value(`{"yMd":{"d":"M/d/y - M/d/y"}}`),
 		},
 		{
 			name: "empty fallback",
-			raw:  json.RawMessage(`{"intervalFormatFallback":""}`),
+			raw:  jsontext.Value(`{"intervalFormatFallback":""}`),
 		},
 		{
 			name: "invalid fallback placeholders",
-			raw:  json.RawMessage(`{"intervalFormatFallback":"{0} -"}`),
+			raw:  jsontext.Value(`{"intervalFormatFallback":"{0} -"}`),
 		},
 		{
 			name: "empty field pattern",
-			raw:  json.RawMessage(`{"intervalFormatFallback":"{0} - {1}","yMd":{"d":""}}`),
+			raw:  jsontext.Value(`{"intervalFormatFallback":"{0} - {1}","yMd":{"d":""}}`),
 		},
 	}
 	for _, tc := range tests {
@@ -519,19 +519,19 @@ func TestAppendItemsRejectsInvalidInput(t *testing.T) {
 
 	tests := []struct {
 		name string
-		raw  json.RawMessage
+		raw  jsontext.Value
 	}{
 		{
 			name: "empty pattern",
-			raw:  json.RawMessage(`{"Timezone":""}`),
+			raw:  jsontext.Value(`{"Timezone":""}`),
 		},
 		{
 			name: "missing second placeholder",
-			raw:  json.RawMessage(`{"Timezone":"{0}"}`),
+			raw:  jsontext.Value(`{"Timezone":"{0}"}`),
 		},
 		{
 			name: "duplicate first placeholder",
-			raw:  json.RawMessage(`{"Timezone":"{0} {0} {1}"}`),
+			raw:  jsontext.Value(`{"Timezone":"{0} {0} {1}"}`),
 		},
 	}
 	for _, tc := range tests {
@@ -548,10 +548,10 @@ func TestAppendItemsRejectsInvalidInput(t *testing.T) {
 func TestParseCalendarRejectsInvalidJSON(t *testing.T) {
 	t.Parallel()
 
-	if _, err := parseCalendar(json.RawMessage(`{`)); err == nil {
+	if _, err := parseCalendar(jsontext.Value(`{`)); err == nil {
 		t.Fatal("parseCalendar({) succeeded, want error")
 	}
-	if _, err := parseCalendar(json.RawMessage(`null`)); err == nil {
+	if _, err := parseCalendar(jsontext.Value(`null`)); err == nil {
 		t.Fatal("parseCalendar(null) succeeded, want error")
 	}
 }
@@ -669,7 +669,7 @@ func TestParseCalendarRejectsInvalidSubfields(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := parseCalendar(json.RawMessage(tc.raw)); err == nil {
+			if _, err := parseCalendar(jsontext.Value(tc.raw)); err == nil {
 				t.Fatal("parseCalendar() succeeded, want error")
 			}
 		})
@@ -711,7 +711,7 @@ func TestParseDayPeriodRuleSetSupportsCLDRShapes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := parseDayPeriodRuleSet(json.RawMessage(tc.raw))
+			got, err := parseDayPeriodRuleSet(jsontext.Value(tc.raw))
 			if err != nil {
 				t.Fatalf("parseDayPeriodRuleSet() error = %v", err)
 			}
@@ -736,7 +736,7 @@ func TestParseDayPeriodRuleSetRejectsInvalidInput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := parseDayPeriodRuleSet(json.RawMessage(tc.raw)); err == nil {
+			if _, err := parseDayPeriodRuleSet(jsontext.Value(tc.raw)); err == nil {
 				t.Fatal("parseDayPeriodRuleSet() succeeded, want error")
 			}
 		})
@@ -786,7 +786,7 @@ func TestParseDayPeriodClockRejectsInvalidValues(t *testing.T) {
 func mustParseCalendar(t *testing.T, raw string) Calendar {
 	t.Helper()
 
-	calendar, err := parseCalendar(json.RawMessage(raw))
+	calendar, err := parseCalendar(jsontext.Value(raw))
 	if err != nil {
 		t.Fatalf("parseCalendar() error = %v", err)
 	}

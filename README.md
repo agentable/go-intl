@@ -1,7 +1,7 @@
 # go-intl
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/agentable/go-intl.svg)](https://pkg.go.dev/github.com/agentable/go-intl)
-[![Go Version](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.27%2B-00ADD8?logo=go)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 A Go implementation of the active ECMA-402 `Intl` API with typed constructors and generated CLDR data.
@@ -23,7 +23,7 @@ A Go implementation of the active ECMA-402 `Intl` API with typed constructors an
 go get github.com/agentable/go-intl
 ```
 
-Requires **Go 1.26+**.
+Requires **Go 1.27+**.
 
 ## Quick Start
 

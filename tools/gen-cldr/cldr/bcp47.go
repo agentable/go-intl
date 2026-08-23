@@ -1,7 +1,8 @@
 package cldr
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"os"
@@ -46,7 +47,7 @@ func loadUnicodeTypeAliases(root string) ([]UnicodeTypeAlias, error) {
 			return nil, err
 		}
 		var doc struct {
-			Keyword map[string]json.RawMessage `json:"keyword"`
+			Keyword map[string]jsontext.Value `json:"keyword"`
 		}
 		if err := json.Unmarshal(raw, &doc); err != nil {
 			return nil, fmt.Errorf("parse %s: %w", path, err)
@@ -55,7 +56,7 @@ func loadUnicodeTypeAliases(root string) ([]UnicodeTypeAlias, error) {
 		if !ok || string(uRaw) == "null" {
 			continue
 		}
-		var keys map[string]json.RawMessage
+		var keys map[string]jsontext.Value
 		if err := json.Unmarshal(uRaw, &keys); err != nil {
 			return nil, fmt.Errorf("parse %s keyword.u: %w", path, err)
 		}
@@ -66,7 +67,7 @@ func loadUnicodeTypeAliases(root string) ([]UnicodeTypeAlias, error) {
 			if !isUnicodeKey(key) {
 				return nil, fmt.Errorf("%s keyword.u: invalid key %q", path, key)
 			}
-			var types map[string]json.RawMessage
+			var types map[string]jsontext.Value
 			if err := json.Unmarshal(keyRaw, &types); err != nil {
 				return nil, fmt.Errorf("parse %s keyword.u.%s: %w", path, key, err)
 			}

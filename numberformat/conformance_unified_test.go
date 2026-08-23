@@ -2,7 +2,8 @@ package numberformat
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"math"
 	"testing"
@@ -65,7 +66,7 @@ func TestConformanceNumberOptionsPreserveExplicitEmptyString(t *testing.T) {
 	t.Parallel()
 
 	_, err := New(intltest.LocaleList(t, "en"), conformanceNumberOptions(t, conformance.Fixture{
-		Options: json.RawMessage(`{"style":""}`),
+		Options: jsontext.Value(`{"style":""}`),
 	}))
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want %v", err, intlerr.ErrInvalidOption)
@@ -124,8 +125,8 @@ func conformanceNumberRangeInput(t *testing.T, fixture conformance.Fixture) conf
 	t.Helper()
 
 	var input struct {
-		Start json.RawMessage `json:"start"`
-		End   json.RawMessage `json:"end"`
+		Start jsontext.Value `json:"start"`
+		End   jsontext.Value `json:"end"`
 	}
 	if err := json.Unmarshal(fixture.Input, &input); err != nil {
 		t.Fatal(err)
@@ -136,7 +137,7 @@ func conformanceNumberRangeInput(t *testing.T, fixture conformance.Fixture) conf
 	}
 }
 
-func conformanceNumberInput(t testing.TB, raw json.RawMessage) Value {
+func conformanceNumberInput(t testing.TB, raw jsontext.Value) Value {
 	t.Helper()
 
 	raw = bytes.TrimSpace(raw)
@@ -165,27 +166,27 @@ func conformanceNumberOptions(t *testing.T, fixture conformance.Fixture) Options
 	t.Helper()
 
 	var options struct {
-		Style                    *string         `json:"style"`
-		Currency                 *string         `json:"currency"`
-		CurrencyDisplay          *string         `json:"currencyDisplay"`
-		CurrencySign             *string         `json:"currencySign"`
-		Unit                     *string         `json:"unit"`
-		UnitDisplay              *string         `json:"unitDisplay"`
-		MinimumIntegerDigits     *int            `json:"minimumIntegerDigits"`
-		MinimumFractionDigits    *int            `json:"minimumFractionDigits"`
-		MaximumFractionDigits    *int            `json:"maximumFractionDigits"`
-		MinimumSignificantDigits *int            `json:"minimumSignificantDigits"`
-		MaximumSignificantDigits *int            `json:"maximumSignificantDigits"`
-		RoundingIncrement        *int            `json:"roundingIncrement"`
-		RoundingPriority         *string         `json:"roundingPriority"`
-		RoundingMode             *string         `json:"roundingMode"`
-		TrailingZeroDisplay      *string         `json:"trailingZeroDisplay"`
-		Notation                 *string         `json:"notation"`
-		CompactDisplay           *string         `json:"compactDisplay"`
-		UseGrouping              json.RawMessage `json:"useGrouping"`
-		SignDisplay              *string         `json:"signDisplay"`
-		LocaleMatcher            *string         `json:"localeMatcher"`
-		NumberingSystem          *string         `json:"numberingSystem"`
+		Style                    *string        `json:"style"`
+		Currency                 *string        `json:"currency"`
+		CurrencyDisplay          *string        `json:"currencyDisplay"`
+		CurrencySign             *string        `json:"currencySign"`
+		Unit                     *string        `json:"unit"`
+		UnitDisplay              *string        `json:"unitDisplay"`
+		MinimumIntegerDigits     *int           `json:"minimumIntegerDigits"`
+		MinimumFractionDigits    *int           `json:"minimumFractionDigits"`
+		MaximumFractionDigits    *int           `json:"maximumFractionDigits"`
+		MinimumSignificantDigits *int           `json:"minimumSignificantDigits"`
+		MaximumSignificantDigits *int           `json:"maximumSignificantDigits"`
+		RoundingIncrement        *int           `json:"roundingIncrement"`
+		RoundingPriority         *string        `json:"roundingPriority"`
+		RoundingMode             *string        `json:"roundingMode"`
+		TrailingZeroDisplay      *string        `json:"trailingZeroDisplay"`
+		Notation                 *string        `json:"notation"`
+		CompactDisplay           *string        `json:"compactDisplay"`
+		UseGrouping              jsontext.Value `json:"useGrouping"`
+		SignDisplay              *string        `json:"signDisplay"`
+		LocaleMatcher            *string        `json:"localeMatcher"`
+		NumberingSystem          *string        `json:"numberingSystem"`
 	}
 	if err := json.Unmarshal(fixture.Options, &options); err != nil {
 		t.Fatal(err)
@@ -215,7 +216,7 @@ func conformanceNumberOptions(t *testing.T, fixture conformance.Fixture) Options
 	}
 }
 
-func conformanceUseGroupingOption(t *testing.T, raw json.RawMessage) *string {
+func conformanceUseGroupingOption(t *testing.T, raw jsontext.Value) *string {
 	t.Helper()
 
 	raw = bytes.TrimSpace(raw)

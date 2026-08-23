@@ -1,7 +1,8 @@
 package relativetimeformat
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"testing"
 
@@ -56,7 +57,7 @@ func TestConformanceRelativeOptionsPreserveExplicitEmptyString(t *testing.T) {
 	t.Parallel()
 
 	_, err := New(intltest.LocaleList(t, "en"), conformanceRelativeOptions(t, conformance.Fixture{
-		Options: json.RawMessage(`{"style":""}`),
+		Options: jsontext.Value(`{"style":""}`),
 	}))
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want %v", err, intlerr.ErrInvalidOption)
@@ -76,8 +77,8 @@ func runSupportedLocalesFixture(t *testing.T, fixture conformance.Fixture) {
 }
 
 type relativeFixtureInput struct {
-	Value json.RawMessage `json:"value"`
-	Unit  Unit            `json:"unit"`
+	Value jsontext.Value `json:"value"`
+	Unit  Unit           `json:"unit"`
 }
 
 func conformanceRelativeInput(t *testing.T, fixture conformance.Fixture) relativeFixtureInput {

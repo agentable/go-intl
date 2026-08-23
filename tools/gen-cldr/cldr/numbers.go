@@ -1,7 +1,8 @@
 package cldr
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -56,7 +57,7 @@ func loadNumbers(root string, locales []string) (map[string]Numbers, error) {
 		if !ok {
 			continue
 		}
-		var doc map[string]map[string]map[string]json.RawMessage
+		var doc map[string]map[string]map[string]jsontext.Value
 		if err := json.Unmarshal(raw, &doc); err != nil {
 			return nil, fmt.Errorf("parse %s: %w", path, err)
 		}
@@ -72,7 +73,7 @@ func loadNumbers(root string, locales []string) (map[string]Numbers, error) {
 		if !ok {
 			return nil, fmt.Errorf("numbers body missing for %s", locale)
 		}
-		var fields map[string]json.RawMessage
+		var fields map[string]jsontext.Value
 		if err := json.Unmarshal(body, &fields); err != nil {
 			return nil, fmt.Errorf("parse numbers fields for %s: %w", locale, err)
 		}
@@ -115,7 +116,7 @@ func numberSystemLoadOrder(defaultNumberingSystem string) []string {
 	return []string{defaultNumberingSystem, "latn"}
 }
 
-func loadNumberSystemFields(path, locale string, fields map[string]json.RawMessage, ns string, num *Numbers) error {
+func loadNumberSystemFields(path, locale string, fields map[string]jsontext.Value, ns string, num *Numbers) error {
 	raw, err := requiredNumberSystemField(fields, locale, ns, "symbols")
 	if err != nil {
 		return err
@@ -193,7 +194,7 @@ func loadNumberSystemFields(path, locale string, fields map[string]json.RawMessa
 	return nil
 }
 
-func requiredStandardNumberPattern(path, locale string, fields map[string]json.RawMessage, ns, prefix string) (string, error) {
+func requiredStandardNumberPattern(path, locale string, fields map[string]jsontext.Value, ns, prefix string) (string, error) {
 	raw, err := requiredNumberSystemField(fields, locale, ns, prefix)
 	if err != nil {
 		return "", err
@@ -208,7 +209,7 @@ func requiredStandardNumberPattern(path, locale string, fields map[string]json.R
 	return pattern, nil
 }
 
-func requiredNumberSystemField(fields map[string]json.RawMessage, locale, ns, prefix string) (json.RawMessage, error) {
+func requiredNumberSystemField(fields map[string]jsontext.Value, locale, ns, prefix string) (jsontext.Value, error) {
 	key := prefix + "-numberSystem-" + ns
 	raw, ok := fields[key]
 	if !ok || len(raw) == 0 {
@@ -217,7 +218,7 @@ func requiredNumberSystemField(fields map[string]json.RawMessage, locale, ns, pr
 	return raw, nil
 }
 
-func parseNumberSymbols(raw json.RawMessage) (NumberSymbols, error) {
+func parseNumberSymbols(raw jsontext.Value) (NumberSymbols, error) {
 	var doc struct {
 		Decimal                string `json:"decimal"`
 		Group                  string `json:"group"`
@@ -251,7 +252,7 @@ func parseNumberSymbols(raw json.RawMessage) (NumberSymbols, error) {
 	}, nil
 }
 
-func parseRangeSign(raw json.RawMessage) (string, error) {
+func parseRangeSign(raw jsontext.Value) (string, error) {
 	var doc struct {
 		Range string `json:"range"`
 	}
@@ -270,7 +271,7 @@ func parseRangeSign(raw json.RawMessage) (string, error) {
 	return string(r), nil
 }
 
-func parseStandard(raw json.RawMessage) (string, error) {
+func parseStandard(raw jsontext.Value) (string, error) {
 	var doc struct {
 		Standard string `json:"standard"`
 	}
@@ -285,8 +286,8 @@ type parsedCurrencyPatterns struct {
 	name map[string]string
 }
 
-func parseCurrencyPatterns(raw json.RawMessage) (parsedCurrencyPatterns, error) {
-	var fields map[string]json.RawMessage
+func parseCurrencyPatterns(raw jsontext.Value) (parsedCurrencyPatterns, error) {
+	var fields map[string]jsontext.Value
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return parsedCurrencyPatterns{}, err
 	}
@@ -321,7 +322,7 @@ func parseCurrencyPatterns(raw json.RawMessage) (parsedCurrencyPatterns, error) 
 	return out, nil
 }
 
-func parseCompactPatterns(raw json.RawMessage) (map[string]map[int]map[string]string, error) {
+func parseCompactPatterns(raw jsontext.Value) (map[string]map[int]map[string]string, error) {
 	var doc struct {
 		Short compactFormat `json:"short"`
 		Long  compactFormat `json:"long"`

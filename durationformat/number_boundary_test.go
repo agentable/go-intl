@@ -1,9 +1,12 @@
 package durationformat
 
 import (
+	"errors"
 	"math"
+	"reflect"
 	"testing"
 
+	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 )
@@ -167,4 +170,98 @@ func TestDurationFormatRejectsNormalizedSecondsLimit(t *testing.T) {
 		t.Fatal("Format(seconds=2^53) error = nil, want invalid value")
 	}
 	assertDurationInvalidValue(t, err, "duration", "normalized seconds", "en", expectedDurationNormalizedSeconds)
+}
+
+func TestDurationFormatPreservesExactValuesAcrossUnitStyles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		options  Options
+		duration Duration
+		want     string
+		wantPart []Part
+	}{
+		{
+			name:     "wide negative year",
+			options:  Options{Style: stringPtr(LongStyle)},
+			duration: Duration{Years: -4_294_967_295},
+			want:     "-4,294,967,295 years",
+			wantPart: []Part{{Type: PartMinusSign, Value: "-", Unit: Year}, {Type: PartInteger, Value: "4", Unit: Year}, {Type: PartGroup, Value: ",", Unit: Year}, {Type: PartInteger, Value: "294", Unit: Year}, {Type: PartGroup, Value: ",", Unit: Year}, {Type: PartInteger, Value: "967", Unit: Year}, {Type: PartGroup, Value: ",", Unit: Year}, {Type: PartInteger, Value: "295", Unit: Year}, {Type: PartLiteral, Value: " ", Unit: Year}, {Type: PartUnit, Value: "years", Unit: Year}},
+		},
+		{
+			name: "fractional seconds include nanoseconds",
+			options: Options{
+				Style:        stringPtr(NarrowStyle),
+				Milliseconds: stringPtr(NumericUnitStyle),
+			},
+			duration: Duration{Seconds: -1, Nanoseconds: -2},
+			want:     "-1.000000002s",
+			wantPart: []Part{{Type: PartMinusSign, Value: "-", Unit: Second}, {Type: PartInteger, Value: "1", Unit: Second}, {Type: PartDecimal, Value: ".", Unit: Second}, {Type: PartFraction, Value: "000000002", Unit: Second}, {Type: PartUnit, Value: "s", Unit: Second}},
+		},
+		{
+			name: "numeric seconds retain one sign",
+			options: Options{
+				Hours:   stringPtr(NumericUnitStyle),
+				Minutes: stringPtr(TwoDigitUnitStyle),
+				Seconds: stringPtr(TwoDigitUnitStyle),
+			},
+			duration: Duration{Minutes: -2, Seconds: -3},
+			want:     "-0:02:03",
+			wantPart: []Part{{Type: PartMinusSign, Value: "-", Unit: Hour}, {Type: PartInteger, Value: "0", Unit: Hour}, {Type: PartLiteral, Value: ":"}, {Type: PartInteger, Value: "02", Unit: Minute}, {Type: PartLiteral, Value: ":"}, {Type: PartInteger, Value: "03", Unit: Second}},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			format, err := New(locale.List{intltest.Locale(t, "en-US")}, tc.options)
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			got, err := format.Format(tc.duration)
+			if err != nil {
+				t.Fatalf("Format() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("Format() = %q, want %q", got, tc.want)
+			}
+			parts, err := format.FormatToParts(tc.duration)
+			if err != nil {
+				t.Fatalf("FormatToParts() error = %v", err)
+			}
+			if !reflect.DeepEqual(parts, tc.wantPart) {
+				t.Fatalf("FormatToParts() = %#v, want %#v", parts, tc.wantPart)
+			}
+		})
+	}
+}
+
+func TestDurationFormatRejectsEveryUnitBeyondItsPublicLimit(t *testing.T) {
+	t.Parallel()
+
+	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
+	if err != nil {
+		t.Fatalf("New(en) error = %v", err)
+	}
+	tests := []struct {
+		name     string
+		duration Duration
+		value    string
+	}{
+		{name: "years", duration: Duration{Years: 4_294_967_296}, value: "4294967296"},
+		{name: "months", duration: Duration{Months: -4_294_967_296}, value: "-4294967296"},
+		{name: "weeks", duration: Duration{Weeks: 4_294_967_296}, value: "4294967296"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := format.Format(tc.duration)
+			if got != "" || !errors.Is(err, intlerr.ErrInvalidValue) {
+				t.Fatalf("Format() = %q, error %v, want empty output and ErrInvalidValue", got, err)
+			}
+			assertDurationInvalidValue(t, err, tc.name, tc.value, "en", "an absolute value less than 2^32")
+		})
+	}
 }

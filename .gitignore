@@ -59,3 +59,10 @@ REFACTOR.md
 
 # .ralphy
 .ralphy/*.json
+
+# Local planning and tooling state
+analytics.md
+task.md
+
+# Local planning and tooling state
+.plan/*.md

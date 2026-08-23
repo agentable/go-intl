@@ -1,7 +1,7 @@
 package pluralrules
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"regexp"
 	"testing"
 

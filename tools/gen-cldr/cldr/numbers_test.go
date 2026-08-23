@@ -1,7 +1,7 @@
 package cldr
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"maps"
 	"os"
 	"path/filepath"
@@ -525,7 +525,7 @@ func TestLoadCurrencyFractionsRejectsInvalidShape(t *testing.T) {
 func TestParseNumberSymbols(t *testing.T) {
 	t.Parallel()
 
-	got, err := parseNumberSymbols(json.RawMessage(`{
+	got, err := parseNumberSymbols(jsontext.Value(`{
 		"decimal": ".",
 		"group": ",",
 		"percentSign": "%",
@@ -578,7 +578,7 @@ func TestParseRangeSign(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := parseRangeSign(json.RawMessage(tc.raw))
+			got, err := parseRangeSign(jsontext.Value(tc.raw))
 			if err != nil {
 				t.Fatalf("parseRangeSign(%s) error = %v", tc.raw, err)
 			}
@@ -604,7 +604,7 @@ func TestParseStandard(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := parseStandard(json.RawMessage(tc.raw))
+			got, err := parseStandard(jsontext.Value(tc.raw))
 			if err != nil {
 				t.Fatalf("parseStandard(%s) error = %v", tc.raw, err)
 			}
@@ -651,7 +651,7 @@ func TestParseCurrencyPatterns(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := parseCurrencyPatterns(json.RawMessage(tc.raw))
+			got, err := parseCurrencyPatterns(jsontext.Value(tc.raw))
 			if err != nil {
 				t.Fatalf("parseCurrencyPatterns(%s) error = %v", tc.raw, err)
 			}
@@ -664,7 +664,7 @@ func TestParseCurrencyPatterns(t *testing.T) {
 func TestParseCurrencyPatternsRejectsInvalidPluralCategory(t *testing.T) {
 	t.Parallel()
 
-	_, err := parseCurrencyPatterns(json.RawMessage(`{"standard":"¤#,##0.00","unitPattern-count-invalid":"{0} {1}","unitPattern-count-other":"{0} {1}"}`))
+	_, err := parseCurrencyPatterns(jsontext.Value(`{"standard":"¤#,##0.00","unitPattern-count-invalid":"{0} {1}","unitPattern-count-other":"{0} {1}"}`))
 	if err == nil {
 		t.Fatal("parseCurrencyPatterns() succeeded, want invalid plural category error")
 	}
@@ -673,7 +673,7 @@ func TestParseCurrencyPatternsRejectsInvalidPluralCategory(t *testing.T) {
 func TestParseCompactPatterns(t *testing.T) {
 	t.Parallel()
 
-	got, err := parseCompactPatterns(json.RawMessage(`{
+	got, err := parseCompactPatterns(jsontext.Value(`{
 		"short": {
 			"decimalFormat": {
 				"1000-count-one": "0K",
@@ -722,7 +722,7 @@ func TestParseCompactPatternsRejectsInvalidKey(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			raw := json.RawMessage(`{
+			raw := jsontext.Value(`{
 				"short": {
 					"decimalFormat": {
 						"` + tc.key + `": "0K"
@@ -741,39 +741,39 @@ func TestNumberParsersRejectInvalidJSON(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		parse func(json.RawMessage) error
+		parse func(jsontext.Value) error
 	}{
 		{
 			name: "symbols",
-			parse: func(raw json.RawMessage) error {
+			parse: func(raw jsontext.Value) error {
 				_, err := parseNumberSymbols(raw)
 				return err
 			},
 		},
 		{
 			name: "range sign",
-			parse: func(raw json.RawMessage) error {
+			parse: func(raw jsontext.Value) error {
 				_, err := parseRangeSign(raw)
 				return err
 			},
 		},
 		{
 			name: "standard",
-			parse: func(raw json.RawMessage) error {
+			parse: func(raw jsontext.Value) error {
 				_, err := parseStandard(raw)
 				return err
 			},
 		},
 		{
 			name: "currency patterns",
-			parse: func(raw json.RawMessage) error {
+			parse: func(raw jsontext.Value) error {
 				_, err := parseCurrencyPatterns(raw)
 				return err
 			},
 		},
 		{
 			name: "compact patterns",
-			parse: func(raw json.RawMessage) error {
+			parse: func(raw jsontext.Value) error {
 				_, err := parseCompactPatterns(raw)
 				return err
 			},
@@ -784,7 +784,7 @@ func TestNumberParsersRejectInvalidJSON(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if err := tc.parse(json.RawMessage(`{`)); err == nil {
+			if err := tc.parse(jsontext.Value(`{`)); err == nil {
 				t.Fatal("parse succeeded, want error")
 			}
 		})

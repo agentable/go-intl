@@ -7,7 +7,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"maps"
@@ -89,7 +90,7 @@ func LoadCLDRPrimaryAliases(path string) (map[string]string, error) {
 	var doc struct {
 		Keyword struct {
 			Unicode struct {
-				TimeZones map[string]json.RawMessage `json:"tz"`
+				TimeZones map[string]jsontext.Value `json:"tz"`
 			} `json:"u"`
 		} `json:"keyword"`
 	}

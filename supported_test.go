@@ -1,7 +1,7 @@
 package gointl
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"os"
 	"slices"
 	"strings"

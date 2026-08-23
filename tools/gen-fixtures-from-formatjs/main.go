@@ -2,7 +2,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"fmt"
 	"maps"
@@ -2027,7 +2028,7 @@ func writeJSON(path string, v any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o777); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(v, "", "  ")
+	data, err := json.Marshal(v, jsontext.WithIndent("  "), json.Deterministic(true))
 	if err != nil {
 		return err
 	}

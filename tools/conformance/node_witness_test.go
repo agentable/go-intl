@@ -1,7 +1,7 @@
 package conformance
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -93,7 +93,7 @@ func TestNodeWitnessPredicateHelpersRequireObservableFields(t *testing.T) {
 
 	expected := "ok"
 	expectedOK := false
-	resolved := json.RawMessage(`{"locale":"en-US"}`)
+	resolved := jsontext.Value(`{"locale":"en-US"}`)
 	parts := []Part{{Type: "integer", Value: "1"}}
 	rangeParts := []RangePart{{Type: "integer", Value: "1", Source: "shared"}}
 

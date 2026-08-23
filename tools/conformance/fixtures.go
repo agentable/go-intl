@@ -1,7 +1,8 @@
 package conformance
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -22,20 +23,20 @@ var (
 )
 
 type Fixture struct {
-	ID                 string          `json:"id"`
-	Source             string          `json:"source"`
-	Locale             string          `json:"locale"`
-	Feature            string          `json:"feature,omitempty"`
-	Options            json.RawMessage `json:"options"`
-	Input              json.RawMessage `json:"input"`
-	Expected           *string         `json:"expected,omitempty"`
-	ExpectedOK         *bool           `json:"expectedOk,omitempty"`
-	ExpectedLocales    []string        `json:"expectedLocales,omitempty"`
-	ExpectedParts      []Part          `json:"expectedParts,omitempty"`
-	ExpectedRange      *string         `json:"expectedRange,omitempty"`
-	ExpectedRangeParts []RangePart     `json:"expectedRangeParts,omitempty"`
-	ExpectedResolved   json.RawMessage `json:"expectedResolvedOptions,omitempty"`
-	ErrorCode          string          `json:"errorCode,omitempty"`
+	ID                 string         `json:"id"`
+	Source             string         `json:"source"`
+	Locale             string         `json:"locale"`
+	Feature            string         `json:"feature,omitempty"`
+	Options            jsontext.Value `json:"options"`
+	Input              jsontext.Value `json:"input"`
+	Expected           *string        `json:"expected,omitempty"`
+	ExpectedOK         *bool          `json:"expectedOk,omitempty"`
+	ExpectedLocales    []string       `json:"expectedLocales,omitempty"`
+	ExpectedParts      []Part         `json:"expectedParts,omitempty"`
+	ExpectedRange      *string        `json:"expectedRange,omitempty"`
+	ExpectedRangeParts []RangePart    `json:"expectedRangeParts,omitempty"`
+	ExpectedResolved   jsontext.Value `json:"expectedResolvedOptions,omitempty"`
+	ErrorCode          string         `json:"errorCode,omitempty"`
 }
 
 // FeatureSupportedLocalesOf is the conformance fixture feature for

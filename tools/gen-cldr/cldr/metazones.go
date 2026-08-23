@@ -2,7 +2,8 @@ package cldr
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -115,7 +116,7 @@ func loadZoneToMetazone(root string) (map[string][]MetazonePeriod, error) {
 		Supplemental struct {
 			MetaZones struct {
 				MetazoneInfo struct {
-					Timezone map[string]json.RawMessage `json:"timezone"`
+					Timezone map[string]jsontext.Value `json:"timezone"`
 				} `json:"metazoneInfo"`
 			} `json:"metaZones"`
 		} `json:"supplemental"`
@@ -135,7 +136,7 @@ func loadZoneToMetazone(root string) (map[string][]MetazonePeriod, error) {
 	return out, nil
 }
 
-func appendZoneMetazones(out map[string][]MetazonePeriod, path []string, raw json.RawMessage) error {
+func appendZoneMetazones(out map[string][]MetazonePeriod, path []string, raw jsontext.Value) error {
 	raw = bytes.TrimSpace(raw)
 	name := strings.Join(path, "/")
 	if len(raw) == 0 {
@@ -149,7 +150,7 @@ func appendZoneMetazones(out map[string][]MetazonePeriod, path []string, raw jso
 		}
 		return appendMetazoneHistory(out, name, history)
 	case '{':
-		var node map[string]json.RawMessage
+		var node map[string]jsontext.Value
 		if err := json.Unmarshal(raw, &node); err != nil {
 			return fmt.Errorf("parse metazone node for %s: %w", name, err)
 		}

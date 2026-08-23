@@ -8,7 +8,7 @@
 
 ## 1. JSON Shape Policy
 
-Go record types that mirror ECMA-402 objects use `encoding/json` tags as the host-boundary contract. Field presence follows ECMA-402, not Go zero values:
+Go record types that mirror ECMA-402 objects use `encoding/json/v2` tags as the host-boundary contract. Field presence follows ECMA-402, not Go zero values:
 
 1. A property that ECMA-402 always reports has no `omitempty`.
 2. A branch-only property whose zero value is meaningful uses `*T` plus `omitempty`; `nil` means the JavaScript property is absent.

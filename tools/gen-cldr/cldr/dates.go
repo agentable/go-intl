@@ -1,7 +1,8 @@
 package cldr
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -68,7 +69,7 @@ func loadDates(root string, locales []string) (map[string]Dates, error) {
 		var doc struct {
 			Main map[string]struct {
 				Dates struct {
-					Calendars map[string]json.RawMessage `json:"calendars"`
+					Calendars map[string]jsontext.Value `json:"calendars"`
 				} `json:"dates"`
 			} `json:"main"`
 		}
@@ -98,8 +99,8 @@ func loadDates(root string, locales []string) (map[string]Dates, error) {
 	return out, nil
 }
 
-func parseCalendar(raw json.RawMessage) (Calendar, error) {
-	var fields map[string]json.RawMessage
+func parseCalendar(raw jsontext.Value) (Calendar, error) {
+	var fields map[string]jsontext.Value
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return Calendar{}, err
 	}
@@ -116,11 +117,11 @@ func parseCalendar(raw json.RawMessage) (Calendar, error) {
 		Days              map[string]map[string]map[string]string `json:"days"`
 		Quarters          map[string]map[string]map[string]string `json:"quarters"`
 		DayPeriods        map[string]map[string]map[string]string `json:"dayPeriods"`
-		DateFormats       map[string]json.RawMessage              `json:"dateFormats"`
-		TimeFormats       map[string]json.RawMessage              `json:"timeFormats"`
-		DateTimeFormats   map[string]json.RawMessage              `json:"dateTimeFormats"`
+		DateFormats       map[string]jsontext.Value               `json:"dateFormats"`
+		TimeFormats       map[string]jsontext.Value               `json:"timeFormats"`
+		DateTimeFormats   map[string]jsontext.Value               `json:"dateTimeFormats"`
 		DateTimeAtFormats struct {
-			Standard map[string]json.RawMessage `json:"standard"`
+			Standard map[string]jsontext.Value `json:"standard"`
 		} `json:"dateTimeFormats-atTime"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -294,21 +295,21 @@ func orderedDayPeriodValues(values map[string]string) []string {
 	return out
 }
 
-func requiredStyleFormats(values map[string]json.RawMessage) (map[string]string, error) {
+func requiredStyleFormats(values map[string]jsontext.Value) (map[string]string, error) {
 	if values == nil {
 		return nil, fmt.Errorf("expected style format map")
 	}
 	return styleFormats(values, true)
 }
 
-func optionalStyleFormats(values map[string]json.RawMessage) (map[string]string, error) {
+func optionalStyleFormats(values map[string]jsontext.Value) (map[string]string, error) {
 	if values == nil {
 		return nil, nil
 	}
 	return styleFormats(values, false)
 }
 
-func styleFormats(values map[string]json.RawMessage, required bool) (map[string]string, error) {
+func styleFormats(values map[string]jsontext.Value, required bool) (map[string]string, error) {
 	out := make(map[string]string, 4)
 	for _, style := range calendarStyleOrder {
 		raw, ok := values[style]
@@ -330,7 +331,7 @@ func styleFormats(values map[string]json.RawMessage, required bool) (map[string]
 	return out, nil
 }
 
-func stringMap(raw json.RawMessage) (map[string]string, error) {
+func stringMap(raw jsontext.Value) (map[string]string, error) {
 	var values map[string]string
 	if len(raw) == 0 {
 		return nil, nil
@@ -341,8 +342,8 @@ func stringMap(raw json.RawMessage) (map[string]string, error) {
 	return values, nil
 }
 
-func availableFormats(raw json.RawMessage) (map[string]string, error) {
-	var fields map[string]json.RawMessage
+func availableFormats(raw jsontext.Value) (map[string]string, error) {
+	var fields map[string]jsontext.Value
 	if len(raw) == 0 {
 		return nil, nil
 	}
@@ -371,8 +372,8 @@ func availableFormats(raw json.RawMessage) (map[string]string, error) {
 	return out, nil
 }
 
-func intervalFormats(raw json.RawMessage) (IntervalFormats, error) {
-	var fields map[string]json.RawMessage
+func intervalFormats(raw jsontext.Value) (IntervalFormats, error) {
+	var fields map[string]jsontext.Value
 	if len(raw) == 0 {
 		return IntervalFormats{}, nil
 	}
@@ -397,7 +398,7 @@ func intervalFormats(raw json.RawMessage) (IntervalFormats, error) {
 			hasFallback = true
 			continue
 		}
-		var byField map[string]json.RawMessage
+		var byField map[string]jsontext.Value
 		if err := json.Unmarshal(rawValue, &byField); err != nil {
 			return IntervalFormats{}, fmt.Errorf("parse skeleton %s: %w", key, err)
 		}
@@ -437,7 +438,7 @@ func intervalFormats(raw json.RawMessage) (IntervalFormats, error) {
 	return out, nil
 }
 
-func appendItems(raw json.RawMessage) (map[string]string, error) {
+func appendItems(raw jsontext.Value) (map[string]string, error) {
 	values, err := stringMap(raw)
 	if err != nil {
 		return nil, err
@@ -481,7 +482,7 @@ func loadDayPeriodRules(root string) (map[string][]DayPeriodRange, error) {
 	}
 	var doc struct {
 		Supplemental struct {
-			DayPeriodRuleSet map[string]json.RawMessage `json:"dayPeriodRuleSet"`
+			DayPeriodRuleSet map[string]jsontext.Value `json:"dayPeriodRuleSet"`
 		} `json:"supplemental"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -502,7 +503,7 @@ func loadDayPeriodRules(root string) (map[string][]DayPeriodRange, error) {
 	return out, nil
 }
 
-func parseDayPeriodRuleSet(raw json.RawMessage) ([]DayPeriodRange, error) {
+func parseDayPeriodRuleSet(raw jsontext.Value) ([]DayPeriodRange, error) {
 	var wrapped struct {
 		DayPeriodRules map[string]struct {
 			At     string `json:"_at"`
@@ -566,7 +567,7 @@ func parseDayPeriodClock(value string) (time.Duration, error) {
 	return time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute, nil
 }
 
-func rawString(raw json.RawMessage) (string, error) {
+func rawString(raw jsontext.Value) (string, error) {
 	var value string
 	if len(raw) == 0 {
 		return "", nil

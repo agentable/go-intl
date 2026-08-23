@@ -1,7 +1,8 @@
 package listformat
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"testing"
 
@@ -46,7 +47,7 @@ func TestConformanceListOptionsPreserveExplicitEmptyString(t *testing.T) {
 	t.Parallel()
 
 	_, err := New(intltest.LocaleList(t, "en"), conformanceListOptions(t, conformance.Fixture{
-		Options: json.RawMessage(`{"style":""}`),
+		Options: jsontext.Value(`{"style":""}`),
 	}))
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want %v", err, intlerr.ErrInvalidOption)

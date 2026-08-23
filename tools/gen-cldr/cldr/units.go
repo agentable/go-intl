@@ -1,7 +1,8 @@
 package cldr
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -40,7 +41,7 @@ func loadUnits(root string, locales []string) (map[string]Units, error) {
 		}
 		var doc struct {
 			Main map[string]struct {
-				Units map[string]json.RawMessage `json:"units"`
+				Units map[string]jsontext.Value `json:"units"`
 			} `json:"main"`
 		}
 		if err := json.Unmarshal(raw, &doc); err != nil {
@@ -111,7 +112,7 @@ func loadUnits(root string, locales []string) (map[string]Units, error) {
 	return out, nil
 }
 
-func parseUnitWidth(raw json.RawMessage) (map[string]map[string]string, error) {
+func parseUnitWidth(raw jsontext.Value) (map[string]map[string]string, error) {
 	if len(raw) == 0 {
 		return nil, fmt.Errorf("missing unit width data")
 	}

@@ -1,7 +1,8 @@
 package pluralrules
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strconv"
@@ -46,7 +47,7 @@ func TestConformancePluralOptionsPreserveExplicitEmptyString(t *testing.T) {
 	t.Parallel()
 
 	_, err := New(intltest.LocaleList(t, "en"), conformancePluralOptions(t, conformance.Fixture{
-		Options: json.RawMessage(`{"type":""}`),
+		Options: jsontext.Value(`{"type":""}`),
 	}))
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want %v", err, intlerr.ErrInvalidOption)

@@ -3,7 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"fmt"
 	"io"
@@ -89,9 +90,7 @@ func run(args []string, stdout io.Writer) error {
 	if witness.NodeVersion == "" {
 		return fmt.Errorf("node witness output missing nodeVersion")
 	}
-	encoder := json.NewEncoder(stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(witness)
+	return json.MarshalWrite(stdout, witness, jsontext.WithIndent("  "), json.Deterministic(true))
 }
 
 func runNode(nodePath string) ([]byte, error) {

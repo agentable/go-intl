@@ -1,7 +1,8 @@
 package testcontract
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"testing"
 
@@ -75,7 +76,7 @@ func TestAssertSupportedLocalesOfFixture(t *testing.T) {
 	t.Parallel()
 
 	fixture := conformance.Fixture{
-		Input:           json.RawMessage(`["fr-FR","en-US"]`),
+		Input:           jsontext.Value(`["fr-FR","en-US"]`),
 		ExpectedLocales: []string{"fr-FR", "en-US"},
 	}
 	AssertSupportedLocalesOfFixture(t, fixture, testLocaleList, func(locales []testLocale) ([]testLocale, error) {
@@ -91,7 +92,7 @@ func TestAssertSupportedLocalesOfFixtureErrorCode(t *testing.T) {
 
 	want := errors.New("invalid option")
 	fixture := conformance.Fixture{
-		Input:     json.RawMessage(`[""]`),
+		Input:     jsontext.Value(`[""]`),
 		ErrorCode: "invalid_option",
 	}
 	AssertSupportedLocalesOfFixture(t, fixture, testLocaleList, func([]testLocale) ([]testLocale, error) {

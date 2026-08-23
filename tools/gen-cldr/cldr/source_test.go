@@ -1,7 +1,7 @@
 package cldr
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"path/filepath"
 	"testing"
 )

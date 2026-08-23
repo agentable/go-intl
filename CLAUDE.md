@@ -196,7 +196,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 
 ### Must Follow
 
-- Go 1.26.5. Use modern stdlib features already present in the codebase: `slices`, `maps`, `for range N`, `sync.OnceValue`, `sync.Map`, `log/slog`, and `testing.B.Loop()`.
+- Go 1.27. Use modern stdlib features already present in the codebase: `slices`, `maps`, `for range N`, `sync.OnceValue`, `sync.Map`, `log/slog`, and `testing.B.Loop()`.
 - Follow Google Go Best Practices: <https://google.github.io/go-style/best-practices>.
 - Follow Google Go Style Decisions: <https://google.github.io/go-style/decisions>.
 - Keep interfaces small and consumer-owned; do not expose broad internal abstractions.
@@ -336,7 +336,7 @@ Primary local skills live in `.agents/skills/`. Use the narrowest skill that mat
 | [spec-gap-tasking](.agents/skills/spec-gap-tasking/) | Turning a spec-gap analysis into executable tasks |
 | [spec-reviewing](.agents/skills/spec-reviewing/) | Reviewing SPECS for completeness, consistency, and over-engineering before implementation |
 | [go-best-practices](.agents/skills/go-best-practices/) | Applying Go API, naming, error, concurrency, and testing rules |
-| [modernizing](.agents/skills/modernizing/) | Applying Go 1.20-1.26 language and stdlib idioms |
+| [modernizing](.agents/skills/modernizing/) | Applying Go 1.20-1.27 language and stdlib idioms |
 | [code-simplifying](.agents/skills/code-simplifying/) | Simplifying recently changed code without changing behavior |
 | [code-deduplicating](.agents/skills/code-deduplicating/) | Extracting repeated patterns that appear three or more times |
 | [code-refactoring](.agents/skills/code-refactoring/) | Planning and applying focused refactors that reduce redundancy without broad rewrites |

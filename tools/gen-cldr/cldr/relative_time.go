@@ -1,7 +1,8 @@
 package cldr
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"math"
 	"path/filepath"
@@ -34,7 +35,7 @@ func loadRelativeTimeFields(root string, locales []string) (map[string]RelativeT
 		var doc struct {
 			Main map[string]struct {
 				Dates struct {
-					Fields map[string]map[string]json.RawMessage `json:"fields"`
+					Fields map[string]map[string]jsontext.Value `json:"fields"`
 				} `json:"dates"`
 			} `json:"main"`
 		}
@@ -59,7 +60,7 @@ func loadRelativeTimeFields(root string, locales []string) (map[string]RelativeT
 	return inheritedLocaleData(locales, loaded), nil
 }
 
-func parseRelativeTimeFields(raw map[string]map[string]json.RawMessage) (RelativeTimeFields, error) {
+func parseRelativeTimeFields(raw map[string]map[string]jsontext.Value) (RelativeTimeFields, error) {
 	out := make(RelativeTimeFields)
 	for _, key := range relativeTimeFieldKeys {
 		rawField, ok := raw[key.cldr]
@@ -81,7 +82,7 @@ func parseRelativeTimeFields(raw map[string]map[string]json.RawMessage) (Relativ
 	return out, nil
 }
 
-func parseRelativeTimeField(raw map[string]json.RawMessage) (RelativeTimeField, error) {
+func parseRelativeTimeField(raw map[string]jsontext.Value) (RelativeTimeField, error) {
 	future, err := relativeTimePatternMap(raw["relativeTime-type-future"])
 	if err != nil {
 		return RelativeTimeField{}, fmt.Errorf("future: %w", err)
@@ -127,7 +128,7 @@ func relativeLiteralKeyFromField(field string) (string, bool, error) {
 	return key, true, nil
 }
 
-func relativeTimePatternMap(raw json.RawMessage) (map[string]string, error) {
+func relativeTimePatternMap(raw jsontext.Value) (map[string]string, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}

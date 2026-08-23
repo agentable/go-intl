@@ -364,7 +364,7 @@ same-language fallback.
 
 ### 3.5 Measured profile cost
 
-On Apple M5 Pro / Go 1.26.5, the pinned source JSON is 55,261 bytes and the
+On Apple M5 Pro / Go 1.27, the pinned source JSON is 55,261 bytes and the
 generated typed profile is 26,682 bytes. Three benchmark samples measured raw
 JSON loading at 1.80–2.41 ms with about 238 KB allocated, profile compilation
 at 0.29–0.37 ms with about 109 KB allocated, and cached distance lookup at
