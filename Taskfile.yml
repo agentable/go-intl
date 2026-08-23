@@ -6,14 +6,14 @@ vars:
   GOBIN: '{{.PROJECT_ROOT}}/bin'
   GOLANGCI_LINT_LOCAL_BINARY: '{{.GOBIN}}/golangci-lint'
   REQUIRED_GOLANGCI_LINT_VERSION:
-    sh: cat .golangci.version 2>/dev/null || echo "2.12.2"
+    sh: cat .golangci.version 2>/dev/null || echo "2.13.1"
   GOLANGCI_LINT_BINARY:
     sh: |
-      required="$(cat .golangci.version 2>/dev/null || echo "2.12.2")"
+      required="$(cat .golangci.version 2>/dev/null || echo "2.13.1")"
       for candidate in "$(command -v golangci-lint 2>/dev/null || true)" "{{.GOLANGCI_LINT_LOCAL_BINARY}}"; do
         [ -n "$candidate" ] || continue
         [ -x "$candidate" ] || continue
-        version="$("$candidate" version --format short 2>/dev/null || "$candidate" version --short 2>/dev/null || true)"
+        version="$("$candidate" version --short 2>/dev/null || "$candidate" version --short 2>/dev/null || true)"
         if [ "$version" = "$required" ]; then
           echo "$candidate"
           exit 0
@@ -22,7 +22,7 @@ vars:
       echo "{{.GOLANGCI_LINT_LOCAL_BINARY}}"
   GOLANGCI_LINT_VERSION:
     sh: |
-      {{.GOLANGCI_LINT_BINARY}} version --format short 2>/dev/null ||
+      {{.GOLANGCI_LINT_BINARY}} version --short 2>/dev/null ||
       {{.GOLANGCI_LINT_BINARY}} version --short 2>/dev/null ||
       echo "not-installed"
   REQUIRED_BENCHSTAT_VERSION: v0.0.0-20260615155930-9e4b9ddef5b6
