@@ -3,7 +3,7 @@ version: "2"
 run:
   timeout: 30m
   concurrency: 1
-  go: "1.27"
+  go: "1.27.0"
 
 linters:
   default: standard
