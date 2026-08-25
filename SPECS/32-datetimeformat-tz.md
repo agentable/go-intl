@@ -125,7 +125,7 @@ zone (e.g. "America/New_York")
 **MUST** Rules:
 
 1. The three-segment mapping **MUST** be output by codegen into the `internal/cldr/timezone` domain package.
-2. **Disable** runtime JSON parsing (`//go:embed metaZones.json` + `encoding/json`); **Disable** deserialization at startup.
+2. **Disable** runtime JSON parsing (`//go:embed metaZones.json` + `encoding/json/v2`); **Disable** deserialization at startup. JSON decoding is a generation-time concern and uses the native `encoding/json/v2` package only.
 3. Schema of three-segment table:
    ```go
 // generated_metazones.go (fragment, signature)
@@ -349,7 +349,7 @@ From, To time.Duration // Time offset from 00:00 on the current day
 - **BANNED** Depends on system `/usr/share/zoneinfo` (`time.LoadLocation` default behavior, Alpine container has no files).
 - **NO** Porting the generated-reference `tz_data.tar.gz` pipeline - Go already has `time/tzdata`.
 - **Disabled** Runtime JSON parsing `metaZones.json` - Must codegen output Go literal.
-- **BANNED** `//go:embed metaZones.json` + `encoding/json` paths - Conflicts with SPEC 50 "no runtime file I/O".
+- **BANNED** `//go:embed metaZones.json` + `encoding/json/v2` paths - Conflicts with SPEC 50 "no runtime file I/O".
 - **FORBIDDEN** advertising or generating active non-Gregorian calendar data, including Buddhist placeholders, without formatter local-time projection, pattern / part behavior, and conformance fixtures in the same change.
 - **Disabled** The tzdata version is bumped independently from the CLDR / ICU version - must be the same as the `internal/cldr/VERSION` file, CI verification.
 - **BANNED** `dayPeriodRules` only generates `en` - must fully codegen all active scope locales.
