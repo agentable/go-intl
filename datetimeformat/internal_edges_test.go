@@ -233,7 +233,7 @@ func TestDateTimeFormatFallbackRangeParts(t *testing.T) {
 
 	format.pattern.rangeRecord.fallback = compileRangeFallbackProgram("")
 	got = format.fallbackRangeParts(start, end)
-	if joined := joinRangeParts(got); joined != "9 – 10" {
+	if joined := joinRangePartValues(got); joined != "9 – 10" {
 		t.Fatalf("fallbackRangeParts(default) = %q, want 9 – 10", joined)
 	}
 }

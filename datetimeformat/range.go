@@ -289,18 +289,6 @@ func trimTrailingRangeLiteralSpace(parts []RangePart) []RangePart {
 	return parts
 }
 
-func joinRangeParts(parts []RangePart) string {
-	size := 0
-	for _, part := range parts {
-		size += len(part.Value)
-	}
-	out := make([]byte, 0, size)
-	for _, part := range parts {
-		out = append(out, part.Value...)
-	}
-	return string(out)
-}
-
 const defaultIntervalFallback = "{0} – {1}"
 
 type rangeFallbackStepKind uint8
