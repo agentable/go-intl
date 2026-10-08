@@ -149,11 +149,11 @@ tasks:
       - go test -race -p 1 ./...
 
   modules:verify:
-    desc: Check tests, vet, and tidy diff in all four release modules
+    desc: Check tests, vet, and tidy diff in all five release modules
     cmds:
       - |
         set -eu
-        for module in . tools/gen-cldr tools/gen-plural-rules tools/gen-fixtures-from-formatjs; do
+        for module in . x tools/gen-cldr tools/gen-plural-rules tools/gen-fixtures-from-formatjs; do
           echo "Checking module $module"
           go -C "$module" mod tidy -diff
           go -C "$module" vet ./...

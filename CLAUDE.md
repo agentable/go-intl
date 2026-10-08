@@ -8,7 +8,7 @@ For human usage examples, read [`README.md`](README.md). This file is the develo
 
 ```bash
 task test                 # go test -race -p 1 ./...
-task modules:verify       # test + vet + tidy diff for root and three tools modules
+task modules:verify       # test + vet + tidy diff for root, x, and three tools modules
 task lint                 # go mod tidy diff check + pinned golangci-lint v2
 task fmt                  # golangci-lint fmt ./...
 task vet                  # go vet ./...
@@ -52,15 +52,18 @@ The repository publishes one coordinated release set:
 | Module | Tag |
 |--------|-----|
 | `github.com/agentable/go-intl` | `vX.Y.Z` |
+| `github.com/agentable/go-intl/x` | `x/vX.Y.Z` |
 | `github.com/agentable/go-intl/tools/gen-cldr` | `tools/gen-cldr/vX.Y.Z` |
 | `github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs` | `tools/gen-fixtures-from-formatjs/vX.Y.Z` |
 | `github.com/agentable/go-intl/tools/gen-plural-rules` | `tools/gen-plural-rules/vX.Y.Z` |
 
-All four modules use the same version, selected as the next patch after the
+All five modules use the same version, selected as the next patch after the
 highest current version in the set. Their tags must be annotated, point to the
 same commit, and be pushed together with one explicit atomic tag push. Nested
 example, test, integration, reference, and validation modules are verified but
-not published unless this inventory explicitly adds them.
+not published unless this inventory explicitly adds them. The `x/` module is
+the experimental satellite (v0, no compatibility promise); its charter is
+[`SPECS/80-x-modules.md`](SPECS/80-x-modules.md).
 
 ## Architecture
 
@@ -77,6 +80,8 @@ go-intl/
 ├── durationformat/        # Intl.DurationFormat duration formatting and parts
 ├── displaynames/          # Intl.DisplayNames code-to-name lookup
 ├── option/                # Zero-dependency leaf: Int/Bool/String pointer helpers for optional scalar options; re-exported by root as gointl.Int/Bool/String
+├── x/                     # Experimental satellite module (SPEC 80): v0, no compatibility promise; thin re-exports over internal/*
+│   └── localematcher/     # Stage 1 Intl.LocaleMatcher-shaped matcher re-export (SPEC 11 §11)
 ├── internal/
 │   ├── ecma402/           # Shared ECMA-402 abstract operations
 │   ├── cldr/              # Per-domain CLDR packages (number/date/currency/unit/list/relativetime/timezone/displaynames/plural) + locale kernel + codec; const-only data.go, hand-written decode.go/accessors.go
@@ -177,6 +182,7 @@ Specification documents in [`SPECS/`](SPECS/) are maintained records of design c
 | [`71-benchmark.md`](SPECS/71-benchmark.md) | Benchmark layout, non-blocking performance telemetry, benchstat workflow |
 | [`72-operation-ledger.md`](SPECS/72-operation-ledger.md) | Public surface to ECMA-402 owner, implementation, and verification ledger |
 | [`73-json-records.md`](SPECS/73-json-records.md) | JSON field names and presence policy for resolved options, parts, duration records, and locale info |
+| [`80-x-modules.md`](SPECS/80-x-modules.md) | Experimental `x/` satellite module charter: admission, v0 governance, versioning, graduation |
 
 ## References Index
 
@@ -241,7 +247,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Compose DisplayNames standard language names from separate language/script/region/variant components; only dialect mode may consume a matched composite name. Keep locale patterns and fallback semantics in [SPEC 44](SPECS/44-displaynames.md); validate source patterns during generation as specified in [SPEC 50](SPECS/50-cldr-data.md).
 - Let `SupportedCurrencies()` enumerate the selected CLDR profile's name keys; precision exceptions do not define membership. Retain all selected currency name/symbol rows.
 - Validate DateTimeFormat `time.Time` instants against the ECMA TimeClip boundary before truncating toward zero to milliseconds. All four formatting methods return `(result, error)` and use `ErrInvalidValue` for out-of-domain instants.
-- Validate all required CLDR package names/versions before generation; plural cardinal/ordinal/ranges sources must report one cldr-core version. `task modules:verify` covers test/vet/tidy-diff in all four published modules.
+- Validate all required CLDR package names/versions before generation; plural cardinal/ordinal/ranges sources must report one cldr-core version. `task modules:verify` covers test/vet/tidy-diff in all five published modules.
 - Keep DisplayNames lookup inside the resolved data locale and its truncation parent chain. Missing data is resolved by the public `fallback` option; never borrow an English name from an unrelated locale.
 - Keep text direction generated from pinned CLDR `scriptMetadata.json`. `locale.TextInfo.Direction` is `*string`: known LTR/RTL is present, unknown direction is nil and omitted from JSON; do not restore a hand-written script list or guessed LTR default.
 - Keep Locale language-subtag transforms suffix-preserving: constructor language/script/region options and maximize/minimize may replace only those three subtags; variants, transformed extensions, Unicode extensions, and private use retain their canonical order. Numeric `firstDayOfWeek` aliases are constructor-option values, not valid `-u-fw-*` tag syntax.

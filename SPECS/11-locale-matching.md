@@ -1,8 +1,8 @@
 # SPEC 11 — Locale Matching
 
-> **Status:** Revised (2026-05-31)
+> **Status:** Revised (2026-10-07)
 > **Priority:** High (locale parsing layer that all formatters must pass through; blocking SPEC 20 / 30 / 40 / 60)
-> **Authority:** ECMA-402 `.references/ecma402/spec/negotiation.html` is the normative source. This SPEC documents the current Go contract for `internal/ecma402.CanonicalLocaleList`, the `internal/localematcher` package, `LookupMatchingLocaleByPrefix`, `LookupMatchingLocaleByBestFit`, `ResolveOptions`, `ResolveLocale`, `FilterLocales`, compiled matcher indexes, and the pinned CLDR language-matching profile.
+> **Authority:** ECMA-402 `.references/ecma402/spec/negotiation.html` is the normative source. This SPEC documents the current Go contract for `internal/ecma402.CanonicalLocaleList`, the `internal/localematcher` package, `LookupMatchingLocaleByPrefix`, `LookupMatchingLocaleByBestFit`, `ResolveOptions`, `ResolveLocale`, `FilterLocales`, compiled matcher indexes, the pinned CLDR language-matching profile, and the `x/localematcher` satellite re-export (§11; module charter in [SPEC 80](./80-x-modules.md)).
 
 ---
 
@@ -80,7 +80,7 @@ enter matching.
 > 3. **Data is injected by callers** - matcher does not import `internal/cldr`; formatter constructors pass generated supported-locale lists, maximizers, and relevant-extension-key data lookups.
 >
 > **Rejected**:
-> - **Public `localematcher` package** - users never construct matcher directly; `internal/` enforces hidden implementation.
+> - **Public `localematcher` package in the main module** - formatter constructors own matcher construction; `internal/` enforces hidden implementation. The separate v0 satellite module `x/localematcher` (§11, [SPEC 80](./80-x-modules.md)) re-exports the matcher for external CLDR-driven consumers without relaxing this rule.
 > - **Single file `match.go` fully plugged** - spec The three core operators (Lookup / BestFit / Resolve) each have migration costs and test fixtures; splitting by file facilitates fixture alignment.
 
 ### 1.2 Public entrance signature
@@ -123,7 +123,8 @@ res := localematcher.Match(
     []string{"zh-Hans", "zh-Hant", "en"},
     "en", localematcher.AlgorithmBestFit,
 )
-fmt.Println(res.Locale) // "zh-Hant"(zh-TW maximize to zh-Hant-TW; subtag truncation fallback)
+fmt.Println(res.Locale) // "zh-TW"(zh-Hant 数据使派生别名 zh-TW 可用，Tier 1 精确命中)
+fmt.Println(res.DataLocale) // "zh-Hant"(负载数据仍指向具体数据 locale)
 fmt.Println(res.Distance) // 0
 ```
 
@@ -861,7 +862,92 @@ if res1.Locale == res2.Locale { /* ... */ }
 
 ---
 
-## References
+## 11. Satellite re-export: `x/localematcher`
+
+### 11.1 Purpose
+
+External CLDR-driven consumers sometimes need ECMA-402 locale negotiation
+**outside** `Intl` constructors — e.g. an i18n catalog that picks, per message
+key, the best locale among the locales in which that key actually exists
+(motivating issue: agentable/go-intl#11). `internal/` visibility leaves such
+consumers only forking, vendoring, or path-squatting into `internal/`.
+
+`github.com/agentable/go-intl/x/localematcher` is the satellite package that
+re-exports the matcher for those consumers. Its API shape follows the Stage 1
+[`Intl.LocaleMatcher`](https://github.com/tc39/proposal-intl-localematcher)
+proposal (`Intl.LocaleMatcher.match(requestedLocales, availableLocales,
+defaultLocale, options)`), with the compiled `Matcher` as the narrow Go typed
+bridge for repeated matching — the same constructor-side compilation the
+formatters perform. Module governance (v0, versioning, admission, graduation)
+lives in [SPEC 80](./80-x-modules.md).
+
+### 11.2 Public API
+
+```go
+// x/localematcher (signature)
+package localematcher
+
+// Algorithm mirrors the proposal's options.algorithm values.
+type Algorithm = localematcher.Algorithm
+
+const (
+    AlgorithmLookup  = localematcher.AlgorithmLookup  // §2 LookupMatcher
+    AlgorithmBestFit = localematcher.AlgorithmBestFit // §3 BestFitMatcher
+)
+
+const DefaultMatchingThreshold = localematcher.DefaultMatchingThreshold // 838
+
+type Result  = localematcher.Result  // §1: Locale / DataLocale / Extension / Distance
+type Matcher = localematcher.Matcher // §3.3: compiled available-locale index
+
+// New compiles available into a Matcher with the same CLDR likely-subtags
+// maximizer the Intl constructors use (internal/cldr/locale.Maximize).
+func New(available []string) *Matcher
+
+// Match is the Go bridge for Intl.LocaleMatcher.match: one-shot best-match
+// selection with the same pre-wired maximizer.
+func Match(requested, available []string, defaultLocale string, algorithm Algorithm) Result
+```
+
+### 11.3 Decisions
+
+1. **Pre-wired maximizer, no escape hatch.** Both entry points fix the
+   maximizer to `internal/cldr/locale.Maximize`, matching all formatter
+   constructors. Custom maximizers are not accepted: the proposal has no such
+   concept, and §3.1 requires one data authority. Add an override only if the
+   proposal develops a matching gap.
+2. **Alias types, zero copying.** `Algorithm`, `Result`, and `Matcher` are
+   type aliases of the internal types, so the satellite shares the internal
+   implementation exactly and breaks compile (not behavior) when internals
+   change; same-commit atomic tags keep the two in lockstep.
+3. **Proposal-shaped scope.** Only `Match`, `New`, and the supporting types
+   are exported. `FilterLocales`, `BestAvailableLocale`, `ResolveLocale`, and
+   other abstract-operation subroutines stay internal: the proposal exposes
+   none of them, and the main-module rule against public abstract-operation
+   helpers applies here in spirit.
+4. **No formatter data.** The package does not import formatter CLDR packages
+   or carry supported-locale lists; callers pass their own available-locale
+   sets, exactly like §1 requires of formatter constructors.
+
+### 11.4 Acceptance criteria
+
+- [ ] `x/localematcher` compiles against `internal/localematcher` and
+      `internal/cldr/locale` via type aliases and delegating functions only;
+      no algorithm is reimplemented.
+- [ ] `Match` and `New(...).Match` reproduce constructor negotiation results,
+      including derived language-region aliases (`zh-TW → DataLocale zh-Hant`)
+      and the 838 threshold fallback.
+- [ ] Package doc states the Stage 1 proposal anchor, the v0
+      no-compatibility-promise policy, and the SPEC 80 charter reference.
+- [ ] Table-driven tests cover the proposal README example, lookup/best-fit
+      contrast, derived aliases, threshold rejection, and per-key catalog
+      matching; runnable `Example*` functions demonstrate `Match` and `New`.
+- [ ] The package does not import `internal/cldr` formatter packages
+      (number, date, plural, …) or `golang.org/x/text/language.Matcher`.
+
+---
+
+
 
 ### Specification
 

@@ -1,7 +1,7 @@
 # 72 - Operation Ledger
 
 Status: active
-Owns: mapping public `go-intl` surfaces to ECMA-402 owners, local implementation files, and verification gates.
+Owns: mapping public `go-intl` and `go-intl/x` surfaces to ECMA-402 owners, local implementation files, and verification gates.
 
 This ledger is the maintenance index for public API truthfulness. Package SPECS own detailed semantics; this file answers one narrower question: "why does this exported surface exist, and where is its observable contract tested?"
 
@@ -110,7 +110,20 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 
 ---
 
-## 7. Capability Slice Ledger
+## 7. Satellite `x/` Module
+
+The `x/` satellite module is v0 with no compatibility promise ([SPEC 80](./80-x-modules.md)). Its rows still name an external anchor and a verification entry; the anchor is a TC39 proposal or an ECMA-402 abstract operation rather than an active native owner.
+
+| Surface | ECMA-402 owner / operation | Go entrypoints | Verification |
+|---------|----------------------------|----------------|--------------|
+| Locale matching | Stage 1 `Intl.LocaleMatcher.match` proposal over `LookupMatcher` / `BestFitMatcher` (ECMA-402 §9.2.5–9.2.6) | `x/localematcher.Match`, `x/localematcher.New`, `Matcher.Match` | `x/localematcher/localematcher_test.go`, `x/localematcher/example_test.go` |
+| Matcher algorithm enum | Proposal `options.algorithm` typed bridge | `Algorithm`, `AlgorithmLookup`, `AlgorithmBestFit` | `x/localematcher/localematcher_test.go` |
+| Match result record | Go typed bridge for the proposal's match result | `Result` (`Locale` / `DataLocale` / `Extension` / `Distance`) | `x/localematcher/localematcher_test.go` |
+| Best-fit threshold | Generated-reference `DEFAULT_MATCHING_THRESHOLD` verbatim | `DefaultMatchingThreshold` | `x/localematcher/localematcher_test.go` |
+
+---
+
+## 8. Capability Slice Ledger
 
 This table records partial capabilities that are intentionally narrower than the
 full ECMA-402 surface. It does not grant permission to ship approximations. Each
@@ -123,7 +136,7 @@ rationale, `review_after`, and removal path.
 
 ---
 
-## 8. Acceptance Criteria
+## 9. Acceptance Criteria
 
 - [ ] New exported surfaces update this ledger in the same change.
 - [ ] Deleted public surfaces remove their ledger row and any README/SPEC references.
