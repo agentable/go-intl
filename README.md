@@ -101,6 +101,30 @@ Prefer constructor subpackages in services that need one formatter. Importing `g
 
 See the [Go package documentation](https://pkg.go.dev/github.com/agentable/go-intl) for the full API reference.
 
+## Experimental Modules
+
+`github.com/agentable/go-intl/x` is the experimental satellite module: Go bridges for in-flight TC39 proposals and non-surface exposure of finished-spec machinery, governed by [SPEC 80](SPECS/80-x-modules.md). It stays **v0 with no compatibility promise** — pin an exact version.
+
+| Package | Use |
+|---------|-----|
+| `github.com/agentable/go-intl/x/localematcher` | Match requested locales against your available locales with the same ECMA-402 lookup/best-fit algorithms and CLDR data that back the `Intl` constructors (Stage 1 `Intl.LocaleMatcher` shape). |
+
+```bash
+go get github.com/agentable/go-intl/x/localematcher
+```
+
+```go
+result := localematcher.Match(
+    []string{"zh-HK"},
+    []string{"en", "zh-Hans", "zh-Hant", "ja"},
+    "en",
+    localematcher.AlgorithmBestFit,
+)
+fmt.Println(result.Locale) // zh-Hant
+```
+
+See [x/README.md](x/README.md) for the module charter, versioning, and graduation policy.
+
 ## Native Intl Mapping
 
 The Go packages follow the ownership of the native JavaScript `Intl` API:
