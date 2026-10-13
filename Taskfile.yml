@@ -6,10 +6,10 @@ vars:
   GOBIN: '{{.PROJECT_ROOT}}/bin'
   GOLANGCI_LINT_LOCAL_BINARY: '{{.GOBIN}}/golangci-lint{{exeExt}}'
   REQUIRED_GOLANGCI_LINT_VERSION:
-    sh: cat .golangci.version 2>/dev/null || echo "2.13.1"
+    sh: cat .golangci.version 2>/dev/null || echo "2.14.0"
   GOLANGCI_LINT_BINARY:
     sh: |
-      required="$(cat .golangci.version 2>/dev/null || echo "2.13.1")"
+      required="$(cat .golangci.version 2>/dev/null || echo "2.14.0")"
       matches_required() {
         [ -x "$1" ] || return 1
         [ "$("$1" version --short 2>/dev/null || true)" = "$required" ]

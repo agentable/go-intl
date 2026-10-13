@@ -1,7 +1,7 @@
 module github.com/agentable/go-intl/tools/gen-plural-rules
 
-go 1.27.0
+go 1.27.2
 
-require github.com/agentable/go-intl v0.4.13
+require github.com/agentable/go-intl v0.4.14
 
 replace github.com/agentable/go-intl => ../..
