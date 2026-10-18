@@ -848,6 +848,13 @@ task vuln                 # Run govulncheck
 task verify               # Run deps, fmt, vet, lint, race/module tests, conformance, data contract, and vuln
 ```
 
+On a fresh checkout, install the pinned CLDR inputs before running
+`task modules:verify` or `task verify`:
+
+```bash
+npm ci --prefix tools/gen-cldr/.cldr-json --ignore-scripts --no-audit --no-fund
+```
+
 The committed `go.work` links the four release modules during local development.
 The generators can also run outside a checkout at a coordinated release version:
 

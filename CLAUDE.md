@@ -30,6 +30,11 @@ task bench:run            # one-shot benchmark telemetry
 task bench                # benchmark report, optionally BASELINE=<file>
 ```
 
+`task modules:verify` and `task verify` require the pinned CLDR test inputs.
+On a fresh checkout, run
+`npm ci --prefix tools/gen-cldr/.cldr-json --ignore-scripts --no-audit --no-fund`
+first. CI installs the same lockfile before its four-module tests.
+
 Targeted checks:
 
 ```bash
