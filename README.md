@@ -165,11 +165,13 @@ Short examples below use a local `mustLocaleList` helper for brevity; production
 
 Use constructor packages directly in production services that need one `Intl` constructor, or when calls share locale, options, parts, ranges, or resolved options. This keeps the dependency graph tied to the formatter you use; the root package is measured as aggregate facade cost.
 
+Use the zero-dependency `github.com/agentable/go-intl/option` package for optional scalar helpers when importing constructor packages directly.
+
 ```go
 locales := mustLocaleList("en-US")
 
 compactFormat, err := numberformat.New(locales, numberformat.Options{
-	Notation: gointl.String(numberformat.CompactNotation),
+	Notation: option.String(numberformat.CompactNotation),
 })
 if err != nil {
 	return err
@@ -769,6 +771,7 @@ resolved divergence history. Do not create or retain empty placeholder
 `divergences.md` files. The current active divergence audit is:
 
 - [`datetimeformat/testdata/divergences.md`](datetimeformat/testdata/divergences.md)
+- [`numberformat/testdata/divergences.md`](numberformat/testdata/divergences.md)
 
 Each entry uses the strict `id`, `source`, `owner`, `status`, `reason`, optional
 DateTimeFormat `native_witness`, `review_after`, and `removal_path` fields.
@@ -844,6 +847,17 @@ task bench                # Produce a non-blocking benchmark report, optionally 
 task vuln                 # Run govulncheck
 task verify               # Run deps, fmt, vet, lint, race/module tests, conformance, data contract, and vuln
 ```
+
+The committed `go.work` links the four release modules during local development.
+The generators can also run outside a checkout at a coordinated release version:
+
+```bash
+go run github.com/agentable/go-intl/tools/gen-cldr@v0.4.15 -h
+go run github.com/agentable/go-intl/tools/gen-plural-rules@v0.4.15 -h
+go run github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs@v0.4.15 -h
+```
+
+Generation requires the explicit input and output paths shown by each command.
 
 Run a targeted package while developing:
 

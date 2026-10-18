@@ -179,15 +179,16 @@ func unsignedDecimal(d decimal.Decimal) (decimal.Decimal, bool) {
 }
 
 func trimFraction(formatted string, opts DigitOptions) string {
-	if opts.TrailingZeroDisplay == "stripIfInteger" {
-		formatted = stripIntegerFraction(formatted)
-	}
 	cut := opts.MaximumFractionDigits - opts.MinimumFractionDigits
 	for cut > 0 && strings.HasSuffix(formatted, "0") {
 		formatted = strings.TrimSuffix(formatted, "0")
 		cut--
 	}
-	return strings.TrimSuffix(formatted, ".")
+	formatted = strings.TrimSuffix(formatted, ".")
+	if opts.TrailingZeroDisplay == "stripIfInteger" {
+		return stripIntegerFraction(formatted)
+	}
+	return formatted
 }
 
 func stripIntegerFraction(formatted string) string {

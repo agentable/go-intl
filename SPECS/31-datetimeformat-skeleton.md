@@ -9,7 +9,7 @@
 Define ECMA-402 option → CLDR skeleton (such as `yMMMd`) → pattern (such as `MMM d, y`) three-stage pipeline is implemented in the algorithm layer of go-intl:
 
 1. **Skeleton parsing** (`internal/ecma402/datetimeformat/skeleton.go`): LDML TR35 character → `Intl.DateTimeFormatOptions` field mapping, stateless algorithm.
-2. **BestFitFormatMatcher / BasicFormatMatcher**(`internal/ecma402/datetimeformat/matcher.go`): Scoring function + ICU `adjustFieldTypes` post-processing.
+2. **BestFitFormatMatcher / BasicFormatMatcher**(`internal/ecma402/datetimeformat/matcher.go`): Separate Basic and BestFit scoring policies; only BestFit adjusts the selected fields to the caller’s requested widths.
 3. **Data access boundary**: Algorithm layer prohibits import `internal/cldr`, data slices are injected by the caller of [SPEC 30 §Calendar data access](./30-datetimeformat.md).
 
 This SPEC does not redefine:
@@ -108,7 +108,7 @@ The character table source **MUST** be an LDML TR35 Date Field Symbol Table. `DA
        TimeZoneName           TimeZoneName
    }
    ```
-   The constructor adjusts selected hour characters to the resolved cycle after matching, preserving field widths and the original interval lookup skeleton. Basic matching still skips width adjustment. Interval programs apply the same cycle after adjusting their selected field widths; cross-date fallbacks reuse the effective endpoint time pattern.
+   The constructor resolves the selected skeleton to a complete pattern in the requested 12/24-hour family before replacing hour characters with the exact resolved cycle. Basic selects its component record without hour12 scoring; when its clock family differs, `basicHourCyclePattern` resolves that selected record’s fields against the locale’s candidates in the target family. This realization uses the selected components, not the original caller options, and carries the variant’s interval lookup skeleton. Interval programs use the same cycle; cross-date fallbacks reuse the effective endpoint time pattern.
 
    `go-intl` does not retain a dormant `Pattern12` slot in the skeleton candidate. ECMA-402 and FormatJS model an optional 12-hour pattern record; this implementation stores the selected active `Pattern` plus `HourCycle`, and carries no field unless runtime code consumes it.
 
@@ -128,47 +128,20 @@ The character table source **MUST** be an LDML TR35 Date Field Symbol Table. `DA
 
 ## 3. BestFitFormatMatcher Rating
 
-### 3.1 Scoring algorithm
+### 3.1 Best-fit scoring policy
 
-`BestFitFormatMatcher` is ECMA-402 default `formatMatcher`, which implements §13.1.1.2 algorithm:
+ECMA-402 defines BestFitFormatMatcher as implementation-defined. `Match`
+selects with `scoreBestFitFormat`, then adjusts field widths. Its current policy
+retains the hour-cycle mismatch penalty, a fixed 15 penalty for differing
+numeric widths, and a fixed 15 penalty for numeric/text style changes. Other
+style widths use directional penalties. These are local best-fit choices, not
+requirements imposed by BasicFormatMatcher or ICU.
 
-```text
-function bestFitFormatMatcherScore(options DateTimeFormatOptions, format Formats) int:
-    score := 0
-if options.Hour12 != format.HourCycle Is it equivalent to 12 system:
-score -= removalPenalty or additionPenalty
-    for each field in DATE_TIME_PROPS:
-        optVal := options[field]
-        fmtVal := format[field]
-        if optVal == nil and fmtVal != nil:
-score -= additionPenalty // Extra fields +20 (deduction)
-        else if optVal != nil and fmtVal == nil:
-score -= removalPenalty // Missing field +120 (deduction)
-        else if optVal != nil and fmtVal != nil:
-            if optVal != fmtVal:
-if numeric value/letter different types:
-                    score -= differentNumericTypePenalty
-                else:
-                    delta := |index(optVal) - index(fmtVal)|  // [2-digit, numeric, narrow, short, long]
-score -= delta == 2 ? longMore: shortMore // or longLess / shortLess
-    return score
-```
-
-**MUST** Rules:
-
-1. Scoring constants **MUST** be aligned with §13.1.1.2:
-- `removalPenalty = 120`(missing field)
-- `additionPenalty = 20` (redundant field)
-- `longMore = 6` (length difference 2, direction "longer")
-- `shortMore = 3` (length difference 1, direction "longer")
-- `longLess = 8` (length difference 2, direction "shorter")
-- `shortLess = 6` (length difference 1, direction "shorter")
-- `differentNumericTypePenalty = 15` (numeric values/letters are the same field but different types)
-- `offsetPenalty = 1`(difference between timezone generic/specific and offset fallback)
-2. `DATE_TIME_PROPS` **MUST** be a fixed field sequence: `Weekday | Era | Year | Month | Day | DayPeriod | Hour | Minute | Second | FractionalSecondDigits | TimeZoneName` (aligned generated-reference `DateTimeFormat/utils.ts`).
-3. Select the `Formats` with the highest score (maximum score, least deduction); when tied, take the **first** (aligned generated-reference `formats[0]` semantics).
-
-> **Why**: The scoring constant is the solidified value of ICU `DateTimePatternGenerator`, which Generated reference uses; any deviation changes the hit result of skeleton → pattern, destroying byte equality.
+Both matchers share candidate selection (highest score, first candidate on a
+tie), field-presence penalties (missing 120, extra 20), fractional-width scoring,
+and the specified time-zone-name fallback scores. Width penalties are 3/6 for
+one/two steps wider and 6/8 for one/two steps narrower; offset fallback costs 1.
+The numeric/text and numeric-width best-fit penalty does not enter Basic.
 
 ### 3.2 adjustFieldTypes post-processing
 
@@ -194,13 +167,33 @@ score -= delta == 2 ? longMore: shortMore // or longLess / shortLess
 
 ### 3.3 BasicFormatMatcher
 
-**MUST** Rules:
+`MatchBasic` uses the deterministic ECMA-402 BasicFormatMatcher algorithm:
 
-1. **MUST** implement `BasicFormatMatcher` (§13.1.1.1): the same scoring algorithm, but **not** do `adjustFieldTypes` post-processing.
-2. **MUST** support the `formatMatcher: "basic"` option; the default is `"best fit"`.
-3. The existence of `BasicFormatMatcher` is mainly for conformance test coverage (§13.1.1.1 Algorithm Control).
+- Score only the date-time component table; hour12/hourCycle do not affect ranking.
+- Compare `[2-digit, numeric, narrow, short, long]` indexes directionally,
+  clamping candidate-minus-requested to [-2, 2]. Fractional seconds use [1, 2, 3].
+- Apply the normative timeZoneName fallback rules and field-presence penalties.
+- Preserve first-candidate ties and do not adjust the selected field widths.
 
-> **Why**: §13.1.1.1 is a mandatory clause of spec, even if the default best-fit is, basic must be implemented.
+The constructor realizes the selected skeleton’s full clock-family variant and then applies the exact resolved hour cycle. Merely replacing `H` with `h` cannot provide localized AM/PM placement. The existing best-fit pattern materializer is reused for that variant; it does not rescore the original caller’s Basic request.
+
+Basic matching retains an explicitly selected flexible day-period (`B`) pattern
+and its interval skeleton across hour-cycle changes; only its hour fields are
+rewritten. Automatic AM/PM (`a`/`b`) patterns still select a complete clock-family
+alternative. `TestBasicHourCyclePreservesFlexibleDayPeriod` verifies h23/h24
+text, resolved fields, and same-day/cross-date ranges.
+
+For current Arabic candidates, month=numeric/day=2-digit gives `d\u200f/M`
+(score -3) precedence over `dd\u200f/MM` (score -6). For 2026-01-03 UTC,
+`formatMatcher: "basic"` therefore emits `3\u200f/1`; resolved components and
+parts describe the chosen pattern. Default best-fit keeps its separate policy.
+
+Evidence: `matcher_test.go:TestMatchBasicUsesDirectionalWidthPenalties`,
+`TestMatchBasicIgnoresHour12Preference`, and
+`datetimeformat/datetimeformat_test.go:TestDateTimeFormatBasicMatcherNumericWidths`,
+and `datetimeformat/hour_cycle_test.go:TestBasicHourCyclePatterns` (localized
+AM/PM positions, literals, parts, and same-day/cross-date ranges).
+
 
 ---
 
@@ -295,7 +288,7 @@ validated data and do not grow a second defensive grammar.
 - **FORBIDDEN** Handwritten skeleton → pattern mapping table (per-locale) - codegen is required.
 - **BANNED** translate-agent style "exhaustive 16 seq* functions" - does not support arbitrary skeleton strings.
 - **Disabled** Calling ICU `DateTimePatternGenerator` (no cgo / no ICU).
-- **FORBIDDEN** Modify the current scoring constant (`removalPenalty=120 / additionPenalty=20 / longMore=6 / shortMore=3 / longLess=8 / shortLess=6 / differentNumericTypePenalty=15 / offsetPenalty=1`) of Generated reference, unless you first use the reference implementation diff to prove that Generated reference has changed.
+- Basic scoring follows ECMA-402 directly. Changes to the independent best-fit policy require observable acceptance evidence, not permission from a reference implementation.
 - **Disabled** Skip `adjustFieldTypes` post-processing - even if best-fit hit is accurate, length adjustment still needs to be done.
 - **BANNED** The algorithm layer uses `init()` or package-level mutable var (must be stateless).
 - **BANNED** `parseDateTimeSkeleton` changes LDML character semantics (field values per character length must match Generated reference 1:1).
@@ -315,7 +308,7 @@ validated data and do not grow a second defensive grammar.
 - [ ] `Match` When testing the algorithm layer independently, there is no need to import `internal/cldr` (import path check passed).
 - [ ] `internal/ecma402/datetimeformat/` package-level `init()` count = 0(`grep -c "func init" *.go == 0`).
 - [ ] `adjustFieldTypes(format={Year:numeric, Pattern:"y"}, opts={Year:"2-digit"})` modifies `format.Pattern` to `"yy"`.
-- [ ] The `BasicFormatMatcher` call path differs from `BestFitFormatMatcher` only in the `adjustFieldTypes` call (verified with the `formatMatcher: "basic"` option).
+- [ ] Basic uses normative directional scoring without hour12 preference; BestFit retains independent policy and width adjustment. Public Arabic numeric-width regression and both text/parts projections pass.
 - [ ] `BenchmarkSkeleton_Match` appears in non-blocking benchmark telemetry.
 - [ ] `BenchmarkSkeleton_Parse` appears in non-blocking benchmark telemetry.
 - [ ] LDML literal test: `parseDateTimeSkeleton("'Year:' y")` output `Formats.Pattern` contains literal `"Year:"`, and `Year:numeric`.

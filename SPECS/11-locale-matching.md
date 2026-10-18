@@ -58,7 +58,7 @@ internal/localematcher/
 ├── distance.go      ← compiled ordered CLDR distance evaluation
 ├── profile.go       ← immutable generated-profile projection
 ├── profile_data.go  ← generated rules, variables, and paradigm locales
-├── filter.go        ← FilterLocales / FilterLocalesWithMaximizer
+├── filter.go        ← FilterLocales
 ├── resolve.go       ← ResolveLocale(ECMA-402 §9.2.7) + relevantExtensionKeys processing
 └── ucanonicalize.go ← UnicodeExtensionValue / InsertUnicodeExtensionAndCanonicalize
 ```
@@ -164,7 +164,7 @@ ECMA-402 §9.2.6 `LookupMatcher`:
 
 ```text
 1. For each locale L in the requestedLocales list:
-a. noExtensionsLocale := Remove -u- / -t- extensions of L
+a. noExtensionsLocale := Remove only the -u- extension of L; -t- and other subtags remain for prefix truncation
    b. availableLocale   := BestAvailableLocale(supportedLocales, noExtensionsLocale)
 c. If availableLocale is not undefined, return { locale: availableLocale, extension: -u- segment in L }
 2. Otherwise return { locale: defaultLocale, extension: undefined }
@@ -196,7 +196,7 @@ func BestAvailableLocale(supported []string, locale string) string
 
 > **Why subtag truncation is a loop rather than a recursion**: ECMA-402 uses pseudo code to describe loops; Go style also prefers loops; and BCP 47 tag depth is bounded (actual ≤ 5 subtag), and there is no risk of stack overflow.
 >
-> **Why export `BestAvailableLocale`** separately: `LookupSupportedLocales`(§9.2.8), `ResolveLocale`(§9.2.7), `BestFitMatcher` Tier 2 all require subtag truncation subroutine; DRY.
+> `BestAvailableLocale` is an internal raw-list entry point covered by `lookup_test.go`. Production constructor negotiation and supported-locale filtering use the compiled matcher; its `bestAvailableLocale` method owns indexed prefix lookup. The removed `LookupSupportedLocales` helper is not a consumer.
 
 ### 2.3 Boundary situations
 
@@ -579,55 +579,36 @@ exported symbols map to native owners, not abstract operations.
 
 ---
 
-## 6. FilterLocales and LookupSupportedLocales
+## 6. FilterLocales
 
 ### 6.1 Purpose of FilterLocales
 
-`Intl.NumberFormat.supportedLocalesOf(locales, options)` etc. The semantic source of spec static methods. Go typed bridge receives values already parsed into `locale.Locale`; it then deduplicates by canonical locale string and applies `options.localeMatcher` to choose between `lookup` and `best fit`. The result is the subset of requested locales that can be matched by the supported list, preserving the requested locale value, relative order, and Unicode extensions.
+`Intl.NumberFormat.supportedLocalesOf(locales, options)` etc. The semantic source of spec static methods. The Go typed bridge receives values already parsed into `locale.Locale`. `internal/ecma402.CanonicalLocaleList` owns canonical deduplication; `SupportedLocalesOf` passes that result to the matcher filter, which applies `options.localeMatcher` to choose between `lookup` and `best fit`. The result is the subset of requested locales that can be matched by the supported list, preserving the requested locale value, relative order, and Unicode extensions.
+
+Each formatter shares its existing once-built matcher between constructors and capability queries. The matcher retains that formatter’s generated capability set and maximizer; queries pass an empty default and return requested identifiers, never constructor fallback or data locales. Query validation and canonical deduplication stay in `internal/ecma402`. No per-query profile compilation is needed.
 
 ### 6.2 Go signature
 
 ```go
 // internal/localematcher/filter.go(signature)
 
-// FilterLocalesWithMaximizer canonical-deduplicates requested locales and implements
-// ECMA-402 FilterLocales with CLDR-backed best-fit maximization supplied by callers.
-func FilterLocalesWithMaximizer[T localeIdentifier](supported []string, requested []T, matcher Algorithm, maximizer Maximizer) []T
+// FilterLocales filters already-canonicalized requested locales using a
+// formatter-owned compiled matcher, preserving order and Unicode extensions.
+func FilterLocales[T localeIdentifier](compiled *Matcher, requested []T, algorithm Algorithm) []T
 ```
 
 ```go
 // Call example (exposed by formatter package)
-out := localematcher.FilterLocalesWithMaximizer(
-    cldrnumber.SupportedLocales(),
+out := localematcher.FilterLocales(
+    numberLocaleMatcher(),
     locale.List{mustLocale("en-US-u-nu-latn"), mustLocale("fr-FR")},
     localematcher.AlgorithmBestFit,
-    cldrlocale.Maximize,
 )
 fmt.Println(out) // For example [en-US-u-nu-latn fr-FR]
 ```
 
 > **Why returns requested locale**:ECMA-402 `FilterLocales` Explicitly append the hit `_locale_` to the result instead of appending the data locale. The constructor `supportedLocalesOf` is a capability detection API. The caller is concerned about which locales it requests can be satisfied by the current implementation.
 
-### 6.3 LookupSupportedLocales(ECMA-402 legacy helper)
-
-Low-level lookup-only helper. Used for testing and algorithm decomposition; constructor `SupportedLocalesOf` must not bypass `FilterLocales` and call it directly.
-
-```go
-// internal/localematcher/lookup.go(signature)
-
-// LookupSupportedLocales implements ECMA-402 §9.2.8.
-// Go to BestAvailableLocale for each requestedLocale, and keep it if it hits (remove -u- expansion).
-func LookupSupportedLocales(supported, requested []string) []string
-```
-
-```go
-// Call example (exposed by formatter package)
-out := localematcher.LookupSupportedLocales(
-    cldrnumber.SupportedLocales(),
-    []string{"zh-TW", "fr-FR"},
-)
-fmt.Println(out) // For example ["zh-TW", "fr-FR"]
-```
 
 ---
 
@@ -827,14 +808,12 @@ if res1.Locale == res2.Locale { /* ... */ }
 - [ ] Keep the order of first appearance after deduplication.
 - [ ] No public formatter-independent canonicalize-list helper or `any`-accepting canonical locale-list helper exists.
 
-### LookupSupportedLocales
+### Supported locale filtering
 
-- [ ] `FilterLocales(supported, requested, matcher) locale.List` implements ECMA-402 `FilterLocales`.
-- [ ] `FilterLocales` canonical-deduplicates requested locale values before filtering.
+- [ ] `FilterLocales(compiled, requested, algorithm)` implements ECMA-402 `FilterLocales`.
+- [ ] `internal/ecma402.CanonicalLocaleList` deduplicates canonical requested values before `SupportedLocalesOf` invokes `FilterLocales`; the matcher filter does not repeat this step.
 - [ ] `FilterLocales` preserves requested locale order and Unicode extensions for matched locales.
 - [ ] Constructor package `SupportedLocalesOf` methods call `internal/ecma402.SupportedLocalesOf` rather than duplicating matcher loops.
-- [ ] `LookupSupportedLocales(supported, requested) []string` implements ECMA-402 §9.2.8.
-- [ ] Output stripped of `-u-` extension.
 
 ### Error
 
@@ -846,7 +825,7 @@ if res1.Locale == res2.Locale { /* ... */ }
 ### Performance
 
 - [ ] Matcher benchmarks report compile and exact/repeated/distinct request telemetry without imposing numeric CI thresholds.
-- [ ] `sync.Map` memoize has no race (`-race` passes) under concurrent 10 goroutines.
+- [ ] The compiled matcher's bounded `lastMatch` cache safely reuses one short non-exact best-fit request. Concurrent distinct requests remain correct under `go test -race ./internal/localematcher`, including `TestMatcherConcurrentDistinctRequests`; no unbounded request-history map is required.
 
 ### Boundary with `language.Matcher`
 
@@ -871,7 +850,7 @@ if res1.Locale == res2.Locale { /* ... */ }
 - [ECMA-402 §9.2.5 — BestFitMatcher](https://tc39.es/ecma402/#sec-bestfitmatcher)
 - [ECMA-402 §9.2.6 — LookupMatcher](https://tc39.es/ecma402/#sec-lookupmatcher)
 - [ECMA-402 §9.2.7 — ResolveLocale](https://tc39.es/ecma402/#sec-resolvelocale)
-- [ECMA-402 §9.2.8 — LookupSupportedLocales](https://tc39.es/ecma402/#sec-lookupsupportedlocales)
+- [ECMA-402 — FilterLocales](https://tc39.es/ecma402/#sec-filterlocales)
 - [UTS #35 §EnhancedLanguageMatching](https://unicode.org/reports/tr35/#EnhancedLanguageMatching)
 
 ### Reference implementations

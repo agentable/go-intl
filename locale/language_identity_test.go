@@ -1,6 +1,59 @@
 package locale
 
-import "testing"
+import (
+	"encoding/json/v2"
+	"testing"
+)
+
+func TestExplicitUnknownLanguageSubtags(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		tag, script, region string
+	}{
+		{"en", "", ""},
+		{"en-Zzzz", "Zzzz", ""},
+		{"en-ZZ", "", "ZZ"},
+		{"en-Zzzz-ZZ", "Zzzz", "ZZ"},
+	} {
+		for _, suffix := range []struct{ tag, base string }{
+			{},
+			{"-emodeng-t-en-u-ca-gregory-x-private", "-emodeng"},
+		} {
+			t.Run(tc.tag+suffix.tag, func(t *testing.T) {
+				t.Parallel()
+				input := tc.tag + suffix.tag
+				loc, err := Parse(input)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := loc.String(); got != input {
+					t.Errorf("String() = %q, want %q", got, input)
+				}
+				if got, want := loc.BaseName(), tc.tag+suffix.base; got != want {
+					t.Errorf("BaseName() = %q, want %q", got, want)
+				}
+				if loc.Language() != "en" || loc.Script() != tc.script || loc.Region() != tc.region {
+					t.Errorf("getters = %q/%q/%q, want en/%q/%q", loc.Language(), loc.Script(), loc.Region(), tc.script, tc.region)
+				}
+				data, err := json.Marshal(loc)
+				if err != nil || string(data) != `"`+input+`"` {
+					t.Errorf("JSON = %s, %v; want %q", data, err, input)
+				}
+				var roundTrip Locale
+				if err := json.Unmarshal(data, &roundTrip); err != nil || !roundTrip.Equal(loc) {
+					t.Errorf("JSON round trip = %v, %v", roundTrip, err)
+				}
+				if got, want := loc.Maximize().String(), "en-Latn-US"+suffix.tag; got != want {
+					t.Errorf("Maximize() = %q, want %q", got, want)
+				}
+				if got, want := loc.Minimize().String(), "en"+suffix.tag; got != want {
+					t.Errorf("Minimize() = %q, want %q", got, want)
+				}
+			})
+		}
+	}
+}
 
 func TestCanonicalAliasPreservesSuffix(t *testing.T) {
 	t.Parallel()

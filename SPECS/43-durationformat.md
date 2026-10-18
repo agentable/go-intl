@@ -123,7 +123,7 @@ MUST rules:
 
 Pipeline:
 
-1. Validate at most one options object.
+1. Copy the single typed `Options` value into constructor configuration; `Options{}` represents an omitted or empty JavaScript options object.
 2. Read `localeMatcher`, default `best fit`, allowed `lookup | best fit`; `nil` means omitted and `gointl.String("")` is invalid.
 3. Validate optional `numberingSystem` as a Unicode numbering-system identifier.
 4. Resolve locale against the DurationFormat supported set with relevant extension key `nu`.
@@ -131,7 +131,7 @@ Pipeline:
 6. Resolve unit options for years through nanoseconds using ECMA-402 `GetDurationUnitOptions`; each unit style and unit display option is a presence-aware `*string`, where `nil` means omitted/default and `gointl.String("")` is invalid.
 7. Read `fractionalDigits`, allowed integer 0 through 9, default omitted.
 8. Load the locale's numeric time separator from CLDR number symbols, falling back to `":"` if the payload is empty.
-9. Materialize the embedded `NumberFormat` and `ListFormat` instances implied by the resolved options, including sign-hidden variants and fractional numeric variants, so cached formatting does not repeat locale negotiation, option validation, or CLDR data lookup.
+9. Materialize the embedded `NumberFormat` and `ListFormat` instances implied by the resolved options. Numeric seconds use fractional options; each text unit selects ordinary or fractional options from its resolved child-unit style before construction. Store only the selected formatter and its sign-hidden variant. Cached formatting reuses these instances without repeating locale negotiation, option validation, or CLDR data lookup; value-dependent rollup, display and sign decisions remain in formatting.
 
 MUST rules:
 
@@ -183,7 +183,7 @@ Formatting pipeline:
 2. Walk units in ECMA-402 order: years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds.
 3. For non-numeric unit styles, use the constructor-resolved `NumberFormat` with `style="unit"` and the resolved unit display.
 4. For the first numeric or two-digit time unit, format the remaining numeric time sequence with CLDR separators.
-5. When the next smaller unit is fractional, add exact fractional digits to the current unit, use `roundingMode="trunc"`, and stop.
+5. When the next smaller unit is fractional, combine its exact value with the current unit before deciding whether to display it. Emit the group only when `display="always"` or the combined value is nonzero, then apply `roundingMode="trunc"`. A nonzero value that rounds to zero still emits parts. Stop after this group even when it is omitted; consume the duration sign only for an emitted group.
 6. Join unit groups with the constructor-resolved `ListFormat{type:"unit"}`; `style="digital"` joins non-digital groups using short list style.
 
 MUST rules:
@@ -193,6 +193,11 @@ MUST rules:
 3. Number parts carry the singular duration unit.
 4. Literal parts carry an empty unit unless they come from a unit formatter part.
 5. Digital separators are literal parts.
+
+The fractional display boundary is covered by
+`durationformat/durationformat_test.go:TestDurationFormatFormatEmptyDuration` and
+`TestDurationFormatFractionalDisplayBeforeRounding`, including all three subsecond
+rollups, explicit always display, prior units, and signed values rounded to zero.
 
 ---
 
@@ -205,7 +210,7 @@ func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error)
 MUST rules:
 
 1. Use the intersection of generated unit, number, list, and plural supported locale sets. Do not derive from `tools/locale-profile.json` or from one payload family alone.
-2. Call `localematcher.FilterLocalesWithMaximizer`.
+2. Call `internal/ecma402.SupportedLocalesOf` with the formatter-owned compiled matcher, requested locales, and localeMatcher option. This shared boundary owns option validation, canonical deduplication, and matcher dispatch.
 3. Accept one `Options` value; `Options{}` represents omitted static-method options.
 4. Read only `LocaleMatcher`; invalid values, including an explicit empty string, return `ErrInvalidOption`.
 

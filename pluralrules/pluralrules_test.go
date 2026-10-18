@@ -194,28 +194,44 @@ func TestPluralRulesNotationAffectsOperands(t *testing.T) {
 		t.Fatalf("standard SelectInt64(12345678) = %s, want %s", got, Other)
 	}
 
-	for _, tc := range []struct {
-		name string
-		opts Options
-	}{
-		{name: "scientific", opts: Options{Notation: stringPtr(ScientificNotation)}},
-		{name: "engineering", opts: Options{Notation: stringPtr(EngineeringNotation)}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			rules, err := New(locale.List{intltest.Locale(t, "ca")}, tc.opts)
-			if err != nil {
-				t.Fatal(err)
-			}
-			got := rules.Select(decimalValue("12345678"))
-			if got != Many {
-				t.Fatalf("%s SelectDecimal(12345678) = %s, want %s", tc.name, got, Many)
-			}
-			if got := rules.Select(Int(12345678)); got != Many {
-				t.Fatalf("%s SelectInt64(12345678) = %s, want %s", tc.name, got, Many)
-			}
-		})
+	for _, notation := range []Notation{ScientificNotation, EngineeringNotation} {
+		for _, tc := range []struct {
+			name, loc, text string
+			value           float64
+			min, max        int
+			want            Category
+		}{
+			{"full magnitude", "en", "1000", 1000, 0, 3, Other},
+			{"negative full magnitude", "en", "-1000", -1000, 0, 3, Other},
+			{"french exponent", "fr", "12345678", 12345678, 0, 3, Many},
+			{"catalan exponent", "ca", "12345678", 12345678, 0, 3, Many},
+			{"carry", "ca", "999999.6", 999999.6, 0, 0, Many},
+			{"visible zeros", "en", "1", 1, 2, 3, Other},
+			{"source rounding", "ru", "1001", 1001, 0, 0, One},
+			{"negative exponent", "en", "0.001", 0.001, 2, 3, Other},
+			{"source rounded zero", "ar", "0.001", 0.001, 0, 0, Zero},
+		} {
+			t.Run(string(notation)+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				rules, err := New(intltest.LocaleList(t, tc.loc), Options{
+					Notation:              stringPtr(notation),
+					MinimumFractionDigits: intPtr(tc.min),
+					MaximumFractionDigits: intPtr(tc.max),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				values := []Value{Float(tc.value), decimalValue(tc.text)}
+				if math.Trunc(tc.value) == tc.value {
+					values = append(values, Int(int64(tc.value)))
+				}
+				for i, value := range values {
+					if got := rules.Select(value); got != tc.want {
+						t.Errorf("Select(%s, bridge %d) = %s, want %s", tc.text, i, got, tc.want)
+					}
+				}
+			})
+		}
 	}
 }
 
@@ -241,26 +257,26 @@ func TestResolveDecimalUsesExplicitConstructorState(t *testing.T) {
 		wantExponent  int
 	}{
 		{name: "standard", notation: StandardNotation, wantFormatted: "12345678"},
-		{name: "scientific", notation: ScientificNotation, wantFormatted: "1.235", wantExponent: 7},
-		{name: "engineering", notation: EngineeringNotation, wantFormatted: "12.346", wantExponent: 6},
+		{name: "scientific", notation: ScientificNotation, wantFormatted: "12345678", wantExponent: 7},
+		{name: "engineering", notation: EngineeringNotation, wantFormatted: "12345678", wantExponent: 6},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			var gotOps pluralop.OperandsRecord
-			formatted, rounded, category := resolveDecimal(d, tc.notation, ecma402nf.ResolvedDigitOptions{DigitOptions: digitOptions, RoundingType: ecma402nf.RoundingTypeFractionDigits}, compactExponentSet{}, func(ops pluralop.OperandsRecord) pluralop.Category {
+			formatted, category := resolveDecimal(d, tc.notation, ecma402nf.ResolvedDigitOptions{DigitOptions: digitOptions, RoundingType: ecma402nf.RoundingTypeFractionDigits}, compactExponentSet{}, func(ops pluralop.OperandsRecord) pluralop.Category {
 				gotOps = ops
 				return pluralop.Many
 			})
 			if formatted != tc.wantFormatted {
 				t.Fatalf("resolveDecimal formatted = %q, want %q", formatted, tc.wantFormatted)
 			}
-			if rounded.String() != tc.wantFormatted {
-				t.Fatalf("resolveDecimal rounded = %s, want %s", rounded.String(), tc.wantFormatted)
-			}
 			if category != Many {
 				t.Fatalf("resolveDecimal category = %s, want %s", category, Many)
+			}
+			if gotOps.N.String() != "12345678" || gotOps.I.String() != "12345678" || gotOps.V != 0 {
+				t.Fatalf("resolveDecimal operands = N:%s I:%s V:%d; want source 12345678 with no fractional digits", gotOps.N, gotOps.I, gotOps.V)
 			}
 			if gotOps.C != tc.wantExponent || gotOps.E != tc.wantExponent {
 				t.Fatalf("resolveDecimal operands exponent = c:%d e:%d, want %d", gotOps.C, gotOps.E, tc.wantExponent)

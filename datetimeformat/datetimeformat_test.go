@@ -123,6 +123,63 @@ func TestDateTimeFormatDefaultFormatUsesDateFields(t *testing.T) {
 	}
 }
 
+func TestDateTimeFormatEraDefaultDateFields(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		opts         Options
+		year         int
+		wantYear     string
+		wantEra      string
+		wantMonthDay bool
+	}{
+		{"era only", Options{Era: stringPtr(ShortFieldStyle)}, 2026, "2026", "AD", true},
+		{"era and time zone name", Options{Era: stringPtr(ShortFieldStyle), TimeZoneName: stringPtr(ShortTimeZoneName)}, 2026, "2026", "AD", true},
+		{"explicit year", Options{Era: stringPtr(ShortFieldStyle), Year: stringPtr(NumericFieldStyle)}, 2026, "2026", "AD", false},
+		{"empty options", Options{}, 2026, "2026", "", true},
+		{"BCE era only", Options{Era: stringPtr(ShortFieldStyle)}, 0, "1", "BC", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			opts := tc.opts
+			opts.TimeZone = stringPtr("UTC")
+			format, err := New(intltest.LocaleList(t, "en"), opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved := format.ResolvedOptions()
+			if resolved.Year == nil || (resolved.Month != nil) != tc.wantMonthDay || (resolved.Day != nil) != tc.wantMonthDay {
+				t.Errorf("resolved date fields = year:%v month:%v day:%v, want month/day present: %t", resolved.Year, resolved.Month, resolved.Day, tc.wantMonthDay)
+			}
+			instant := time.Date(tc.year, time.May, 8, 0, 0, 0, 0, time.UTC)
+			parts, err := format.FormatToParts(instant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fields := make(map[PartType]string)
+			for _, part := range parts {
+				if part.Type != PartLiteral {
+					fields[part.Type] = part.Value
+				}
+			}
+			wantMonth, wantDay := "", ""
+			if tc.wantMonthDay {
+				wantMonth, wantDay = "5", "8"
+			}
+			if fields[PartYear] != tc.wantYear || fields[PartMonth] != wantMonth || fields[PartDay] != wantDay || fields[PartEra] != tc.wantEra {
+				t.Errorf("parts = %#v, want year %s, month %q, day %q, era %q", parts, tc.wantYear, wantMonth, wantDay, tc.wantEra)
+			}
+			text, err := format.Format(instant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if text != joinPartValues(parts) {
+				t.Errorf("Format() = %q, parts = %#v", text, parts)
+			}
+		})
+	}
+}
+
 func TestDateTimeFormatDefaultFormatUsesCLDRDateOrder(t *testing.T) {
 	t.Parallel()
 
@@ -1480,6 +1537,39 @@ func TestDateTimeFormatBasicMatcherWithComponents(t *testing.T) {
 	}
 	if got, want := mustDateFormat(t, format, time.Date(2026, time.May, 8, 0, 0, 0, 0, time.UTC)), "May 8, 2026"; got != want {
 		t.Fatalf("Format() = %q, want %q", got, want)
+	}
+}
+
+func TestDateTimeFormatBasicMatcherNumericWidths(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ matcher, want, day string }{
+		{"basic", "3\u200f/1", "numeric"},
+		{"best fit", "03\u200f/1", "2-digit"},
+	} {
+		t.Run(tc.matcher, func(t *testing.T) {
+			t.Parallel()
+			f, err := New(locale.List{intltest.Locale(t, "ar")}, Options{
+				Month: new("numeric"), Day: new("2-digit"), FormatMatcher: &tc.matcher, TimeZone: new("UTC"),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			instant := time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)
+			if got := mustDateFormat(t, f, instant); got != tc.want {
+				t.Fatalf("Format = %q, want %q", got, tc.want)
+			}
+			resolved := f.ResolvedOptions()
+			if resolved.Month == nil || *resolved.Month != "numeric" || resolved.Day == nil || string(*resolved.Day) != tc.day {
+				t.Fatalf("resolved components = %+v", resolved)
+			}
+			if got := joinPartValues(mustDateFormatToParts(t, f, instant)); got != tc.want {
+				t.Fatalf("parts = %q, want %q", got, tc.want)
+			}
+			end := instant.AddDate(0, 0, 1)
+			if got, want := joinRangePartValues(mustFormatRangeToParts(t, f, instant, end)), mustFormatRange(t, f, instant, end); got != want {
+				t.Fatalf("range parts = %q, text = %q", got, want)
+			}
+		})
 	}
 }
 

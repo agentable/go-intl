@@ -245,7 +245,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 > **Why**:
 > 1. generated-reference `intl-pluralrules/scripts/plural-rules-compiler.ts` has compiled the plural DSL into a directly executed function on the TS side; the Go side maintains the same product form and does not interpret the DSL at runtime.
 > 2. Consistent with SPEC 50 §"embed-only / no runtime I/O" - data is the Go source.
-> 3. Compiled function zero-allocation query vs runtime interpreter has 2–3 times more overhead.
+> 3. Generated functions avoid runtime DSL parsing. Performance comparisons require the same inputs and a measured baseline; no fixed speedup is promised.
 > 4. `golang.org/x/text/feature/plural` is not available (see §3.2 for details).
 >
 > **Rejected**:
@@ -408,6 +408,29 @@ func CardinalRule(loc string) (func(pluralop.OperandsRecord) pluralop.Category, 
 > **Rejected**: Public `PluralRules.SelectFormatted` - This is not an ECMA-402 public API, nor is it a language that Go users need.
 > **Rejected**: Let NumberFormat copy plural DSL or rules table - rules are only allowed from `internal/cldr/plural` codegen.
 
+### 4.3 Scientific and engineering operands
+
+`ResolvePlural` formats the original mathematical value with the resolved digit
+options. That string supplies both range identity and the N/I/V/W/F/T operands;
+notation must not replace it with a scaled mantissa. C/E come from the shared
+`ScientificExponent` operation on the rounded source value, including its carry
+recheck and engineering multiple-of-three rule. Standard notation uses E=0;
+the compact path above retains its own generated exponent selection.
+
+This implementation-defined CLDR choice preserves full magnitude, option-induced
+fractional zeros and exponent-sensitive categories without a second mantissa
+formatting path. en 1000 selects `other`; fr/ca 12345678 selects `many` under
+both notations. Source rounding remains observable: ru 1001 with maxFraction=0
+selects `one`, and ar 0.001 with maxFraction=0 selects `zero`.
+
+ICU instead classifies a rounded notation mantissa restored to full magnitude;
+FormatJS currently leaves the scientific/engineering exponent at zero. Neither
+is copied wholesale. The versioned finite matrix and exact reference paths are
+in `pluralrules/testdata/notation-review.md`. `TestPluralRulesNotationAffectsOperands`
+and `TestResolveDecimalUsesExplicitConstructorState` protect the public categories
+and source operand boundary. NumberFormat's style-operand restoration remains a
+different contract and is not used by PluralRules.
+
 ---
 
 ## 5. SelectRange algorithm
@@ -441,6 +464,15 @@ prove integer operands are unchanged. ResolvePlural formatted strings are unsign
 `-1` and `1` therefore have equal formatted strings. All typed bridges share this
 result; Node 26.10.0 currently returns `other` for the signed pair, which conflicts
 with the current ECMA-402 formatted-string rule and is not the witness for this case.
+
+Scientific and engineering notation retain this source-value identity for both
+range comparison and category operands (§4.3). Equal mantissas at different
+exponents do not establish range equality: en `(1, 1000)` and ar `(2, 2000)`
+continue to the category-pair table and resolve to `other`. The shared numeric
+formatter returns signed text; PluralRules removes the finite value's sign for
+this comparison, while retaining distinct special-value strings. Public bridge
+and rounded-equality coverage lives in `TestSelectRangeNotationIdentity` in
+`pluralrules/range_bridge_test.go`.
 
 3. A locale explicit-row hit **MUST** return its generated category. Missing
    locale data or a missing `(sCat, eCat)` row **MUST** return `Other` without

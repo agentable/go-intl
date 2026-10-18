@@ -2,8 +2,8 @@ package ecma402dtf
 
 import "strings"
 
-// Skeleton matcher penalties mirror ICU DateTimePatternGenerator
-// icu4c/source/i18n/dtptngen.cpp computeDistance.
+// Basic matcher penalties follow ECMA-402. Best fit additionally penalizes
+// numeric/text and numeric-width mismatches with differentNumericTypePenalty.
 const (
 	removalPenalty              = 120 // Penalizes a missing requested field.
 	additionPenalty             = 20  // Penalizes an extra field in the candidate pattern.
@@ -17,20 +17,24 @@ const (
 
 // Match selects the best-fit format and adjusts field widths to options.
 func Match(opts Options, formats []Formats) Formats {
-	return AdjustFieldTypes(MatchBasic(opts, formats), opts)
+	return AdjustFieldTypes(selectFormat(opts, formats, scoreBestFitFormat), opts)
 }
 
 // MatchBasic selects the highest-scoring format without field-width adjustment.
 func MatchBasic(opts Options, formats []Formats) Formats {
+	return selectFormat(opts, formats, scoreBasicFormat)
+}
+
+func selectFormat(opts Options, formats []Formats, score func(Options, Formats) int) Formats {
 	if len(formats) == 0 {
 		return Formats{}
 	}
 	bestFormat := formats[0]
-	bestScore := scoreFormat(opts, formats[0])
+	bestScore := score(opts, formats[0])
 	for _, format := range formats[1:] {
-		score := scoreFormat(opts, format)
-		if score > bestScore {
-			bestScore = score
+		candidateScore := score(opts, format)
+		if candidateScore > bestScore {
+			bestScore = candidateScore
 			bestFormat = format
 		}
 	}
@@ -174,7 +178,32 @@ func hourPatternChar(hourCycle HourCycle) byte {
 	}
 }
 
-func scoreFormat(opts Options, format Formats) int {
+func scoreBasicFormat(opts Options, format Formats) int {
+	score := scoreBasicField(opts.Weekday, format.Weekday)
+	score += scoreBasicField(opts.Era, format.Era)
+	score += scoreBasicField(FieldStyle(opts.Year), FieldStyle(format.Year))
+	score += scoreBasicField(opts.Month, format.Month)
+	score += scoreBasicField(FieldStyle(opts.Day), FieldStyle(format.Day))
+	score += scoreBasicField(opts.DayPeriod, format.DayPeriod)
+	score += scoreBasicField(FieldStyle(opts.Hour), FieldStyle(format.Hour))
+	score += scoreBasicField(FieldStyle(opts.Minute), FieldStyle(format.Minute))
+	score += scoreBasicField(FieldStyle(opts.Second), FieldStyle(format.Second))
+	score += scoreFractionalSecondDigits(opts.FractionalSecondDigits, format.FractionalSecondDigits)
+	score += scoreTimeZoneNameField(opts.TimeZoneName, format.TimeZoneName)
+	return score
+}
+
+func scoreBasicField(want, have FieldStyle) int {
+	if fieldScore := scoreField(want != "", have != ""); fieldScore != 0 || want == "" || have == "" {
+		return fieldScore
+	}
+	if want == have {
+		return 0
+	}
+	return -stylePenalty(styleIndex(want), styleIndex(have))
+}
+
+func scoreBestFitFormat(opts Options, format Formats) int {
 	score := 0
 	score += scoreHourCycleField(opts.Hour12, format.HourCycle)
 	score += scoreStyleField(opts.Weekday, format.Weekday)
@@ -203,16 +232,10 @@ func hourCycleIs12Hour(hourCycle HourCycle) bool {
 }
 
 func scoreStyleField(want, have FieldStyle) int {
-	if fieldScore := scoreField(want != "", have != ""); fieldScore != 0 || want == "" || have == "" {
-		return fieldScore
-	}
-	if want == have {
-		return 0
-	}
-	if isNumericFieldStyle(want) != isNumericFieldStyle(have) {
+	if want != "" && have != "" && isNumericFieldStyle(want) != isNumericFieldStyle(have) {
 		return -differentNumericTypePenalty
 	}
-	return -stylePenalty(styleIndex(want), styleIndex(have))
+	return scoreBasicField(want, have)
 }
 
 func scoreNumericField(want, have NumericStyle) int {

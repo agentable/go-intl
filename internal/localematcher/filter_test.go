@@ -40,6 +40,11 @@ func TestFilterLocales(t *testing.T) {
 			want:      []string{"zh-HK-u-nu-hanidec"},
 		},
 		{
+			name:      "empty available set does not invent a default",
+			requested: []locale.Locale{intltest.Locale(t, "en")},
+			matcher:   AlgorithmBestFit,
+		},
+		{
 			name:      "filters unsupported locale",
 			supported: []string{"en", "fr"},
 			requested: []locale.Locale{intltest.Locale(t, "de")},
@@ -51,7 +56,7 @@ func TestFilterLocales(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := FilterLocales(tc.supported, tc.requested, tc.matcher)
+			got := FilterLocales(NewMatcher(tc.supported, nil), tc.requested, tc.matcher)
 			if got := localesToStrings(got); !slices.Equal(got, tc.want) {
 				t.Fatalf("FilterLocales() = %v, want %v", got, tc.want)
 			}

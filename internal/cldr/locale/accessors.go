@@ -68,6 +68,14 @@ func Maximize(tag string) string {
 // MaximizeSubtags applies the CLDR Add Likely Subtags fallback order and
 // preserves subtags already supplied by the caller.
 func MaximizeSubtags(language, script, region string) (lang, scr, reg string, ok bool) {
+	// Unknown subtags are missing inputs to likely-subtag inference, but remain
+	// explicit values in Locale identity and information getters.
+	if script == "Zzzz" {
+		script = ""
+	}
+	if region == "ZZ" {
+		region = ""
+	}
 	likelySubtagsOnce.Do(loadLikelySubtags)
 	candidates := [...]string{
 		localeid.Join(language, script, region),

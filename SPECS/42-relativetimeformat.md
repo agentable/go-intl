@@ -125,7 +125,7 @@ MUST rules:
 
 Pipeline:
 
-1. Validate at most one options object.
+1. Copy the single typed `Options` value into constructor configuration; `Options{}` represents an omitted or empty JavaScript options object.
 2. Read `localeMatcher`, default `best fit`, allowed `lookup | best fit`; `nil` means omitted and `gointl.String("")` is invalid.
 3. Validate optional `numberingSystem` as a Unicode numbering-system identifier.
 4. Resolve locale against the RelativeTimeFormat supported set with relevant extension key `nu`.
@@ -176,6 +176,11 @@ MUST rules:
 3. Runtime formatting must never read CLDR JSON files.
 4. Accessors must go through `internal/cldr/relativetime`.
 5. Short and narrow style lookup must fall back to long field data at runtime when the variant is absent.
+6. Generation validates every supplied future/past plural pattern with the shared
+   indexed pattern parser. Only `{0}` is a permitted argument; unknown arguments
+   and malformed openings fail with source file, field, tense and plural-key
+   context. A pattern may omit or repeat `{0}`. Relative literal values are plain
+   text and are not parsed as patterns. Valid input is stored unchanged.
 
 > **Why**: RelativeTimeFormat is a data composition layer over number and plural primitives. Keeping relative fields small avoids pulling unrelated calendar data into a formatter that only needs fields.
 
@@ -253,7 +258,7 @@ func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error)
 MUST rules:
 
 1. Use the intersection of generated RelativeTimeFormat, NumberFormat, and PluralRules supported locale sets. Do not derive from `tools/locale-profile.json` or from one payload family alone.
-2. Call `localematcher.FilterLocalesWithMaximizer`.
+2. Call `internal/ecma402.SupportedLocalesOf` with the formatter-owned compiled matcher, requested locales, and localeMatcher option. This shared boundary owns option validation, canonical deduplication, and matcher dispatch.
 3. Accept one `Options` value; `Options{}` represents omitted static-method options.
 4. Read only `LocaleMatcher`; ignore formatting options for this static method. `nil` means omitted and an explicit empty string is invalid.
 5. Invalid locale matcher returns `ErrInvalidOption`.

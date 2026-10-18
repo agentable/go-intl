@@ -1,9 +1,11 @@
 package cldr
 
 import (
+	"fmt"
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -157,6 +159,57 @@ func TestLoadRelativeTimeFieldsRejectsInvalidPatternMap(t *testing.T) {
 				t.Fatal("loadRelativeTimeFields() succeeded, want error")
 			}
 		})
+	}
+}
+
+func TestLoadRelativeTimeFieldsPatternParameters(t *testing.T) {
+	t.Parallel()
+	for _, tense := range []string{"future", "past"} {
+		for _, tc := range []struct {
+			name, pattern string
+			valid         bool
+		}{
+			{"unknown index", "in {1} days", false},
+			{"unknown name", "in {name} days", false},
+			{"literal name", "in {literal} days", false},
+			{"unclosed", "in {0 days", false},
+			{"no parameter", "tomorrow", true},
+			{"one parameter", "in {0} days", true},
+			{"repeated parameter", "{0} days ({0})", true},
+		} {
+			t.Run(tense+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				root := t.TempDir()
+				path := filepath.Join(root, "cldr-dates-full", "main", "en", "dateFields.json")
+				mustWriteFile(t, path, fmt.Sprintf(`{"main":{"en":{"dates":{"fields":{"day-short":{
+					"relativeTime-type-%s":{"relativeTimePattern-count-other":%q},
+					"relative-type-0":"today {name}"
+				}}}}}}`, tense, tc.pattern))
+				got, err := loadRelativeTimeFields(root, []string{"en"})
+				if !tc.valid {
+					if err == nil {
+						t.Fatal("loadRelativeTimeFields() succeeded, want invalid pattern error")
+					}
+					for _, context := range []string{path, "day-short", tense, "relativeTimePattern-count-other"} {
+						if !strings.Contains(err.Error(), context) {
+							t.Errorf("error %q lacks context %q", err, context)
+						}
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				field := got["en"]["day"]["short"]
+				patterns := field.Future
+				if tense == "past" {
+					patterns = field.Past
+				}
+				if patterns["other"] != tc.pattern || field.Relative["0"] != "today {name}" {
+					t.Fatalf("loaded field = %#v; want original pattern %q and unchanged literal", field, tc.pattern)
+				}
+			})
+		}
 	}
 }
 

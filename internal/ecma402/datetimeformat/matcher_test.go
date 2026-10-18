@@ -221,7 +221,7 @@ func TestAdjustFieldTypesDoesNotRewriteQuotedPatternFields(t *testing.T) {
 	}
 }
 
-func TestMatchBasicScoresHour12Compatibility(t *testing.T) {
+func TestMatchBasicIgnoresHour12Preference(t *testing.T) {
 	t.Parallel()
 
 	hour12 := true
@@ -230,8 +230,11 @@ func TestMatchBasicScoresHour12Compatibility(t *testing.T) {
 		Parse("h", "h a", nil, ""),
 	}
 	got := MatchBasic(Options{Hour: NumericNumeric, Hour12: &hour12}, formats)
-	if got.Pattern != "h a" {
-		t.Fatalf("Pattern = %q, want %q", got.Pattern, "h a")
+	if got.Pattern != "H" {
+		t.Fatalf("Pattern = %q, want %q", got.Pattern, "H")
+	}
+	if got := Match(Options{Hour: NumericNumeric, Hour12: &hour12}, formats); got.Pattern != "h a" {
+		t.Fatalf("best fit Pattern = %q, want h a", got.Pattern)
 	}
 }
 
@@ -307,5 +310,26 @@ func TestMatchBasicScoresTextWidthDistance(t *testing.T) {
 	got = MatchBasic(Options{Month: FieldShort}, formats)
 	if got.Pattern != "MMMM" {
 		t.Fatalf("short month Pattern = %q, want MMMM", got.Pattern)
+	}
+}
+
+func TestMatchBasicUsesDirectionalWidthPenalties(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		opts    Options
+		formats []Formats
+		want    string
+	}{
+		{"numeric widths", Options{Month: FieldNumeric, Day: Numeric2Digit}, []Formats{Parse("MMdd", "dd/MM", nil, ""), Parse("Md", "d/M", nil, "")}, "d/M"},
+		{"numeric text tie", Options{Month: FieldNarrow}, []Formats{Parse("M", "M", nil, ""), Parse("MMMM", "MMMM", nil, "")}, "M"},
+		{"fractional widths", Options{FractionalSecondDigits: 2}, []Formats{Parse("S", "S", nil, ""), Parse("SSS", "SSS", nil, "")}, "SSS"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := MatchBasic(tc.opts, tc.formats); got.Pattern != tc.want {
+				t.Fatalf("Pattern = %q, want %q", got.Pattern, tc.want)
+			}
+		})
 	}
 }

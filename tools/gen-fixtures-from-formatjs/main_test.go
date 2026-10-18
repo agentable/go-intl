@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json/v2"
+	"errors"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -12,14 +15,7 @@ import (
 	"github.com/agentable/go-intl/tools/conformance"
 )
 
-func TestRunImportsSyntheticNodeWitnessFixtures(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	nodePath := filepath.Join(root, "node")
-	if err := os.WriteFile(nodePath, []byte(`#!/bin/sh
-cat <<'JSON'
-{
+const syntheticNodeWitnessJSON = `{
   "nodeVersion": "v26.0.0",
   "versions": {"node": "26.0.0", "v8": "14.0.365.4-node.2", "icu": "78.1", "cldr": "48.0", "tz": "2025b"},
   "localeSmoke": [
@@ -75,6 +71,7 @@ cat <<'JSON'
       "errorCode": "invalid_option"
     }
   ],
+  "numberFormatEdge": [{"id":"numberformat-node-v26-negative-zero","source":"node:v26.0.0:numberformat:edge","locale":"en","options":{},"input":"-0","expected":"-0"}],
   "numberFormatResolved": [
     {
       "id": "numberformat-node-v26-resolved-decimal-default",
@@ -245,14 +242,41 @@ cat <<'JSON'
     "versions": {"node": "26.0.0", "icu": "78.1", "cldr": "48.0", "tz": "2025b"},
     "values": {
       "calendar": ["gregory", "iso8601"],
+      "currency": ["USD"],
+      "numberingSystem": ["latn"],
+      "timeZone": ["UTC"],
       "unit": ["acre"]
     }
   }
-}
-JSON
-`), 0o777); err != nil {
-		t.Fatalf("write fake node executable: %v", err)
+}`
+
+func syntheticNodeWitness(t *testing.T) nodeWitness {
+	t.Helper()
+	var witness nodeWitness
+	if err := json.Unmarshal([]byte(syntheticNodeWitnessJSON), &witness); err != nil {
+		t.Fatal(err)
 	}
+	return witness
+}
+
+func writeNodeWitness(t *testing.T, witness any) string {
+	t.Helper()
+	data, err := json.Marshal(witness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "node")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\ncat <<'JSON'\n"+string(data)+"\nJSON\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestRunImportsSyntheticNodeWitnessFixtures(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	nodePath := writeNodeWitness(t, syntheticNodeWitness(t))
 	out := filepath.Join(root, "out")
 
 	if err := run([]string{"-node", nodePath, "-out", out}); err != nil {
@@ -439,6 +463,7 @@ func TestImportFormatJSLocaleFixturesFiltersGeneratedAndRecordsSkips(t *testing.
 	out := t.TempDir()
 	files := map[string]string{
 		"supported.test.ts":       "expect(locale.toString()).toBe('en-US')",
+		"duplicates.test.ts":      "expect(locale.toString()).toBe('en-US'); expect (dynamic()).toBe('missing');",
 		"unsupported.test.ts":     "expect(locale.weekInfo).toEqual({})",
 		"ignored.snap":            "expect(snapshot).toMatchInlineSnapshot()",
 		"nested/also.test.ts":     "no unsupported expectation here",
@@ -450,8 +475,14 @@ func TestImportFormatJSLocaleFixturesFiltersGeneratedAndRecordsSkips(t *testing.
 		mustWriteFile(t, path, data)
 	}
 
-	extract := func(rel, data string) []fixture {
+	extract := func(rel string, source jsSource) []fixture {
+		data := source.text
 		switch rel {
+		case "duplicates.test.ts":
+			first := newLocaleFixture(formatJSLocaleTestSourcePrefix, rel, 0, fixtureFeatureCanonicalize, "en-US", "en-US")
+			second := first
+			second.ID += "-duplicate-match"
+			return []fixture{first, second}
 		case "supported.test.ts":
 			return []fixture{
 				{ID: "locale-supported-b", Source: formatJSLocaleTestSourcePrefix + rel, Locale: "en-US", Feature: fixtureFeatureMaximize, Options: map[string]any{}, Input: "en-US", Expected: ptr("en-Latn-US")},
@@ -490,6 +521,7 @@ func TestImportFormatJSLocaleFixturesFiltersGeneratedAndRecordsSkips(t *testing.
 	}
 
 	wantSkips := []skipEntry{
+		formatJSImportPartialExtractionSkip(formatJSLocaleTestSourcePrefix + "duplicates.test.ts"),
 		formatJSImportPartialExtractionSkip(formatJSLocaleTestSourcePrefix + "supported.test.ts"),
 		formatJSUnsupportedExtractorShapeSkip(formatJSLocaleTestSourcePrefix + "unsupported.test.ts"),
 	}
@@ -768,7 +800,7 @@ func TestExtractLocaleFixturesMapsCoreLocaleOperations(t *testing.T) {
 	t.Parallel()
 
 	rel := "core.test.ts"
-	fixtures := extractLocaleFixtures(rel, `import {Locale} from '#packages/intl-locale'
+	fixtures := extractLocaleFixtures(rel, scanJSSource(`import {Locale} from '#packages/intl-locale'
 import {describe, expect, it} from 'vitest'
 
 describe('Locale core operations', () => {
@@ -778,7 +810,7 @@ describe('Locale core operations', () => {
     expect(new Locale('zh-Hans-CN').minimize().toString()).toBe('zh')
   })
 })
-`)
+`))
 	want := []localeFixtureSummary{
 		{
 			ID:       formatJSFixtureID("locale", formatJSLocaleTestSourcePrefix+rel, 0),
@@ -812,7 +844,7 @@ func TestExtractCanonicalLocalesFixturesMapsGetCanonicalLocales(t *testing.T) {
 	t.Parallel()
 
 	rel := "canonical.test.ts"
-	fixtures := extractCanonicalLocalesFixtures(rel, `import {getCanonicalLocales} from '#packages/intl-getcanonicallocales'
+	fixtures := extractCanonicalLocalesFixtures(rel, scanJSSource(`import {getCanonicalLocales} from '#packages/intl-getcanonicallocales'
 import {describe, expect, it} from 'vitest'
 
 describe('Intl.getCanonicalLocales', () => {
@@ -820,7 +852,7 @@ describe('Intl.getCanonicalLocales', () => {
     expect(getCanonicalLocales('EN-us-u-NU-LATN')).toEqual(['en-US-u-nu-latn'])
   })
 })
-`)
+`))
 	want := []localeFixtureSummary{{
 		ID:       formatJSFixtureID("locale", formatJSCanonicalLocalesTestSourcePrefix+rel, 0),
 		Source:   formatJSCanonicalLocalesTestSourcePrefix + rel,
@@ -904,7 +936,7 @@ func TestFixtureFeaturesUseSharedWireShape(t *testing.T) {
 func TestFormatJSReferencePathsBuildPackageTestContracts(t *testing.T) {
 	t.Parallel()
 
-	if got, want := formatJSPackageTestsRoot("/refs/formatjs", "intl-numberformat"), filepath.Join("/refs/formatjs", "packages", "intl-numberformat", "tests"); got != want {
+	if got, want := formatJSPackageTestsRoot("/refs/formatjs", "intl-numberformat"), filepath.FromSlash("/refs/formatjs/packages/intl-numberformat/tests"); got != want {
 		t.Fatalf("formatJSPackageTestsRoot() = %q, want %q", got, want)
 	}
 	if got, want := formatJSTestSourcePrefix("intl-numberformat"), "formatjs:packages/intl-numberformat/tests/"; got != want {
@@ -1512,7 +1544,7 @@ func TestParseDateConstructorPreservesDatePrecision(t *testing.T) {
 func TestExtractDateTimeFormatFixturesPreservesDatePrecision(t *testing.T) {
 	t.Parallel()
 
-	fixtures := extractDateTimeFormatFixtures("precision.test.ts", `import {DateTimeFormat} from '#packages/intl-datetimeformat/core'
+	fixtures := extractDateTimeFormatFixtures("precision.test.ts", scanJSSource(`import {DateTimeFormat} from '#packages/intl-datetimeformat/core'
 import {describe, it, expect} from 'vitest'
 
 describe('datetime precision cases', () => {
@@ -1528,7 +1560,7 @@ describe('datetime precision cases', () => {
     expect(dtf.format(789)).toBe('number literal')
   })
 })
-`)
+`))
 
 	got := map[string]string{}
 	for _, fixture := range fixtures {
@@ -1560,7 +1592,7 @@ describe('datetime precision cases', () => {
 func TestExtractDateTimeFormatFixturesUsesLatestDateVariable(t *testing.T) {
 	t.Parallel()
 
-	fixtures := extractDateTimeFormatFixtures("shadowed-date.test.ts", `import {DateTimeFormat} from '#packages/intl-datetimeformat/core'
+	fixtures := extractDateTimeFormatFixtures("shadowed-date.test.ts", scanJSSource(`import {DateTimeFormat} from '#packages/intl-datetimeformat/core'
 import {describe, it, expect} from 'vitest'
 
 describe('datetime variable position cases', () => {
@@ -1573,7 +1605,7 @@ describe('datetime variable position cases', () => {
     expect(dtf.format(instant)).toBe('second')
   })
 })
-`)
+`))
 
 	got := map[string]string{}
 	for _, fixture := range fixtures {
@@ -1610,7 +1642,7 @@ const nfDefault = new NumberFormat()
 const pr = new Intl.PluralRules('en', {type: 'ordinal'})
 const dtf = new DateTimeFormat(['en-US'], {timeZone: 'UTC'})
 `
-	allNumberDeclarations := numberFormatDeclarations(data)
+	allNumberDeclarations := numberFormatDeclarations(scanJSSource(data))
 	numberDeclarations := allNumberDeclarations["nf"]
 	if len(numberDeclarations) != 2 {
 		t.Fatalf("numberFormatDeclarations()[nf] length = %d, want 2", len(numberDeclarations))
@@ -1633,7 +1665,7 @@ const dtf = new DateTimeFormat(['en-US'], {timeZone: 'UTC'})
 		t.Fatal("latestExplicitLocaleConstructorDeclarationBefore(nfDefault) ok = true, want false")
 	}
 
-	pluralDeclarations := pluralRulesDeclarations(data)["pr"]
+	pluralDeclarations := pluralRulesDeclarations(scanJSSource(data))["pr"]
 	if len(pluralDeclarations) != 1 {
 		t.Fatalf("pluralRulesDeclarations()[pr] length = %d, want 1", len(pluralDeclarations))
 	}
@@ -1642,7 +1674,7 @@ const dtf = new DateTimeFormat(['en-US'], {timeZone: 'UTC'})
 		t.Fatalf("plural declaration = %#v, want locale en type ordinal", plural)
 	}
 
-	dateTimeDeclarations := dateTimeDeclarations(data)["dtf"]
+	dateTimeDeclarations := dateTimeDeclarations(scanJSSource(data))["dtf"]
 	if len(dateTimeDeclarations) != 1 {
 		t.Fatalf("dateTimeDeclarations()[dtf] length = %d, want 1", len(dateTimeDeclarations))
 	}
@@ -1751,7 +1783,7 @@ func TestFormatJSDurationUnitKeys(t *testing.T) {
 func TestExtractNumberFormatFixturesPreservesPartRecords(t *testing.T) {
 	t.Parallel()
 
-	fixtures := extractNumberFormatFixtures("parts.test.ts", `import {NumberFormat} from '#packages/intl-numberformat/core'
+	fixtures := extractNumberFormatFixtures("parts.test.ts", scanJSSource(`import {NumberFormat} from '#packages/intl-numberformat/core'
 import {describe, it, expect} from 'vitest'
 
 describe('number parts cases', () => {
@@ -1769,7 +1801,7 @@ describe('number parts cases', () => {
     ])
   })
 })
-`)
+`))
 
 	byFeature := map[string]fixture{}
 	for _, fixture := range fixtures {
@@ -1811,7 +1843,7 @@ describe('number parts cases', () => {
 func TestExtractNumberFormatFixturesUsesLatestConstructor(t *testing.T) {
 	t.Parallel()
 
-	fixtures := extractNumberFormatFixtures("shadowed-numberformat.test.ts", `import {NumberFormat} from '#packages/intl-numberformat/core'
+	fixtures := extractNumberFormatFixtures("shadowed-numberformat.test.ts", scanJSSource(`import {NumberFormat} from '#packages/intl-numberformat/core'
 import {describe, it, expect} from 'vitest'
 
 describe('number constructor position cases', () => {
@@ -1826,7 +1858,7 @@ describe('number constructor position cases', () => {
     expect(nf.format(0.25)).toBe('local')
   })
 })
-`)
+`))
 
 	got := map[string]fixture{}
 	for _, fixture := range fixtures {
@@ -1874,7 +1906,7 @@ func TestExtractPluralRulesFixturesMapsSelectAndRange(t *testing.T) {
 	t.Parallel()
 
 	rel := "plurals.test.ts"
-	fixtures := extractPluralRulesFixtures(rel, `import {PluralRules} from '#packages/intl-pluralrules'
+	fixtures := extractPluralRulesFixtures(rel, scanJSSource(`import {PluralRules} from '#packages/intl-pluralrules'
 import {describe, expect, it} from 'vitest'
 
 describe('PluralRules generated fixture shapes', () => {
@@ -1888,7 +1920,7 @@ describe('PluralRules generated fixture shapes', () => {
     expect(ordinal.selectRange(BigInt(1), BigInt(2))).toEqual('other')
   })
 })
-`)
+`))
 	source := formatJSPluralRulesTestSourcePrefix + rel
 	want := []fixtureJSONSummary{
 		{
@@ -1933,7 +1965,7 @@ func TestExtractListFormatFixturesMapsFormatAssertions(t *testing.T) {
 	t.Parallel()
 
 	rel := "lists.test.ts"
-	fixtures := extractListFormatFixtures(rel, `import {ListFormat} from '#packages/intl-listformat'
+	fixtures := extractListFormatFixtures(rel, scanJSSource(`import {ListFormat} from '#packages/intl-listformat'
 import {describe, expect, it} from 'vitest'
 
 describe('ListFormat generated fixture shapes', () => {
@@ -1948,7 +1980,7 @@ describe('ListFormat generated fixture shapes', () => {
     expect(new ListFormat('en-AI').format(['skip'])).toBe('skip')
   })
 })
-`)
+`))
 	source := formatJSListFormatTestSourcePrefix + rel
 	want := []fixtureJSONSummary{{
 		ID:          formatJSFixtureID("listformat", rel, 0),
@@ -1965,7 +1997,7 @@ func TestExtractRelativeTimeFormatFixturesMapsFormatAssertions(t *testing.T) {
 	t.Parallel()
 
 	rel := "relative.test.ts"
-	fixtures := extractRelativeTimeFormatFixtures(rel, `import {RelativeTimeFormat} from '#packages/intl-relativetimeformat'
+	fixtures := extractRelativeTimeFormatFixtures(rel, scanJSSource(`import {RelativeTimeFormat} from '#packages/intl-relativetimeformat'
 import {describe, expect, it} from 'vitest'
 
 describe('RelativeTimeFormat generated fixture shapes', () => {
@@ -1980,7 +2012,7 @@ describe('RelativeTimeFormat generated fixture shapes', () => {
     expect(new RelativeTimeFormat('en-AI').format(2, 'day')).toBe('in 2 days')
   })
 })
-`)
+`))
 	source := formatJSRelativeTimeFormatTestSourcePrefix + rel
 	want := []fixtureJSONSummary{{
 		ID:          formatJSFixtureID("relativetimeformat", rel, 0),
@@ -1997,7 +2029,7 @@ func TestExtractDurationFormatFixturesMapsFormatAssertions(t *testing.T) {
 	t.Parallel()
 
 	rel := "duration.test.ts"
-	fixtures := extractDurationFormatFixtures(rel, `import {DurationFormat} from '#packages/intl-durationformat'
+	fixtures := extractDurationFormatFixtures(rel, scanJSSource(`import {DurationFormat} from '#packages/intl-durationformat'
 import {describe, expect, it} from 'vitest'
 
 describe('DurationFormat generated fixture shapes', () => {
@@ -2012,7 +2044,7 @@ describe('DurationFormat generated fixture shapes', () => {
     expect(new Intl.DurationFormat('en').format({seconds: 2})).toBe('2 sec')
   })
 })
-`)
+`))
 	source := formatJSDurationFormatTestSourcePrefix + rel
 	want := []fixtureJSONSummary{{
 		ID:          formatJSFixtureID("durationformat", rel, 0),
@@ -2423,6 +2455,158 @@ describe('duration mechanical cases', () => {
 	}
 }
 
+func TestNodeWitnessInvalidPayloadLeavesOutputUntouched(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		change func(*nodeWitness)
+		want   string
+	}{
+		{"version only", func(w *nodeWitness) { *w = nodeWitness{NodeVersion: conformance.ActiveNodeWitnessVersion} }, "locale"},
+		{"missing last group", func(w *nodeWitness) { w.DisplayNamesErrors = nil }, "displaynames"},
+		{"empty group", func(w *nodeWitness) { w.NumberFormatEdge = []fixture{} }, "numberformat"},
+		{"empty record", func(w *nodeWitness) { w.DisplayNamesErrors = []fixture{{}} }, "id"},
+		{"mixed valid invalid", func(w *nodeWitness) { w.ListFormatSmoke = append(w.ListFormatSmoke, fixture{}) }, "id"},
+		{"no observation", func(w *nodeWitness) { w.ListFormatSmoke[0].Expected = nil }, "expectation"},
+		{"missing supported key", func(w *nodeWitness) { delete(w.SupportedValues.Values, "currency") }, "currency"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			witness := syntheticNodeWitness(t)
+			tc.change(&witness)
+			out := t.TempDir()
+			originals := map[string]string{}
+			for _, file := range witnessFixtureFiles(syntheticNodeWitness(t), "node-v26") {
+				path := repositoryOutputPath(out, file.Path)
+				originals[path] = "previous " + path
+			}
+			originals[repositoryOutputPath(out, nodeSupportedValuesPath("node-v26"))] = "previous values"
+			for path, value := range originals {
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(value), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			err := run([]string{"-node", writeNodeWitness(t, witness), "-out", out})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("run() error = %v, want context %q", err, tc.want)
+			}
+			for path, want := range originals {
+				got, err := os.ReadFile(path)
+				if err != nil || string(got) != want {
+					t.Errorf("old output %s changed (read error: %v)", path, err)
+				}
+			}
+		})
+	}
+}
+
+func TestNodePublicationRestoresExactFiles(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for _, rel := range []string{
+		"locale/testdata/conformance/node-v26/smoke.json",
+		"numberformat/testdata/conformance/node-v26/errors.json",
+		"numberformat/testdata/conformance/node-v26/deep-contract.json",
+		"numberformat/testdata/conformance/formatjs/old.json",
+		"numberformat/testdata/divergences.md", "numberformat/testdata/xfail.json",
+		"testdata/native/node-v26/supported-values.json",
+	} {
+		mustWriteFile(t, filepath.Join(root, rel), "old "+rel)
+	}
+	before := publicationFiles(t, root)
+	failure := errors.New("late Node replacement failure")
+	last := repositoryOutputPath(root, nodeSupportedValuesPath("node-v26"))
+	err := publishNodeWitness(syntheticNodeWitness(t), root, func(from, to string) error {
+		if to == last && filepath.Base(from) == nodeSupportedValuesFile {
+			return failure
+		}
+		return os.Rename(from, to)
+	})
+	if !errors.Is(err, failure) {
+		t.Errorf("publish error = %v, want injected failure", err)
+	}
+	if after := publicationFiles(t, root); !maps.Equal(before, after) {
+		t.Error("failed publication changed the old exact file collection")
+	}
+	if err := publishNodeWitness(syntheticNodeWitness(t), root, os.Rename); err != nil {
+		t.Fatal(err)
+	}
+	after := publicationFiles(t, root)
+	for _, rel := range []string{"numberformat/testdata/conformance/node-v26/deep-contract.json", "numberformat/testdata/conformance/formatjs/old.json", "numberformat/testdata/divergences.md", "numberformat/testdata/xfail.json"} {
+		if after[rel] != before[rel] {
+			t.Errorf("unowned file %s changed", rel)
+		}
+	}
+	if err := publishNodeWitness(syntheticNodeWitness(t), root, os.Rename); err != nil {
+		t.Fatal(err)
+	}
+	if !maps.Equal(after, publicationFiles(t, root)) {
+		t.Error("repeated Node generation changed bytes or file set")
+	}
+}
+
+func TestNodePublicationRetainsBackupAfterFailedRecovery(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	first := filepath.Join(root, "locale", "testdata", "conformance", "node-v26", "smoke.json")
+	last := repositoryOutputPath(root, nodeSupportedValuesPath("node-v26"))
+	mustWriteFile(t, first, "old witness")
+	replaceFailure, restoreFailure := errors.New("replace failed"), errors.New("restore failed")
+	var backup string
+	err := publishNodeWitness(syntheticNodeWitness(t), root, func(from, to string) error {
+		if to == last {
+			return replaceFailure
+		}
+		if to == first && filepath.Base(from) != "smoke.json" {
+			backup = from
+			return restoreFailure
+		}
+		return os.Rename(from, to)
+	})
+	if !errors.Is(err, replaceFailure) || !errors.Is(err, restoreFailure) {
+		t.Errorf("error = %v, want both failures", err)
+	}
+	if backup == "" {
+		t.Fatal("missing backup")
+	}
+	if !strings.Contains(err.Error(), filepath.Dir(backup)) {
+		t.Errorf("error omits backup location: %v", err)
+	}
+	got, readErr := os.ReadFile(backup)
+	if readErr != nil || string(got) != "old witness" {
+		t.Errorf("old backup lost after importer cleanup: %q, %v", got, readErr)
+	}
+}
+
+func publicationFiles(t *testing.T, root string) map[string]string {
+	t.Helper()
+	files := map[string]string{}
+	if err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		files[rel] = string(data)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return files
+}
+
 func TestNodeWitnessVersionMismatchLeavesOutputUntouched(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -2451,7 +2635,7 @@ JSON
 	if readErr != nil {
 		t.Fatal(readErr)
 	}
-	if string(got) != string(original) {
+	if !bytes.Equal(got, original) {
 		t.Fatalf("old output changed: %q", got)
 	}
 }
@@ -2473,6 +2657,50 @@ func TestFormatJSSlugCollisionDoesNotOverwrite(t *testing.T) {
 	}
 	if len(files) != 0 {
 		t.Fatalf("wrote files on collision: %v", files)
+	}
+}
+
+func TestFormatJSPreflightsAllPublicationTargets(t *testing.T) {
+	t.Parallel()
+	for _, badTarget := range []string{"pluralrules/testdata", repositorySkipListFile} {
+		t.Run(badTarget, func(t *testing.T) {
+			t.Parallel()
+			source, out := t.TempDir(), t.TempDir()
+			for _, pkg := range []string{formatJSNumberFormatPackageDir, formatJSPluralRulesPackageDir, formatJSDateTimeFormatPackageDir, formatJSLocalePackageDir, formatJSCanonicalLocalesPackageDir, formatJSListFormatPackageDir, formatJSRelativeTimeFormatPackageDir, formatJSDurationFormatPackageDir} {
+				if err := os.MkdirAll(formatJSPackageTestsRoot(source, pkg), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			mustWriteFile(t, filepath.Join(formatJSPackageTestsRoot(source, formatJSNumberFormatPackageDir), "probe.test.ts"), `expect(new NumberFormat("en", {}).format(1)).toBe("1");`)
+			old := filepath.Join(formatJSConformanceRoot(out, "numberformat"), "old.json")
+			mustWriteFile(t, old, "old fixture")
+			bad := filepath.Join(out, badTarget)
+			if badTarget == repositorySkipListFile {
+				mustWriteFile(t, filepath.Join(bad, "old"), "keep")
+			} else {
+				mustWriteFile(t, bad, "not a directory")
+				mustWriteFile(t, skipListPath(out), "old skips")
+			}
+			err := run([]string{"-formatjs", source, "-out", out})
+			if err == nil || !strings.Contains(err.Error(), bad) {
+				t.Errorf("run() = %v, want invalid target %s", err, bad)
+			}
+			got, err := os.ReadFile(old)
+			if err != nil || string(got) != "old fixture" {
+				t.Errorf("old fixture changed: %q, %v", got, err)
+			}
+			if badTarget == repositorySkipListFile {
+				got, err = os.ReadFile(filepath.Join(bad, "old"))
+				if err != nil || string(got) != "keep" {
+					t.Errorf("old skip target changed: %q, %v", got, err)
+				}
+			} else {
+				got, err = os.ReadFile(skipListPath(out))
+				if err != nil || string(got) != "old skips" {
+					t.Errorf("old skips changed: %q, %v", got, err)
+				}
+			}
+		})
 	}
 }
 
@@ -2591,5 +2819,146 @@ func TestFormatJSSuccessRemovesStaleOwnedFileButKeepsOtherLane(t *testing.T) {
 		if err != nil || string(got) != want {
 			t.Fatalf("unowned %s changed: %q %v", path, got, err)
 		}
+	}
+}
+
+func TestExtractFixturesIgnoreNonCodeAssertions(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		extract   func(string, jsSource) []fixture
+		assertion string
+	}{
+		{"number", extractNumberFormatFixtures, `expect(new NumberFormat('en', {}).format(1)).toBe('1');`},
+		{"plural", extractPluralRulesFixtures, `expect(new PluralRules('en', {}).select(1)).toBe('one');`},
+		{"locale", extractLocaleFixtures, `expect(new Locale('en').toString()).toBe('en');`},
+		{"canonical", extractCanonicalLocalesFixtures, `expect(getCanonicalLocales('en')).toEqual(['en']);`},
+		{"list", extractListFormatFixtures, `expect(new ListFormat('en', {}).format(['a', 'b'])).toBe('a and b');`},
+		{"relative", extractRelativeTimeFormatFixtures, `expect(new RelativeTimeFormat('en', {}).format(1, 'day')).toBe('in 1 day');`},
+		{"duration", extractDurationFormatFixtures, `expect(new DurationFormat('en', {}).format({seconds: 1})).toBe('1 sec');`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.extract("probe.test.ts", scanJSSource(tc.assertion)); len(got) != 1 {
+				t.Fatalf("control extracted %d fixtures, want 1", len(got))
+			}
+			for _, source := range []string{
+				"// " + tc.assertion,
+				"object." + tc.assertion,
+				"/* " + tc.assertion + " */",
+				`const sample = "` + tc.assertion + `";`,
+				"const sample = `" + tc.assertion + "`;",
+			} {
+				if got := tc.extract("probe.test.ts", scanJSSource(source)); len(got) != 0 {
+					t.Errorf("non-code source %q extracted %d fixtures", source, len(got))
+				}
+			}
+		})
+	}
+}
+
+func TestExtractFixturesIgnoreNonCodeDeclarations(t *testing.T) {
+	t.Parallel()
+	for _, prefix := range []string{
+		"// const nf = new NumberFormat('en', {});\n",
+		"const sample = `const nf = new NumberFormat('en', {});`;\n",
+		"const sample = `${(() => { const nf = new NumberFormat('en', {}); return nf; })()}`;\n",
+	} {
+		if got := extractNumberFormatFixtures("probe.test.ts", scanJSSource(prefix+`expect(nf.format(1)).toBe('1');`)); len(got) != 0 {
+			t.Errorf("fake constructor extracted %d fixtures", len(got))
+		}
+		const outer = `const nf = new NumberFormat('de', {});`
+		if got := extractNumberFormatFixtures("probe.test.ts", scanJSSource(outer+prefix+`expect(nf.format(1)).toBe('1');`)); len(got) != 1 || got[0].Locale != "de" {
+			t.Errorf("non-code constructor changed outer declaration: %#v", got)
+		}
+	}
+	const source = `const df = new DateTimeFormat('en', {timeZone: 'UTC'});
+// const date = new Date('2020-01-01T00:00:00Z');
+expect(df.format(date)).toBe('1/1/2020');`
+	if got := extractDateTimeFormatFixtures("probe.test.ts", scanJSSource(source)); len(got) != 0 {
+		t.Errorf("fake date extracted %d fixtures", len(got))
+	}
+}
+
+func TestExtractFixturesPreservesLexicalBoundaries(t *testing.T) {
+	t.Parallel()
+	const assertion = `expect(new NumberFormat('en', {}).format(1)).toBe('fake')`
+	const real = `expect /* comment */ (new NumberFormat('en', {}).format(2)).toBe('real \'quote\' // /* text */');`
+	for name, prefix := range map[string]string{
+		"template substitution": "const sample = `${" + assertion + "}`;\n",
+		"opaque assertion":      "expect(new NumberFormat('en', {currency: `USD`, style: 'currency'}).format(1)).toBe('$1.00');\n",
+		"else regex":            "if (ready) {} else /" + assertion + "/.test(value);\n",
+		"regex":                 "const pattern = /" + assertion + "/;\n",
+		"nested template":       "const sample = `${`" + assertion + "`}`;\n",
+		"escaped template":      "const sample = `escaped \\` " + assertion + "`;\n",
+		"quoted":                `const sample = 'escaped \' " ` + strings.ReplaceAll(assertion, "'", `\'`) + `';` + "\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := extractNumberFormatFixtures("probe.test.ts", scanJSSource(prefix+real))
+			if len(got) != 1 || got[0].Expected == nil || *got[0].Expected != "real 'quote' // /* text */" {
+				t.Fatalf("extracted %#v, want only real assertion with intact expected string", got)
+			}
+		})
+	}
+}
+
+func TestImportFormatJSRecordsUncertainLexicalBoundary(t *testing.T) {
+	t.Parallel()
+	for name, source := range map[string]string{
+		"string":   `const sample = 'unfinished`,
+		"regex":    `const pattern = /unfinished`,
+		"comment":  `/* unfinished`,
+		"template": "const sample = `unfinished ${value}",
+		"slash":    `if (ready) /pattern/.test(value);`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			root, out := t.TempDir(), t.TempDir()
+			mustWriteFile(t, filepath.Join(formatJSPackageTestsRoot(root, formatJSNumberFormatPackageDir), "uncertain.test.ts"), source)
+			skips, err := importFormatJSNumberFormat(root, out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(skips) != 1 || skips[0].Source != formatJSNumberFormatTestSourcePrefix+"uncertain.test.ts" || !strings.Contains(skips[0].Reason, "byte ") {
+				t.Fatalf("skips = %#v, want source-owned lexical diagnostic with offset", skips)
+			}
+		})
+	}
+}
+
+func TestImportFormatJSAuditsCodeCandidates(t *testing.T) {
+	t.Parallel()
+	const supported = `expect(new NumberFormat('en', {}).format(1)).toBe('1');`
+	for _, tc := range []struct {
+		name, source, category string
+	}{
+		{"space", `expect (dynamicResult()).toMatch(/x/);`, skipCategoryUnsupportedExtractorShape},
+		{"newline", "expect\n(dynamicResult()).toMatch(/x/);", skipCategoryUnsupportedExtractorShape},
+		{"unicode space", "expect\u00a0(dynamicResult()).toMatch(/x/);", skipCategoryUnsupportedExtractorShape},
+		{"unicode line comment", "// text\u2028expect (dynamicResult()).toMatch(/x/);", skipCategoryUnsupportedExtractorShape},
+		{"trivia", `expect /* trivia */ (dynamicResult()).toMatch(/x/);`, skipCategoryUnsupportedExtractorShape},
+		{"mixed", supported + `expect /* trivia */ (dynamicResult()).toMatch(/x/);`, skipCategoryPartialExtraction},
+		{"line comment", "// " + supported, ""},
+		{"block comment", "/* " + supported + " */", ""},
+		{"string", `const example = "` + supported + `";`, ""},
+		{"template", "const example = `" + supported + "`;", ""},
+		{"regex", "const example = /" + supported + "/;", ""},
+		{"false declaration", "// const nf = new NumberFormat('en', {});\nexpect(nf.format(1)).toBe('1');", skipCategoryUnsupportedExtractorShape},
+		{"repeated supported", supported + supported, ""},
+		{"property call", "object." + supported, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root, out := t.TempDir(), t.TempDir()
+			mustWriteFile(t, filepath.Join(formatJSPackageTestsRoot(root, formatJSNumberFormatPackageDir), "probe.test.ts"), tc.source)
+			skips, err := importFormatJSNumberFormat(root, out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.category == "" {
+				if len(skips) != 0 {
+					t.Fatalf("spurious skips: %#v", skips)
+				}
+			} else if len(skips) != 1 || skips[0].Category != tc.category {
+				t.Fatalf("skips = %#v, want category %q", skips, tc.category)
+			}
+		})
 	}
 }

@@ -355,7 +355,7 @@ tasks:
   bench:run:
     desc: Run benchmarks once with allocation reporting
     cmds:
-      - go test -race -run '^$' -bench=. -benchmem ./...
+      - go test -run '^$' -bench=. -benchmem ./...
 
   bench:
     desc: Run non-blocking benchmark telemetry with benchstat-compatible output

@@ -153,34 +153,26 @@ Required signals for import-cost or binary-size work:
 > **Rejected**: a cross-process JS baseline; IPC overhead pollutes the signal and the maintenance cost is not justified.
 > **Rejected**: readable polyfill ops/sec (README §"Benchmark Results") - it already exists, but in screenshot status, it is not running in CI; as a reference wall, it **not** enters CI gate.
 
-### 2.2 Disable embedded JS baseline
+### 2.2 Keep comparison costs attributable
 
-**FORBIDDEN** Running `Intl.NumberFormat` as baseline through embedded JS engine. Reason:
+The current Go telemetry does not embed a JS engine. A JS benchmark can isolate
+steady-state execution by constructing the formatter before its loop, as in
+`.references/formatjs/packages/intl-numberformat/benchmark/benchmark.ts`.
+That possibility does not justify adding an engine, marshalling and another
+versioned toolchain to this repository's performance checks. Native witnesses
+in SPEC 70 compare observable behavior independently of timing.
 
-1. JS host integration is a candidate for consumer-driven expansion and does not overlap with the active scope timeline.
-2. The startup overhead of embedded JS engine is ≥ 100ms, the benchmark signal is dominated by startup, and the steady state cannot be measured.
-3. Maintenance cost = JS engine tool chain + version pinning + JS-Go marshalling verification; ROI does not match the go-intl active scope target.
-4. Byte equality has been covered by the SPEC 70 fixture; the performance comparison "same order of magnitude" target is sufficient to be guaranteed by x/text baseline + absolute throughput.
+### 2.3 Interpret measurements
 
-> **Why**: Embedded JS baseline brings 4 second-order problems (startup / tool chain / version pinning / marshalling), in exchange for 1 doubtful gain, YAGNI does the opposite.
-> **Rejected**: Embedded JS baseline - Explicitly rejected, any second phase PR proposal **MUST** first revise this SPEC §2.2.
+Compare identical inputs on the same toolchain and hardware. For `ns/op`, lower
+means faster; for throughput such as operations/second, higher means faster.
+Record `B/op` and `allocs/op` alongside timing. Constructor and cached samples
+answer different questions and must not be mixed. `x/text` comparisons cover
+only the shared behavior; no fixed ratio is a meaningful target for the entire
+ECMA-402 surface.
 
-### 2.3 Reference target (compared to baseline)
-
-The following expressions are investigation priority and magnitude judgment, not CI blocking conditions.
-
-| Dimension | Reference reading (compared to baseline) | Remarks |
-|-----|---------------------|------|
-| `BenchmarkNumberFormat_Decimal_Cached` vs `BenchmarkBaseline_XText_Decimal` | If go-intl is slower than baseline / 1.5, investigate first | Amortized construction after cache hit |
-| `BenchmarkNumberFormat_Decimal_PerCall` vs baseline | If go-intl is slower than baseline/2.0, investigate first | Contains structure, allowing higher cost |
-| `BenchmarkPluralRules_Cardinal_Cached` vs baseline | If go-intl is slower than baseline / 1.5, investigate first | The codegen path should be close to stdlib |
-| `BenchmarkDateTimeFormat_*` | Only `b.ReportAllocs()`, no baseline | x/text has no corresponding API |
-| `BenchmarkDurationFormat_*` | Only `b.ReportAllocs()`, no baseline | ECMA-402 duration composition has no x/text equivalent |
-| `BenchmarkNumberFormat_Compact_Cached` | only `b.ReportAllocs()`, no baseline | x/text no compact |
-| `BenchmarkNumberFormat_Currency_Cached` | Only `b.ReportAllocs()`, no baseline | x/text/currency form does not correspond |
-
-> **Why**: The "same order of magnitude" goal (within 2×) is enough for go-intl to have no obvious disadvantage compared to x/text in the production environment; it is unrealistic to tie stdlib (go-intl has more ECMA-402 spec behaviors).
-> **Rejected**: Encode these reference targets into test failure conditions - machine, Go version, CPU governor and temporary load can all make a single benchmark noisy; wrong red lights are more likely to drive wrong designs than no red lights.
+Investigate reproducible regressions with profiles and representative workloads.
+A single noisy result or an unsupported “within 2×” claim is not a design gate.
 
 ---
 
@@ -225,17 +217,24 @@ Benchmark numbers are evidence, not gates. A benchmark result may justify invest
 5. PR-CI can post the report to the PR comment area, but the report must not set failing status.
 6. main/nightly can retain report artifacts ≥ 30 days, but the report must not be used as a standalone block.
 
-Committed baseline artifacts live under `testdata/bench/` and use
-`baseline-<go-version>-<goos>-<goarch>.txt`. The current Apple Silicon
-baseline is `testdata/bench/baseline-go1.27-darwin-arm64.txt`, captured with:
+Both `task bench:run` (one sample) and `task bench` (five samples) measure normal,
+non-race execution with allocation reporting. `task test` owns race correctness.
+Race-instrumented timing must never be compared with these samples.
+
+There is no bundled baseline file. Capture one before a change, on the same
+machine and with the same Go version and inputs:
 
 ```bash
-go test -run '^$' -bench=. -benchmem ./numberformat ./pluralrules
+task bench
+cp .tmp/bench-current.txt .tmp/bench-before.txt
+# Apply the change, then compare:
+task bench BASELINE=.tmp/bench-before.txt
 ```
 
-Use it with `task bench BASELINE=testdata/bench/baseline-go1.27-darwin-arm64.txt`
-when reviewing performance regressions on comparable hardware. Refreshing the
-file is a release-maintenance act, not a correctness gate.
+Without `BASELINE`, `task bench` prints the current samples. Reports identify
+which loops include construction and whether data were warmed; process-cold
+measurements require separate processes. Saving a baseline is measurement work,
+not a release or correctness gate.
 
 ---
 
@@ -278,7 +277,7 @@ file is a release-maintenance act, not a correctness gate.
 ### Reporting
 
 - [ ] `task bench` subtask exists, run ≥ 5 times benchmark + benchstat report.
-- [ ] Committed baseline artifacts live under `testdata/bench/baseline-<go-version>-<goos>-<goarch>.txt`.
+- [ ] Both benchmark tasks use non-race execution with allocation reporting; comparison samples use the same toolchain, hardware, inputs and warmup boundary.
 - [ ] PR-CI may post benchstat reports, but must not fail on benchmark numbers alone.
 - [ ] main/nightly may retain benchmark artifacts ≥ 30 days, but must not block on benchmark numbers alone.
 

@@ -86,7 +86,10 @@ func TestSupportedLocalesCanonicalizesBeforeFiltering(t *testing.T) {
 	t.Parallel()
 
 	requested := locale.List{intltest.Locale(t, "fr-ca"), intltest.Locale(t, "en-US"), intltest.Locale(t, "fr-CA"), intltest.Locale(t, "xh")}
-	got := SupportedLocales([]string{"en-US", "fr"}, requested, localematcher.AlgorithmLookup, nil)
+	got, err := SupportedLocalesOf(SupportedLocalesOptions{Matcher: localematcher.NewMatcher([]string{"en-US", "fr"}, nil), Requested: requested, LocaleMatcher: new("lookup")})
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := locale.List{intltest.Locale(t, "fr-CA"), intltest.Locale(t, "en-US")}
 	if len(got) != len(want) {
 		t.Fatalf("SupportedLocales() length = %d, want %d: %v", len(got), len(want), got)
@@ -105,7 +108,7 @@ func TestSupportedLocalesOfAppliesLocaleMatcherOption(t *testing.T) {
 	matcher := "lookup"
 	got, err := SupportedLocalesOf(SupportedLocalesOptions{
 		Owner:         "testformat",
-		Supported:     []string{"en", "fr"},
+		Matcher:       localematcher.NewMatcher([]string{"en", "fr"}, nil),
 		Requested:     requested,
 		LocaleMatcher: &matcher,
 	})
@@ -124,7 +127,7 @@ func TestSupportedLocalesOfAppliesLocaleMatcherOption(t *testing.T) {
 
 	got, err = SupportedLocalesOf(SupportedLocalesOptions{
 		Owner:     "testformat",
-		Supported: []string{"en", "fr"},
+		Matcher:   localematcher.NewMatcher([]string{"en", "fr"}, nil),
 		Requested: requested,
 	})
 	if err != nil {
@@ -137,7 +140,7 @@ func TestSupportedLocalesOfAppliesLocaleMatcherOption(t *testing.T) {
 	matcher = "fast"
 	got, err = SupportedLocalesOf(SupportedLocalesOptions{
 		Owner:         "testformat",
-		Supported:     []string{"en"},
+		Matcher:       localematcher.NewMatcher([]string{"en"}, nil),
 		Requested:     requested,
 		LocaleMatcher: &matcher,
 	})
@@ -157,7 +160,7 @@ func TestSupportedLocalesOfAppliesLocaleMatcherOption(t *testing.T) {
 	matcher = ""
 	got, err = SupportedLocalesOf(SupportedLocalesOptions{
 		Owner:         "testformat",
-		Supported:     []string{"en"},
+		Matcher:       localematcher.NewMatcher([]string{"en"}, nil),
 		Requested:     requested,
 		LocaleMatcher: &matcher,
 	})

@@ -1,7 +1,6 @@
 package localematcher
 
 import (
-	"slices"
 	"testing"
 )
 
@@ -59,21 +58,5 @@ func TestRemoveUnicodeExtensionForMatcher(t *testing.T) {
 	base, extension = removeUnicodeExtension("u-ca-gregory")
 	if base != "u-ca-gregory" || extension != "" {
 		t.Fatalf("removeUnicodeExtension(invalid) = %q, %q; want original locale and empty extension", base, extension)
-	}
-}
-
-func TestLookupSupportedLocales(t *testing.T) {
-	t.Parallel()
-
-	got := LookupSupportedLocales([]string{"en", "fr", "zh-Hant"}, []string{"en-US-u-ca-gregory", "fr-FR", "zh-Hant-TW", "de"})
-	want := []string{"en-US", "fr-FR", "zh-Hant-TW"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("LookupSupportedLocales() = %#v, want %#v", got, want)
-	}
-
-	got = LookupSupportedLocales([]string{"zh-Hant-HK"}, []string{"zh-HK-u-nu-hanidec", "en"})
-	want = []string{"zh-HK"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("LookupSupportedLocales(derived) = %#v, want %#v", got, want)
 	}
 }

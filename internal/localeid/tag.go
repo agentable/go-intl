@@ -16,14 +16,17 @@ func ParseTag(s string) (language.Tag, error) {
 	return (language.Macro | language.CLDR).Canonicalize(tag)
 }
 
+// Parts projects explicit subtags from the canonical tag. Raw conflates absent
+// script/region fields with the explicit unknown identifiers Zzzz and ZZ.
 func Parts(tag language.Tag) (lang, script, region string) {
-	base, scr, reg := tag.Raw()
-	lang = base.String()
-	if s := scr.String(); s != "Zzzz" {
-		script = s
+	lang, rest, _ := strings.Cut(tag.String(), "-")
+	subtag, rest, _ := strings.Cut(rest, "-")
+	if IsUnicodeScriptSubtag(subtag) {
+		script = subtag
+		subtag, _, _ = strings.Cut(rest, "-")
 	}
-	if r := reg.String(); r != "ZZ" {
-		region = r
+	if IsUnicodeRegionSubtag(subtag) {
+		region = subtag
 	}
 	return lang, script, region
 }

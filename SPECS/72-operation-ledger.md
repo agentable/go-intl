@@ -16,7 +16,7 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 3. A public surface with no ECMA-402 owner, no typed bridge rationale, and no verification entry must be deleted or moved to `internal`.
 4. A row cannot justify a local API by historical convenience; if ECMA-402 ownership is weak, the owning SPEC must either name the Go typed bridge or remove the surface.
 5. Rows for implementation gaps must point to the owning SPEC's support-tier section; the ledger itself does not accept divergences.
-6. `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf`, which parses `localeMatcher`, returns formatter-owned `OptionError` values for invalid matcher input, and delegates to `internal/ecma402.SupportedLocales`.
+6. `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf`, which parses `localeMatcher`, returns formatter-owned `OptionError` values for invalid matcher input, and canonicalizes requests and filters through the formatter-owned compiled matcher.
 7. Constructor and `SupportedLocalesOf` entrypoints must receive a single typed `Options` value; option count is enforced by the public Go signature.
 8. `localeMatcher` parsing must use `internal/ecma402.LocaleMatcherAlgorithm` through `internal/ecma402.ResolveConstructorLocale`, `internal/ecma402.SupportedLocalesOf`, or a formatter-owned pre-resolution check; constructor validation should use `internal/ecma402.LocaleMatcherOptionInput` when the public options bag preserves omitted versus explicit empty input.
 8a. Production code may enter `internal/localematcher.ResolveLocale` only through `internal/ecma402.ResolveConstructorLocale`; formatter constructors must not grow private negotiation copies.
@@ -58,7 +58,7 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 |---------|----------------------------|----------------|--------------|
 | Constructor options object | `new Intl.<Constructor>(locales, options?)` | package `New(locales locale.List, opts Options)` | package constructor and resolved-options tests |
 | Locale negotiation | `ResolveLocale`, relevant extension keys | package constructors through `internal/ecma402.ResolveConstructorLocale`; `internal/localematcher` owns the algorithm only | package resolved-options tests, `internal/ecma402/locale_matcher_test.go`, `internal/ecma402/locale_list_test.go`, `internal/localematcher/*_test.go` |
-| Supported locales | `Intl.<Constructor>.supportedLocalesOf` | package `SupportedLocalesOf`, `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` | package `TestSupportedLocalesOf`, `internal/localematcher/filter_test.go`, derived available-locale alias tests |
+| Supported locales | `Intl.<Constructor>.supportedLocalesOf` | package `SupportedLocalesOf`, `internal/ecma402.SupportedLocalesOf` | package `TestSupportedLocalesOf`, `internal/localematcher/filter_test.go`, derived available-locale alias tests |
 | Resolved options | `resolvedOptions()` | package `ResolvedOptions` methods | package resolved-options tests |
 
 ---

@@ -1313,3 +1313,37 @@ func TestNumberFormatConcurrentFormat(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestNumberFormatStripIfIntegerPreservesIntegerDigits(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		opts Options
+	}{
+		{"default", Options{}},
+		{"fraction padding", Options{MinimumFractionDigits: new(1), MaximumFractionDigits: new(3)}},
+		{"more precision", Options{RoundingPriority: new("morePrecision"), MaximumSignificantDigits: new(4), MaximumFractionDigits: new(3)}},
+		{"less precision", Options{RoundingPriority: new("lessPrecision"), MaximumSignificantDigits: new(6), MaximumFractionDigits: new(1)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.opts.TrailingZeroDisplay = new("stripIfInteger")
+			f, err := New(intltest.LocaleList(t, "en"), tc.opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, input := range []struct{ in, want string }{
+				{"10", "10"}, {"100", "100"}, {"1000", "1,000"}, {"-100", "-100"},
+				{"0", "0"}, {"-0", "-0"}, {"12.5", "12.5"},
+			} {
+				value := mustDecimalValue(t, input.in)
+				if got := f.Format(value); got != input.want {
+					t.Errorf("Format(%s) = %q; want %q", input.in, got, input.want)
+				}
+				if got := joinNumberParts(f.FormatToParts(value)); got != input.want {
+					t.Errorf("parts(%s) = %q; want %q", input.in, got, input.want)
+				}
+			}
+		})
+	}
+}

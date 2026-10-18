@@ -94,7 +94,11 @@ func (l Locale) GetTimeZones() []string {
 	if region == "" {
 		return nil
 	}
-	return tz.TimeZonesForRegion(region)
+	zones := tz.TimeZonesForRegion(region)
+	if zones == nil {
+		return []string{}
+	}
+	return zones
 }
 
 func (l Locale) GetWeekInfo() WeekInfo {
@@ -152,46 +156,14 @@ func (p regionPreference) lookupRegion(hasData func(string) bool) string {
 }
 
 func (l Locale) canonicalUnicodeSubdivision(key string) string {
-	value := l.ext.keywords[key]
-	if len(value) < 4 {
-		return ""
-	}
-	region := canonicalSubdivisionRegion(value)
-	if region == "" {
-		return ""
-	}
-	if !validSubdivisionSuffix(value[len(region):]) {
+	region, ok := localeid.UnicodeSubdivisionRegion(l.ext.keywords[key])
+	if !ok {
 		return ""
 	}
 	if _, _, region := localeid.Parts(mustLanguageTag("und-" + region)); region != "" {
 		return region
 	}
 	return ""
-}
-
-func canonicalSubdivisionRegion(value string) string {
-	if len(value) >= 3 {
-		if region, ok := localeid.CanonicalUnicodeRegionSubtag(value[:3]); ok {
-			return region
-		}
-	}
-	if len(value) >= 2 {
-		if region, ok := localeid.CanonicalUnicodeRegionSubtag(value[:2]); ok {
-			return region
-		}
-	}
-	return ""
-}
-
-func validSubdivisionSuffix(s string) bool {
-	for i := range len(s) {
-		c := s[i]
-		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 func weekdaysBetween(start, end time.Weekday) []time.Weekday {

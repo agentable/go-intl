@@ -3,6 +3,7 @@ package codegen
 import (
 	"maps"
 	"testing"
+	"time"
 
 	"github.com/agentable/go-intl/internal/cldr/date"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
@@ -10,45 +11,39 @@ import (
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
 )
 
-// TestDateRoundTrip is the production-path round-trip gate for the date domain.
-// It re-derives the extract.Dates row stream from the real pinned CLDR checkout
-// and asserts that the resolved gregorian view, the day-period lookups, the
-// supported-locale narrow index, and the supported-calendar narrow index the
-// encoder wrote are queried back byte-for-byte through the production date
-// accessors over the committed data.go. It exercises encoder, blob, decoder, and
-// accessor as one chain — not internal structures.
-//
-// The gate is meaningful only when the pinned cldr-json checkout is present
-// (after task data / data:fetch); without it the test skips.
+// TestDateRoundTrip compares pinned loader rows with production accessors over
+// committed generated blobs. Encoder unit tests and regeneration separately
+// verify the source-to-blob step. This test skips without the pinned checkout.
 func TestDateRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	dates := loadDateTestInput(t)
 	gregLocales := dateGregorianLocales(dates)
+	if len(gregLocales) == 0 {
+		t.Fatal("pinned date profile contains no Gregorian locales")
+	}
 
 	// Gregorian view: assemble the expected Gregorian from the extract rows using
 	// the same field projection the accessor performs, then compare to the
 	// production accessor result.
 	for _, locale := range gregLocales {
 		loc := resolveKernelLocale(t, locale)
-		want := expectedGregorian(dates[locale].Calendars[dateCLDRGregorianCalendar])
-		assertGregorianEqual(t, locale, date.GregorianFor(loc), want)
+		calendar := dates[locale].Calendars[dateCLDRGregorianCalendar]
+		got := date.GregorianFor(loc)
+		assertGregorianEqual(t, locale, got, expectedGregorian(calendar))
+		assertDayPeriodNames(t, locale, got, calendar)
 	}
 
-	// Day-period rules: probe each rule boundary and confirm the production
-	// DayPeriodFor resolves the same type the rule stream encodes.
-	for locale, rules := range dateDayPeriodRuleSet(dates) {
-		loc, ok := cldrlocale.ResolveLocale(locale)
-		if !ok {
-			continue
-		}
-		for _, rule := range rules {
-			hour := int(rule.From.Hours())
-			minute := int(rule.From.Minutes()) % 60
-			got := date.DayPeriodFor(loc, hour, minute)
-			if got == "" {
-				t.Errorf("DayPeriodFor(%q, %d, %d) = \"\", want a period for encoded rule %q",
-					locale, hour, minute, rule.Type)
+	// Check every registered row, including intentional absence. Supplemental
+	// keys outside this registry are not encoded and must not resolve via fallback.
+	rulesByLocale := dates[gregLocales[0]].DayPeriodRules
+	for _, tag := range cldrlocale.AvailableLocales() {
+		loc := resolveKernelLocale(t, tag)
+		want := expectedDayPeriodMinutes(t, tag, rulesByLocale[tag])
+		for minute, period := range want {
+			if got := date.DayPeriodFor(loc, minute/60, minute%60); got != period {
+				t.Errorf("DayPeriodFor(%q, %02d:%02d) = %q, want %q", tag, minute/60, minute%60, got, period)
+				break
 			}
 		}
 	}
@@ -65,6 +60,65 @@ func TestDateRoundTrip(t *testing.T) {
 	}
 	gotCal := date.SupportedCalendars()
 	assertStringSliceEqual(t, "SupportedCalendars", gotCal, wantCal)
+}
+
+// Paint source intervals into a minute table, then overlay fixed points. This
+// derives the expected partition without repeating the accessor's lookup loop.
+func expectedDayPeriodMinutes(t *testing.T, tag string, rules []cldr.DayPeriodRange) [24 * 60]string {
+	t.Helper()
+	var minutes [24 * 60]string
+	points := make(map[int]string)
+	for _, rule := range rules {
+		from, to := int(rule.From/time.Minute), int(rule.To/time.Minute)
+		if rule.From%time.Minute != 0 || rule.To%time.Minute != 0 || from < 0 || from >= len(minutes) || to < 0 || to > len(minutes) {
+			t.Fatalf("day-period source %q has unsupported boundary: %+v", tag, rule)
+		}
+		if from == to {
+			points[from] = rule.Type
+			continue
+		}
+		if to < from {
+			to += len(minutes)
+		}
+		for minute := from; minute < to; minute++ {
+			index := minute % len(minutes)
+			if minutes[index] != "" && minutes[index] != rule.Type {
+				t.Fatalf("day-period source %q overlaps at minute %d", tag, index)
+			}
+			minutes[index] = rule.Type
+		}
+	}
+	for minute, period := range points {
+		minutes[minute] = period
+	}
+	return minutes
+}
+
+func assertDayPeriodNames(t *testing.T, locale string, got date.Gregorian, calendar cldr.Calendar) {
+	t.Helper()
+	want := make(map[string][3]string)
+	for index, period := range []string{"midnight", "am", "noon", "pm", "morning1", "morning2", "afternoon1", "afternoon2", "evening1", "evening2", "night1", "night2"} {
+		var names [3]string
+		for widthIndex, width := range []string{"wide", "abbreviated", "narrow"} {
+			values := calendar.Names[cldr.CalendarNameKey{Width: width, Context: "format"}].DayPeriods
+			if index < len(values) {
+				names[widthIndex] = values[index]
+			}
+		}
+		if period == "am" || period == "pm" || names != [3]string{} {
+			want[period] = names
+		}
+	}
+	actual := map[string][3]string{
+		"am": {got.DayPeriods.AM.Wide, got.DayPeriods.AM.Abbr, got.DayPeriods.AM.Narrow},
+		"pm": {got.DayPeriods.PM.Wide, got.DayPeriods.PM.Abbr, got.DayPeriods.PM.Narrow},
+	}
+	for period, names := range got.DayPeriods.Flex {
+		actual[period] = [3]string{names.Wide, names.Abbr, names.Narrow}
+	}
+	if !maps.Equal(actual, want) {
+		t.Errorf("GregorianFor(%q).DayPeriods = %v, want %v", locale, actual, want)
+	}
 }
 
 func TestDateGregorianCalendarRoutes(t *testing.T) {

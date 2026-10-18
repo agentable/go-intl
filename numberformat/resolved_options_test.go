@@ -2,6 +2,7 @@ package numberformat
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/intlerr"
@@ -628,6 +629,44 @@ func TestSupportedLocalesOf(t *testing.T) {
 		t.Fatalf("SupportedLocalesOf() error = %v", err)
 	}
 	testcontract.AssertLocaleListStrings(t, "SupportedLocalesOf()", got, []string{"fr-FR", "en-US-u-nu-latn"})
+}
+
+func TestSupportedLocalesOfConcurrentConstructionAndResultIsolation(t *testing.T) {
+	t.Parallel()
+	for _, algorithm := range []string{"lookup", "best fit"} {
+		for _, tag := range []string{"en-US-u-nu-latn", "zh-HK-u-nu-hanidec", "nn", "qaa"} {
+			requested := intltest.LocaleList(t, tag, tag)
+			opts := Options{LocaleMatcher: &algorithm}
+			baseline, err := SupportedLocalesOf(requested, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := baseline.Strings()
+			if tag == "qaa" && algorithm == "lookup" && len(want) != 0 {
+				t.Fatalf("unknown locale received default: %v", want)
+			}
+			for range 4 {
+				t.Run(algorithm+"/"+tag, func(t *testing.T) {
+					t.Parallel()
+					for range 8 {
+						if _, err := New(requested, opts); err != nil {
+							t.Fatal(err)
+						}
+						got, err := SupportedLocalesOf(requested, opts)
+						if err != nil || !slices.Equal(got.Strings(), want) {
+							t.Fatalf("query = %v, %v; want %v", got, err, want)
+						}
+						if len(got) > 0 {
+							got[0] = intltest.Locale(t, "de")
+						}
+					}
+				})
+			}
+		}
+	}
+	if _, err := SupportedLocalesOf(nil, Options{LocaleMatcher: new("invalid")}); !errors.Is(err, intlerr.ErrInvalidOption) {
+		t.Fatalf("empty request invalid option = %v", err)
+	}
 }
 
 func TestSupportedLocalesOfRecognizesDerivedAvailableLocale(t *testing.T) {

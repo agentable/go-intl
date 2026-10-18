@@ -100,7 +100,7 @@ func (f *PluralRules) Select(v Value) Category {
 		case ecma402.NumericValueDecimal:
 		}
 	}
-	_, _, category := resolveDecimal(numeric.Decimal, f.resolved.Notation, f.digitOptions, f.compact, f.rule)
+	_, category := resolveDecimal(numeric.Decimal, f.resolved.Notation, f.digitOptions, f.compact, f.rule)
 	return category
 }
 
@@ -112,22 +112,22 @@ func selectUnsignedInteger(n uint64, rule pluralRuleFunc) Category {
 	return Category(rule(pluralop.GetUnsignedIntegerOperands(n)))
 }
 
-func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf.ResolvedDigitOptions, compact compactExponentSet, rule pluralRuleFunc) (string, decimal.Decimal, Category) {
+func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf.ResolvedDigitOptions, compact compactExponentSet, rule pluralRuleFunc) (string, Category) {
 	if !d.IsFinite() {
-		return d.String(), d, Other
+		return d.String(), Other
 	}
+	result := ecma402nf.FormatNumericToString(d, digitOptions)
+	formatted := strings.TrimPrefix(result.Formatted, "-")
 	exponent := 0
 	if notation == CompactNotation {
 		if _, _, compactExponent, ok := ecma402nf.ResolveCompactMagnitude(d, digitOptions, compact.exponentForMagnitude); ok {
 			exponent = compactExponent
 		}
-	} else if exponent = pluralExponent(d, notation, digitOptions); exponent != 0 {
-		d = decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent is derived from decimal.Log10Floor int32.
+	} else {
+		exponent = pluralExponent(result.Rounded, notation, digitOptions)
 	}
-	result := ecma402nf.FormatNumericToString(d, digitOptions)
-	formatted := strings.TrimPrefix(result.Formatted, "-")
 	ops := pluralop.GetOperands(formatted, exponent)
-	return formatted, result.Rounded, Category(rule(ops))
+	return formatted, Category(rule(ops))
 }
 
 func pluralExponent(d decimal.Decimal, notation Notation, digitOptions ecma402nf.ResolvedDigitOptions) int {

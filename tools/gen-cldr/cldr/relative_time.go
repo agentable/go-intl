@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	cldrpattern "github.com/agentable/go-intl/internal/pattern"
 )
 
 type RelativeTimeFields map[string]map[string]RelativeTimeField
@@ -51,7 +53,7 @@ func loadRelativeTimeFields(root string, locales []string) (map[string]RelativeT
 		}
 		fields, err := parseRelativeTimeFields(body.Dates.Fields)
 		if err != nil {
-			return nil, fmt.Errorf("parse relative time fields for %s: %w", locale, err)
+			return nil, fmt.Errorf("parse %s: %w", path, err)
 		}
 		if len(fields) > 0 {
 			loaded[locale] = fields
@@ -145,6 +147,16 @@ func relativeTimePatternMap(raw jsontext.Value) (map[string]string, error) {
 		if ok {
 			if value == "" {
 				return nil, fmt.Errorf("%s empty", key)
+			}
+			parts, err := cldrpattern.Partition(value)
+			if err != nil {
+				return nil, fmt.Errorf("%s invalid pattern: %w", key, err)
+			}
+			for _, part := range parts {
+				if part.Type == "0" || part.Type == cldrpattern.Literal && part.Value != "" {
+					continue
+				}
+				return nil, fmt.Errorf("%s invalid pattern %q: unexpected placeholder {%s}", key, value, part.Type)
 			}
 			out[plural] = value
 		}

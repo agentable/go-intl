@@ -1,8 +1,6 @@
 package locale
 
 import (
-	"strings"
-
 	"github.com/agentable/go-intl/internal/localeid"
 
 	"golang.org/x/text/language"
@@ -22,7 +20,7 @@ type extensions struct {
 
 func Parse(s string) (Locale, error) {
 	lower := localeid.LowercaseUnicodeLocaleID(s)
-	if s == "" || strings.Contains(s, "_") || strings.HasPrefix(lower, "x-") {
+	if !localeid.HasUnicodeLocaleStructure(lower) {
 		return Locale{}, invalidLocaleValue("languageTag", s, nil)
 	}
 	base, unicodeExtension, err := localeid.SplitUnicodeExtension(lower)

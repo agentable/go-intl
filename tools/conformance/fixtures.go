@@ -97,6 +97,7 @@ const (
 
 func LoadFixtures(root string) ([]Fixture, error) {
 	var fixtures []Fixture
+	seen := make(map[string]string)
 	base := conformanceFixturesPath(root)
 	validateDateTimeInputs := strings.HasSuffix(filepath.Clean(root), "datetimeformat")
 	if _, err := os.Stat(base); err != nil {
@@ -124,6 +125,12 @@ func LoadFixtures(root string) ([]Fixture, error) {
 		}
 		if err := validateFixtureFile(path, rel, fileFixtures, validateDateTimeInputs); err != nil {
 			return err
+		}
+		for _, fixture := range fileFixtures {
+			if previous, ok := seen[fixture.ID]; ok {
+				return fmt.Errorf("fixture %q in %s and %s: %w", fixture.ID, previous, path, errDuplicateFixtureID)
+			}
+			seen[fixture.ID] = path
 		}
 		fixtures = append(fixtures, fileFixtures...)
 		return nil

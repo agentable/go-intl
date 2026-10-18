@@ -212,6 +212,7 @@ type Options struct {
 4. `TimeZone` **MUST** distinguish omitted and explicit empty values. Omitted `nil` uses `internal/tz.Default()`; explicit empty `gointl.String("")` follows the same unsupported-option error path as any unavailable named time zone.
 5. `NumberingSystem` and `Calendar` **MUST** only verify Unicode type syntax. Well-formed but unsupported values are selected by `ResolveLocale` when present in locale data, or fall back to default values when not present.
 6. `FormatMatcher`, `TimeZoneName`, component fields, `HourCycle`, `DateStyle`, and `TimeStyle` **MUST** reject present empty strings through the same constructor option grammar as other ECMA-402 string options.
+7. With neither date/time style nor weekday, year, month, day, dayPeriod, hour, minute, second, or fractionalSecondDigits requested, add numeric year/month/day before matching. Era and timeZoneName alone do not suppress these defaults; an explicit year does. `datetimeformat/datetimeformat_test.go:TestDateTimeFormatEraDefaultDateFields` covers both cases and BCE output.
 
 ### 2.2 HourCycle linkage (§13.1.1.1) <a id="22-hourcycle-linkage-13111"></a>
 
@@ -238,6 +239,23 @@ Evidence: `internal/cldr/date/accessors.go`, `datetimeformat/hour_cycle_test.go`
 and pinned `tools/gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/timeData.json`.
 The readable option-resolution reference is
 `.references/formatjs/packages/ecma402-abstract/DateTimeFormat/InitializeDateTimeFormat.ts`.
+Basic component matching resolves a complete CLDR clock-family variant before
+program compilation. Hour-character substitution alone cannot create AM/PM
+placement or remove a previous family’s literals. The selected variant also
+owns interval lookup; no per-call pattern conversion is needed.
+
+Basic matching retains an explicitly selected flexible day-period (`B`) pattern
+and its interval skeleton across hour-cycle changes; only its hour fields are
+rewritten. Automatic AM/PM (`a`/`b`) patterns still select a complete clock-family
+alternative. `TestBasicHourCyclePreservesFlexibleDayPeriod` verifies h23/h24
+text, resolved fields, and same-day/cross-date ranges.
+
+`datetimeformat/hour_cycle_test.go:TestBasicHourCyclePatterns` verifies complete
+English, French Canadian and Japanese output and range parts.
+
+`TestHourCycleForSelectedPattern` in the hour-cycle suite covers sparse requests
+whose selected pattern adds an hour, four cycles, hour12 precedence, and
+endpoint/range execution. Selection need not match the host ICU candidate.
 Node 26.10.0 selects h12 for unqualified `ja` and h11 for `ja-JP`; this library
 uses the pinned JP preference for both without adding JP to the public tag.
 
@@ -273,7 +291,7 @@ type ResolvedOptions struct {
 
 1. The field order **MUST** be consistent with the ECMA-402 §13.4.5 spec order.
 2. `TimeZone` **MUST** return the IANA canonical name (such as `"America/New_York"`), even if the input is link(`"US/Eastern"`); obtained through [SPEC 32 §CanonicalLink](./32-datetimeformat-tz.md#canonicallink).
-3. `HourCycle` and `Hour12` **MUST** both be nil when no hour field is present, and both be non-nil when `hour` or `timeStyle` makes an hour field observable. `Hour12` is derived from the resolved hour cycle: `h11`/`h12` => `true`; `h23`/`h24` => `false`.
+3. Resolve the hour cycle before pattern selection, even when the caller omits `hour` and `timeStyle`. `HourCycle` and `Hour12` **MUST** both be nil when the selected pattern has no hour field (including date-only styles), and both be non-nil when its actual hour field is observable. `Hour12` is derived from the resolved hour cycle: `h11`/`h12` => `true`; `h23`/`h24` => `false`.
 4. Branch-only resolved options (`HourCycle`, `Hour12`, component fields, `FractionalSecondDigits`, `TimeZoneName`, `DateStyle`, and `TimeStyle`) **MUST** use pointers; nil is the Go bridge for ECMA-402 property absence.
 5. **MUST** return an immutable snapshot (value type) and clone pointer-backed scalar fields so caller mutation cannot affect later calls.
 6. JSON field names and `omitempty` behavior **MUST** comply with [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Intl.DateTimeFormat](./73-json-records.md#intldatetimeformat). Nil pointer fields represent ECMA-402 property absence for branch-only resolved fields.
@@ -476,7 +494,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 
 - **BANNED** Silently format a `time.Time` outside the ECMA TimeClip domain; the four methods return `ErrInvalidValue` for such instants.
 - **DOWN** Calling `time.LoadLocation` on the `Format` path - `*time.Location` must be cached when `New` is used.
-- **BANNED** Check CLDR time zone display name in `Format` path - `metaZones` data must be materialized at `New` time.
+- **BANNED** Repeat locale/time-zone resolution, pattern selection or parsing, or runtime CLDR JSON/file loading during formatting. `New` freezes the resolved zone, data locale, patterns and query configuration; each input instant still determines its transition, DST flag and metazone through the existing in-memory accessors.
 - **NO** Generating calendar pattern data (including Buddhist year offsets) outside of the Gregorian pattern payload before the §3.1 removal path is complete; this is a current implementation boundary, not a permanent range shrinkage.
 - **Banned** Follow the translate-agent mode (directly use `t.Location()` to determine the display time zone) - deviate from ECMA-402.
 - **FORBIDDEN** Transfer instant via `t.Unix() * 1000` - accuracy loss (second level).

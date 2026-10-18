@@ -325,16 +325,35 @@ func TestLocaleTextInfoAndUnmarshalText(t *testing.T) {
 func TestParseInvalidLocale(t *testing.T) {
 	t.Parallel()
 
-	for _, in := range []string{"", "xx-INVALID", "x-private", "\u212A\u212A", "en-u-ca-\u212Aarab"} {
+	for _, in := range []string{
+		"", "xx-INVALID", "x-private", "\u212A\u212A", "en-u-ca-\u212Aarab",
+		"i-klingon", "en-GB-oed", "zh-cmn",
+		"en_US", "en-x-foo_bar", "en-a-foo_bar", "en-t-en_US",
+		"en-1901-1901", "en-emodeng-EMODENG", "en-1901-1901-u-ca-gregory",
+		"en-a-foo-a-bar", "en-a-foo-A-bar", "en-u-ca-gregory-u-nu-latn",
+		"en-t-de-t-fr", "en-t-de-1901-1901", "en-t-en-emodeng-EMODENG-m0-ungegn",
+	} {
 		t.Run(in, func(t *testing.T) {
 			t.Parallel()
-			_, err := Parse(in)
-			if !errors.Is(err, intlerr.ErrInvalidValue) {
-				t.Fatalf("Parse(%q) err = %v, want errors.Is(intlerr.ErrInvalidValue)", in, err)
-			}
-			detail := assertStructuredLocaleError(t, err, intlerr.InvalidValue)
-			if detail.Name != "languageTag" || detail.Value != in || detail.Expected != localeLanguageTagExpected {
-				t.Fatalf("Parse(%q) error detail = %+v, want languageTag/%q expected %q", in, detail, in, localeLanguageTagExpected)
+			for _, entry := range []struct {
+				name string
+				call func(string) error
+			}{
+				{"Parse", func(s string) error { _, err := Parse(s); return err }},
+				{"ParseList", func(s string) error { _, err := ParseList("en", s); return err }},
+				{"New", func(s string) error { _, err := New(s, Options{}); return err }},
+			} {
+				t.Run(entry.name, func(t *testing.T) {
+					t.Parallel()
+					err := entry.call(in)
+					if !errors.Is(err, intlerr.ErrInvalidValue) {
+						t.Fatalf("%s(%q) err = %v, want ErrInvalidValue", entry.name, in, err)
+					}
+					detail := assertStructuredLocaleError(t, err, intlerr.InvalidValue)
+					if detail.Name != "languageTag" || detail.Value != in || detail.Expected != localeLanguageTagExpected {
+						t.Fatalf("%s(%q) error detail = %+v, want languageTag/%q expected %q", entry.name, in, detail, in, localeLanguageTagExpected)
+					}
+				})
 			}
 		})
 	}

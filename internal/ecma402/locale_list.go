@@ -47,18 +47,6 @@ func ValidationLocale(locales locale.List) locale.Locale {
 	return defaultLocaleValue()
 }
 
-// SupportedLocales canonicalizes requested locales, then filters them against a
-// generated supported-locale set while preserving requested order.
-func SupportedLocales(
-	supported []string,
-	requested locale.List,
-	matcher localematcher.Algorithm,
-	maximizer localematcher.Maximizer,
-) locale.List {
-	canonical := CanonicalLocaleList(requested)
-	return localematcher.FilterLocalesWithMaximizer(supported, canonical, matcher, maximizer)
-}
-
 // SupportedLocalesOf applies the ECMA-402 supportedLocalesOf localeMatcher
 // option to a generated supported-locale set. Invalid localeMatcher values
 // return an OptionError owned by the calling formatter package.
@@ -75,18 +63,18 @@ func SupportedLocalesOf(opts SupportedLocalesOptions) (locale.List, error) {
 	if opts.RequireLookupMatch {
 		matcher = localematcher.AlgorithmLookup
 	}
-	supported := SupportedLocales(opts.Supported, opts.Requested, matcher, opts.Maximizer)
+	canonical := CanonicalLocaleList(opts.Requested)
+	supported := localematcher.FilterLocales(opts.Matcher, canonical, matcher)
 	return supported, nil
 }
 
 // SupportedLocalesOptions carries the formatter-owned inputs to SupportedLocalesOf.
 type SupportedLocalesOptions struct {
 	Owner     string
-	Supported []string
+	Matcher   *localematcher.Matcher
 	Requested locale.List
 	// LocaleMatcher is the pointer-backed supportedLocalesOf option; nil means omitted.
 	LocaleMatcher *string
-	Maximizer     localematcher.Maximizer
 	// RequireLookupMatch prevents best-fit from expanding an engine capability
 	// allowlist across languages after localeMatcher has been validated.
 	RequireLookupMatch bool

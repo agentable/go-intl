@@ -24,7 +24,6 @@ jobs:
     timeout-minutes: 30
     env:
       GOPRIVATE: github.com/agentable/*
-      GOWORK: "off"
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -142,8 +141,6 @@ jobs:
     name: Generated data
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      GOWORK: "off"
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

@@ -22,18 +22,6 @@ func truncationPosition(locale string) int {
 	return pos
 }
 
-func LookupSupportedLocales(supported, requested []string) []string {
-	matcher := NewMatcher(supported, nil)
-	out := make([]string, 0, len(requested))
-	for _, loc := range requested {
-		noExtensionLocale, _ := removeUnicodeExtension(loc)
-		if matcher.bestAvailableLocale(noExtensionLocale) != "" {
-			out = append(out, noExtensionLocale)
-		}
-	}
-	return out
-}
-
 func removeUnicodeExtension(locale string) (string, string) {
 	base, extension, err := localeid.RemoveUnicodeExtension(locale)
 	if err != nil {

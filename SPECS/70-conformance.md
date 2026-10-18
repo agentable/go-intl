@@ -62,7 +62,7 @@ Each fixture **MUST** conform to the following schema (JSON object):
 **Rules**:
 
 1. The fixture file **MUST** be a JSON array (multiple fixtures per file), with the path `<package>/testdata/conformance/<source>/<file>.json`.
-2. `id` **MUST** be globally unique; when violated, CI will directly block (`tools/check-conformance/` verification).
+2. `id` **MUST** be globally unique. `LoadFixtures` rejects duplicates within a package before ledger indexes or callbacks, identifying the ID and both source paths. `ValidateFixtureRoots` additionally rejects IDs shared across packages.
 3. When `input` is a date, you must use ISO-8601 with timezone offset string (such as `"2020-01-01T00:00:00Z"`), and Go harness deserializes it through `time.Parse(time.RFC3339, ...)`. **FORBIDDEN** to use Unix epoch ms numbers; they are too ambiguous at the Go fixture boundary.
 4. The error fixture **MUST** go through `errorCode` field, which is kept separately in `<package>/testdata/conformance/<source>/errors.json` and separated into files with the success fixture; Go harness goes through `errors.Is(err, sentinel)` verification.
 5. `errors.json` **can only** contain error fixtures with `errorCode`; forward fixtures **are prohibited** from being put into `errors.json`.
@@ -88,9 +88,9 @@ Each fixture **MUST** conform to the following schema (JSON object):
 12. Within the operation's valid input family, adapters execute their declared
     text, parts, range text, and range parts observations independently, without
     an unrelated text prerequisite. NumberFormat, DateTimeFormat, DurationFormat,
-    and DisplayNames also execute resolved-options snapshots independently;
-    their resolved-only records do not parse a formatting input. This snapshot
-    lane does not add resolved-only support to the other package adapters.
+    DisplayNames, PluralRules, ListFormat, and RelativeTimeFormat also execute
+    resolved-options snapshots independently; their resolved-only records do
+    not parse a formatting input. Locale has no resolvedOptions operation.
     Empty expected arrays are asserted rather than skipped.
 13. Resolved-options snapshots describe the complete object. Missing, extra,
     or unknown properties fail comparison; null differs from an absent
@@ -134,7 +134,7 @@ Each fixture **MUST** conform to the following schema (JSON object):
 2. Native fixtures **MUST** record the runtime major version. The current fixture `source` prefix is historical; it identifies the witness lane and version, not an external product authority.
 3. Manual fixture **MUST** indicate that it corresponds to the ECMA-402 section or local SPEC rationale, and is marked with `source: "manual:<topic>"`.
 4. Fixture sources **MUST** be marked via the `source` field; mixing sources into the same JSON file is prohibited.
-5. The generated-reference version **MUST** be pinned to `tools/.gen-versions`. After upgrading the reference or refreshing its checkout, rerun the extractor and check the generated fixture and `.skip-list.json` diff.
+5. `tools/.gen-versions` labels the generated-reference source as `formatjs=local-reference`; it does not pin a revision. Git's submodule commit identifies the repository's reference checkout, while the extractor accepts an arbitrary `-formatjs` directory without checking its revision. After changing the source checkout, rerun the extractor and review the generated fixture and `.skip-list.json` diff. The active Node witness separately enforces its exact version through `tools/conformance.ActiveNodeWitnessVersion`.
 
 > **Why**: Keeping fixture provenance narrow reduces license and toolchain surface, and forces semantic interpretation back to ECMA-402 rather than to local taste.
 
@@ -175,6 +175,34 @@ The generated-fixture extractor **Required**:
 - When only some assertions in the same source can be extracted losslessly, the source must still enter `.skip-list.json`, and the reason must explain why the remaining assertions do not enter the gate.
 6. The error use case (`expect(...).toThrow(...)`) must be written into `errors.json` and separated from the success fixture.
 
+The extractor scans each source once to identify code token positions, masking
+comments without changing byte offsets and preserving quoted argument values.
+Assertions, constructor declarations, and date declarations share that lexical
+boundary. Text inside comments, strings, regex literals, and template text does
+not create fixtures or extraction debt. Template substitutions are delimited but
+are not mechanically extracted; assertion candidates inside them remain audit
+items. Bare `expect` candidates allow whitespace and comment trivia before `(`.
+Supported extraction is matched by candidate byte position, so repeated matches
+cannot hide an uncovered assertion. These positions stay private to the tool.
+Direct writes to a constructor variable invalidate its earlier configuration,
+including chained assignments and writes inside template substitutions. Only an understood constructor
+declaration establishes a new extractable binding; reassignment right-hand sides
+are not evaluated. Earlier safe observations and independent literal constructors
+remain extractable, and rejected assertions remain source-owned debt. Text in
+comments, quoted strings, template text, and regex literals is not a write.
+
+The scanner does not evaluate control flow or implement a complete JavaScript
+parser. Unterminated literals/comments, excessive template nesting, and ambiguous
+regex/division slashes stop extraction beyond the uncertain boundary and create a
+source-owned skip reason with a byte offset. Safe earlier fixtures remain active.
+A source with emitted fixtures and remaining debt is partial; a source with no
+emitted fixtures is unsupported. This also applies when recognized assertions
+are excluded by the generated-fixture support boundary.
+
+Evidence: `tools/gen-fixtures-from-formatjs/source.go` and the extraction/import
+regressions in `tools/gen-fixtures-from-formatjs/main_test.go` and
+`options_test.go:TestConstructorAssignmentsRespectCodePositions`.
+
 `tools/check-conformance/` is the single conformance audit CLI. It delegates to
 the shared `tools/conformance` package and owns fixture schema validation,
 XFAIL validation, skip-list validation, divergence/source integrity checks, and
@@ -188,7 +216,7 @@ fixture, divergence, or native-witness validators.
 
 | category | meaning |
 |----------|------|
-| `unsupported-extractor-shape` | The source file contains `expect(...)`, but the current extractor cannot restore it statically without loss |
+| `unsupported-extractor-shape` | The source has uncovered assertion candidates or a lexical diagnostic, and no fixtures can be emitted without loss |
 | `partial-extraction` | Some assertions in the same source have generated fixtures, but the remaining assertions have not been covered |
 
 The new category must be implemented in the same PR of extractor, `tools/check-conformance`, coverage report and this SPEC. Do not reserve a category that will not be recognized by the tool; the accepted product boundary will be owned SPEC + `testdata/divergences.md`, the implementation gap will be fixture failure / XFAIL, the missing reference will be tool error, not `.skip-list.json` debt.
@@ -289,7 +317,7 @@ The following categories **MUST** be visible (when present) in divergences.md:
 **Rules**:
 
 1. Gate 1 + Gate 2 **MUST** block on all PRs; **override is prohibited (unless the maintainer explicitly approves and revise SPEC).
-2. Performance telemetry **MUST** return non-zero exit code alone; benchmark numbers cannot be used as standalone merge blocker.
+2. Benchmark numbers are non-blocking telemetry and do not determine the command's exit code. Execution failures, such as a failed build or benchmark, still return non-zero; a measured slowdown alone is not a merge blocker.
 3. `task verify` **Required** serial Gate 1 → Gate 2 and other correctness/security checks; performance reports run separately when relevant.
 4. Gate 1 or Gate 2 fails **MUST** return a non-zero exit code, and CI blocks accordingly.
 
@@ -383,7 +411,7 @@ governance rules that cannot be proven by a Go test.
 | `tools/gen-fixtures-from-formatjs/` is a standalone module and owns generated FormatJS lanes for currently extractable surfaces. | `tools/gen-fixtures-from-formatjs/go.mod`; `tools/gen-fixtures-from-formatjs/main.go`; generated `testdata/conformance/formatjs` fixtures | Satisfied |
 | Native witness validation enforces required topics, constructor error/refusal coverage, and explicit intentional gaps. | `tools/conformance/node_witness.go`; `tools/conformance/node_witness_test.go`; `tools/conformance/product_contract_test.go`; `task conformance:verify` | Satisfied |
 | `.skip-list.json` audits non-extracted and partially extracted reference sources with `source`, `category`, `route`, and `reason`. | `.skip-list.json`; `tools/conformance/coverage.go`; `tools/conformance/coverage_test.go` | Satisfied |
-| Generated-reference versions remain pinned and visible to fixture regeneration. | `tools/.gen-versions`; `Taskfile.yml` `conformance:witness` | Satisfied |
+| The repository reference checkout is identified by its submodule commit; `formatjs=local-reference` is a source label, and arbitrary `-formatjs` directories are not revision-validated. Node witness regeneration enforces the exact active Node version. | Git submodule commit; `tools/.gen-versions`; `tools/gen-fixtures-from-formatjs/main.go:importNode`; `tools/conformance.ActiveNodeWitnessVersion` | Satisfied |
 
 ### Divergences And XFAIL
 
@@ -392,7 +420,7 @@ governance rules that cannot be proven by a Go test.
 | Packages with active or resolved divergence history keep `testdata/divergences.md`; packages without divergence history may omit it. | `datetimeformat/testdata/divergences.md`; `tools/conformance/divergences.go` | Satisfied |
 | Divergence records use a closed, unique field set; malformed, duplicate, unknown, incomplete, or invalid-date records fail. Resolved history is fully validated before filtering, while active records also name an existing fixture and DateTimeFormat native witness when required. | `tools/conformance/divergences.go`; `tools/conformance/coverage_test.go`; `task conformance:verify` | Satisfied |
 | XFAIL records require `id`, `reason`, `expires_at`, and `tracking_issue`; IDs must be unique, real, and unexpired. | `tools/conformance/xfail.go`; `tools/conformance/skip_test.go`; `tools/check-conformance/main_test.go` | Satisfied |
-| `RunFixtures` validates the complete suite before callbacks; malformed divergence/XFAIL state, expired entries, unknown IDs, and missing roots fail closed. | `tools/conformance/runner.go`; `tools/conformance/skip_test.go` subprocess witnesses | Satisfied |
+| `RunFixtures` validates the complete suite before callbacks; duplicate fixture IDs, malformed divergence/XFAIL state, expired entries, unknown IDs, and missing roots fail closed. | `tools/conformance/runner.go`; `tools/conformance/skip_test.go` subprocess witnesses | Satisfied |
 | XFAIL growth must be reviewed toward zero as implementation matures. | `task conformance:verify` reports xfail totals; human review decides whether growth is justified | Governance |
 
 ### Gates And Drift Rules
@@ -439,9 +467,25 @@ review policy.
 
 The active Node witness refresh validates its exact `nodeVersion` against the
 version consumed by the conformance checker before writing fixtures; a different
-Node release requires an explicit checker/provenance upgrade. The FormatJS
-extractor stages all owned routes and collision checks before replacing its
-owned output directories, preserving prior fixtures and skip-list on extraction
-failure. It does not own DisplayNames' older FormatJS lane, manual fixtures,
+Node release requires an explicit checker/provenance upgrade. Every generated
+fixture group must be nonempty, and supported-values observations must include
+calendar, currency, numberingSystem, timeZone, and unit. Empty observation values
+remain valid. The importer stages the fixture records and reuses the conformance
+loader's schema, source, error-file, and identity checks before changing any
+official output; old files cannot fill gaps in the incoming payload. Node
+publication replaces only the generator-owned exact files, preserving manual
+witness files in the same directories and the other fixture lanes. The FormatJS
+extractor prepares all owned directories and the skip-list on the output
+filesystem, then checks the complete target collection and parent path types
+before replacing any output. Extraction, encoding, staging, and preflight
+failures preserve prior fixtures and skip-list. Both importers share one private
+publication operation that retains the old target collection until replacement
+succeeds. A detected replacement failure
+restores touched targets, including restoring absence for a newly created target.
+If recovery itself fails, the error preserves both causes and identifies retained
+backups outside the disposable staging directory. This is finite failure recovery,
+not crash atomicity or coordination between concurrent generators.
+It does not own DisplayNames'
+older FormatJS lane, manual fixtures,
 Node witnesses, or divergence/XFAIL ledgers. Source-deleted/zero-assertion
 lanes are removed on successful extraction.

@@ -119,7 +119,7 @@ nf, err := numberformat.New(mustLocaleList("zh-Hant-TW"),
         Notation:       gointl.String(numberformat.CompactNotation),
         CompactDisplay: gointl.String(numberformat.ShortCompactDisplay),
     })
-// nf.Format(numberformat.Int(98765)) == "99,000"
+// nf.Format(numberformat.Int(98765)) == "9.9萬"
 ```
 
 ```go
@@ -474,12 +474,12 @@ package's legal collapse or source attribution strategy.
 
 **MUST** Rules:
 
-1. NumberFormat internal state **MUST** all be calculated and frozen at the time of `New`; the `*NumberFormat` returned by `New` is an immutable snapshot.
-2. The CLDR number-domain data (`numberSymbols / patterns / compactDecimalFormats`) **MUST** be pulled once through the resolved `internal/cldr/number.Locale` accessors in `New` and saved to the `NumberFormat` internal slot; the `Format` path **is prohibited** from calling CLDR accessors again.
+1. `New` resolves and freezes options, digit policy, locale, patterns and generated plural rules. Formatter configuration remains immutable after construction.
+2. The CLDR number-domain data (`numberSymbols / patterns / compactDecimalFormats`) **MUST** be pulled once through the resolved `internal/cldr/number.Locale` accessors in `New` and saved to the `NumberFormat` internal slot; formatting reuses these compiled values. Currency-name placement is also compiled in `New`, but the plural-sensitive name is looked up through `internal/cldr/currency.DisplayName` during formatting. Its names blob is decoded once on the first name/symbol access in the process; later accesses are read-only lookups.
 3. `New` resolves the generated cardinal rule once; formatting never constructs a public PluralRules instance.
 4. Exact rounding consumes constructor-resolved digit options; there is no per-formatter apd context or mutable rounding policy.
 
-> **Why**: The `internalSlot` mode of `generated-reference` (checking slot every time `format()`) corresponds to "materialization during construction and read-only during runtime" on Go. This is consistent with the CLAUDE.md "constructor-eager / Format-no-error" rule.
+> Constructor work fixes configuration and executable patterns. Input-dependent style plural selection runs only for unit and currency-name consumers; compact suffix selection retains its separate scaled operand. This selection and lazy shared name lookup remain runtime work; neither repeats locale negotiation or reads external data files.
 
 ---
 
@@ -521,7 +521,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - **BANNED** Use `Format` with `fmt.Sprintf("%v", value)` on hot path - trailing-zero behavior is unaligned + ~150 ns per allocation.
 - **FORBIDDEN** NumberFormat parses plural DSL, copies plural rule tables, or selects compact suffix by exposing a `pluralrules.PluralRules` instance; can only call `internal/plural.GetOperands` and use `internal/cldr/plural` generated rules.
 - **FORBIDDEN** Extract `CollapseNumberRange` into a cross-package generic - Part fields are different.
-- **FORBIDDEN** Calling CLDR domain accessors on the `Format` path; CLDR data must be materialized on `New`.
+- **FORBIDDEN** Repeating locale negotiation, option resolution, pattern compilation or external CLDR file loading during formatting. Read-only name lookup over lazily decoded shared data is allowed.
 - **BANNED** Builder chaining API(`numberformat.NewBuilder().Currency("USD").Build()`); active scope exposes only `New(mustLocaleList("en-US"), Options{...})` or equivalent `locale.List` variables.
 - **BANNED** Pointer configuration API (`numberformat.New(locales, &Options{...})`) and functional options; the only public configuration form after turning off §8 Q2 is the typed `Options` value.
 - **FORBIDDEN** Self-developed `BigDecimal`; all math layers go through [SPEC 21 §Decimal API](./21-number-math.md#decimal-api)(`apd/v3` backend).

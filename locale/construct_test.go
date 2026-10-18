@@ -119,6 +119,37 @@ func TestNewLanguageIdentifierOptionsPreserveExtensions(t *testing.T) {
 	}
 }
 
+func TestNewLanguageOptionsPreserveExplicitUnknownSubtags(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		tag  string
+		opts Options
+		want string
+	}{
+		{"en-Zzzz-ZZ", Options{Language: stringPtr("fr")}, "fr-Zzzz-ZZ"},
+		{"en-Zzzz-ZZ", Options{Script: stringPtr("Latn")}, "en-Latn-ZZ"},
+		{"en-Zzzz-ZZ", Options{Region: stringPtr("GB")}, "en-Zzzz-GB"},
+		{"en-Zzzz", Options{Region: stringPtr("GB")}, "en-Zzzz-GB"},
+		{"en-ZZ", Options{Script: stringPtr("Latn")}, "en-Latn-ZZ"},
+		{"en-Latn-US", Options{Script: stringPtr("Zzzz")}, "en-Zzzz-US"},
+		{"en-Latn-US", Options{Region: stringPtr("ZZ")}, "en-Latn-ZZ"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			t.Parallel()
+			for _, suffix := range []string{"", "-emodeng-t-en-u-ca-gregory-x-private"} {
+				loc, err := New(tc.tag+suffix, tc.opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got, want := loc.String(), tc.want+suffix; got != want {
+					t.Errorf("New(%q) = %q, want %q", tc.tag+suffix, got, want)
+				}
+			}
+		})
+	}
+}
+
 func TestNewRejectsExplicitEmptyStringOptions(t *testing.T) {
 	t.Parallel()
 

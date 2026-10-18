@@ -15,10 +15,9 @@ import (
 func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error) {
 	return ecma402.SupportedLocalesOf(ecma402.SupportedLocalesOptions{
 		Owner:         durationFormatOwner,
-		Supported:     supportedLocales(),
+		Matcher:       durationLocaleMatcher(),
 		Requested:     locales,
 		LocaleMatcher: opts.LocaleMatcher,
-		Maximizer:     cldrlocale.Maximize,
 	})
 }
 

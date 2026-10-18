@@ -40,7 +40,7 @@ func partitionNumberRange(start, end decimal.Decimal, formatState *decimalFormat
 		fillRangeParts(out[1:], startParts, SourceShared)
 		return out, nil
 	}
-	if rangeUsesPluralCategory(formatState.resolved) {
+	if styleUsesPluralCategory(formatState.resolved) {
 		category := plural.ResolveRange(
 			formatState.dataLocale,
 			stylePluralCategory(startOperand, formatState.cardinalRule),
@@ -66,11 +66,6 @@ func partitionNumberRange(start, end decimal.Decimal, formatState *decimalFormat
 	n += len(endParts)
 	fillRangeParts(out[n:], suffix, SourceShared)
 	return out, nil
-}
-
-func rangeUsesPluralCategory(resolved ResolvedOptions) bool {
-	return resolved.Style == UnitStyle ||
-		(resolved.Style == CurrencyStyle && ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) == CurrencyDisplayName)
 }
 
 func rangePartsText(parts []RangePart) string {

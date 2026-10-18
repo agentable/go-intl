@@ -82,6 +82,12 @@ func TestLocaleInfoRegionPreference(t *testing.T) {
 			hourCycles: []string{"h12", "h23"},
 			firstDay:   time.Sunday,
 		},
+		{
+			name:       "explicit unknown region does not use subdivision",
+			in:         "en-ZZ-u-sd-usca",
+			hourCycles: []string{"h23"},
+			firstDay:   time.Monday,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -179,6 +185,11 @@ func TestLocaleInfoGetters(t *testing.T) {
 	if got := parseLocaleForTest("ar").GetTimeZones(); got != nil {
 		t.Fatalf("GetTimeZones(ar) = %#v, want nil without region", got)
 	}
+	for _, tag := range []string{"en-ZZ", "en-Zzzz-ZZ", "en-XX"} {
+		if got := parseLocaleForTest(tag).GetTimeZones(); got == nil || len(got) != 0 {
+			t.Errorf("GetTimeZones(%s) = %#v, want a present empty list", tag, got)
+		}
+	}
 }
 
 func TestTextInfo(t *testing.T) {
@@ -214,17 +225,21 @@ func assertTextDirection(t *testing.T, tag, want string) {
 
 func TestTextInfoUnknownDirectionIsAbsent(t *testing.T) {
 	t.Parallel()
-
-	info := parseLocaleForTest("und-Brai").GetTextInfo()
-	if info.Direction != nil {
-		t.Errorf("GetTextInfo(und-Brai).Direction = %q, want nil", *info.Direction)
-	}
-	raw, err := json.Marshal(info)
-	if err != nil {
-		t.Fatalf("json.Marshal(GetTextInfo(und-Brai)) error = %v", err)
-	}
-	if got := string(raw); got != `{}` {
-		t.Errorf("json.Marshal(GetTextInfo(und-Brai)) = %s, want {}", got)
+	for _, tag := range []string{"und-Brai", "en-Zzzz", "ar-Zzzz-ZZ"} {
+		t.Run(tag, func(t *testing.T) {
+			t.Parallel()
+			info := parseLocaleForTest(tag).GetTextInfo()
+			if info.Direction != nil {
+				t.Errorf("GetTextInfo(%s).Direction = %q, want nil", tag, *info.Direction)
+			}
+			raw, err := json.Marshal(info)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := string(raw); got != `{}` {
+				t.Errorf("GetTextInfo(%s) JSON = %s, want {}", tag, got)
+			}
+		})
 	}
 }
 
@@ -253,6 +268,42 @@ func TestHourCycleLanguageRegionPreferences(t *testing.T) {
 			got[0] = "modified"
 			if !slices.Equal(loc.GetHourCycles(), tc.want) {
 				t.Fatal("GetHourCycles exposed shared state")
+			}
+		})
+	}
+}
+
+func TestSubdivisionRegionPreference(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		tag       string
+		canonical string
+		firstDay  time.Weekday
+	}{
+		{"en-u-sd-gb", "en-u-gb-sd", time.Sunday},
+		{"en-u-sd-gba", "en-u-sd-gba", time.Monday},
+		{"en-u-sd-gbabcd", "en-u-sd-gbabcd", time.Monday},
+		{"en-u-sd-gbabcde", "en-u-sd-gbabcde", time.Sunday},
+		{"en-u-sd-001", "en-u-sd-001", time.Sunday},
+		{"en-u-sd-001a", "en-u-sd-001a", time.Monday},
+		{"en-u-sd-001abcd", "en-u-sd-001abcd", time.Monday},
+		{"en-u-sd-001abcde", "en-u-sd-001abcde", time.Sunday},
+		{"en-US-u-sd-gba", "en-US-u-sd-gba", time.Sunday},
+		{"en-US-u-rg-gba", "en-US-u-rg-gba", time.Monday},
+		{"en-US-u-rg-gbabcde", "en-US-u-rg-gbabcde", time.Sunday},
+		{"en-US-u-rg-zzzzzz", "en-US-u-rg-zzzzzz", time.Sunday},
+	} {
+		t.Run(tc.tag, func(t *testing.T) {
+			t.Parallel()
+			loc, err := Parse(tc.tag)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := loc.GetWeekInfo().FirstDay; got != tc.firstDay {
+				t.Errorf("firstDay = %s; want %s", got, tc.firstDay)
+			}
+			if got := loc.String(); got != tc.canonical {
+				t.Errorf("String() = %q; want %q", got, tc.canonical)
 			}
 		})
 	}

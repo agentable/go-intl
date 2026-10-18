@@ -236,9 +236,6 @@ func (d Decimal) Cmp(other Decimal) int
 // Abs returns d without a sign.
 func Abs(d Decimal) Decimal
 
-// AbsDiffCmp compares |base-a| and |base-b| for rounding-priority selection.
-func AbsDiffCmp(base, a, b Decimal) int
-
 // MulInt returns d multiplied by n, preserving non-finite values.
 func MulInt(d Decimal, n int64) Decimal
 
@@ -425,6 +422,13 @@ With two fraction digits, `auto` retains `3.00`; `stripIfInteger` emits `3`
 for an integral rounded value and retains `3.14` for a nonintegral value.
 Stored input scale does not determine formatter-visible zeros.
 
+Fraction trimming never removes integer digits: with default digit bounds,
+`stripIfInteger` preserves `10`, `100`, and `1000`. The same mathematical
+value selects the same plural category through every typed numeric bridge.
+Public regression evidence is
+`numberformat/format_test.go:TestNumberFormatStripIfIntegerPreservesIntegerDigits`
+and `pluralrules/range_bridge_test.go:TestStripIfIntegerBridgeValues`.
+
 For finite inputs, `FormattedNumeric.Formatted` contains the selected padded
 numeric text and may retain a minus sign, including `-0`.
 `FormattedNumeric.Rounded` retains the mathematical sign, including negative
@@ -445,17 +449,17 @@ Evidence: `internal/decimal/decimal_test.go`,
 
 `ComputeExponent`(ECMA-402 §15.5.3) determines the exponent of a value in scientific / engineering / compact notation:
 
-```text
-ComputeExponent(nf, x):
-  if x == 0: return 0
-  magnitude := floor(log10(|x|))
-  exponent := ComputeExponentForMagnitude(nf, magnitude)
-  if exponent < 0:
-      mv := x × 10^(-exponent)
-  else:
-mv := x × 10^exponent # Wrong! It should be x ÷ 10^exponent
-  return exponent
-```
+For a nonzero value, choose the notation exponent from its decimal magnitude,
+scale by `10^(-exponent)`, then round the scaled value with the resolved digit
+options. If the rounded value is nonzero and its magnitude has increased,
+choose the exponent again from the original magnitude plus one. This carry
+recheck handles values such as 999 rounding to 1000. Zero uses exponent zero.
+
+`internal/ecma402/numberformat/exponent.go:computeExponent` owns this algorithm;
+scientific, engineering, and compact callers share it. The normative operation
+is `.references/ecma402/spec/numberformat.html:ComputeExponent`, with an
+implementation reference in
+`.references/formatjs/packages/ecma402-abstract/NumberFormat/ComputeExponent.ts`.
 
 The exact decimal result of `floor(log10(|x|))` is required (cannot use `math.Log10(float64(...))`, precision loss).
 
@@ -539,7 +543,8 @@ var (
 // ErrInvalidDecimal: ParseString input illegal decimal literal.
     ErrInvalidDecimal = errors.New("decimal: invalid numeric literal")
 
-// ErrInvalidRoundingIncrement: Not in the ValidRoundingIncrements list.
+// ErrInvalidRoundingIncrement: Currently declared but not returned by quantization
+// or wrapped by formatter option validation.
     ErrInvalidRoundingIncrement = errors.New("decimal: invalid rounding increment")
 
 // ErrNaNComparison: Reserved comparison-domain sentinel; current Cmp callers
@@ -553,16 +558,16 @@ var (
 
 ### 7.2 Reconcile with numberformat / pluralrules errors
 
-`gointl.ErrInvalidOption` Error wrapping this package at formatter boundary:
+Formatter constructors validate `roundingIncrement` through
+`internal/ecma402/numberformat.validateDigitConfig`. `InvalidDigitOptionError`
+returns a structured invalid-option error with the option, value, locale and
+allowed values. Callers use `errors.Is(err, gointl.ErrInvalidOption)`; the error
+does not wrap `decimal.ErrInvalidRoundingIncrement`.
 
-```go
-// numberformat/options.go (wrap mode in SPEC 20)
-if !decimal.IsValidRoundingIncrement(inc) {
-    return fmt.Errorf("numberformat: %w: roundingIncrement=%d", decimal.ErrInvalidRoundingIncrement, inc)
-}
-```
-
-> **Why this package does not return the error after wrap**: Error boundary record - the error in this package is raw sentinel; wrapping by SPEC 20 / 40 adds context at the boundary.
+`QuantizeToIncrement` returns a `Decimal`, not an error. Its internal guard
+returns the input unchanged for non-finite values or invalid increments;
+public option validation rejects invalid increments before this operation.
+Malformed decimal strings retain their separate `ErrInvalidDecimal` cause.
 
 ---
 
@@ -712,7 +717,7 @@ type NumericValue struct {
 ### Arithmetic
 
 - [ ] `Cmp` compares finite values and callers reject NaN/non-finite inputs before using it for ECMA-402 equality.
-- [ ] `Abs`, `AbsDiffCmp`, `MulInt`, and `Scale10` preserve value semantics and do not mutate caller-owned inputs.
+- [ ] `Abs`, `MulInt`, and `Scale10` preserve value semantics and do not mutate caller-owned inputs.
 - [ ] `Scale10` preserves NaN and infinities unchanged.
 
 ### Rounding Modes
@@ -758,7 +763,7 @@ type NumericValue struct {
 ### Error
 
 - [ ] `errors.Is(err, ErrInvalidDecimal)` is true if `ParseString` fails.
-- [ ] `errors.Is(err, ErrInvalidRoundingIncrement)` is true after invalid rounding increment is wrapped by the callee.
+- [ ] Invalid public rounding increments return an error matching `gointl.ErrInvalidOption` with `roundingIncrement` context; no internal decimal increment sentinel is promised.
 - [ ] There are **no** `panic` calls in the package.
 
 ### Test

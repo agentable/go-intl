@@ -159,6 +159,61 @@ func LowercaseUnicodeLocaleID(tag string) string {
 	return asciiLower(tag)
 }
 
+// HasUnicodeLocaleStructure checks language identifiers and duplicate subtags
+// before canonicalization can erase them. Extension contents are validated by
+// their parsers; private-use contents are not interpreted here.
+func HasUnicodeLocaleStructure(tag string) bool {
+	if strings.Contains(tag, "_") {
+		return false
+	}
+	parts := strings.Split(asciiLower(tag), "-")
+	i := unicodeLanguageIDLength(parts)
+	if i == 0 {
+		return false
+	}
+	singletons := make(map[string]bool)
+	for i < len(parts) {
+		key := parts[i]
+		if len(key) != 1 || !asciiAlnum(key) || singletons[key] {
+			return false
+		}
+		if key == "x" {
+			return true
+		}
+		singletons[key] = true
+		start := i + 1
+		i = start
+		for i < len(parts) && len(parts[i]) != 1 {
+			i++
+		}
+		if key == "t" && start < i && IsUnicodeLanguageSubtag(parts[start]) && unicodeLanguageIDLength(parts[start:i]) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func unicodeLanguageIDLength(parts []string) int {
+	if len(parts) == 0 || !IsUnicodeLanguageSubtag(parts[0]) {
+		return 0
+	}
+	i := 1
+	if i < len(parts) && IsUnicodeScriptSubtag(parts[i]) {
+		i++
+	}
+	if i < len(parts) && IsUnicodeRegionSubtag(parts[i]) {
+		i++
+	}
+	variants := make(map[string]bool)
+	for ; i < len(parts) && IsUnicodeVariantSubtag(parts[i]); i++ {
+		if variants[parts[i]] {
+			return 0
+		}
+		variants[parts[i]] = true
+	}
+	return i
+}
+
 // IsUnicodeKey reports whether value is an ASCII alphanumeric followed by a
 // letter, as required by Unicode locale extension key syntax.
 func IsUnicodeKey(value string) bool {
@@ -246,6 +301,19 @@ func CanonicalUnicodeRegionSubtag(subtag string) (string, bool) {
 		return "", false
 	}
 	return asciiUpper(subtag), true
+}
+
+// UnicodeSubdivisionRegion extracts the uppercased region from a Unicode
+// subdivision identifier. Region aliases are resolved by the caller.
+func UnicodeSubdivisionRegion(value string) (string, bool) {
+	regionLength := 2
+	if len(value) >= 3 && asciiDigits(value[:3]) {
+		regionLength = 3
+	}
+	if len(value) <= regionLength || len(value) > regionLength+4 || !asciiAlnum(value[regionLength:]) {
+		return "", false
+	}
+	return CanonicalUnicodeRegionSubtag(value[:regionLength])
 }
 
 // IsUnicodeVariantSubtag reports whether subtag has Unicode variant subtag

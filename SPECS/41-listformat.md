@@ -168,6 +168,15 @@ MUST rules:
 7. Template decomposition must use `internal/ecma402.PartitionPattern`; do not hand-parse placeholders in `listformat`.
 8. Part records must use only `element` and `literal`.
 
+The fold describes the logical result, not repeated array materialization.
+`FormatToParts` allocates the final parts array once. Each template places its
+prefix and suffix around the space reserved for `{1}`, preserving reversed
+placeholders, adjacent literal records, and empty elements. Processing is linear
+in the final parts count, with no input-depth recursion. `Format` joins this same
+partition and additionally processes the output bytes. Regression evidence is
+`listformat/template_test.go`; scale benchmarks live in
+`listformat/benchmark_test.go`.
+
 ECMA-402 permits contextual templates. For a resolved Spanish data locale,
 exact `{0} y {1}` / `{0} o {1}` pair/end templates receive constructor-compiled
 e/u alternatives. The finite ICU prefix rules select e for i/hi except hia/hie,

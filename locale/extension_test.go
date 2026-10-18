@@ -37,6 +37,12 @@ func TestParseUnicodeExtensions(t *testing.T) {
 		{in: "en-u-kf-upper-kf-lower", want: "en-u-kf-upper", caseFirst: "upper"},
 		{in: "en-u-kn-false-kn", want: "en-u-kn-false", numeric: false},
 		{in: "en-u-ca-gregory-x-private", want: "en-u-ca-gregory-x-private", calendar: "gregory"},
+		{in: "en-1901-t-de-1901-u-ca-gregory-x-a-a", want: "en-1901-t-de-1901-u-ca-gregory-x-a-a", calendar: "gregory"},
+		{in: "en-x-a-a", want: "en-x-a-a"},
+		{in: "en-a-foo-x-a-foo", want: "en-a-foo-x-a-foo"},
+		{in: "en-x-foo-bar", want: "en-x-foo-bar"},
+		{in: "en-a-foo-bar", want: "en-a-foo-bar"},
+		{in: "en-t-en-US", want: "en-t-en-us"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
@@ -52,6 +58,20 @@ func TestParseUnicodeExtensions(t *testing.T) {
 				t.Fatalf("extensions = %#v", got)
 			}
 		})
+	}
+}
+
+func TestParseAllowsDuplicateTransformedKeys(t *testing.T) {
+	t.Parallel()
+
+	// IsWellFormedLanguageTag permits repeated tkeys, unlike repeated singletons.
+	loc, err := Parse("en-t-m0-ungegn-m0-alaloc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := Parse(loc.String())
+	if err != nil || !again.Equal(loc) {
+		t.Fatalf("round trip = %v, %v", again, err)
 	}
 }
 

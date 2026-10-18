@@ -64,7 +64,7 @@ Surviving algorithms keep spec or reference names when that name remains honest:
 | sanctioned unit syntax | `IsSanctionedSimpleUnitIdentifier` / `IsWellFormedUnitIdentifier` |
 | typed mathematical-value bridge | `NumericValue`, `DecimalNumericValue`, `Int64NumericValue`, `Uint64NumericValue`, `Float64NumericValue`, `BigIntNumericValue`, `ParseDecimalInput`, `ParseFiniteDecimalInput`, `RequireFiniteDecimalInput` |
 | constructor locale negotiation | `ResolveConstructorLocale` typed wrapper around locale-list, matcher, default-locale, and relevant-extension processing |
-| option resolution | `options.One`, `LocaleMatcherAlgorithm`, `LocaleMatcherOption` / `LocaleMatcherOptionInput`, `SupportedLocalesOf`, `InvalidStringOption`, `InvalidIntegerOption`, Unicode type option validators, `GetOption`-family helpers or typed equivalents that preserve ECMA-402 semantics |
+| option resolution | `LocaleMatcherAlgorithm`, `LocaleMatcherOption` / `LocaleMatcherOptionInput`, `SupportedLocalesOf`, `InvalidStringOption`, `InvalidIntegerOption`, Unicode type option validators, `GetOption`-family helpers or typed equivalents that preserve ECMA-402 semantics |
 | digit rounding and padding stage | `numberformat.FormatNumericToString` |
 | date skeleton parsing | `datetimeformat.ParseSkeleton`-family internals |
 | plural operand construction | `pluralrules.Operands`-family internals |
@@ -88,7 +88,6 @@ Those constructors validate enum values, numeric ranges, identifiers, and unsupp
 The abstract layer should provide reusable option and syntax helpers when they encode normative ECMA-402 behavior:
 
 - `ErrInvalidOption`
-- `options.One`
 - `LocaleMatcherAlgorithm`
 - `LocaleMatcherOption` / `LocaleMatcherOptionInput`
 - `ResolveConstructorLocale`

@@ -128,7 +128,7 @@ func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error)
 MUST rules:
 
 1. Use `internal/cldr/displaynames.SupportedLocales()` as the supported set.
-2. Call `localematcher.FilterLocalesWithMaximizer`.
+2. Call `internal/ecma402.SupportedLocalesOf` with the formatter-owned compiled matcher, requested locales, and localeMatcher option. This shared boundary owns option validation, canonical deduplication, and matcher dispatch.
 3. Accept one `Options` value; `Options{}` represents omitted static-method options.
 4. Read only `LocaleMatcher`; ignore other options for this static method. `nil` means omitted and an explicit empty string is invalid.
 

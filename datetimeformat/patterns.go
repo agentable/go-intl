@@ -288,6 +288,7 @@ func matchComponentPattern(formatMatcher FormatMatcher, opts ecma402dtf.Options,
 	var format ecma402dtf.Formats
 	if formatMatcher == BasicFormatMatcher {
 		format = ecma402dtf.MatchBasic(opts, candidates)
+		format = basicHourCyclePattern(format, opts.HourCycle, candidates)
 	} else {
 		format = ecma402dtf.Match(opts, candidates)
 	}
@@ -299,6 +300,30 @@ func matchComponentPattern(formatMatcher FormatMatcher, opts ecma402dtf.Options,
 	return format, format.Pattern != ""
 }
 
+// Basic scores components independently of the clock family. Resolve the
+// selected skeleton's complete clock variant before compiling it: replacing H
+// with h alone cannot supply the locale's day-period position and literals.
+func basicHourCyclePattern(format ecma402dtf.Formats, cycle ecma402dtf.HourCycle, candidates []ecma402dtf.Formats) ecma402dtf.Formats {
+	// Flexible day periods are selected components, not automatic AM/PM marks.
+	// Keep their pattern and interval skeleton when changing the hour character.
+	if format.DayPeriod != "" {
+		return format
+	}
+	want12 := hourCycleImpliesHour12(HourCycle(cycle))
+	have12 := hourCycleImpliesHour12(HourCycle(format.HourCycle))
+	if want12 == nil || have12 == nil || *want12 == *have12 {
+		return format
+	}
+	variants := filterFormats(candidates, func(candidate ecma402dtf.Formats) bool {
+		family := hourCycleImpliesHour12(HourCycle(candidate.HourCycle))
+		return family != nil && *family == *want12
+	})
+	opts := formatOptions(format)
+	opts.HourCycle = cycle
+	opts.Hour12 = want12
+	return ecma402dtf.Match(opts, variants)
+}
+
 func effectiveFormat(format ecma402dtf.Formats) ecma402dtf.Formats {
 	effective := ecma402dtf.Parse(format.Pattern, format.Pattern, nil, "")
 	effective.Skeleton = format.Skeleton
@@ -306,6 +331,10 @@ func effectiveFormat(format ecma402dtf.Formats) ecma402dtf.Formats {
 }
 
 func (p selectedPattern) applyResolvedComponents(resolved *ResolvedOptions) {
+	if p.timeFormat.Hour == "" {
+		resolved.HourCycle = nil
+		resolved.Hour12 = nil
+	}
 	if resolved.DateStyle != nil || resolved.TimeStyle != nil {
 		return
 	}
@@ -329,10 +358,6 @@ func (p selectedPattern) applyResolvedComponents(resolved *ResolvedOptions) {
 		timeZoneName = dateFormat.TimeZoneName
 	}
 	resolved.TimeZoneName = resolvedStringOption[TimeZoneName](string(timeZoneName))
-	if timeFormat.Hour == "" {
-		resolved.HourCycle = nil
-		resolved.Hour12 = nil
-	}
 }
 
 func appendTimeZoneName(format ecma402dtf.Formats, style ecma402dtf.TimeZoneName, appendItems map[string]string) ecma402dtf.Formats {
