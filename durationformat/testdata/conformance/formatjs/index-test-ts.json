@@ -1,139 +1,6 @@
 [
   {
-    "id": "durationformat-formatjs-index-test-ts-000",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": {
-      "years": 1
-    },
-    "expected": "1 yr"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-001",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": {
-      "months": 2,
-      "years": 1
-    },
-    "expected": "1 yr, 2 mths"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-002",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": {
-      "days": 3,
-      "months": 2,
-      "years": 1
-    },
-    "expected": "1 yr, 2 mths, 3 days"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-003",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": {
-      "days": 3,
-      "hours": 4,
-      "months": 2,
-      "years": 1
-    },
-    "expected": "1 yr, 2 mths, 3 days, 4 hr"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-004",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": {
-      "days": 3,
-      "hours": 4,
-      "minutes": 5,
-      "months": 2,
-      "years": 1
-    },
-    "expected": "1 yr, 2 mths, 3 days, 4 hr, 5 min"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-005",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": {
-      "days": 3,
-      "hours": 4,
-      "minutes": 5,
-      "months": 2,
-      "seconds": 6,
-      "years": 1
-    },
-    "expected": "1 yr, 2 mths, 3 days, 4 hr, 5 min, 6 sec"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-006",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": {
-      "days": 3,
-      "hours": 4,
-      "milliseconds": 7,
-      "minutes": 5,
-      "months": 2,
-      "seconds": 6,
-      "years": 1
-    },
-    "expected": "1 yr, 2 mths, 3 days, 4 hr, 5 min, 6 sec, 7 ms"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-007",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {
-      "milliseconds": "numeric",
-      "style": "narrow"
-    },
-    "input": {
-      "milliseconds": 473,
-      "seconds": 1
-    },
-    "expected": "1.473s"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-008",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {
-      "microseconds": "numeric",
-      "style": "narrow"
-    },
-    "input": {
-      "microseconds": 473,
-      "milliseconds": 1
-    },
-    "expected": "1.473ms"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-009",
-    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {
-      "nanoseconds": "numeric",
-      "style": "narrow"
-    },
-    "input": {
-      "microseconds": 1,
-      "nanoseconds": 473
-    },
-    "expected": "1.473μs"
-  },
-  {
-    "id": "durationformat-formatjs-index-test-ts-011",
+    "id": "durationformat-formatjs-index-test-ts-1c9428ca8284194fb01c133e049b1954b40ee2e7794b51453dca77c95c951de2",
     "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
     "locale": "en",
     "options": {
@@ -149,7 +16,7 @@
     "expected": "05:30:15"
   },
   {
-    "id": "durationformat-formatjs-index-test-ts-012",
+    "id": "durationformat-formatjs-index-test-ts-27504d1e4060ad99bdf46eb04dfe1380df2488383c46851cf9a77d4c6f29f961",
     "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
     "locale": "en",
     "options": {
@@ -159,5 +26,138 @@
       "hours": 1234
     },
     "expected": "1,234 hours"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-4871893a6ed96d3b9316da68ab3abd8f3709be03f2ab6cd06a7263e24ff67037",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "days": 3,
+      "hours": 4,
+      "months": 2,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths, 3 days, 4 hr"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-6ffbbff80b9aa365fda71bc90ccbd13d63e7f39d15c9cb6640f55ddcda790862",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "days": 3,
+      "hours": 4,
+      "milliseconds": 7,
+      "minutes": 5,
+      "months": 2,
+      "seconds": 6,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths, 3 days, 4 hr, 5 min, 6 sec, 7 ms"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-7355f219dbe3274a4bd7bfab3fe8ea7f7df87aeb3d81edd14c6fd55607a060b7",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "days": 3,
+      "hours": 4,
+      "minutes": 5,
+      "months": 2,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths, 3 days, 4 hr, 5 min"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-78c5bc8e396d60af978ab378ce1b9fac420b6d5d443a40b49a62d7b8121031e1",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "milliseconds": "numeric",
+      "style": "narrow"
+    },
+    "input": {
+      "milliseconds": 473,
+      "seconds": 1
+    },
+    "expected": "1.473s"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-8f756d6d3f2c466ca5497c699557c9a5e927fe3cdbd881630e35db0ba0ceaf15",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "nanoseconds": "numeric",
+      "style": "narrow"
+    },
+    "input": {
+      "microseconds": 1,
+      "nanoseconds": 473
+    },
+    "expected": "1.473μs"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-92d236cd9177bb07f85dde510d714df6cff15e6c9bbcb19cdc272f5a2795a193",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "days": 3,
+      "hours": 4,
+      "minutes": 5,
+      "months": 2,
+      "seconds": 6,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths, 3 days, 4 hr, 5 min, 6 sec"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-ad991db59de773187cb1d40a4fbe51ccb6abb211a7a180103a7ec2cbbbcbd599",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "months": 2,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-b4463ae1e84062241b0ea757b3ad7920e7d9f194a2df0ef0229cae92180fd222",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "years": 1
+    },
+    "expected": "1 yr"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-b5198aff150ddff5fe1fe9e62bd6953af4f67d47a87db07b9ade74b36d81430e",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": {
+      "days": 3,
+      "months": 2,
+      "years": 1
+    },
+    "expected": "1 yr, 2 mths, 3 days"
+  },
+  {
+    "id": "durationformat-formatjs-index-test-ts-ca8552044a10605713eb40b90f1cafd6f235cfcaf96a37322b58f6e61b1cdd59",
+    "source": "formatjs:packages/intl-durationformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "microseconds": "numeric",
+      "style": "narrow"
+    },
+    "input": {
+      "microseconds": 473,
+      "milliseconds": 1
+    },
+    "expected": "1.473ms"
   }
 ]

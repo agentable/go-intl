@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -316,13 +317,8 @@ func nodeSupportedValuesPath(nodeDir string) []string {
 }
 
 func runNodeWitness(nodePath string) (nodeWitness, error) {
-	repoRoot, err := repoRoot()
-	if err != nil {
-		return nodeWitness{}, err
-	}
-	//nolint:gosec // The CLI selects the Node executable; it is passed as an argument, never shell text.
-	cmd := exec.CommandContext(context.Background(), "go", "run", "./tools/node-witness", "-node", nodePath)
-	cmd.Dir = repoRoot
+	//nolint:gosec // The CLI selects the executable; arguments never pass through a shell.
+	cmd := exec.CommandContext(context.Background(), nodePath, "-e", nodeWitnessScript)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -337,24 +333,6 @@ func runNodeWitness(nodePath string) (nodeWitness, error) {
 		return nodeWitness{}, fmt.Errorf("node witness output missing nodeVersion")
 	}
 	return witness, nil
-}
-
-func repoRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	for {
-		candidate := filepath.Join(dir, "tools", "node-witness")
-		if stat, err := os.Stat(filepath.Join(candidate, "main.go")); err == nil && !stat.IsDir() {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("tools/node-witness not found from %s", dir)
-		}
-		dir = parent
-	}
 }
 
 func nodeFixtureDir(version string) (string, error) {
@@ -694,6 +672,11 @@ func importFormatJSTestFixtures(root, targetRoot string, spec formatJSImportSpec
 func writeFixturesBySourceSlug(targetRoot string, fixtures []fixture, sourcePrefix string, slug func(string) string) error {
 	if len(fixtures) == 0 {
 		return nil
+	}
+	var err error
+	fixtures, err = identifyFormatJSFixtures(fixtures)
+	if err != nil {
+		return err
 	}
 	slices.SortFunc(fixtures, func(a, b fixture) int {
 		return strings.Compare(a.ID, b.ID)
@@ -1484,7 +1467,7 @@ func extractCanonicalLocalesFixtures(rel string, source jsSource) []fixture {
 
 func newLocaleFixture(sourcePrefix, rel string, index int, feature, input, expected string) fixture {
 	return fixture{
-		ID:       formatJSFixtureID("locale", sourcePrefix+rel, index),
+		ID:       formatJSFixturePrefix("locale", sourcePrefix+rel),
 		Source:   sourcePrefix + rel,
 		Locale:   input,
 		Feature:  feature,
@@ -2042,13 +2025,49 @@ func fixtureSlug(path string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-func formatJSFixtureID(surface, rel string, index int) string {
-	return fmt.Sprintf("%s-formatjs-%s-%03d", surface, fixtureSlug(rel), index)
+func formatJSFixturePrefix(surface, rel string) string {
+	return surface + "-formatjs-" + fixtureSlug(rel)
+}
+
+// Identity includes the invocation and observation kinds, never expected values or source positions.
+func identifyFormatJSFixtures(fixtures []fixture) ([]fixture, error) {
+	result := make([]fixture, 0, len(fixtures))
+	seen := map[string][]byte{}
+	for _, f := range fixtures {
+		f.Source = strings.ReplaceAll(f.Source, `\`, "/")
+		key := struct {
+			Source, Locale, Feature string
+			Options                 map[string]any
+			Input                   any
+			Observations            [8]bool
+		}{f.Source, f.Locale, f.Feature, f.Options, f.Input, [8]bool{
+			f.Expected != nil, f.ExpectedOK != nil, f.ExpectedLocales != nil, f.ExpectedParts != nil,
+			f.ExpectedRange != nil, f.ExpectedRangeParts != nil, f.ExpectedResolved != nil, f.ErrorCode != "",
+		}}
+		data, err := json.Marshal(key, json.Deterministic(true))
+		if err != nil {
+			return nil, fmt.Errorf("%s: encode case identity: %w", f.Source, err)
+		}
+		f.ID = fmt.Sprintf("%s-%x", f.ID, sha256.Sum256(data))
+		payload, err := json.Marshal(f, json.Deterministic(true))
+		if err != nil {
+			return nil, err
+		}
+		if previous, ok := seen[f.ID]; ok {
+			if !bytes.Equal(previous, payload) {
+				return nil, fmt.Errorf("%s: conflicting expectations for case %s", f.Source, f.ID)
+			}
+			continue
+		}
+		seen[f.ID] = payload
+		result = append(result, f)
+	}
+	return result, nil
 }
 
 func formatJSSurfaceFixture(surface, sourcePrefix, rel string, index int, locale string, options map[string]any, input any) fixture {
 	return fixture{
-		ID:      formatJSFixtureID(surface, rel, index),
+		ID:      formatJSFixturePrefix(surface, rel),
 		Source:  sourcePrefix + rel,
 		Locale:  locale,
 		Options: options,

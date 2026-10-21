@@ -209,3 +209,38 @@ func TestPluralRulesUnsignedSelectionWrappers(t *testing.T) {
 		t.Fatalf("SelectRangeUint64(2, 2) = %s, want %s", got, Other)
 	}
 }
+
+func TestCompactRoundedSourceDeterminesCategory(t *testing.T) {
+	t.Parallel()
+	for _, display := range []string{"short", "long"} {
+		rules, err := New(intltest.LocaleList(t, "fr"), Options{Notation: new("compact"), CompactDisplay: new(display), MaximumFractionDigits: new(0)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, pair := range [][2]Value{
+			{decimalValue("999499.6"), decimalValue("999500.4")},
+			{Float(999499.6), Float(999500.4)},
+			{decimalValue("-999499.6"), decimalValue("-999500.4")},
+		} {
+			for _, value := range pair {
+				if got := rules.Select(value); got != Other {
+					t.Errorf("%s Select = %s, want other", display, got)
+				}
+			}
+			for _, endpoints := range [][2]Value{pair, {pair[1], pair[0]}} {
+				got, err := rules.SelectRange(endpoints[0], endpoints[1])
+				if err != nil || got != Other {
+					t.Errorf("%s range = %s, %v, want other", display, got, err)
+				}
+			}
+		}
+		for _, tc := range []struct {
+			value string
+			want  Category
+		}{{"999999.4", Other}, {"999999.6", Many}, {"1000000", Many}, {"1200000", Many}, {"1", One}} {
+			if got := rules.Select(decimalValue(tc.value)); got != tc.want {
+				t.Errorf("%s %s = %s, want %s", display, tc.value, got, tc.want)
+			}
+		}
+	}
+}

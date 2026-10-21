@@ -256,8 +256,8 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Validate all required CLDR package names/versions before generation; plural cardinal/ordinal/ranges sources must report one cldr-core version. `task modules:verify` covers test/vet/tidy-diff in all four published modules.
 - Keep DisplayNames lookup inside the resolved data locale and its truncation parent chain. Missing data is resolved by the public `fallback` option; never borrow an English name from an unrelated locale.
 - Keep text direction generated from pinned CLDR `scriptMetadata.json`. `locale.TextInfo.Direction` is `*string`: known LTR/RTL is present, unknown direction is nil and omitted from JSON; do not restore a hand-written script list or guessed LTR default.
-- Keep Locale language-subtag transforms suffix-preserving: constructor language/script/region options and maximize/minimize may replace only those three subtags; variants, transformed extensions, Unicode extensions, and private use retain their canonical order. Numeric `firstDayOfWeek` aliases are constructor-option values, not valid `-u-fw-*` tag syntax.
-- Keep language alias canonicalization on the shared two-stage x/text path: `language.Parse`, then `(language.Macro | language.CLDR).Canonicalize`. Preserve distinct `no`/`nb` identities and explicit scripts across Locale and DisplayNames; see [SPEC 10](SPECS/10-locale.md).
+- Keep Locale language-subtag transforms suffix-preserving: constructor language/script/region options and maximize/minimize replace only those three subtags; the explicit Variants option alone replaces variants; variants, transformed extensions, Unicode extensions, and private use retain their canonical order. Numeric `firstDayOfWeek` aliases are constructor-option values, not valid `-u-fw-*` tag syntax.
+- Keep Unicode identity in the shared `internal/localeid` grammar and pinned CLDR alias owner. Registry coverage must not reject grammatical unknown subtags. `Locale.Tag()` is a fallible full-identity x/text bridge. Preserve distinct `no`/`nb` identities and explicit scripts across Locale and DisplayNames; see [SPEC 10](SPECS/10-locale.md).
 - Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it one constructor-resolved `ResolvedDigitOptions` record, including typed rounding mode and branch. Runtime formatting must not reparse options, infer a second rounding branch, or erase negative zero from the rounded result.
 - Keep NumberFormat string output as a projection of its canonical private parts partition. Do not restore parallel text renderers or integer-only fast paths that duplicate sign, grouping, notation, localization, currency, or unit semantics.
 - Use `internal/pattern.ParseCompact` for compact scaling and affix compilation; preserve LDML quotes and number-omitting words, and resolve fallback for a complete family. See [SPEC 20](SPECS/20-numberformat.md).
@@ -266,7 +266,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep NumberFormat style plural selection on one unlocalized formatted operand: preserve digit-option zeros, restore a scientific, engineering, or compact mantissa to its full magnitude with the selected exponent, and retain that exponent as `c/e`. Currency name, currency-name placement, and unit pattern must consume that same category; do not rebuild it from `Rounded.String()` or erase visible zeros.
 - Keep `currencyDisplay="name"` placement on the generated plural-sensitive `unitPattern-count-*` rows for the resolved numbering system. Fall back to `other` within the same locale and insert the complete numeric parts partition into the constructor-compiled pattern; do not hard-code name order, ASCII spacing, or a separate accounting wrapper.
 - Keep generated plural-rule coverage total for every active data locale and both rule families. The generator and formatter constructors must fail when a rule is missing; do not restore English or always-`other` runtime fallback.
-- Keep compact plural contracts split: NumberFormat compact suffix selection uses the scaled visible display decimal plus compact exponent; its outer currency/unit style selection restores that mantissa to full magnitude. Public PluralRules compact selection uses the source decimal string plus compact exponent.
+- Keep compact plural contracts split: NumberFormat compact suffix selection uses the scaled visible display decimal plus compact exponent; its outer currency/unit style selection restores that mantissa to full magnitude. Public PluralRules compact selection derives its exponent from the rounded, unscaled formatted source magnitude and selects from that same formatted string.
 - Keep PluralRules range equality on its unsigned finite FormattedString projection; the shared formatter still preserves signed text and negative zero in RoundedNumber. Special values retain their separate identity strings. Cardinal and ordinal range selection consume the same generated category-pair table. See [SPEC 40](SPECS/40-pluralrules.md).
 - Keep RelativeTimeFormat on one ECMAScript Number boundary. `Int` and `Uint` convert through `float64`, `Float` preserves signed zero, and literal lookup, tense, NumberFormat, and PluralRules all project that same normalized value. Text joins the canonical parts partition; do not add an exact-decimal bridge or parallel renderer.
 - Keep DurationFormat on one ECMAScript Number boundary. Validate each public `float64` field as finite and integral, project it once to the exact represented integer, and perform sign, limit, rollup, and NumberFormat work without `int64` narrowing or later `float64` arithmetic.
@@ -280,10 +280,20 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Each formatter package declares its own `PartType` constant set that mirrors the ECMA-402 partition record types it can emit (including types reachable only through embedded NumberFormat / list patterns). Do not share `PartType` types across packages — partition records are scoped to the constructor, and sharing creates cross-package coupling where ECMA-402 has none.
 - Prefer exact modern stdlib helpers over one-off private helpers: `strings.IndexByte` for ASCII pattern-byte membership, `slices`/`maps` for deterministic collection transforms. Keep manual parser loops when the index advances by token width or quoted-literal spans.
 
+- Keep witness eligibility tied to `loadRunSuite` skip reasons. XFAIL/divergence
+  skips cannot serve as required-topic, skip-list, or divergence witnesses.
+- Keep generated FormatJS case IDs semantic: invocation and observation kinds,
+  excluding expected values and source positions. Conflicting expectations fail.
+- Keep Node witness execution inside the published generator module; do not
+  search the caller's working directory for source code to execute.
+- `task data` stages both generators before installing generated files. Generator
+  failure preserves the worktree; installation failure may be partial and must
+  retain the candidate with a contextual error. `data:contract` runs after install.
+
 ### Forbidden
 
 - No `panic` in production code except intentional `Must*` helpers.
-- No reinventing locale parsing; use `golang.org/x/text/language` and the project canonicalization layer.
+- No formatter-local locale parsers or alias tables; use the shared `internal/localeid` grammar and generated canonicalization data. x/text is an explicit bridge, not syntax authority.
 - No runtime JSON/ICU file loading for formatter data.
 - No public cache controls or root-level formatter option re-exports.
 - No root diagnostic APIs such as `Version()`; CLDR, ICU, and tzdata pins are internal metadata.
@@ -331,7 +341,7 @@ When you encounter a bug, limitation, or unexpected behavior in a dependency:
 
 | Dependency | Purpose |
 |------------|---------|
-| `golang.org/x/text` | BCP 47 parsing, `language.Tag`, and Unicode/CLDR building blocks |
+| `golang.org/x/text` | Explicit `language.Tag` interoperability and comparison benchmarks; locale identity belongs to `internal/localeid` |
 | `github.com/cockroachdb/apd/v3` | Decimal math backend for Intl mathematical values and rounding |
 
 Add runtime dependencies only for a demonstrated active behavior need; record their ownership and boundary in the relevant SPEC.

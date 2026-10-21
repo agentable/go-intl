@@ -252,22 +252,7 @@ tasks:
     deps:
       - data:fetch
     cmds:
-      - >-
-        go -C tools/gen-cldr run .
-        -cldr-dir .cldr-json/node_modules
-        -out ../../internal/cldr
-        -version-file ../../internal/cldr/VERSION
-        -profile ../locale-profile.json
-        -localeid-out ../../internal/localeid/unicode_alias_data.go
-        -localematcher-out ../../internal/localematcher/profile_data.go
-        -tzdata-lock tzdata.json
-        -timezone-out ../../internal/tz/registry_data.go
-      - >-
-        go -C tools/gen-plural-rules run .
-        -plurals ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/plurals.json
-        -ranges ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/pluralRanges.json
-        -out ../../internal/cldr/plural
-        -profile ../locale-profile.json
+      - go run ./tools/generate-data
       - task: data:contract
       - |
         echo ""
@@ -420,7 +405,6 @@ tasks:
           echo "ERROR: conformance:witness requires node on PATH" >&2
           exit 1
         fi
-        go run ./tools/node-witness -node "$node_path" >/dev/null
         (cd tools/gen-fixtures-from-formatjs && go run . -node "$node_path" -out ../..)
       - |
         echo ""

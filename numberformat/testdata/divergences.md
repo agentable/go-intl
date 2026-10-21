@@ -1,7 +1,7 @@
 # Accepted reference differences
 # Original FormatJS expectations remain unchanged. These entries skip those callbacks; independent manual adopted-number-patterns.json records execute the library contract.
 
-id: numberformat-formatjs-misc-test-ts-000
+id: numberformat-formatjs-misc-test-ts-e01356b640dd68c3651b243cef6bc555647f2cf43b4425bd6c220a91a7b5d781
 source: formatjs:packages/intl-numberformat/tests/misc.test.ts
 owner: numberformat
 status: accepted
@@ -9,7 +9,7 @@ reason: Reviewed 2026-10-04. en-BS, input 10000, compact percent: FormatJS expec
 review_after: 2026-12-31
 removal_path: Re-evaluate this exact input if the reference expectation, cited normative contract, or pinned data changes; retain the independent complete public assertions and resolve only when the observations agree.
 
-id: numberformat-formatjs-misc-test-ts-048
+id: numberformat-formatjs-misc-test-ts-9cbd1d9e79d927b2a1df62aea18511bcc15ea9cc3dc7334a57089233dda91145
 source: formatjs:packages/intl-numberformat/tests/misc.test.ts
 owner: numberformat
 status: accepted
@@ -17,7 +17,7 @@ reason: Reviewed 2026-10-04. en compact short, fraction digits 0..2, input 10000
 review_after: 2026-12-31
 removal_path: Re-evaluate this exact input if the reference expectation, cited normative contract, or pinned data changes; retain the independent complete public assertions and resolve only when the observations agree.
 
-id: numberformat-formatjs-misc-test-ts-049
+id: numberformat-formatjs-misc-test-ts-6274faf88b574c4356a39a694e4d2324b0d3a555db56033722f3fe720302024f
 source: formatjs:packages/intl-numberformat/tests/misc.test.ts
 owner: numberformat
 status: accepted
@@ -25,7 +25,7 @@ reason: Reviewed 2026-10-04. en compact short, fraction digits 0..2, input 55000
 review_after: 2026-12-31
 removal_path: Re-evaluate this exact input if the reference expectation, cited normative contract, or pinned data changes; retain the independent complete public assertions and resolve only when the observations agree.
 
-id: numberformat-formatjs-misc-test-ts-057
+id: numberformat-formatjs-misc-test-ts-dc3f2dd7e146f1d083ab6ad725d28421874941cc9bd3c29d3ffcb29ff00f0766
 source: formatjs:packages/intl-numberformat/tests/misc.test.ts
 owner: numberformat
 status: accepted
@@ -33,7 +33,7 @@ reason: Reviewed 2026-10-04. pt-PT EUR suffix, signDisplay always, range 2.9 to 
 review_after: 2026-12-31
 removal_path: Re-evaluate this exact input if the reference expectation, cited normative contract, or pinned data changes; retain the independent complete public assertions and resolve only when the observations agree.
 
-id: numberformat-formatjs-misc-test-ts-058
+id: numberformat-formatjs-misc-test-ts-e3cc5894b4f5da76aae48d71707a416424697bd476806d00177f5de4aa6b1ad0
 source: formatjs:packages/intl-numberformat/tests/misc.test.ts
 owner: numberformat
 status: accepted

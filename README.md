@@ -442,7 +442,10 @@ if err != nil {
 fmt.Println(rangeText)
 ```
 
-Omitting `TimeZone` uses the host default. A Go `TZ` file path such as
+Omitting `TimeZone` uses a recognizable name from Go's local zone or the Unix
+`/etc/localtime` link, falling back to UTC when neither provides a name. Automatic
+Windows zone discovery is not verified; use an explicit IANA `TimeZone` for
+portable results. A Go `TZ` file path such as
 `/usr/share/zoneinfo/America/New_York` may lack a usable Intl time-zone
 identifier, so `New` can return `gointl.ErrUnsupportedOption` even when Go can
 load that file. Set `TimeZone: gointl.String("America/New_York")`, as above,
@@ -515,9 +518,10 @@ range data even when their mathematical rounded values compare equal. Cardinal
 ranges use the locale's explicit category-pair result when present and return
 `other` when that pair is not defined.
 
-Compact plural selection follows native Intl behavior. Public `PluralRules`
-compact notation selects from the source decimal string plus the selected
-compact exponent. `NumberFormat` separately chooses the compact suffix from
+Public `PluralRules` compact notation selects from the rounded, unscaled source
+decimal string. Its compact exponent comes from that same formatted magnitude,
+so equal formatted source strings always select the same category. Pinned data
+and native-engine versions can differ at rounding thresholds. `NumberFormat` separately chooses the compact suffix from
 the visible compact mantissa, while localized currency names and unit phrases
 use the rounded value at its original magnitude.
 
@@ -695,7 +699,13 @@ single curated default cannot serve the product.
 
 To check runtime support, call the constructor package's `SupportedLocalesOf`.
 
-Locale parsing accepts BCP 47 tags through `golang.org/x/text/language`.
+Locale parsing accepts grammatical Unicode BCP 47 identifiers, including unknown
+subtags, and canonicalizes them with pinned CLDR aliases. `Locale.Tag()` returns
+`(language.Tag, error)` and includes Unicode extensions; it fails if x/text
+cannot preserve the complete identity. Use `String()`/`Parse` for an unrestricted
+identity round trip. `locale.Options.Variants` replaces the variant sequence;
+for example `Variants: gointl.String("1996")` turns `de-1901` into `de-1996`.
+Acceptance of a locale identifier does not imply available formatter data.
 Root supported-value accessors return ECMA-402 values: calendars are `gregory`
 and `iso8601`, numbering systems include the simple digit systems from
 ECMA-402, units come from the sanctioned unit list, currencies come from CLDR,

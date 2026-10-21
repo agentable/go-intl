@@ -442,7 +442,7 @@ Type string // Same as Part.Type
        Source string  // "startRange" | "endRange" | "shared"
    }
    ```
-4. `Source` string constant **MUST** reuse `internal/ecma402.RangeKind` (same as [SPEC 20 §FormatRange](./20-numberformat.md#5-formatrange--formatrangetoparts) `RangeKind`) to avoid spelling drift.
+4. `Source` uses formatter-owned `datetimeformat.RangeSource` constants (`startRange`, `endRange`, `shared`). Part and source types stay scoped to their constructor.
 5. The input of `start.After(end)` must not return an error, nor must the two ends be swapped or `~` added; use the input parameter order according to ECMA-402 `PartitionDateTimeRangePattern`.
 6. Equality is defined by the localized semantic fields present in the effective selected range record, not by instant equality and not by rendered label equality. Lower fields after the record's last present field are irrelevant; distinct narrow month labels remain distinct semantic months; fractional seconds compare at the resolved precision; repeated wall times in a DST fold may collapse. Equal selected records return `Format(start)` with shared parts.
 7. Generated and manual range fixtures must cover date, time, date-time, reversed, semantic-equal, flexible/standard day-period, fractional-precision, and cross-date fallback behavior while retaining CLDR literal spacing instead of handwritten separators.

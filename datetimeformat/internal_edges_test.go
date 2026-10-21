@@ -45,11 +45,11 @@ func TestDateTimeFormatPatternLiteralEdges(t *testing.T) {
 	got = compilePatternProgram("H ''m").parts(&format, gregoryLocalTime(time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC)))
 	want = []Part{
 		{Type: PartHour, Value: "9"},
-		{Type: PartLiteral, Value: " "},
+		{Type: PartLiteral, Value: " '"},
 		{Type: PartMinute, Value: "7"},
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("compiled empty quoted literal = %#v, want %#v", got, want)
+		t.Fatalf("compiled escaped quote = %#v, want %#v", got, want)
 	}
 
 	rangeProgram := compileIntervalPattern("H ''m – H ''m")
@@ -235,5 +235,34 @@ func TestDateTimeFormatFallbackRangeParts(t *testing.T) {
 	got = format.fallbackRangeParts(start, end)
 	if joined := joinRangePartValues(got); joined != "9 – 10" {
 		t.Fatalf("fallbackRangeParts(default) = %q, want 9 – 10", joined)
+	}
+}
+
+func TestEscapedQuotesInPrograms(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ pattern, want string }{
+		{"''H''", "'9'"}, {"''''", "''"}, {"'it''s' H", "it's 9"}, {"'H'", "H"},
+	} {
+		f := DateTimeFormat{resolved: ResolvedOptions{NumberingSystem: "latn"}}
+		parts := compilePatternProgram(tc.pattern).parts(&f, gregoryLocalTime(time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC)))
+		got := ""
+		for _, p := range parts {
+			got += p.Value
+		}
+		if got != tc.want {
+			t.Errorf("%s: %q, want %q", tc.pattern, got, tc.want)
+		}
+	}
+	if got := normalizeDateTimeConnectorLiteral(" '' at 'it''s' "); got != " ' at it's " {
+		t.Errorf("connector = %q", got)
+	}
+	f := DateTimeFormat{resolved: ResolvedOptions{NumberingSystem: "latn"}}
+	parts := compileIntervalPattern("H ''m – H ''m").parts(&f, gregoryLocalTime(time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC)), gregoryLocalTime(time.Date(2026, time.May, 8, 10, 8, 0, 0, time.UTC)))
+	got := ""
+	for _, p := range parts {
+		got += p.Value
+	}
+	if got != "9 '7 – 10 '8" {
+		t.Errorf("range = %q", got)
 	}
 }

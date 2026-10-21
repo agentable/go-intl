@@ -49,7 +49,7 @@ func ValidationLocale(locales locale.List) locale.Locale {
 
 // SupportedLocalesOf applies the ECMA-402 supportedLocalesOf localeMatcher
 // option to a generated supported-locale set. Invalid localeMatcher values
-// return an OptionError owned by the calling formatter package.
+// return a shared structured error with the calling formatter as owner.
 func SupportedLocalesOf(opts SupportedLocalesOptions) (locale.List, error) {
 	check := LocaleMatcherOptionInput("", false)
 	if opts.LocaleMatcher != nil {
@@ -60,9 +60,6 @@ func SupportedLocalesOf(opts SupportedLocalesOptions) (locale.List, error) {
 		return nil, InvalidStringOptionError(opts.Owner, check, loc)
 	}
 	matcher, _ := LocaleMatcherAlgorithm(check.Value)
-	if opts.RequireLookupMatch {
-		matcher = localematcher.AlgorithmLookup
-	}
 	canonical := CanonicalLocaleList(opts.Requested)
 	supported := localematcher.FilterLocales(opts.Matcher, canonical, matcher)
 	return supported, nil
@@ -75,7 +72,4 @@ type SupportedLocalesOptions struct {
 	Requested locale.List
 	// LocaleMatcher is the pointer-backed supportedLocalesOf option; nil means omitted.
 	LocaleMatcher *string
-	// RequireLookupMatch prevents best-fit from expanding an engine capability
-	// allowlist across languages after localeMatcher has been validated.
-	RequireLookupMatch bool
 }

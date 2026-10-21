@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var errMissingNodeWitnessCoverage = errors.New("missing node witness coverage")
@@ -72,7 +73,7 @@ func ValidateNodeWitnessCoverage(packageRoots []string) error {
 	for _, root := range packageRoots {
 		rootsByPackage[filepath.Base(filepath.Clean(root))] = root
 	}
-	fixturesByPackage := make(map[string][]Fixture, len(rootsByPackage))
+	suites := make(map[string]runSuite, len(rootsByPackage))
 
 	for _, topic := range nodeWitnessCoverageMatrix() {
 		if topic.Status == nodeWitnessIntentionalGap {
@@ -85,19 +86,30 @@ func ValidateNodeWitnessCoverage(packageRoots []string) error {
 		if !ok {
 			continue
 		}
-		fixtures, ok := fixturesByPackage[topic.Package]
+		suite, ok := suites[topic.Package]
 		if !ok {
 			var err error
-			fixtures, err = LoadFixtures(root)
+			suite, err = loadRunSuite(root, time.Now())
 			if err != nil {
 				return err
 			}
-			fixturesByPackage[topic.Package] = fixtures
+			suites[topic.Package] = suite
 		}
-		if nodeWitnessTopicCovered(fixtures, topic) {
+		var eligible []Fixture
+		var skipped []string
+		for _, f := range suite.fixtures {
+			if reason, ok := suite.skipReasons[f.ID]; ok {
+				if topic.Match(f) {
+					skipped = append(skipped, f.ID+": "+reason)
+				}
+			} else {
+				eligible = append(eligible, f)
+			}
+		}
+		if nodeWitnessTopicCovered(eligible, topic) {
 			continue
 		}
-		return fmt.Errorf("%s: missing required node witness topic %q: %w", topic.Package, topic.Topic, errMissingNodeWitnessCoverage)
+		return fmt.Errorf("%s: missing required node witness topic %q (skipped candidates: %v): %w", topic.Package, topic.Topic, skipped, errMissingNodeWitnessCoverage)
 	}
 	return nil
 }

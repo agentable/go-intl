@@ -245,3 +245,11 @@ values. Host adapters must choose one typed bridge before entering the core.
 - `.references/formatjs/packages/ecma402-abstract/` — readable implementation reference for algorithms that still exist here.
 - `.references/formatjs/packages/ecma402-abstract/NumberFormat/` — digit pipeline and rounding reference.
 - `.references/formatjs/packages/ecma402-abstract/DateTimeFormat/` — skeleton and matcher reference.
+
+Canonical identity is owned by `internal/localeid` using grammatical Unicode
+identifiers and generated CLDR aliases. DisplayNames first applies its narrower
+language-ID grammar, then uses the same canonicalizer as Locale; it does not
+choose a second identity when x/text rejects a value. Digit-option family bounds
+are validated only when the resolved rounding strategy consumes that family.
+See SPEC 10 and `options_test.go:TestInactiveFractionOptions` in NumberFormat
+and PluralRules.

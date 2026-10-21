@@ -2,7 +2,6 @@ package locale
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/agentable/go-intl/internal/intlerr"
 	"github.com/agentable/go-intl/internal/localeid"
@@ -45,17 +44,6 @@ func expectedLocaleValue(name string) string {
 	default:
 		return "a well-formed locale value"
 	}
-}
-
-func normalizeLanguageAliases(tag string) string {
-	parts := strings.Split(tag, "-")
-	if len(parts) == 0 {
-		return tag
-	}
-	if parts[0] == "und" && len(parts) >= 3 && parts[1] == "armn" && parts[2] == "su" {
-		parts[2] = "am"
-	}
-	return strings.Join(parts, "-")
 }
 
 func normalizeUnicodeTypeForKey(key string) func(string) (string, error) {

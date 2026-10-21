@@ -220,20 +220,8 @@ type divergenceEntry struct {
 }
 
 func ValidateDivergences(root string) error {
-	if err := validatePackageRoot(root); err != nil {
-		return err
-	}
-
-	fixtures, err := LoadFixtures(root)
-	if err != nil {
-		return err
-	}
-	divergencePath := divergenceLedgerPath(root)
-	divergences, err := loadActiveDivergences(divergencePath)
-	if err != nil {
-		return err
-	}
-	return validateDivergenceEntries(divergencePath, fixtures, divergences)
+	_, err := loadRunSuite(root, time.Now())
+	return err
 }
 
 func validatePackageRoot(root string) error {
@@ -261,19 +249,19 @@ func validateDivergenceEntries(path string, fixtures []Fixture, divergences map[
 		if divergence.Source != fixture.Source {
 			return fmt.Errorf("%s: divergence id %q source %q does not match fixture source %q: %w", path, id, divergence.Source, fixture.Source, errDivergenceSourceMismatch)
 		}
-		if err := validateDivergenceNativeWitness(path, divergence, fixtureIndex); err != nil {
-			return err
-		}
 	}
 	return nil
 }
 
-func validateDivergenceNativeWitness(path string, divergence divergenceEntry, fixturesByID map[string]Fixture) error {
+func validateDivergenceNativeWitness(path string, divergence divergenceEntry, fixturesByID map[string]Fixture, skipReasons map[string]string) error {
 	if divergence.Owner != "datetimeformat" {
 		return nil
 	}
 	if divergence.NativeWitness == "" {
 		return fmt.Errorf("%s: divergence id %q missing native_witness: %w", path, divergence.ID, errMissingDivergenceWitness)
+	}
+	if reason, skipped := skipReasons[divergence.NativeWitness]; skipped {
+		return fmt.Errorf("%s: divergence id %q native_witness %q is skipped (%s): %w", path, divergence.ID, divergence.NativeWitness, reason, errInvalidDivergenceWitness)
 	}
 	witness, witnessStatus := classifyNativeWitness(fixturesByID, divergence.NativeWitness)
 	switch witnessStatus {

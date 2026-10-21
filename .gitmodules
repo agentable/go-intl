@@ -6,7 +6,7 @@
 	url = https://github.com/translate-agent/intl
 [submodule ".references/ext"]
 	path = .references/ext
-	url = https://github.com/php-ecma-intl/ext.git
+	url = https://github.com/kaptinlin/ext.git
 [submodule ".agents/skills"]
 	path = .agents/skills
 	url = https://github.com/agentable/golang-skills.git

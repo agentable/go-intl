@@ -105,9 +105,11 @@ func TestNewLanguageIdentifierOptionsPreserveExtensions(t *testing.T) {
 	if got := loc.String(); got != want {
 		t.Fatalf("String() = %q, want %q", got, want)
 	}
-	if got, want := loc.Tag().String(), "fr-Latn-CA-1901-t-en-x-private"; got != want {
-		t.Fatalf("Tag().String() = %q, want %q", got, want)
+	tag, err := loc.Tag()
+	if err != nil || tag.String() != want {
+		t.Fatalf("Tag() = %v, %v; want %s", tag, err, want)
 	}
+
 	if got, want := loc.BaseName(), "fr-Latn-CA-1901"; got != want {
 		t.Fatalf("BaseName() = %q, want %q", got, want)
 	}
@@ -343,12 +345,16 @@ func TestFromTagTagRoundTrip(t *testing.T) {
 		t.Run(loc.String(), func(t *testing.T) {
 			t.Parallel()
 
-			got, err := FromTag(loc.Tag(), Options{})
+			tag, err := loc.Tag()
 			if err != nil {
-				t.Fatalf("FromTag(%v) error = %v", loc.Tag(), err)
+				t.Fatal(err)
 			}
-			if got.Tag() != loc.Tag() {
-				t.Fatalf("FromTag(%v).Tag() = %v, want %v", loc.Tag(), got.Tag(), loc.Tag())
+			got, err := FromTag(tag, Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !got.Equal(loc) {
+				t.Fatalf("FromTag(Tag()) = %s, want full identity %s", got, loc)
 			}
 		})
 	}
@@ -515,5 +521,29 @@ func TestUnicodeKeyGrammar(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestVariantsOption(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ value, want string }{
+		{"1996", "1996"}, {"FONIPA", "fonipa"}, {"foobar", "foobar"}, {"1996-fonipa", "1996-fonipa"},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			input := tc.value
+			loc, err := New("de-1901-t-en-u-nu-latn-x-private", Options{Variants: &input})
+			if err != nil {
+				t.Fatal(err)
+			}
+			input = "invalid-change"
+			if want := "de-" + tc.want + "-t-en-u-nu-latn-x-private"; loc.String() != want {
+				t.Fatalf("got %s, want %s", loc, want)
+			}
+		})
+	}
+	for _, value := range []string{"", "abcd", "1996-1996", "POSIX-posix", "1996-", "1996-u-ca-gregory"} {
+		if _, err := New("de", Options{Variants: &value}); !errors.Is(err, intlerr.ErrInvalidOption) {
+			t.Errorf("Variants(%q): %v", value, err)
+		}
 	}
 }

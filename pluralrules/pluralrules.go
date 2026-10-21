@@ -120,7 +120,9 @@ func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf
 	formatted := strings.TrimPrefix(result.Formatted, "-")
 	exponent := 0
 	if notation == CompactNotation {
-		if _, _, compactExponent, ok := ecma402nf.ResolveCompactMagnitude(d, digitOptions, compact.exponentForMagnitude); ok {
+		integer, _, _ := strings.Cut(formatted, ".")
+		magnitude := len(strings.TrimLeft(integer, "0")) - 1
+		if compactExponent, ok := compact.exponentForMagnitude(magnitude); ok {
 			exponent = compactExponent
 		}
 	} else {

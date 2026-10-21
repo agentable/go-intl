@@ -22,6 +22,30 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 func runDisplayNamesConformanceFixture(t *testing.T, fixture conformance.Fixture) {
 	t.Helper()
 
+	if fixture.ExpectedParts != nil || fixture.ExpectedRange != nil || fixture.ExpectedRangeParts != nil {
+		t.Fatal("unsupported displaynames observation")
+	}
+	if fixture.ErrorCode != "" {
+		if fixture.Expected != nil || fixture.ExpectedOK != nil || fixture.ExpectedLocales != nil || fixture.ErrorCode == "invalidOption" && fixture.ExpectedResolved != nil {
+			t.Fatal("unsupported displaynames observation")
+		}
+	}
+	if fixture.IsSupportedLocalesOf() {
+		if fixture.Expected != nil || fixture.ExpectedOK != nil || fixture.ExpectedResolved != nil {
+			t.Fatal("unsupported displaynames observation")
+		}
+		testcontract.AssertSupportedLocalesOfFixture(t, fixture, intltest.LocaleListJSON, func(locales locale.List) (locale.List, error) {
+			return SupportedLocalesOf(locales, conformanceDisplayNamesOptions(t, fixture))
+		}, func(code string) error { return conformanceDisplayNamesConstructorError(t, code) })
+		return
+	}
+	if fixture.Feature != "" && fixture.Feature != "of" && fixture.Feature != "resolvedOptions" {
+		t.Fatal("unsupported displaynames feature")
+	}
+	if fixture.ExpectedLocales != nil {
+		t.Fatal("unsupported displaynames observation")
+	}
+
 	format, err := New(locale.List{intltest.Locale(t, fixture.Locale)}, conformanceDisplayNamesOptions(t, fixture))
 	if fixture.ErrorCode == "invalidOption" {
 		testcontract.AssertErrorCode(t, "New()", err, fixture.ErrorCode, func(code string) error {

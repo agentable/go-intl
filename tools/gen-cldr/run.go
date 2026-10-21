@@ -136,7 +136,7 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 		return fmt.Errorf("render runtime data: %w", err)
 	}
 	if cfg.LocaleIDOut != "" {
-		if err := codegen.RenderUnicodeTypeAliases(cfg.LocaleIDOut, source.UnicodeTypeAliases); err != nil {
+		if err := codegen.RenderUnicodeTypeAliases(cfg.LocaleIDOut, source.UnicodeTypeAliases, source.IdentityAliases); err != nil {
 			return fmt.Errorf("render Unicode type aliases: %w", err)
 		}
 	}

@@ -175,7 +175,7 @@ func writeBaseCLDRFixture(t *testing.T, root string) {
 	if err := os.WriteFile(filepath.Join(supp, "likelySubtags.json"), []byte(likely), 0o666); err != nil {
 		t.Fatalf("write likelySubtags: %v", err)
 	}
-	aliases := `{"supplemental":{"metadata":{"alias":{"zoneAlias":{"EST5EDT":{"_reason":"deprecated","_replacement":"America/New_York"}}}}}}`
+	aliases := `{"supplemental":{"metadata":{"alias":{"subdivisionAlias":{"cn11":{"_replacement":"cnbj"}},"languageAlias":{"iw":{"_replacement":"he"}},"scriptAlias":{"Qaai":{"_replacement":"Zinh"}},"territoryAlias":{"BU":{"_replacement":"MM"}},"variantAlias":{"heploc":{"_replacement":"alalc97"}},"zoneAlias":{"EST5EDT":{"_reason":"deprecated","_replacement":"America/New_York"}}}}}}`
 	if err := os.WriteFile(filepath.Join(supp, "aliases.json"), []byte(aliases), 0o666); err != nil {
 		t.Fatalf("write aliases: %v", err)
 	}

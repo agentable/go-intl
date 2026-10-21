@@ -112,7 +112,7 @@ The character table source **MUST** be an LDML TR35 Date Field Symbol Table. `DA
 
    `go-intl` does not retain a dormant `Pattern12` slot in the skeleton candidate. ECMA-402 and FormatJS model an optional 12-hour pattern record; this implementation stores the selected active `Pattern` plus `HourCycle`, and carries no field unless runtime code consumes it.
 
-> **Why**: The LDML character table is the consistent point across ICU/CLDR implementations; Generated reference has completed authoritative transplantation on the TS side, and mechanical translation on the Go side can ensure byte equality.
+> **Why**: LDML supplies field syntax. FormatJS is a readable reference, not an authority that guarantees byte equality; ECMA-402 and verified ICU/native behavior settle conflicts.
 >
 > **Rejected**: Redesign character → field table - inconsistent with Generated reference, which means breaking byte equality.
 
@@ -233,7 +233,7 @@ func MatchBasic(opts Options, formats []Formats) Formats      // BasicFormatMatc
 func Parse(skeleton string, pattern string, hour12 *bool, hourCycle HourCycle) Formats // Separate skeleton string parsing
 ```
 
-> **Why**: The algorithm layer is stateless and can be tested independently; data slices are injected by the caller, in line with CLAUDE.md "no production Go code beyond signatures" and the KISS principle.
+> **Why**: The implemented matcher consumes generated candidates; constructors compile selected patterns into immutable programs, keeping matching and parsing out of formatting calls.
 
 ### 4.3 Generation-time executable grammar
 
@@ -341,3 +341,9 @@ validated data and do not grow a second defensive grammar.
 - [SPEC 30 §HourCycle Linkage](./30-datetimeformat.md) — `Hour12 / HourCycle / Locale.HourCycle()` Analysis
 - [SPEC 32 §Calendar Data](./32-datetimeformat-tz.md#calendar-data) — `internal/cldr` Gregorian Data Access Layer
 - [SPEC 50 §Schema](./50-cldr-data.md#schema) — `availableFormats` / `intervalFormats` JSON schema
+
+Literal decoding uses `datetimeformat/pattern_literals.go` for endpoint, interval
+and connector programs. Two consecutive apostrophes emit one literal apostrophe
+both inside and outside quoted spans. `internal_edges_test.go:TestEscapedQuotesInPrograms`
+checks exact parts/text and interval sources. References: FormatJS
+`packages/ecma402-abstract/DateTimeFormat/skeleton.ts` and ICU `smpdtfmt.cpp`.

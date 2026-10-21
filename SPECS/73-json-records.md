@@ -150,3 +150,9 @@ property reports the width of a selected flexible day-period field.
 | `locale.WeekInfo` | `FirstDay` | `firstDay` | Always |
 | `locale.WeekInfo` | `Weekend` | `weekend` | Always |
 | `locale.TextInfo` | `Direction` | `direction` | When the direction is known |
+
+Locale options include `Variants *string`: nil preserves the source variants;
+an explicit empty string is invalid. Locale JSON remains the full canonical
+string, including grammatical unknown subtags. x/text bridge failure does not
+restrict text or JSON serialization. See SPEC 10 and
+`locale/language_identity_test.go` for round-trip evidence.

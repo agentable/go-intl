@@ -151,10 +151,16 @@ locale. `fallback=code` inserts a missing component code, while `none` yields no
 name. Lookups never borrow a name from unrelated English data. Currency names
 are no longer restricted to an arbitrary common-currency allowlist.
 
-Language code canonicalization shares x/text's default parse followed by
-`(Macro | CLDR).Canonicalize` through `internal/localeid.ParseTag` with Locale,
-preserving the `no`/`nb` distinction. DisplayNames retains its narrower
-language-identifier grammar and fallback handling for legitimate unrecognized
-codes; extensions and private use remain invalid for `Of`.
+Language code canonicalization shares `internal/localeid.ParseTag` and pinned
+CLDR aliases with Locale, including unknown grammatical identities and no/nb.
+DisplayNames retains its narrower language-identifier grammar: extensions and
+private use are invalid for `Of`. If the language itself is unknown,
+`fallback=code` uses that language code as the base and still composes known
+script/region/variant names (`zz-US` → `zz (United States)` in English).
+`fallback=none` returns no name. This composition policy follows ICU; it is not a
+claim that ECMA-402 mandates that exact localized wording. Evidence:
+`displaynames/language_composition_test.go:TestUnknownLanguageComponentFallback`
+and `.references/node/deps/icu-small/source/common/locdspnm.cpp`.
+
 
 Composition normalizes parentheses only in the joined remainder before inserting it into the locale pattern, following ICU `locdspnm.cpp`: a fullwidth opening parenthesis in the outer pattern selects fullwidth brackets; otherwise ASCII parentheses become ASCII brackets. Bare names and standalone region names retain their original spelling. `composition-parentheses.json` covers en/zh/fr, both language display modes, and standalone regions.

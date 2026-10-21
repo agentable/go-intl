@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -450,10 +451,10 @@ func TestWriteFixturesBySourceRoutesStableFiles(t *testing.T) {
 
 	basicPath := filepath.Join(out, "src-lists-basic-test-ts.json")
 	basic := mustReadFixtures(t, basicPath)
-	assertFixtureIDs(t, "writeFixturesBySourceSlug() "+filepath.Base(basicPath), basic, "list-a", "list-b")
+	assertFixturePrefixes(t, "writeFixturesBySourceSlug() "+filepath.Base(basicPath), basic, "list-a", "list-b")
 	otherPath := filepath.Join(out, "other-case-ts.json")
 	other := mustReadFixtures(t, otherPath)
-	assertFixtureIDs(t, "writeFixturesBySourceSlug() "+filepath.Base(otherPath), other, "other-a")
+	assertFixturePrefixes(t, "writeFixturesBySourceSlug() "+filepath.Base(otherPath), other, "other-a")
 }
 
 func TestImportFormatJSLocaleFixturesFiltersGeneratedAndRecordsSkips(t *testing.T) {
@@ -528,9 +529,9 @@ func TestImportFormatJSLocaleFixturesFiltersGeneratedAndRecordsSkips(t *testing.
 	assertSkipsMatch(t, "importFormatJSTestFixtures()", skips, wantSkips)
 
 	supported := mustReadFixtures(t, filepath.Join(out, "locale-supported-test-ts.json"))
-	assertFixtureIDs(t, "importFormatJSTestFixtures() supported", supported, "locale-supported-a", "locale-supported-b")
+	assertFixturePrefixes(t, "importFormatJSTestFixtures() supported", supported, "locale-supported-a", "locale-supported-b")
 	nested := mustReadFixtures(t, filepath.Join(out, "locale-nested-also-test-ts.json"))
-	assertFixtureIDs(t, "importFormatJSTestFixtures() nested", nested, "locale-nested-minimize")
+	assertFixturePrefixes(t, "importFormatJSTestFixtures() nested", nested, "locale-nested-minimize")
 }
 
 func TestImportFormatJSLocalesWritesLocaleAndCanonicalFixtures(t *testing.T) {
@@ -575,13 +576,13 @@ it('extracts Intl.getCanonicalLocales', () => {
 
 	localePath := filepath.Join(targetRoot, "locale-test-ts.json")
 	localeFixtures := mustReadFixtures(t, localePath)
-	wantLocaleID := formatJSFixtureID("locale", formatJSLocaleTestSourcePrefix+"locale.test.ts", 0)
-	assertFixtureIDs(t, "importFormatJSLocales() "+filepath.Base(localePath), localeFixtures, wantLocaleID)
+	wantLocaleID := formatJSFixturePrefix("locale", formatJSLocaleTestSourcePrefix+"locale.test.ts")
+	assertFixturePrefixes(t, "importFormatJSLocales() "+filepath.Base(localePath), localeFixtures, wantLocaleID)
 
 	canonicalPath := filepath.Join(targetRoot, "intl-getcanonicallocales-canonical-test-ts.json")
 	canonicalFixtures := mustReadFixtures(t, canonicalPath)
-	wantCanonicalID := formatJSFixtureID("locale", formatJSCanonicalLocalesTestSourcePrefix+"canonical.test.ts", 0)
-	assertFixtureIDs(t, "importFormatJSLocales() "+filepath.Base(canonicalPath), canonicalFixtures, wantCanonicalID)
+	wantCanonicalID := formatJSFixturePrefix("locale", formatJSCanonicalLocalesTestSourcePrefix+"canonical.test.ts")
+	assertFixturePrefixes(t, "importFormatJSLocales() "+filepath.Base(canonicalPath), canonicalFixtures, wantCanonicalID)
 }
 
 func TestImportFormatJSRequiresPackageTestRoots(t *testing.T) {
@@ -630,7 +631,7 @@ describe('NumberFormat import gate', () => {
   })
 })
 `,
-		wantFixtureID: formatJSFixtureID(formatJSNumberFormatTargetPackage, "mixed.test.ts", 0),
+		wantFixtureID: formatJSFixturePrefix(formatJSNumberFormatTargetPackage, "mixed.test.ts"),
 	}
 	runFormatJSImportCase(t, tc, "importFormatJSNumberFormat", importFormatJSNumberFormat)
 }
@@ -652,7 +653,7 @@ describe('PluralRules import gate', () => {
   })
 })
 `,
-		wantFixtureID: formatJSFixtureID(formatJSPluralRulesTargetPackage, "mixed.test.ts", 0),
+		wantFixtureID: formatJSFixturePrefix(formatJSPluralRulesTargetPackage, "mixed.test.ts"),
 	}
 	runFormatJSImportCase(t, tc, "importFormatJSPluralRules", importFormatJSPluralRules)
 }
@@ -678,7 +679,7 @@ describe('DateTimeFormat import gate', () => {
   })
 })
 `,
-		wantFixtureID: formatJSFixtureID(formatJSDateTimeFormatTargetPackage, "mixed.test.ts", 0),
+		wantFixtureID: formatJSFixturePrefix(formatJSDateTimeFormatTargetPackage, "mixed.test.ts"),
 	}
 	runFormatJSImportCase(t, tc, "importFormatJSDateTimeFormat", importFormatJSDateTimeFormat)
 }
@@ -700,7 +701,7 @@ describe('ListFormat import gate', () => {
   })
 })
 `,
-		wantFixtureID: formatJSFixtureID(formatJSListFormatTargetPackage, "mixed.test.ts", 0),
+		wantFixtureID: formatJSFixturePrefix(formatJSListFormatTargetPackage, "mixed.test.ts"),
 	}
 	runFormatJSImportCase(t, tc, "importFormatJSListFormat", importFormatJSListFormat)
 }
@@ -722,7 +723,7 @@ describe('RelativeTimeFormat import gate', () => {
   })
 })
 `,
-		wantFixtureID: formatJSFixtureID(formatJSRelativeTimeFormatTargetPackage, "mixed.test.ts", 0),
+		wantFixtureID: formatJSFixturePrefix(formatJSRelativeTimeFormatTargetPackage, "mixed.test.ts"),
 	}
 	runFormatJSImportCase(t, tc, "importFormatJSRelativeTimeFormat", importFormatJSRelativeTimeFormat)
 }
@@ -744,7 +745,7 @@ describe('DurationFormat import gate', () => {
   })
 })
 `,
-		wantFixtureID: formatJSFixtureID(formatJSDurationFormatTargetPackage, "mixed.test.ts", 0),
+		wantFixtureID: formatJSFixturePrefix(formatJSDurationFormatTargetPackage, "mixed.test.ts"),
 	}
 	runFormatJSImportCase(t, tc, "importFormatJSDurationFormat", importFormatJSDurationFormat)
 }
@@ -788,7 +789,7 @@ func assertFormatJSImport(t *testing.T, tc formatJSImportCase, out string, skips
 
 	fixturePath := filepath.Join(out, tc.targetPackage, "testdata", "conformance", "formatjs", "mixed-test-ts.json")
 	fixtures := mustReadFixtures(t, fixturePath)
-	assertFixtureIDs(t, "importFixtures()", fixtures, tc.wantFixtureID)
+	assertFixturePrefixes(t, "importFixtures()", fixtures, tc.wantFixtureID)
 	if fixtures[0].Source != tc.sourcePrefix+"mixed.test.ts" {
 		t.Fatalf("importFixtures() source = %q, want %q", fixtures[0].Source, tc.sourcePrefix+"mixed.test.ts")
 	}
@@ -813,7 +814,7 @@ describe('Locale core operations', () => {
 `))
 	want := []localeFixtureSummary{
 		{
-			ID:       formatJSFixtureID("locale", formatJSLocaleTestSourcePrefix+rel, 0),
+			ID:       formatJSFixturePrefix("locale", formatJSLocaleTestSourcePrefix+rel),
 			Source:   formatJSLocaleTestSourcePrefix + rel,
 			Locale:   "EN-us-u-NU-LATN",
 			Feature:  fixtureFeatureCanonicalize,
@@ -821,7 +822,7 @@ describe('Locale core operations', () => {
 			Expected: "en-US-u-nu-latn",
 		},
 		{
-			ID:       formatJSFixtureID("locale", formatJSLocaleTestSourcePrefix+rel, 1),
+			ID:       formatJSFixturePrefix("locale", formatJSLocaleTestSourcePrefix+rel),
 			Source:   formatJSLocaleTestSourcePrefix + rel,
 			Locale:   "zh",
 			Feature:  fixtureFeatureMaximize,
@@ -829,7 +830,7 @@ describe('Locale core operations', () => {
 			Expected: "zh-Hans-CN",
 		},
 		{
-			ID:       formatJSFixtureID("locale", formatJSLocaleTestSourcePrefix+rel, 2),
+			ID:       formatJSFixturePrefix("locale", formatJSLocaleTestSourcePrefix+rel),
 			Source:   formatJSLocaleTestSourcePrefix + rel,
 			Locale:   "zh-Hans-CN",
 			Feature:  fixtureFeatureMinimize,
@@ -854,7 +855,7 @@ describe('Intl.getCanonicalLocales', () => {
 })
 `))
 	want := []localeFixtureSummary{{
-		ID:       formatJSFixtureID("locale", formatJSCanonicalLocalesTestSourcePrefix+rel, 0),
+		ID:       formatJSFixturePrefix("locale", formatJSCanonicalLocalesTestSourcePrefix+rel),
 		Source:   formatJSCanonicalLocalesTestSourcePrefix + rel,
 		Locale:   "EN-us-u-NU-LATN",
 		Feature:  fixtureFeatureCanonicalize,
@@ -888,11 +889,11 @@ func TestFixtureSlugNormalizesPaths(t *testing.T) {
 	}
 }
 
-func TestFormatJSFixtureIDUsesSharedWireShape(t *testing.T) {
+func TestFormatJSFixturePrefixUsesSharedWireShape(t *testing.T) {
 	t.Parallel()
 
-	got := formatJSFixtureID("numberformat", "ranges/parts.test.ts", 7)
-	want := "numberformat-formatjs-ranges-parts-test-ts-007"
+	got := formatJSFixturePrefix("numberformat", "ranges/parts.test.ts")
+	want := "numberformat-formatjs-ranges-parts-test-ts"
 	if got != want {
 		t.Fatalf("formatJSFixtureID() = %q, want %q", got, want)
 	}
@@ -1216,14 +1217,6 @@ func assertContainsAll(t *testing.T, name string, data []byte, wants ...string) 
 		if !strings.Contains(text, want) {
 			t.Fatalf("%s = %s, want %s", name, data, want)
 		}
-	}
-}
-
-func assertFixtureIDs(t *testing.T, name string, fixtures []fixture, wants ...string) {
-	t.Helper()
-
-	if got := fixtureIDs(fixtures); !slices.Equal(got, wants) {
-		t.Fatalf("%s IDs = %v, want %v", name, got, wants)
 	}
 }
 
@@ -1689,8 +1682,8 @@ func TestFormatJSFixtureWireShapes(t *testing.T) {
 
 	options := map[string]any{"style": "currency"}
 	expected := formatJSExpectedFixture("numberformat", formatJSNumberFormatTestSourcePrefix, "number/basic.test.ts", 7, "en-US", options, 12, "$12")
-	if expected.ID != "numberformat-formatjs-number-basic-test-ts-007" {
-		t.Fatalf("formatJSExpectedFixture() id = %q, want numberformat-formatjs-number-basic-test-ts-007", expected.ID)
+	if expected.ID != "numberformat-formatjs-number-basic-test-ts" {
+		t.Fatalf("formatJSExpectedFixture() id = %q, want numberformat-formatjs-number-basic-test-ts", expected.ID)
 	}
 	if expected.Source != formatJSNumberFormatTestSourcePrefix+"number/basic.test.ts" {
 		t.Fatalf("formatJSExpectedFixture() source = %q", expected.Source)
@@ -1924,7 +1917,7 @@ describe('PluralRules generated fixture shapes', () => {
 	source := formatJSPluralRulesTestSourcePrefix + rel
 	want := []fixtureJSONSummary{
 		{
-			ID:          formatJSFixtureID("pluralrules", rel, 0),
+			ID:          formatJSFixturePrefix("pluralrules", rel),
 			Source:      source,
 			Locale:      "fr",
 			OptionsJSON: "{}",
@@ -1932,7 +1925,7 @@ describe('PluralRules generated fixture shapes', () => {
 			Expected:    "one",
 		},
 		{
-			ID:          formatJSFixtureID("pluralrules", rel, 1),
+			ID:          formatJSFixturePrefix("pluralrules", rel),
 			Source:      source,
 			Locale:      "en",
 			Feature:     fixtureFeatureSelectRange,
@@ -1941,7 +1934,7 @@ describe('PluralRules generated fixture shapes', () => {
 			Expected:    "other",
 		},
 		{
-			ID:          formatJSFixtureID("pluralrules", rel, 2),
+			ID:          formatJSFixturePrefix("pluralrules", rel),
 			Source:      source,
 			Locale:      "en-US",
 			OptionsJSON: `{"minimumFractionDigits":1,"type":"cardinal"}`,
@@ -1949,7 +1942,7 @@ describe('PluralRules generated fixture shapes', () => {
 			Expected:    "one",
 		},
 		{
-			ID:          formatJSFixtureID("pluralrules", rel, 3),
+			ID:          formatJSFixturePrefix("pluralrules", rel),
 			Source:      source,
 			Locale:      "en",
 			Feature:     fixtureFeatureSelectRange,
@@ -1983,7 +1976,7 @@ describe('ListFormat generated fixture shapes', () => {
 `))
 	source := formatJSListFormatTestSourcePrefix + rel
 	want := []fixtureJSONSummary{{
-		ID:          formatJSFixtureID("listformat", rel, 0),
+		ID:          formatJSFixturePrefix("listformat", rel),
 		Source:      source,
 		Locale:      "en-AI",
 		OptionsJSON: `{"style":"short","type":"unit"}`,
@@ -2015,7 +2008,7 @@ describe('RelativeTimeFormat generated fixture shapes', () => {
 `))
 	source := formatJSRelativeTimeFormatTestSourcePrefix + rel
 	want := []fixtureJSONSummary{{
-		ID:          formatJSFixtureID("relativetimeformat", rel, 0),
+		ID:          formatJSFixturePrefix("relativetimeformat", rel),
 		Source:      source,
 		Locale:      "en-AI",
 		OptionsJSON: `{"numeric":"auto","style":"long"}`,
@@ -2047,7 +2040,7 @@ describe('DurationFormat generated fixture shapes', () => {
 `))
 	source := formatJSDurationFormatTestSourcePrefix + rel
 	want := []fixtureJSONSummary{{
-		ID:          formatJSFixtureID("durationformat", rel, 0),
+		ID:          formatJSFixturePrefix("durationformat", rel),
 		Source:      source,
 		Locale:      "en",
 		OptionsJSON: `{"fractionalDigits":3,"seconds":"2-digit","style":"digital"}`,
@@ -2099,9 +2092,12 @@ func TestWitnessFixtureFilesMapsGeneratedGroups(t *testing.T) {
 func TestCommittedNodeFixturesAreGeneratedOrExplicitlyManual(t *testing.T) {
 	t.Parallel()
 
-	root, err := repoRoot()
+	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "locale", "testdata")); os.IsNotExist(err) {
+		t.Skip("repository fixture inventory is not distributed in the generator module")
 	}
 	nodeDir := "node-v26"
 	generated := map[string]bool{}
@@ -2960,5 +2956,153 @@ func TestImportFormatJSAuditsCodeCandidates(t *testing.T) {
 				t.Fatalf("skips = %#v, want category %q", skips, tc.category)
 			}
 		})
+	}
+}
+
+func TestNodeCLIOutsideCheckout(t *testing.T) {
+	t.Parallel()
+	binary := filepath.Join(t.TempDir(), "gen-fixtures")
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, ".")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, output)
+	}
+
+	node := writeNodeWitness(t, syntheticNodeWitness(t))
+	script, err := os.ReadFile(node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := node + ".calls"
+	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'" }
+	script = []byte(strings.Replace(string(script), "#!/bin/sh\n", "#!/bin/sh\nprintf 'call\\n' >> "+quote(count)+"\n", 1))
+	if err := os.WriteFile(node, script, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	checkout, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := t.TempDir()
+	mustWriteFile(t, filepath.Join(foreign, "tools/node-witness/main.go"), "this source must never execute")
+	var first []byte
+	for i, cwd := range []string{t.TempDir(), checkout, foreign} {
+		out := filepath.Join(t.TempDir(), "out")
+		cmd := exec.CommandContext(t.Context(), binary, "-node", node, "-out", out)
+		cmd.Dir = cwd
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("external CLI: %v\n%s", err, output)
+		}
+		path := filepath.Join(out, "locale/testdata/conformance/node-v26/smoke.json")
+		assertFileContainsAll(t, "native result", path, `"expected": "en-US-u-nu-latn"`)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			first = data
+		} else if !bytes.Equal(first, data) {
+			t.Fatal("working directory changed fixture output")
+		}
+		calls, err := os.ReadFile(count)
+		if err != nil || strings.Count(string(calls), "call") != i+1 {
+			t.Fatalf("Node did not execute exactly once: %s %v", calls, err)
+		}
+	}
+	if _, err := runNodeWitness(writeNodeWitness(t, map[string]any{})); err == nil || !strings.Contains(err.Error(), "nodeVersion") {
+		t.Fatalf("malformed witness accepted: %v", err)
+	}
+
+}
+
+func TestFormatJSSemanticIdentity(t *testing.T) {
+	t.Parallel()
+	source := `expect(new NumberFormat('en', {}).format(1)).toBe('1');`
+	root, out := t.TempDir(), t.TempDir()
+	path := filepath.Join(formatJSPackageTestsRoot(root, formatJSNumberFormatPackageDir), "identity.test.ts")
+	generate := func(text string) []fixture {
+		t.Helper()
+		mustWriteFile(t, path, text)
+		if _, err := importFormatJSNumberFormat(root, out); err != nil {
+			t.Fatal(err)
+		}
+		return mustReadFixtures(t, filepath.Join(out, "numberformat/testdata/conformance/formatjs/identity-test-ts.json"))
+	}
+	initial := generate(source)[0].ID
+	for _, prefix := range []string{`expect(dynamic()).toBe('x');`, `expect(new NumberFormat('en', {}).format(2)).toBe('2');`} {
+		found := false
+		for _, f := range generate(prefix + source) {
+			if f.Expected != nil && *f.Expected == "1" {
+				found = true
+				if f.ID != initial {
+					t.Fatalf("insertion changed identity: %s -> %s", initial, f.ID)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("original fixture disappeared")
+		}
+	}
+	if got := generate(strings.Replace(source, "toBe('1')", "toBe('changed')", 1))[0].ID; got != initial {
+		t.Fatal("expected value changed identity")
+	}
+	if got := generate(strings.Replace(source, "format(1)", "format(3)", 1))[0].ID; got == initial {
+		t.Fatal("input did not change identity")
+	}
+	if got := generate(source + source); len(got) != 1 {
+		t.Fatalf("identical cases not merged: %d", len(got))
+	}
+	mustWriteFile(t, path, source+strings.Replace(source, "toBe('1')", "toBe('conflict')", 1))
+	if _, err := importFormatJSNumberFormat(root, out); err == nil {
+		t.Fatal("conflicting expectations accepted")
+	}
+}
+
+func assertFixturePrefixes(t *testing.T, name string, fixtures []fixture, wants ...string) {
+	t.Helper()
+	if len(fixtures) != len(wants) {
+		t.Fatalf("%s: got %d fixtures, want %d", name, len(fixtures), len(wants))
+	}
+	for i, want := range wants {
+		if !strings.HasPrefix(fixtures[i].ID, want+"-") {
+			t.Fatalf("%s: ID %q lacks prefix %q", name, fixtures[i].ID, want)
+		}
+	}
+}
+
+func TestSemanticIdentityObservationsAndPrecision(t *testing.T) {
+	t.Parallel()
+	base := fixture{ID: "numberformat-formatjs-case", Source: "formatjs:packages/test/a.ts", Locale: "en", Options: map[string]any{"a": 1, "b": 2}, Input: uint64(9007199254740992), Expected: new("x")}
+	id := func(f fixture) string {
+		t.Helper()
+		result, err := identifyFormatJSFixtures([]fixture{f})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result[0].ID
+	}
+	want := id(base)
+	reordered := base
+	reordered.Options = map[string]any{"b": 2, "a": 1}
+	reordered.Source = `formatjs:packages\test\a.ts`
+	if id(reordered) != want {
+		t.Fatal("map order or path separators changed identity")
+	}
+	for _, kind := range []string{"precision", "option", "operation", "observation", "empty parts"} {
+		changed := base
+		switch kind {
+		case "precision":
+			changed.Input = uint64(9007199254740993)
+		case "option":
+			changed.Options = map[string]any{"a": 2, "b": 2}
+		case "operation":
+			changed.Feature = "formatRange"
+		case "observation":
+			changed.ExpectedOK = new(true)
+		case "empty parts":
+			changed.ExpectedParts = []conformance.Part{}
+		}
+		if id(changed) == want {
+			t.Fatalf("%s failed to distinguish calls", kind)
+		}
 	}
 }

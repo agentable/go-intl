@@ -235,7 +235,7 @@ That is, spec **does not force** a specific algorithm. This gives three options 
 > - ❌ The data version of `x/text` does not form the same conformance baseline as the ECMA-402/formatjs pinned version (SPEC 50 §1 locking CLDR 48.1.0).
 > - ❌ Introduce a second CLDR data source to destroy data record consistency.
 >
-> **Fallout**: consumer-driven expansion can expose the `localematcher.WithLanguageMatcher()` option to allow users to switch to `x/text` (applicable to the "I only want the behavior of `x/text`" scenario); active scope is not implemented.
+> The matcher has one pinned CLDR policy; no alternative x/text matcher option is exposed.
 
 ### 3.2 Three-layer algorithm
 
@@ -522,9 +522,8 @@ func InsertUnicodeExtensionAndCanonicalize(locale, extension string) string
 func UnicodeExtensionValue(extension, key string) string
 ```
 
-> **Why packaging `language.Tag.SetTypeForKey`**: `x/text`'s `SetTypeForKey` accepts a single key and does not enforce dict-order; both BCP 47 spec and ECMA-402 require keys to be in dictionary order; we do the final sorting in `InsertUnicodeExtensionAndCanonicalize`.
->
-> **Rejected**: Directly adjust `language.Tag.SetTypeForKey` for multiple splicing - dict-order is not guaranteed and violates spec.
+Unicode extension insertion uses `internal/localeid` canonical string state;
+keyword and singleton ordering is independent of `language.Tag` coverage.
 
 ---
 
@@ -883,3 +882,10 @@ if res1.Locale == res2.Locale { /* ... */ }
 ---
 
 > This SPEC is a maintenance record for `internal/localematcher`. New ECMA-402 matcher subroutines or a change to the generated CLDR language-matching contract trigger this SPEC revision before code changes.
+
+Grammatical acceptance and data support are distinct. Locale accepts unknown
+identities; lookup supported-locales filtering may return an empty list, while
+construction follows ordinary default-locale fallback. `intl_test.go:TestUnknownLocaleIdentityAndFormatterData`
+exercises both boundaries. `SupportedLocalesOptions` has no hidden
+RequireLookupMatch override; the caller's validated localeMatcher selects the
+algorithm. Shared maximization no longer reparses identities with x/text.

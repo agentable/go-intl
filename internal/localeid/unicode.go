@@ -146,11 +146,13 @@ func InsertUnicodeExtension(locale string, attributes []string, keywords []Unico
 		return locale
 	}
 	extension := "-u-" + strings.Join(parts, "-")
-	privateIndex := strings.Index(locale, "-x-")
-	if privateIndex < 0 {
-		return locale + extension
+	// Insert u in singleton order, before private use regardless of its content.
+	for i := 0; i+2 < len(locale); i++ {
+		if locale[i] == '-' && locale[i+2] == '-' && (locale[i+1] > 'u' || locale[i+1] == 'x') {
+			return locale[:i] + extension + locale[i:]
+		}
 	}
-	return locale[:privateIndex] + extension + locale[privateIndex:]
+	return locale + extension
 }
 
 // LowercaseUnicodeLocaleID lowercases ASCII letters in a Unicode locale
@@ -220,6 +222,11 @@ func IsUnicodeKey(value string) bool {
 	return len(value) == 2 && asciiAlnum(value[:1]) && asciiAlpha(value[1:])
 }
 
+// IsTransformedKey reports the letter-digit key grammar of transformed extensions.
+func IsTransformedKey(value string) bool {
+	return len(value) == 2 && asciiAlpha(value[:1]) && asciiDigits(value[1:])
+}
+
 // IsUnicodeType reports whether value has BCP 47 Unicode locale extension type
 // syntax: one or more 3-8 byte ASCII alphanumeric subtags.
 func IsUnicodeType(value string) bool {
@@ -247,7 +254,16 @@ func CanonicalUnicodeType(key, value string) (string, bool) {
 	if !IsUnicodeType(value) {
 		return "", false
 	}
-	return canonicalUnicodeTypeAlias(key, value), true
+	value = canonicalUnicodeTypeAlias(key, value)
+	if key == "rg" || key == "sd" {
+		if replacement, ok := subdivisionAlias[value]; ok {
+			value, _, _ = strings.Cut(strings.ToLower(replacement), " ")
+			if len(value) == 2 {
+				value += "zzzz"
+			}
+		}
+	}
+	return value, true
 }
 
 // IsUnicodeLanguageSubtag reports whether subtag has Unicode language subtag

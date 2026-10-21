@@ -77,7 +77,7 @@ type Duration struct {
 type Part struct {
     Type  PartType
     Value string
-    Unit  Unit // empty for literal parts
+    Unit  Unit // embedded numeric literals retain their unit; list/digital separators have no unit
 }
 
 const (

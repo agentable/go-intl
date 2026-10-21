@@ -1,4 +1,4 @@
-id: datetimeformat-formatjs-format-range-test-ts-014
+id: datetimeformat-formatjs-format-range-test-ts-30f6da74e7b35a7b4bfe6746e6b98b36806dd5aba68acd5811fd61413a6942cd
 source: formatjs:packages/intl-datetimeformat/tests/format-range.test.ts
 owner: datetimeformat
 status: resolved
@@ -7,7 +7,7 @@ native_witness: datetimeformat-node-v26-range-shared-month-prefix
 review_after: 2026-12-31
 removal_path: Resolve if the FormatJS fixture aligns with native range-source semantics, or keep accepted while the FormatJS source remains the only disagreeing reference.
 
-id: datetimeformat-formatjs-index-test-ts-000
+id: datetimeformat-formatjs-index-test-ts-f798e4d23c301aa96f52cd60faff476bb7817328595ca5885aea80aa1f057693
 source: formatjs:packages/intl-datetimeformat/tests/index.test.ts
 owner: datetimeformat
 status: resolved
@@ -16,7 +16,7 @@ native_witness: datetimeformat-node-v26-day-period-time-zone-name-spacing
 review_after: 2026-12-31
 removal_path: Remove this divergence if FormatJS aligns with native Intl spacing, or if a future Node witness changes the native output.
 
-id: datetimeformat-formatjs-format-range-test-ts-013
+id: datetimeformat-formatjs-format-range-test-ts-2daf32250f06778bb5e77bfc5108cdc01da8e967bd6eff4ced4c4d8dadecdbda
 source: formatjs:packages/intl-datetimeformat/tests/format-range.test.ts
 owner: datetimeformat
 status: accepted
@@ -25,7 +25,7 @@ native_witness: datetimeformat-node-v26-10-0-range-spacing-cross-date
 review_after: 2026-12-31
 removal_path: Resolve if the source assertion or native/pinned locale pattern aligns. Recheck the exact input and spacing on data/reference refresh; do not transfer this exemption to a different observation after fixture ID changes.
 
-id: datetimeformat-formatjs-index-test-ts-003
+id: datetimeformat-formatjs-index-test-ts-a31f58035cdc1420b78722cee1e7e3e750063d66365e5fcecb9dd6ecc643af98
 source: formatjs:packages/intl-datetimeformat/tests/index.test.ts
 owner: datetimeformat
 status: accepted

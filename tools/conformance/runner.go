@@ -58,5 +58,11 @@ func loadRunSuite(root string, now time.Time) (runSuite, error) {
 	for _, xfail := range xfails {
 		reasons[xfail.ID] = xfail.Reason
 	}
+	index := fixturesByID(fixtures)
+	for _, divergence := range divergences {
+		if err := validateDivergenceNativeWitness(divergenceLedgerPath(root), divergence, index, reasons); err != nil {
+			return runSuite{}, err
+		}
+	}
 	return runSuite{fixtures: fixtures, skipReasons: reasons}, nil
 }

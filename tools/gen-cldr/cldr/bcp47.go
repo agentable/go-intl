@@ -54,62 +54,67 @@ func loadUnicodeTypeAliases(root string) ([]UnicodeTypeAlias, error) {
 		if err := json.Unmarshal(raw, &doc); err != nil {
 			return nil, fmt.Errorf("parse %s: %w", path, err)
 		}
-		uRaw, ok := doc.Keyword["u"]
-		if !ok || string(uRaw) == "null" {
-			continue
-		}
-		var keys map[string]jsontext.Value
-		if err := json.Unmarshal(uRaw, &keys); err != nil {
-			return nil, fmt.Errorf("parse %s keyword.u: %w", path, err)
-		}
-		for key, keyRaw := range keys {
-			if strings.HasPrefix(key, "_") {
+		for _, extension := range []string{"u", "t"} {
+			uRaw, ok := doc.Keyword[extension]
+			if !ok || string(uRaw) == "null" {
 				continue
 			}
-			if !localeid.IsUnicodeKey(key) {
-				return nil, fmt.Errorf("%s keyword.u: invalid key %q", path, key)
+			var keys map[string]jsontext.Value
+			if err := json.Unmarshal(uRaw, &keys); err != nil {
+				return nil, fmt.Errorf("parse %s keyword.u: %w", path, err)
 			}
-			var types map[string]jsontext.Value
-			if err := json.Unmarshal(keyRaw, &types); err != nil {
-				return nil, fmt.Errorf("parse %s keyword.u.%s: %w", path, key, err)
-			}
-			if records[key] == nil {
-				records[key] = make(map[string]unicodeTypeRecord)
-			}
-			for name, typeRaw := range types {
-				if strings.HasPrefix(name, "_") {
+			for key, keyRaw := range keys {
+				if strings.HasPrefix(key, "_") {
 					continue
 				}
-				if name != strings.ToLower(name) || !isUnicodeType(name) {
-					// Some keys contain schema placeholders such as REORDER_CODE.
-					// They describe open value spaces rather than concrete BCP 47
-					// types and therefore cannot own runtime aliases.
-					continue
+				if extension == "u" && !localeid.IsUnicodeKey(key) || extension == "t" && !localeid.IsTransformedKey(key) {
+					return nil, fmt.Errorf("%s keyword.u: invalid key %q", path, key)
 				}
-				if previous, exists := records[key][name]; exists {
-					return nil, fmt.Errorf("%s keyword.u.%s.%s duplicates %s", path, key, name, previous.source)
+				var types map[string]jsontext.Value
+				if err := json.Unmarshal(keyRaw, &types); err != nil {
+					return nil, fmt.Errorf("parse %s keyword.u.%s: %w", path, key, err)
 				}
-				var metadata struct {
-					Alias      string `json:"_alias"`
-					Preferred  string `json:"_preferred"`
-					Deprecated bool   `json:"_deprecated"`
+				if extension == "t" {
+					key = "t:" + key
 				}
-				if err := json.Unmarshal(typeRaw, &metadata); err != nil {
-					return nil, fmt.Errorf("parse %s keyword.u.%s.%s: %w", path, key, name, err)
+				if records[key] == nil {
+					records[key] = make(map[string]unicodeTypeRecord)
 				}
-				aliases := strings.Fields(strings.ToLower(metadata.Alias))
-				records[key][name] = unicodeTypeRecord{
-					key:        key,
-					name:       name,
-					aliases:    aliases,
-					preferred:  strings.ToLower(metadata.Preferred),
-					deprecated: metadata.Deprecated,
-					source:     path,
+				for name, typeRaw := range types {
+					if strings.HasPrefix(name, "_") {
+						continue
+					}
+					if name != strings.ToLower(name) || !isUnicodeType(name) {
+						// Some keys contain schema placeholders such as REORDER_CODE.
+						// They describe open value spaces rather than concrete BCP 47
+						// types and therefore cannot own runtime aliases.
+						continue
+					}
+					if previous, exists := records[key][name]; exists {
+						return nil, fmt.Errorf("%s keyword.u.%s.%s duplicates %s", path, key, name, previous.source)
+					}
+					var metadata struct {
+						Alias      string `json:"_alias"`
+						Preferred  string `json:"_preferred"`
+						Deprecated bool   `json:"_deprecated"`
+					}
+					if err := json.Unmarshal(typeRaw, &metadata); err != nil {
+						return nil, fmt.Errorf("parse %s keyword.u.%s.%s: %w", path, key, name, err)
+					}
+					aliases := strings.Fields(strings.ToLower(metadata.Alias))
+					records[key][name] = unicodeTypeRecord{
+						key:        key,
+						name:       name,
+						aliases:    aliases,
+						preferred:  strings.ToLower(metadata.Preferred),
+						deprecated: metadata.Deprecated,
+						source:     path,
+					}
 				}
 			}
 		}
-	}
 
+	}
 	var out []UnicodeTypeAlias
 	for _, key := range slices.Sorted(maps.Keys(records)) {
 		aliases, err := resolveUnicodeTypeAliases(key, records[key])

@@ -1,11 +1,9 @@
 package localeid
 
-import "golang.org/x/text/language"
-
 type SubtagMaximizer func(language, script, region string) (lang, scr, reg string, ok bool)
 
 func Maximize(tag string, maximizer SubtagMaximizer) string {
-	parsed, err := language.Parse(tag)
+	parsed, err := ParseTag(tag, maximizer)
 	if err != nil {
 		return tag
 	}

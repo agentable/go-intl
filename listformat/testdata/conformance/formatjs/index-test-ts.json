@@ -1,33 +1,6 @@
 [
   {
-    "id": "listformat-formatjs-index-test-ts-000",
-    "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
-    "locale": "zh-CN",
-    "options": {
-      "type": "unit"
-    },
-    "input": [
-      "1",
-      "2",
-      "3"
-    ],
-    "expected": "123"
-  },
-  {
-    "id": "listformat-formatjs-index-test-ts-001",
-    "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
-    "locale": "zh-CN",
-    "options": {
-      "type": "unit"
-    },
-    "input": [
-      "1",
-      "2"
-    ],
-    "expected": "12"
-  },
-  {
-    "id": "listformat-formatjs-index-test-ts-002",
+    "id": "listformat-formatjs-index-test-ts-2aa2ed09f09f7b1a962ab5d2872276427d333e8a660d06fe57a01aedf2709d7d",
     "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
     "locale": "zh-TW",
     "options": {
@@ -41,7 +14,31 @@
     "expected": "1 2 3"
   },
   {
-    "id": "listformat-formatjs-index-test-ts-003",
+    "id": "listformat-formatjs-index-test-ts-2ffc1442d3556040e450960bd709bc9e044e2e3781642eda163eb0ce79a3b16b",
+    "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
+    "locale": "zh-CN",
+    "options": {
+      "type": "unit"
+    },
+    "input": [
+      "1",
+      "2"
+    ],
+    "expected": "12"
+  },
+  {
+    "id": "listformat-formatjs-index-test-ts-4bd62936ab6cc12374c4936da545d3c25674739a139705af86b9954d2f88381e",
+    "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
+    "locale": "en-AI",
+    "options": {},
+    "input": [
+      "1",
+      "2"
+    ],
+    "expected": "1 and 2"
+  },
+  {
+    "id": "listformat-formatjs-index-test-ts-91267bd6f93d2ca9f338572af71d78d90dd6e3b313a9aea35f437a317dea7a78",
     "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
     "locale": "zh-TW",
     "options": {
@@ -54,14 +51,17 @@
     "expected": "1 2"
   },
   {
-    "id": "listformat-formatjs-index-test-ts-004",
+    "id": "listformat-formatjs-index-test-ts-eef6b98cc276de923e2760745508be9c4625929b43bd682e016e96315f33ceba",
     "source": "formatjs:packages/intl-listformat/tests/index.test.ts",
-    "locale": "en-AI",
-    "options": {},
+    "locale": "zh-CN",
+    "options": {
+      "type": "unit"
+    },
     "input": [
       "1",
-      "2"
+      "2",
+      "3"
     ],
-    "expected": "1 and 2"
+    "expected": "123"
   }
 ]

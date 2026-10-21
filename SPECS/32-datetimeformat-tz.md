@@ -120,6 +120,16 @@ inside a process does not reinitialize Go's local-zone snapshot. A host without
 that file cannot verify the path observation. These observations do not
 describe every other default-source or platform case.
 
+**Windows qualification limit:** no non-UTC Windows process was available for
+the 2026-10-21 close-out. Go 1.27.2 `src/time/zoneinfo_windows.go` names its
+system local location `Local`; `internal/tz/default.go` can identify that only
+through `/etc/localtime`, otherwise it selects UTC. The combination predicts a
+Windows limitation, but is not recorded as a platform runtime result. Callers
+requiring portable identity should pass an explicit IANA TimeZone. Cross-builds
+and matching two offsets cannot prove a system zone identity. A Windows adapter
+requires OS-ID and January/July public formatter evidence before design; no
+unverified mapping or generic provider API is added here.
+
 Node v26.10.0 / ICU 78.3 / CLDR 48.0 / tzdata 2026c observed `7:00` / `8:00`
 for named TZ, but `7:00` / `7:00` for path TZ with no `timeZone` in resolved
 JSON. Successful native construction does not prove identity or correct DST;

@@ -160,10 +160,7 @@ func (l Locale) canonicalUnicodeSubdivision(key string) string {
 	if !ok {
 		return ""
 	}
-	if _, _, region := localeid.Parts(mustLanguageTag("und-" + region)); region != "" {
-		return region
-	}
-	return ""
+	return localeid.CanonicalRegion("und", "", region, cldrlocale.MaximizeSubtags)
 }
 
 func weekdaysBetween(start, end time.Weekday) []time.Weekday {

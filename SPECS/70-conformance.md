@@ -45,7 +45,7 @@ Each fixture **MUST** conform to the following schema (JSON object):
 
 | Field | Required | Type | Meaning |
 |------|------|------|------|
-| `id` | Required | string | Globally unique; stable slug, it is recommended to include formatter, source, feature / case index; divergences.md is referenced by this id |
+| `id` | Required | string | Globally unique; generated FormatJS IDs use a readable source prefix and semantic fingerprint; manual and Node IDs retain their curated identities; ledgers reference this id |
 | `source` | Required | string | `<source>:<path>` —— `formatjs:` or `manual:` |
 | `locale` | Required | string | BCP 47 locale tag, the Go end uses `locale.Parse(string)` to parse at the fixture boundary |
 | `options` | Required | object | ECMA-402 option; key name spec original text (camelCase) |
@@ -284,7 +284,7 @@ trailing partial records are errors.
 8. Divergence entries are **FORBIDDEN** to be deleted; obsolete entries are marked with `status: resolved` and the audit trail is retained. Only empty placeholder files that never contained entries can be deleted.
 9. Each divergence entry **MUST** contain a removal path. Long-term differences without removal paths must justify that ECMA-402 leaves the behavior implementation-defined.
 10. Unimplemented functions are **FORBIDDEN** to be registered as accepted divergence; fixtures that can be generated must be kept in the fixture gate and explicitly stated through XFAIL, and sources that cannot be generated can only enter `.skip-list.json` according to the active extractor category. The narrowed product range must be written in owning SPEC and cannot be disguised as skip-list category.
-11. Active `owner: datetimeformat` divergences **MUST** include `native_witness`, and `tools/check-conformance` must reject missing, unknown, non-native, or expectation-free witness fixtures. Range, time-zone, and resolved-options differences are too implementation-sensitive to live only in prose.
+11. Active `owner: datetimeformat` divergences **MUST** include `native_witness`, and `tools/check-conformance` must reject missing, unknown, non-native, expectation-free, or skipped witness fixtures. Range, time-zone, and resolved-options differences are too implementation-sensitive to live only in prose.
 12. Resolved records remain history, but they receive the same closed-field, required-field, duplicate-ID, status, and date validation before being excluded from active fixture counting and matching.
 
 > **Why**: divergences.md is the human review channel for spec interpretation rights; automatic registration will silently cover up "failed fixture" incidents.
@@ -489,3 +489,49 @@ It does not own DisplayNames'
 older FormatJS lane, manual fixtures,
 Node witnesses, or divergence/XFAIL ledgers. Source-deleted/zero-assertion
 lanes are removed on successful extraction.
+
+## Executable witnesses and generator identity
+
+`loadRunSuite` validates fixture and ledger structure, computes active skip
+reasons, then checks witness references. Required-topic coverage, skip-list
+native routes, and divergence native witnesses use that same state. A candidate
+covered only by XFAIL/divergence skips does not satisfy coverage; another
+eligible fixture can. Self/mutual skipped witnesses are rejected. Diagnostics
+identify the topic/reference, ID and skip reason. Eligibility proves scheduling,
+not execution success; actual formatter callbacks must still pass.
+Evidence: `tools/conformance/node_witness_test.go`, `coverage_test.go`, and
+`skip_test.go`.
+
+DisplayNames dispatches static `supportedLocalesOf` before constructing an
+instance, so Type may be omitted there. Instance text, ok and resolved-options
+observations are all asserted. Unsupported features, parts/ranges (including
+empty arrays), and incompatible observations mixed into error fixtures fail.
+Resolved options may coexist with an Of error because construction succeeded
+and those options are asserted. See `displaynames/conformance_observations_test.go`.
+
+The published `tools/gen-fixtures-from-formatjs` module owns `node_script.go`
+and directly invokes the chosen Node executable exactly once. It never searches
+the caller's CWD for repository source or invokes `go run` at runtime.
+`Taskfile.yml:conformance:witness` delegates to this command. Exact Node version
+validation and staged fixture publication remain unchanged.
+
+Generated FormatJS identity hashes deterministic JSON containing source path
+(with `/` separators), locale, feature/operation, options, input and eight
+observation-presence flags. A readable surface/source prefix precedes SHA-256.
+Expected values, assertion position and file-wide ordinal are excluded. Integer
+inputs retain their integer precision; floating JS literals retain the scanner's
+Number conversion. Nil versus present-empty observation arrays are distinct.
+Empty options and omitted options both represent the empty JS options object.
+The same invocation with conflicting expected values fails with source and ID;
+fully identical cases merge. Manual and native lanes are not reidentified.
+
+The 2026-10-21 migration mapped all 226 old generated IDs by complete non-ID
+payload, changed no expected values, and merged only these identical pairs:
+
+- PluralRules index `009` / `043`: fr, empty options, 1000000 → many.
+- NumberFormat misc `050` / `051`: en, signDisplay=exceptZero, 0 → 0.
+
+All ledger bindings followed the same payload mapping. Source extraction is
+repeatable; `main_test.go:TestFormatJSSemanticIdentity` protects insertion,
+reordering/expectation independence and conflict detection; precision and
+observation kinds are covered by `TestSemanticIdentityObservationsAndPrecision`.

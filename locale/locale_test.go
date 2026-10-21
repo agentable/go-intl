@@ -15,7 +15,7 @@ func TestParseSimpleLocale(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse err = %v", err)
 	}
-	if got := loc.Tag().String(); got != "en-US" {
+	if got := loc.String(); got != "en-US" {
 		t.Fatalf("Tag.String() = %q, want en-US", got)
 	}
 	if got := loc.BaseName(); got != "en-US" {
@@ -118,7 +118,7 @@ func TestParsePrivateUseKeepsUnicodeAliasTextOpaque(t *testing.T) {
 func TestParseDoesNotRewriteUnicodeAliasesOutsideUnicodeExtension(t *testing.T) {
 	t.Parallel()
 
-	for _, in := range []string{"en-ca-gregorian", "en-ca-islamic-civil"} {
+	for _, in := range []string{"en-ca-gregorian"} {
 		t.Run(in, func(t *testing.T) {
 			t.Parallel()
 
@@ -131,6 +131,10 @@ func TestParseDoesNotRewriteUnicodeAliasesOutsideUnicodeExtension(t *testing.T) 
 				t.Fatalf("Parse(%q) error detail = %+v, want languageTag/%q expected %q", in, detail, in, localeLanguageTagExpected)
 			}
 		})
+	}
+	loc, err := Parse("en-ca-islamic-civil")
+	if err != nil || loc.String() != "en-CA-civil-islamic" || loc.Calendar() != "" {
+		t.Fatalf("unknown variants became Unicode keywords: %s, %v", loc, err)
 	}
 }
 
@@ -326,7 +330,7 @@ func TestParseInvalidLocale(t *testing.T) {
 	t.Parallel()
 
 	for _, in := range []string{
-		"", "xx-INVALID", "x-private", "\u212A\u212A", "en-u-ca-\u212Aarab",
+		"", "xx-abcdx-", "x-private", "\u212A\u212A", "en-u-ca-\u212Aarab",
 		"i-klingon", "en-GB-oed", "zh-cmn",
 		"en_US", "en-x-foo_bar", "en-a-foo_bar", "en-t-en_US",
 		"en-1901-1901", "en-emodeng-EMODENG", "en-1901-1901-u-ca-gregory",

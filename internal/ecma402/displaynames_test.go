@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/agentable/go-intl/locale"
+
 	"github.com/agentable/go-intl/internal/ecma402"
 	"github.com/agentable/go-intl/internal/intlerr"
 )
@@ -135,5 +137,19 @@ func TestDisplayNamesCodeExpected(t *testing.T) {
 				t.Fatalf("DisplayNamesCodeExpected(%q) = %q, want %q", tc.typ, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestDisplayNamesSharesLocaleIdentity(t *testing.T) {
+	t.Parallel()
+	for _, input := range []string{"xx-INVALID", "abcdefgh", "und-Gara", "en-foobar", "und-Armn-SU", "no", "nb", "en-Zzzz-ZZ", "ja-Latn-hepburn-heploc"} {
+		loc, err := locale.Parse(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := ecma402.CanonicalCodeForDisplayNames("language", input)
+		if err != nil || got != loc.String() {
+			t.Errorf("%s: display code=%s,%v; Locale=%s", input, got, err, loc)
+		}
 	}
 }

@@ -277,6 +277,12 @@ func SetNumberFormatDigitOptions(in DigitOptionConfig, mnfdDefault, mxfdDefault 
 	}
 
 	if needSd {
+		if check, ok := ecma402.InvalidIntegerOption(
+			ecma402.IntegerOption{Name: "minimumSignificantDigits", Value: in.MinimumSignificantDigits, Min: 1, Max: 21, Set: in.HasMinimumSignificantDigits},
+			ecma402.IntegerOption{Name: "maximumSignificantDigits", Value: in.MaximumSignificantDigits, Min: 1, Max: 21, Set: in.HasMaximumSignificantDigits},
+		); ok {
+			return ResolvedDigitOptions{}, invalidIntegerDigitOption(check), true
+		}
 		if hasSd {
 			out.MinimumSignificantDigits = in.MinimumSignificantDigits
 			if !in.HasMinimumSignificantDigits {
@@ -299,6 +305,12 @@ func SetNumberFormatDigitOptions(in DigitOptionConfig, mnfdDefault, mxfdDefault 
 		}
 	}
 	if needFd {
+		if check, ok := ecma402.InvalidIntegerOption(
+			ecma402.IntegerOption{Name: "minimumFractionDigits", Value: in.MinimumFractionDigits, Min: 0, Max: 100, Set: in.HasMinimumFractionDigits},
+			ecma402.IntegerOption{Name: "maximumFractionDigits", Value: in.MaximumFractionDigits, Min: 0, Max: 100, Set: in.HasMaximumFractionDigits},
+		); ok {
+			return ResolvedDigitOptions{}, invalidIntegerDigitOption(check), true
+		}
 		if hasFd {
 			mnfd, hasMnfd := in.MinimumFractionDigits, in.HasMinimumFractionDigits
 			mxfd, hasMxfd := in.MaximumFractionDigits, in.HasMaximumFractionDigits
@@ -359,10 +371,6 @@ func SetNumberFormatDigitOptions(in DigitOptionConfig, mnfdDefault, mxfdDefault 
 func validateDigitConfig(in DigitOptionConfig) (InvalidDigitOption, bool) {
 	if check, ok := ecma402.InvalidIntegerOption(
 		ecma402.IntegerOption{Name: "minimumIntegerDigits", Value: in.MinimumIntegerDigits, Min: 1, Max: 21, Set: true},
-		ecma402.IntegerOption{Name: "minimumFractionDigits", Value: in.MinimumFractionDigits, Min: 0, Max: 100, Set: in.HasMinimumFractionDigits},
-		ecma402.IntegerOption{Name: "maximumFractionDigits", Value: in.MaximumFractionDigits, Min: 0, Max: 100, Set: in.HasMaximumFractionDigits},
-		ecma402.IntegerOption{Name: "minimumSignificantDigits", Value: in.MinimumSignificantDigits, Min: 1, Max: 21, Set: in.HasMinimumSignificantDigits},
-		ecma402.IntegerOption{Name: "maximumSignificantDigits", Value: in.MaximumSignificantDigits, Min: 1, Max: 21, Set: in.HasMaximumSignificantDigits},
 		ecma402.IntegerOption{Name: "roundingIncrement", Value: in.RoundingIncrement, Min: 1, Max: 5000, Set: true},
 	); ok {
 		return invalidIntegerDigitOption(check), true

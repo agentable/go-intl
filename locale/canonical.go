@@ -1,10 +1,6 @@
 package locale
 
 import (
-	"fmt"
-
-	"golang.org/x/text/language"
-
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/localeid"
 )
@@ -12,9 +8,7 @@ import (
 func (l Locale) Maximize() Locale {
 	lang, script, region := localeid.Parts(l.tag)
 	if maxLang, maxScript, maxRegion, ok := cldrlocale.MaximizeSubtags(lang, script, region); ok {
-		if tag, err := localeid.ReplaceLanguageSubtags(l.tag, maxLang, maxScript, maxRegion); err == nil {
-			l.tag = tag
-		}
+		l.tag = localeid.ReplaceLanguageSubtags(l.tag, maxLang, maxScript, maxRegion)
 	}
 	l.freeze()
 	return l
@@ -33,21 +27,9 @@ func (l Locale) Minimize() Locale {
 		if !ok || trialLang != lang || trialScript != script || trialRegion != region {
 			continue
 		}
-		tag, err := localeid.ReplaceLanguageSubtags(l.tag, candidate[0], candidate[1], candidate[2])
-		if err != nil {
-			return l
-		}
-		l.tag = tag
+		l.tag = localeid.ReplaceLanguageSubtags(l.tag, candidate[0], candidate[1], candidate[2])
 		l.freeze()
 		return l
 	}
 	return maximal
-}
-
-func mustLanguageTag(s string) language.Tag {
-	tag, err := language.Parse(s)
-	if err != nil {
-		panic(fmt.Errorf("locale: invalid internally constructed language tag: %w", err))
-	}
-	return tag
 }

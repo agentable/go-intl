@@ -168,21 +168,22 @@ together.
 
 ### 4.1 Decision
 
-`go-intl` defines its own immutable `Locale` type that stores a `golang.org/x/text/language.Tag` plus ECMA-402 locale extension state. We do **not** alias `language.Tag` directly because ECMA-402 carries data that BCP 47 does not surface as first-class properties (`calendar`, `collation`, `hourCycle`, `caseFirst`, `numeric`, `numberingSystem`, week info).
-
-```go
-// Conceptual shape; final field set defined in SPEC 10.
-type Locale struct {
-    tag language.Tag
-    ext localeExtensions
-}
-```
+`go-intl` defines its own immutable `Locale` whose identity is a canonical
+Unicode locale identifier. `internal/localeid` owns syntax and generated CLDR
+aliases; a syntactically valid unknown subtag is not an error just because
+`golang.org/x/text` cannot represent it. SPEC 10 defines the stored base identity,
+Unicode extension state, and complete string projection.
 
 ### 4.2 Rationale
 
-- `language.Tag` already implements BCP 47 parsing, canonicalization, and matcher infrastructure used across the Go ecosystem. Reusing it preserves interop and avoids re-parsing locale strings at every boundary.
-- ECMA-402 exposes these values through read-only `Intl.Locale.prototype` accessors (`baseName`, `calendar`, `collation`, `hourCycle`, `caseFirst`, `numeric`, `numberingSystem`, etc.). Go must provide methods with the same meaning, not exported mutable fields.
-- A value type keeps `Locale` cheap to pass while preventing callers from constructing invalid internal state through struct literals.
+- Identity validity and formatter data availability are separate questions. One
+  canonical owner keeps Parse/New, overrides, equality, serialization,
+  maximize/minimize, and DisplayNames code canonicalization consistent.
+- `FromTag(language.Tag)` is the explicit input bridge; `Tag() (language.Tag,
+  error)` projects the complete identity, including Unicode extensions, and
+  rejects any lossy round-trip with `ErrInvalidValue`.
+- ECMA-402 exposes locale properties through read-only accessors. Go provides
+  immutable values and methods rather than mutable public representation fields.
 
 ### 4.3 String round-trip
 
@@ -321,7 +322,7 @@ The formerly open questions are resolved by focused SPECS:
 - [x] Vision, scope, and non-goals stated.
 - [x] Reference-implementation policy and test-fixture policy defined.
 - [x] Public surface enumerated.
-- [x] Locale model decided (wrap `language.Tag`).
+- [x] Locale model decided (canonical identity with explicit x/text bridges).
 - [x] Package layout and layering rules defined.
 - [x] External consumer dependency boundary and JS host binding constraints recorded.
 - [x] Active boundaries stated.

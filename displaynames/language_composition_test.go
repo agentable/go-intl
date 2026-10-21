@@ -89,3 +89,25 @@ func TestLanguageVariantsAndFallback(t *testing.T) {
 		}
 	}
 }
+
+func TestUnknownLanguageComponentFallback(t *testing.T) {
+	t.Parallel()
+	for _, display := range []string{"standard", "dialect"} {
+		for _, fallback := range []string{"code", "none"} {
+			names, err := displaynames.New(intltest.LocaleList(t, "en"), displaynames.Options{Type: new("language"), LanguageDisplay: new(display), Fallback: new(fallback)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, tc := range []struct{ code, want string }{{"zz-US", "zz (United States)"}, {"qaa-Latn-US", "qaa (Latin, United States)"}, {"zz-rozaj", "zz (Resian)"}, {"zz", "zz"}} {
+				want, wantOK := tc.want, true
+				if fallback == "none" {
+					want, wantOK = "", false
+				}
+				got, ok, err := names.Of(tc.code)
+				if err != nil || ok != wantOK || got != want {
+					t.Errorf("%s/%s %s = %q,%v,%v; want %q,%v", display, fallback, tc.code, got, ok, err, want, wantOK)
+				}
+			}
+		}
+	}
+}

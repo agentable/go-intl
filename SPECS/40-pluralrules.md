@@ -355,7 +355,7 @@ func renderCategoriesFile(cardinal, ordinal map[string][]Rule) string
 
 Public `PluralRules` compact notation and NumberFormat compact suffix selection are separate observable contracts.
 
-- Public `pluralrules.PluralRules.Select` uses the source decimal string plus the selected compact exponent.
+- Public `pluralrules.PluralRules.Select` uses the rounded, unscaled source decimal string plus the compact exponent derived from that same string.
 - NumberFormat compact suffix selection uses the scaled display decimal plus the selected compact exponent; see [SPEC 20 §4.1 Compact Notation and Plural Operand Contract](./20-numberformat.md#41-compact-notation-and-plural-operand-contract).
 
 Both contracts share `internal/plural.GetOperands` for operand construction, but they pass different formatted decimal strings by design.
@@ -380,14 +380,16 @@ func CardinalRule(loc string) (func(pluralop.OperandsRecord) pluralop.Category, 
 
 1. Public PluralRules compact selection **required**:
    ```text
-   1. exponent       := ComputeCompactExponent(locale, compactDisplay, sourceValue, digitOptions)
-   2. formatted      := FormatNumericToString(sourceValue).String
+   1. formatted      := FormatNumericToString(sourceValue).String
+   2. exponent       := CompactExponentForMagnitude(integerMagnitude(abs(formatted)))
    3. ops            := GetOperands(formatted, exponent)
    4. category       := PluralRuleSelect(localeTag, type, ops)
    ```
 2. Public PluralRules compact selection **MUST** use constructor-owned compact
    data and the pinned CLDR rule, without an optional-data fallback to exponent
-   zero. Native Node/V8 fixtures independently verify this behavior. The
+   zero. Equal formatted source strings therefore have the same category. Native
+   fixtures cover ordinary cases; rounding-threshold policy is independently
+   fixed by `range_test.go:TestCompactRoundedSourceDeterminesCategory`. The
    FormatJS test environment can omit NumberFormat data; that reference setup
    is not a product requirement. The exact three French cases and their source
    evidence are recorded in `pluralrules/testdata/compact-review.md`.
@@ -622,3 +624,10 @@ semantics, and conformance fixtures agree with the ECMA-402/CLDR boundary.
 - [SPEC 50 §Version Pin](./50-cldr-data.md#version-pin) — CLDR version lock (48.1.0)
 - [SPEC 60](./60-facade.md) — root namespace ownership; root `intl.SelectPlural*` one-shot helpers are outside the long-term public surface.
 - [SPEC 71](./71-benchmark.md) — non-blocking performance telemetry
+
+Digit-family bounds and min/max relationships are checked only after resolving
+`needFd`/`needSd`. Under auto priority, an active significant-digit family ignores
+unused fraction options; more/lessPrecision validates both. The shared owner is
+`internal/ecma402/numberformat/options.go`; public regression evidence is
+`pluralrules/options_test.go:TestInactiveFractionOptions` and the matching
+NumberFormat test. This follows SetNumberFormatDigitOptions in ECMA-402.

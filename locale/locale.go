@@ -1,6 +1,9 @@
 package locale
 
 import (
+	"fmt"
+
+	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/localeid"
 
 	"golang.org/x/text/language"
@@ -8,7 +11,7 @@ import (
 
 type Locale struct {
 	_         [0]func()
-	tag       language.Tag
+	tag       localeid.Tag
 	ext       extensions
 	canonical string
 }
@@ -19,19 +22,15 @@ type extensions struct {
 }
 
 func Parse(s string) (Locale, error) {
-	lower := localeid.LowercaseUnicodeLocaleID(s)
-	if !localeid.HasUnicodeLocaleStructure(lower) {
-		return Locale{}, invalidLocaleValue("languageTag", s, nil)
-	}
-	base, unicodeExtension, err := localeid.SplitUnicodeExtension(lower)
+	canonical, err := localeid.ParseTag(s, cldrlocale.MaximizeSubtags)
 	if err != nil {
 		return Locale{}, invalidLocaleValue("languageTag", s, err)
 	}
-	base = normalizeLanguageAliases(base)
-	tag, err := localeid.ParseTag(base)
+	base, unicodeExtension, err := localeid.SplitUnicodeExtension(canonical.String())
 	if err != nil {
 		return Locale{}, invalidLocaleValue("languageTag", s, err)
 	}
+	tag := localeid.Tag(base)
 	loc := Locale{tag: tag}
 	loc.readExtensions(unicodeExtension)
 	loc.freeze()
@@ -84,8 +83,17 @@ func (l Locale) BaseName() string {
 	return localeid.BaseName(l.tag)
 }
 
-func (l Locale) Tag() language.Tag {
-	return l.tag
+// Tag returns the complete identity only when x/text can represent it losslessly.
+func (l Locale) Tag() (language.Tag, error) {
+	tag, err := language.Parse(l.String())
+	if err != nil {
+		return language.Tag{}, invalidLocaleValue("languageTag", l.String(), err)
+	}
+	roundtrip, err := Parse(tag.String())
+	if err != nil || !roundtrip.Equal(l) {
+		return language.Tag{}, invalidLocaleValue("languageTag", l.String(), fmt.Errorf("x/text cannot preserve canonical identity"))
+	}
+	return tag, nil
 }
 
 func (l Locale) Calendar() string {

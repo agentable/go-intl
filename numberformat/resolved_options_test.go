@@ -43,8 +43,8 @@ func TestNumberFormatResolvedOptionsDefaults(t *testing.T) {
 	}
 	got := format.ResolvedOptions()
 
-	if got.Locale.Tag().String() != "en" {
-		t.Fatalf("Locale = %s, want en", got.Locale.Tag().String())
+	if got.Locale.String() != "en" {
+		t.Fatalf("Locale = %s, want en", got.Locale.String())
 	}
 	if got.NumberingSystem != "latn" {
 		t.Fatalf("NumberingSystem = %q, want latn", got.NumberingSystem)

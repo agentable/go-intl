@@ -470,7 +470,7 @@ Representative surface:
 ```go
 // internal/cldr/locale (kernel)
 type Locale uint16
-func ResolveLocale(tag language.Tag) (Locale, bool)
+func ResolveLocale(tag string) (Locale, bool)
 func AvailableLocales() []string
 func MaximizeSubtags(language, script, region string) (lang, scr, reg string, ok bool)
 func Version() VersionInfo
@@ -770,3 +770,31 @@ Algorithm references: `.references/formatjs/packages/intl-numberformat/scripts/n
 `.references/node/deps/icu-small/source/i18n/dcfmtsym.cpp` (symbol inheritance
 and latn fallback). FormatJS's `.references/formatjs/MODULE.bazel` pins XML
 48.2; it is an algorithm reference, not this library's data source.
+
+## Canonical identity data and generation publication
+
+`tools/gen-cldr/cldr/identity_alias.go` loads language, script, territory, variant
+and subdivision replacements from pinned `cldr-core/supplemental/aliases.json`.
+`bcp47.go` loads Unicode and transformed extension type aliases, retaining their
+separate key namespaces. `codegen/unicode_alias.go` emits these with existing
+Unicode aliases into `internal/localeid/unicode_alias_data.go`. Language rules
+are grouped by source language; multi-target territory choice consumes the
+existing CLDR maximizer rather than duplicating likely-subtag data. Locale and
+DisplayNames share this identity owner; no registry knowledge is required for
+syntax acceptance. `task data:check` includes this generated file.
+
+`task data` invokes `tools/generate-data`. Both CLDR and plural generation write
+to one fresh `.tmp/generated-*` candidate before installation. Generator or
+input-validation failure leaves the official generated path set and bytes
+unchanged. `tools/internal/generateddata` supplies the same header-derived
+ownership inventory used by the byte checker. Installation preflights all
+handwritten-file collisions, writes sorted generated paths, then removes only
+obsolete generated files. Handwritten decoders/accessors and VERSION survive.
+
+Installation is not a filesystem transaction: I/O failure may leave a partial
+install, returns a contextual nonzero error, and retains the candidate. The
+post-install `data:contract` verifies the checkout, not the candidate before
+publication. `task data:check` remains the separate fresh-byte comparison gate.
+`tools/generate-data/main_test.go` runs the real generators against auxiliary
+output failure and missing/malformed plural inputs, comparing original target
+paths and bytes; installation tests cover exact set and handwritten preservation.

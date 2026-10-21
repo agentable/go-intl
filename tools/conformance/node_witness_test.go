@@ -45,6 +45,14 @@ func TestValidateNodeWitnessCoverageRequiresMatrixTopics(t *testing.T) {
 	if err := ValidateNodeWitnessCoverage([]string{packageDir}); err != nil {
 		t.Fatalf("ValidateNodeWitnessCoverage() error = %v, want nil", err)
 	}
+	writeXFailFile(t, packageDir, `[{"id":"numberformat-node-v26-smoke","reason":"broken smoke","expires_at":"2999-01-01","tracking_issue":"test"}]`)
+	if err := ValidateNodeWitnessCoverage([]string{packageDir}); !errors.Is(err, errMissingNodeWitnessCoverage) {
+		t.Fatalf("skipped smoke counts as witness: %v", err)
+	}
+	writeCoverageFixtureFile(t, packageDir, "node-v26/alternate.json", `[{"id":"numberformat-node-v26-alternate","source":"node:v26.0.0:numberformat","locale":"en","options":{},"input":2,"expected":"2"}]`)
+	if err := ValidateNodeWitnessCoverage([]string{packageDir}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestValidateNodeWitnessCoverageRequiresNumberFormatErrorWitness(t *testing.T) {
