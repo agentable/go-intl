@@ -7,7 +7,7 @@ For human usage examples, read [`README.md`](README.md). This file is the develo
 ## Commands
 
 ```bash
-task test                 # go test -race -p 1 ./...
+task test                 # go test -race -count=1 -p 1 ./...
 task modules:verify       # test + vet + tidy diff for root and three tools modules
 task lint                 # go mod tidy diff check + pinned golangci-lint v2
 task fmt                  # golangci-lint fmt ./...
@@ -30,10 +30,10 @@ task bench:run            # one-shot benchmark telemetry
 task bench                # benchmark report, optionally BASELINE=<file>
 ```
 
-`task modules:verify` and `task verify` require the pinned CLDR test inputs.
-On a fresh checkout, run
-`npm ci --prefix tools/gen-cldr/.cldr-json --ignore-scripts --no-audit --no-fund`
-first. CI installs the same lockfile before its four-module tests.
+`task test`, `task modules:verify`, and `task verify` prepare the pinned CLDR
+and SHA-256-verified IANA inputs through the shared `data:fetch` prerequisite.
+Node/npm must be installed. A fresh checkout must not rely on an existing
+`.tzdata` cache: generation failure tests exercise both real generators.
 
 Targeted checks:
 

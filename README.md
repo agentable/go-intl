@@ -839,7 +839,7 @@ Development guidance for coding agents lives in [`CLAUDE.md`](CLAUDE.md), with
 task deps                 # Download modules and tidy go.mod/go.sum
 task fmt                  # Format Go code
 task vet                  # Run go vet
-task test                 # Run go test -race -p 1 ./...
+task test                 # Run go test -race -count=1 -p 1 ./...
 task modules:verify       # Test, vet, and check tidy diff in all four release modules
 task lint                 # Run go mod tidy check and golangci-lint
 task codegraph:source        # Build a source-only CodeGraph mirror under .tmp/codegraph-source
@@ -858,20 +858,18 @@ task vuln                 # Run govulncheck
 task verify               # Run deps, fmt, vet, lint, race/module tests, conformance, data contract, and vuln
 ```
 
-On a fresh checkout, install the pinned CLDR inputs before running
-`task modules:verify` or `task verify`:
-
-```bash
-npm ci --prefix tools/gen-cldr/.cldr-json --ignore-scripts --no-audit --no-fund
-```
+`task test`, `task modules:verify`, and `task verify` automatically prepare the
+pinned CLDR packages and verify/download the pinned IANA archive before tests.
+Install Node/npm as well as Go and Task on a fresh checkout; an existing local
+time-zone archive cache is not required.
 
 The committed `go.work` links the four release modules during local development.
 The generators can also run outside a checkout at a coordinated release version:
 
 ```bash
-go run github.com/agentable/go-intl/tools/gen-cldr@v0.4.15 -h
-go run github.com/agentable/go-intl/tools/gen-plural-rules@v0.4.15 -h
-go run github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs@v0.4.15 -h
+go run github.com/agentable/go-intl/tools/gen-cldr@v0.4.17 -h
+go run github.com/agentable/go-intl/tools/gen-plural-rules@v0.4.17 -h
+go run github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs@v0.4.17 -h
 ```
 
 Generation requires the explicit input and output paths shown by each command.

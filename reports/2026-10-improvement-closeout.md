@@ -87,3 +87,9 @@ Windows 实机验证不在本次通过声明中。`Locale.Tag` 是破坏性 API 
 提交。ext 的嵌套 test262 更新提交发布到 `kaptinlin/ext` 的
 `codex/test262-reference-20261021`，`.gitmodules` 使用该可获取 fork，避免引用只存在
 本机的父仓库提交。未修改参考实现源码，也未向上游发送 PR。
+
+CI 后续发现并修正：`v0.4.16` 的 Test 作业只安装 CLDR，缺少 IANA archive，
+使 D1 故障测试在预期故障之前失败。`test` / `modules:verify` 现在通过共享
+`data:fetch` 前置任务准备两类固定输入，并在最终隔离验证中从空 IANA cache
+验证下载与测试顺序；未删断言或跳过测试。原标签保持不可变，修正采用下一组
+协调 patch `v0.4.17`。发布命令在已安装的 Go 1.27.2 上禁用隐式工具链切换。

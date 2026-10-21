@@ -144,12 +144,16 @@ tasks:
         git submodule update --init --recursive --remote --force
   test:
     desc: Run all tests with race detection
+    deps:
+      - data:fetch
     cmds:
       - echo "Running all tests..."
-      - go test -race -p 1 ./...
+      - go test -race -count=1 -p 1 ./...
 
   modules:verify:
     desc: Check tests, vet, and tidy diff in all four release modules
+    deps:
+      - data:fetch
     cmds:
       - |
         set -eu

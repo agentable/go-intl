@@ -798,3 +798,12 @@ publication. `task data:check` remains the separate fresh-byte comparison gate.
 `tools/generate-data/main_test.go` runs the real generators against auxiliary
 output failure and missing/malformed plural inputs, comparing original target
 paths and bytes; installation tests cover exact set and handwritten preservation.
+
+### Test input prerequisites
+
+`task test` and `task modules:verify` depend on the same `data:fetch` task as
+regeneration. Both pinned npm CLDR inputs and the SHA-256-verified IANA archive
+must exist before the real generator failure tests run. A CLDR-only setup is
+insufficient; CI must exercise the intended late generation failures, not fail
+early while opening an absent archive. Raw targeted `go test` commands assume
+these inputs have already been prepared. The race task uses `-count=1`.

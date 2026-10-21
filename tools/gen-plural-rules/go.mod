@@ -2,4 +2,4 @@ module github.com/agentable/go-intl/tools/gen-plural-rules
 
 go 1.27.2
 
-require github.com/agentable/go-intl v0.4.16
+require github.com/agentable/go-intl v0.4.17
