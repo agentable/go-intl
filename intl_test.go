@@ -143,8 +143,8 @@ func TestRootErrorSentinelsClassifyFormatterErrors(t *testing.T) {
 		t.Fatalf("displaynames.Of(invalid code) error = %v, want root ErrInvalidCode", err)
 	}
 
-	if _, err := numberformat.Decimal("not a number"); !errors.Is(err, ErrInvalidValue) {
-		t.Fatalf("numberformat.Decimal(invalid) error = %v, want root ErrInvalidValue", err)
+	if _, err := numberformat.ParseValue("not a number"); !errors.Is(err, ErrInvalidValue) {
+		t.Fatalf("numberformat.ParseValue(invalid) error = %v, want root ErrInvalidValue", err)
 	} else {
 		testcontract.AssertIntlError(t, err, InvalidValue, "numberformat", "decimal", "not a number", "")
 		testcontract.AssertErrorExpected(t, err, "an Intl numeric string (decimal, binary, octal, hexadecimal, or Infinity), or NaN")

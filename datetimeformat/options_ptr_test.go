@@ -105,8 +105,8 @@ func TestOptionsPointerValuesCopiedDuringConstruction(t *testing.T) {
 func TestOptionsStylePointerValuesCopiedDuringConstruction(t *testing.T) {
 	t.Parallel()
 
-	dateStyle := string(MediumDateTimeStyle)
-	timeStyle := string(ShortDateTimeStyle)
+	dateStyle := string(MediumStyle)
+	timeStyle := string(ShortStyle)
 	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{
 		DateStyle: &dateStyle,
 		TimeStyle: &timeStyle,
@@ -114,14 +114,14 @@ func TestOptionsStylePointerValuesCopiedDuringConstruction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dateStyle = string(FullDateTimeStyle)
-	timeStyle = string(LongDateTimeStyle)
+	dateStyle = string(FullStyle)
+	timeStyle = string(LongStyle)
 
 	resolved := format.ResolvedOptions()
-	if got, want := ecma402.ResolvedScalarValue(resolved.DateStyle), MediumDateTimeStyle; got != want {
+	if got, want := ecma402.ResolvedScalarValue(resolved.DateStyle), MediumStyle; got != want {
 		t.Fatalf("ResolvedOptions().DateStyle = %q, want %q", got, want)
 	}
-	if got, want := ecma402.ResolvedScalarValue(resolved.TimeStyle), ShortDateTimeStyle; got != want {
+	if got, want := ecma402.ResolvedScalarValue(resolved.TimeStyle), ShortStyle; got != want {
 		t.Fatalf("ResolvedOptions().TimeStyle = %q, want %q", got, want)
 	}
 }

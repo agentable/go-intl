@@ -73,7 +73,7 @@ func (r *rangePatternRecord) addDateFallbackPatterns(selected selectedPattern, p
 		if !ok {
 			return
 		}
-		dateTimePattern := dateTimeStylePattern(gregorian, ShortDateTimeStyle)
+		dateTimePattern := dateTimeStylePattern(gregorian, ShortStyle)
 		fallback := combineRangeEndpointPattern(dateTimePattern, dateFormat.Pattern, selected.time)
 		for field := dateRangeYear; field < dateRangeFieldCount; field++ {
 			r.dateFallbacks[field] = compilePatternProgram(fallback)

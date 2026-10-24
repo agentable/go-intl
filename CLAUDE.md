@@ -220,7 +220,7 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - **Native API mapping is mandatory** - Before adding or changing exported API, identify the exact ECMA-402 JavaScript owner: `Intl`, `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.PluralRules`, `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DurationFormat`, or `Intl.DisplayNames`. If no native owner exists, do not add it unless it is a narrow Go typed bridge for an existing native operation.
 - **Public surface earns its place** - Exported symbols must be recorded in SPECS/72 with an ECMA-402 owner or narrow typed-bridge rationale. ECMA-402 abstract operations stay in `internal/*`; callers see native owners, not implementation steps.
 - **Constructor parity** - Formatter `New` functions mirror `new Intl.<Constructor>(locales, options)`: callers pass exactly one typed `Options` value, and zero-valued `Options{}` means the ECMA-402 empty options object.
-- **Typed bridges only** - Typed Go values such as `numberformat.Int` and `numberformat.Decimal` are bridges for JavaScript methods like `format(value)`; they must not introduce behavior that native Intl lacks.
+- **Typed bridges only** - Typed Go values such as `numberformat.Int` and `numberformat.ParseValue` are bridges for JavaScript methods like `format(value)`; they must not introduce behavior that native Intl lacks.
 - **Typed boundaries** - User locale identifiers enter through `locale.Parse`, `locale.ParseList`, or `locale.New`; formatter constructors receive `locale.List`, while `locale.FromTag` is the explicit `language.Tag` bridge. `language.Tag` is the only `golang.org/x/text` type allowed in exported signatures; secondary `x/text` types stay internal.
 
 ## Coding Rules

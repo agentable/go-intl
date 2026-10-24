@@ -17,8 +17,8 @@ func TestDecimalBridgesRejectBackendSpecialSpellings(t *testing.T) {
 		owner string
 		parse func(string) error
 	}{
-		{"numberformat", func(s string) error { _, err := numberformat.Decimal(s); return err }},
-		{"pluralrules", func(s string) error { _, err := pluralrules.Decimal(s); return err }},
+		{"numberformat", func(s string) error { _, err := numberformat.ParseValue(s); return err }},
+		{"pluralrules", func(s string) error { _, err := pluralrules.ParseValue(s); return err }},
 	}
 	for _, parser := range parsers {
 		t.Run(parser.owner, func(t *testing.T) {
@@ -28,11 +28,11 @@ func TestDecimalBridgesRejectBackendSpecialSpellings(t *testing.T) {
 					t.Parallel()
 					err := parser.parse(input)
 					if !errors.Is(err, ErrInvalidValue) {
-						t.Fatalf("Decimal(%q) error = %v, want ErrInvalidValue", input, err)
+						t.Fatalf("ParseValue(%q) error = %v, want ErrInvalidValue", input, err)
 					}
 					detail, ok := errors.AsType[*Error](err)
 					if !ok || detail.Owner != parser.owner || detail.Name != "decimal" || detail.Value != input {
-						t.Fatalf("Decimal(%q) error details = %#v", input, detail)
+						t.Fatalf("ParseValue(%q) error details = %#v", input, detail)
 					}
 				})
 			}
@@ -60,14 +60,14 @@ func TestDecimalBridgesStringNumericGrammar(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
-			n, err := numberformat.Decimal(tc.input)
+			n, err := numberformat.ParseValue(tc.input)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if got := nf.Format(n); got != tc.text {
 				t.Errorf("Format = %q, want %q", got, tc.text)
 			}
-			p, err := pluralrules.Decimal(tc.input)
+			p, err := pluralrules.ParseValue(tc.input)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -77,11 +77,11 @@ func TestDecimalBridgesStringNumericGrammar(t *testing.T) {
 		})
 	}
 	for _, input := range []string{"\u00851", "\u180e1", "\u200b1", "1_000", "0x", "0b2", "0o8", "+0x1", "-0b1", "0x+1", "1e", ".", "1 2", "1e1.2"} {
-		if _, err := numberformat.Decimal(input); !errors.Is(err, ErrInvalidValue) {
-			t.Errorf("NumberFormat Decimal(%q): %v", input, err)
+		if _, err := numberformat.ParseValue(input); !errors.Is(err, ErrInvalidValue) {
+			t.Errorf("NumberFormat ParseValue(%q): %v", input, err)
 		}
-		if _, err := pluralrules.Decimal(input); !errors.Is(err, ErrInvalidValue) {
-			t.Errorf("PluralRules Decimal(%q): %v", input, err)
+		if _, err := pluralrules.ParseValue(input); !errors.Is(err, ErrInvalidValue) {
+			t.Errorf("PluralRules ParseValue(%q): %v", input, err)
 		}
 	}
 }
@@ -97,7 +97,7 @@ func TestDecimalBridgesNormalizeStringExtremes(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ input, text string }{{"1e309", "∞"}, {"-1e309", "-∞"}, {"1e-400", "0"}, {"-1e-400", "-0"}} {
-		v, err := numberformat.Decimal(tc.input)
+		v, err := numberformat.ParseValue(tc.input)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -129,7 +129,7 @@ func TestDecimalBridgesNormalizeStringExtremes(t *testing.T) {
 		if text != ranged {
 			t.Errorf("range parts = %q, want %q", text, ranged)
 		}
-		p, err := pluralrules.Decimal(tc.input)
+		p, err := pluralrules.ParseValue(tc.input)
 		if err != nil {
 			t.Fatal(err)
 		}

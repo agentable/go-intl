@@ -77,10 +77,10 @@ func TestDateTimeStylePatternFallsBackToStandardPattern(t *testing.T) {
 		DateTimeAtFormats: [4]string{"at-full"},
 		DateTimeFormats:   [4]string{"standard-full", "standard-long", "standard-medium", "standard-short"},
 	}
-	if got := dateTimeStylePattern(gregorian, FullDateTimeStyle); got != "at-full" {
+	if got := dateTimeStylePattern(gregorian, FullStyle); got != "at-full" {
 		t.Fatalf("dateTimeStylePattern(full) = %q, want at-full", got)
 	}
-	if got := dateTimeStylePattern(gregorian, MediumDateTimeStyle); got != "standard-medium" {
+	if got := dateTimeStylePattern(gregorian, MediumStyle); got != "standard-medium" {
 		t.Fatalf("dateTimeStylePattern(medium fallback) = %q, want standard-medium", got)
 	}
 }
@@ -165,13 +165,13 @@ func TestDateTimeFormatSmallFormattingHelpers(t *testing.T) {
 		TimeFormats:     [4]string{"time-full", "time-long", "time-medium", "time-short"},
 		DateTimeFormats: [4]string{"both-full", "both-long", "both-medium", "both-short"},
 	}
-	if got := dateStylePattern(gregorian, LongDateTimeStyle); got != "date-long" {
+	if got := dateStylePattern(gregorian, LongStyle); got != "date-long" {
 		t.Fatalf("dateStylePattern(long) = %q, want date-long", got)
 	}
-	if got := timeStylePattern(gregorian, FullDateTimeStyle); got != "time-full" {
+	if got := timeStylePattern(gregorian, FullStyle); got != "time-full" {
 		t.Fatalf("timeStylePattern(full) = %q, want time-full", got)
 	}
-	if got := dateTimeStandardStylePattern(gregorian, ShortDateTimeStyle); got != "both-short" {
+	if got := dateTimeStandardStylePattern(gregorian, ShortStyle); got != "both-short" {
 		t.Fatalf("dateTimeStandardStylePattern(short) = %q, want both-short", got)
 	}
 	if got := dateTimeStandardStylePattern(gregorian, Style("unknown")); got != "" {

@@ -153,7 +153,7 @@ func TestPluralRulesDecimalInputUsesMathematicalValue(t *testing.T) {
 			t.Parallel()
 			got := rules.Select(decimalValue(tc.input))
 			if got != tc.want {
-				t.Errorf("Select(Decimal(%q)) = %s, want %s", tc.input, got, tc.want)
+				t.Errorf("Select(ParseValue(%q)) = %s, want %s", tc.input, got, tc.want)
 			}
 		})
 	}
@@ -170,12 +170,12 @@ func TestPluralRulesRoundingPreservesArbitraryPrecisionDecimal(t *testing.T) {
 		t.Fatal(err)
 	}
 	inputText := "1" + strings.Repeat("0", 98) + "1.5"
-	input, err := Decimal(inputText)
+	input, err := ParseValue(inputText)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := rules.Select(input); got != One {
-		t.Fatalf("Select(Decimal(%q)) = %s, want %s", inputText, got, One)
+		t.Fatalf("Select(ParseValue(%q)) = %s, want %s", inputText, got, One)
 	}
 }
 
@@ -345,13 +345,13 @@ func TestPluralRulesDecimalAcceptsNonFinite(t *testing.T) {
 		t.Run(value, func(t *testing.T) {
 			t.Parallel()
 
-			input, err := Decimal(value)
+			input, err := ParseValue(value)
 			if err != nil {
-				t.Fatalf("Decimal(%q) error = %v", value, err)
+				t.Fatalf("ParseValue(%q) error = %v", value, err)
 			}
 			got := rules.Select(input)
 			if got != Other {
-				t.Fatalf("Select(Decimal(%q)) = %s, want %s", value, got, Other)
+				t.Fatalf("Select(ParseValue(%q)) = %s, want %s", value, got, Other)
 			}
 		})
 	}
@@ -360,8 +360,8 @@ func TestPluralRulesDecimalAcceptsNonFinite(t *testing.T) {
 func TestPluralRulesDecimalRejectsMalformed(t *testing.T) {
 	t.Parallel()
 
-	if _, err := Decimal("not-a-number"); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
-		t.Fatalf("Decimal(invalid) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
+	if _, err := ParseValue("not-a-number"); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
+		t.Fatalf("ParseValue(invalid) error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
 	} else {
 		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "pluralrules", "decimal", "not-a-number", "")
 		testcontract.AssertErrorExpected(t, err, "an Intl numeric string (decimal, binary, octal, hexadecimal, or Infinity), or NaN")

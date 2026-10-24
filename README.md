@@ -59,7 +59,7 @@ func main() {
 	price := priceFormat.Format(numberformat.Float(1234.5))
 
 	dateFormat, err := datetimeformat.New(locales, datetimeformat.Options{
-		DateStyle: gointl.String(datetimeformat.LongDateTimeStyle),
+		DateStyle: gointl.String(datetimeformat.LongStyle),
 		TimeZone:  gointl.String("America/New_York"),
 	})
 	if err != nil {
@@ -301,7 +301,7 @@ root-namespace examples above stay the primary documented style.
 
 ### Format Exact Decimals
 
-Use `Decimal` when binary `float64` cannot represent the value you need to
+Use `ParseValue` when binary `float64` cannot represent the value you need to
 format. It accepts Intl numeric strings, including surrounding ECMAScript
 whitespace, empty strings (zero), and unsigned `0b`/`0o`/`0x` integers.
 Malformed strings return an error. Finite nonzero values retain their exact
@@ -318,7 +318,7 @@ if err != nil {
 	return err
 }
 
-value, err := numberformat.Decimal("0.075")
+value, err := numberformat.ParseValue("0.075")
 if err != nil {
 	return err
 }
@@ -419,8 +419,8 @@ for the complete presence policy.
 
 ```go
 format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
-	DateStyle: gointl.String(datetimeformat.MediumDateTimeStyle),
-	TimeStyle: gointl.String(datetimeformat.ShortDateTimeStyle),
+	DateStyle: gointl.String(datetimeformat.MediumStyle),
+	TimeStyle: gointl.String(datetimeformat.ShortStyle),
 	TimeZone:  gointl.String("America/New_York"),
 })
 if err != nil {

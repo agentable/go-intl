@@ -125,7 +125,7 @@ formatting uses the constructor-resolved display zone after validation.
 ```go
 df, err := datetimeformat.New(locale.List{mustLocale("zh-CN")},
     datetimeformat.Options{
-        DateStyle: gointl.String(string(datetimeformat.FullDateTimeStyle)),
+        DateStyle: gointl.String(string(datetimeformat.FullStyle)),
         TimeZone:  gointl.String("Asia/Shanghai"),
     })
 out, err := df.Format(time.Now())

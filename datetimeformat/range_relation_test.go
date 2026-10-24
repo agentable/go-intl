@@ -275,8 +275,8 @@ func TestDateTimeFormatRangeTimeRecordUsesLocalizedSemanticValues(t *testing.T) 
 		t.Parallel()
 
 		format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{
-			DateStyle: stringPtr(MediumDateTimeStyle),
-			TimeStyle: stringPtr(ShortDateTimeStyle),
+			DateStyle: stringPtr(MediumStyle),
+			TimeStyle: stringPtr(ShortStyle),
 			Hour12:    boolPtr(true),
 			TimeZone:  stringPtr("UTC"),
 		})

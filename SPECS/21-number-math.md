@@ -10,7 +10,7 @@
 ECMA-402's mathematical-value algorithms consume values that can express
 `NaN`, `±Infinity`, and arbitrary-precision finite decimals. JavaScript first
 normalizes dynamic values at its host boundary. Go instead exposes explicit
-`Int`, `Uint`, `Float`, `BigInt`, and `Decimal` constructors; those constructors
+`Int`, `Uint`, `Float`, `BigInt`, and `ParseValue` constructors; those constructors
 produce one closed `NumericValue` record before formatter algorithms run.
 
 Generated reference uses `@formatjs/bigdecimal` to implement this data structure. Go uses `cockroachdb/apd/v3` (IEEE 754-2008 GDA Decimal) for finite/special-value representation, while ECMA-402 rounding uses exact coefficient/exponent arithmetic. No finite `apd.Context.Precision` participates in selecting rounding neighbours or ties.
@@ -51,7 +51,7 @@ require github.com/cockroachdb/apd/v3 v3.x.x
 >
 > **Rejected `shopspring/decimal` Details**:
 > - ❌ No NaN / +Inf / -Inf representation; direct `panic("decimal: NaN not supported")` during construction, violating the "no panic" red line.
-> - ❌ Formatter `Float(math.NaN())` and `Decimal("NaN")` bridges must preserve a NaN-shaped value; `shopspring` would require a separate sentinel representation.
+> - ❌ Formatter `Float(math.NaN())` and `ParseValue("NaN")` bridges must preserve a NaN-shaped value; `shopspring` would require a separate sentinel representation.
 > - ❌ Missing `Log10` native; ComputeExponent needs to implement `floor(log10(|x|))` by itself, and the accuracy boundary is difficult to control.
 >
 > **Rejected `math/big.Float`**:
@@ -191,7 +191,7 @@ func ParseString(s string) (Decimal, error)
 The backend parser must never return an apd special form wrapped as a finite
 Decimal. Intl string grammar and host-boundary normalization belong to
 `internal/ecma402.ParseDecimalInput`, not to this backend constructor. Public
-`numberformat.Decimal` and `pluralrules.Decimal` expose malformed input as a
+`numberformat.ParseValue` and `pluralrules.ParseValue` expose malformed input as a
 structured `ErrInvalidValue`, preserving the input and formatter owner.
 
 `ParseDecimalInput` owns StringNumericLiteral: ECMAScript whitespace and line
@@ -607,7 +607,7 @@ func Coerce(value any) decimal.Decimal
 
 // ✅ Correct: the public package exposes explicit typed bridges.
 v := numberformat.Int(42)
-d, err := numberformat.Decimal("9007199254740993")
+d, err := numberformat.ParseValue("9007199254740993")
 ```
 
 > **Why**: JavaScript coercion is a host-language operation. An explicit Go

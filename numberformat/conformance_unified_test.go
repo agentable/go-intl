@@ -130,7 +130,7 @@ func conformanceNumberInput(t testing.TB, raw jsontext.Value) Value {
 		if err := json.Unmarshal(raw, &value); err != nil {
 			t.Fatal(err)
 		}
-		input, err := Decimal(value)
+		input, err := ParseValue(value)
 		if err != nil {
 			t.Fatal(err)
 		}

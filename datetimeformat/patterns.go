@@ -145,14 +145,14 @@ func componentPattern(patterns *patternData, formatMatcher FormatMatcher, resolv
 }
 
 func componentDateTimePattern(gregorian cldrdate.Gregorian, opts ecma402dtf.Options, dateFormat ecma402dtf.Formats) string {
-	style := MediumDateTimeStyle
+	style := MediumStyle
 	switch {
 	case dateFormat.Month == ecma402dtf.FieldLong && dateFormat.Weekday == ecma402dtf.FieldLong:
-		style = FullDateTimeStyle
+		style = FullStyle
 	case dateFormat.Month == ecma402dtf.FieldLong:
-		style = LongDateTimeStyle
+		style = LongStyle
 	case opts.Year == ecma402dtf.Numeric2Digit && (opts.Month == ecma402dtf.FieldNumeric || opts.Month == ecma402dtf.Field2Digit):
-		style = ShortDateTimeStyle
+		style = ShortStyle
 	}
 	return dateTimeStylePattern(gregorian, style)
 }

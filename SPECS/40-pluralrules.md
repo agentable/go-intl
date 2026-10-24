@@ -69,7 +69,7 @@ func Int(v int64) Value
 func Uint(v uint64) Value
 func Float(v float64) Value
 func BigInt(v *big.Int) Value
-func Decimal(s string) (Value, error)
+func ParseValue(s string) (Value, error)
 
 func (r *PluralRules) Select(v Value) Category
 func (r *PluralRules) SelectRange(start, end Value) (Category, error)
@@ -81,13 +81,13 @@ func (r *PluralRules) ResolvedOptions() ResolvedOptions
 1. `New` **MUST** complete all option verification during the construction period, and `error` will be returned if it fails.
 2. `New` accepts a `Options` value. `New(locales, Options{})` is equivalent to JS passing an empty options object or omitting options; multiple options objects are not Go API shapes and are rejected by the compiler.
 3. `Select` / `SelectRange` **MUST** accept opaque `Value`; the caller expresses ECMA-402 numeric input through typed constructors.
-4. `Select` **MUST** return `Other` for NaN and positive or negative infinity. `SelectRange` **MUST** return `ErrInvalidValue` only when an endpoint is NaN and **MUST** accept positive or negative infinity. `Decimal` **MUST** accept well-formed decimal strings plus `NaN`, `Infinity`, and `-Infinity`, and **MUST** return `ErrInvalidValue` for malformed strings. Finite decimal spellings denote mathematical values: input-only trailing zeros do not affect category or formatted range equality.
+4. `Select` **MUST** return `Other` for NaN and positive or negative infinity. `SelectRange` **MUST** return `ErrInvalidValue` only when an endpoint is NaN and **MUST** accept positive or negative infinity. `ParseValue` **MUST** accept well-formed decimal strings plus `NaN`, `Infinity`, and `-Infinity`, and **MUST** return `ErrInvalidValue` for malformed strings. Finite decimal spellings denote mathematical values: input-only trailing zeros do not affect category or formatted range equality.
 5. `PluralRules` is an immutable value; all methods on `*PluralRules` must be concurrency-safe.
 6. `Options` is the only public configuration value; restoring functional options or multiple options merge is prohibited.
 7. The `Category.String()` return value **MUST** be the exact ECMA-402 category string so callers can branch without a second mapping table.
 8. `New` **MUST** resolve the exact generated cardinal or ordinal rule for its data locale and freeze that function on the formatter. Missing active-locale data is a constructor failure; `Select` is total only after successful construction and therefore returns `Category` without an error.
 
-> **Rejected**: public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal operands should use `Decimal`.
+> **Rejected**: public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal operands should use `ParseValue`.
 
 ### 1.2 Options
 

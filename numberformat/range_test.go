@@ -69,7 +69,7 @@ func TestNumberFormatRangeRejectsNaN(t *testing.T) {
 		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "numberformat", "range", "start=NaN end=1", "en")
 		testcontract.AssertErrorExpected(t, err, "numeric range values that are not NaN")
 	}
-	start, err := Decimal("NaN")
+	start, err := ParseValue("NaN")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestNumberFormatRangeAcceptsInfinity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	end, err := Decimal("Infinity")
+	end, err := ParseValue("Infinity")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,11 +260,11 @@ func TestNumberFormatPublicRangeDecimalAndFloatBridges(t *testing.T) {
 		t.Fatalf("FormatRangeFloat64(1.5, 2.5) = %q, want 1.5–2.5", gotFloat)
 	}
 
-	start, err := Decimal("1.25")
+	start, err := ParseValue("1.25")
 	if err != nil {
 		t.Fatal(err)
 	}
-	end, err := Decimal("1.50")
+	end, err := ParseValue("1.50")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,11 +273,11 @@ func TestNumberFormatPublicRangeDecimalAndFloatBridges(t *testing.T) {
 		t.Fatalf("FormatRangeDecimal(1.25, 1.50) = %q, want 1.25–1.5", gotDecimal)
 	}
 
-	equalStart, err := Decimal("1.5")
+	equalStart, err := ParseValue("1.5")
 	if err != nil {
 		t.Fatal(err)
 	}
-	equalEnd, err := Decimal("1.50")
+	equalEnd, err := ParseValue("1.50")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -90,10 +90,10 @@ func (d *patternData) style(style Style) stylePatternData {
 }
 
 var dateTimeStyles = [...]Style{
-	FullDateTimeStyle,
-	LongDateTimeStyle,
-	MediumDateTimeStyle,
-	ShortDateTimeStyle,
+	FullStyle,
+	LongStyle,
+	MediumStyle,
+	ShortStyle,
 }
 
 const defaultDateTimeStyleIndex = 2

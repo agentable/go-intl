@@ -62,7 +62,7 @@ func Int(v int64) Value
 func Uint(v uint64) Value
 func Float(v float64) Value
 func BigInt(v *big.Int) Value
-func Decimal(s string) (Value, error)
+func ParseValue(s string) (Value, error)
 
 func (f *NumberFormat) Format(v Value) string
 func (f *NumberFormat) FormatToParts(v Value) []Part
@@ -77,15 +77,15 @@ func (f *NumberFormat) ResolvedOptions() ResolvedOptions
 1. `New` **MUST** complete all option verification during the construction period, and `error` will be returned if it fails.
 2. `New` accepts a `Options` value. `New(locales, Options{})` is equivalent to JS passing an empty options object or omitting options; multiple options objects are not Go API shapes and are rejected by the compiler.
 3. `Format` / `FormatToParts` / range methods **MUST** accept opaque `Value`; the caller expresses ECMA-402 numeric input through typed constructors.
-4. `Decimal` **MUST** return `ErrInvalidValue` for malformed decimal; `"NaN"` / `"Infinity"` / `"-Infinity"` are legal decimal strings.
+4. `ParseValue` **MUST** return `ErrInvalidValue` for malformed decimal; `"NaN"` / `"Infinity"` / `"-Infinity"` are legal decimal strings.
 5. `NumberFormat` is an immutable value; all methods on `*NumberFormat` must be concurrency-safe.
 6. `ResolvedOptions` **MUST** return an immutable snapshot (value type); multiple calls return equal results.
 
-> **Why**: Construction-time verification centrally handles configuration errors; runtime numeric type boundaries are expressed by `Value` constructors. The JS side `format(NaN)` does not throw, so `Format(numberformat.Float(math.NaN()))` still returns `"NaN"`; but the failure of Go's decimal string parsing is a caller error and must be exposed through `Decimal`'s `ErrInvalidValue`.
+> **Why**: Construction-time verification centrally handles configuration errors; runtime numeric type boundaries are expressed by `Value` constructors. The JS side `format(NaN)` does not throw, so `Format(numberformat.Float(math.NaN()))` still returns `"NaN"`; but the failure of Go's decimal string parsing is a caller error and must be exposed through `ParseValue`'s `ErrInvalidValue`.
 >
 > **Rejected**:
 > - public `Format(v any)` / `FormatToParts(v any)` - Mix unsupported input, malformed string, NaN display and user errors in the same hot path.
-> - public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal magnitude should use `Decimal`.
+> - public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal magnitude should use `ParseValue`.
 
 ### 1.2 Typed Options(Close §8 Q2)
 
@@ -460,7 +460,7 @@ package's legal collapse or source attribution strategy.
 **MUST** rules (corresponding to ECMA-402 §15.5.1):
 
 1. Public hot path is **FORBIDDEN** to accept `any`; the caller must construct `numberformat.Value` first, and then call `Format`, `FormatToParts`, `FormatRange` or `FormatRangeToParts`.
-2. `Decimal` accepts ECMA-402 `StringNumericLiteral`, such as `"1234.5"` / `"NaN"` / `"Infinity"`; the resulting `Value` represents the mathematical value, so `"1"`, `"1.0"`, and `"1.00"` have the same value and differ in visible zeros only when resolved digit options require them. The range method consumes the constructed `Value`.
+2. `ParseValue` accepts ECMA-402 `StringNumericLiteral`, such as `"1234.5"` / `"NaN"` / `"Infinity"`; the resulting `Value` represents the mathematical value, so `"1"`, `"1.0"`, and `"1.00"` have the same value and differ in visible zeros only when resolved digit options require them. The range method consumes the constructed `Value`.
 3. malformed decimal string **MUST** return `ErrInvalidValue`; silent fallback to `"NaN"` is prohibited.
 4. The conformance fixture can keep the unexported `formatValue(any)` adapter in the package, but it must not appear in the public API, README or root package.
 
@@ -490,7 +490,7 @@ package's legal collapse or source attribution strategy.
 1. Construction-time errors **MUST** be the wrapped form of `gointl.ErrInvalidOption`, and expose field names, user-input values, locale and expected-value guidance through `*gointl.Error`.
 2. Sentinel **MUST** match root `gointl.ErrInvalidOption`(SPEC 12); this package does not establish a separate independent error category.
 3. **BANNED** `panic` any user path; `MustNew` does not exist (user can wrap it in the caller).
-4. Typed NaN and Infinity format normally. Malformed numeric strings return a structured error from `Decimal`; range methods reject NaN endpoints.
+4. Typed NaN and Infinity format normally. Malformed numeric strings return a structured error from `ParseValue`; range methods reject NaN endpoints.
 
 ```go
 // Error form example (signature)

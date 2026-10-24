@@ -128,11 +128,11 @@ func TestPluralRulesSelectRangeAcceptsInfinity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	positiveInfinity, err := Decimal("Infinity")
+	positiveInfinity, err := ParseValue("Infinity")
 	if err != nil {
 		t.Fatal(err)
 	}
-	negativeInfinity, err := Decimal("-Infinity")
+	negativeInfinity, err := ParseValue("-Infinity")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestPluralRulesSelectRangeRejectsNaN(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decimalNaN, err := Decimal("NaN")
+	decimalNaN, err := ParseValue("NaN")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -260,7 +260,7 @@ func durationDecimalNumberValue(errorName, value string, signVisible bool, loc l
 	if !signVisible {
 		value = strings.TrimPrefix(value, "-")
 	}
-	numericValue, err := numberformat.Decimal(value)
+	numericValue, err := numberformat.ParseValue(value)
 	if err != nil {
 		return numberformat.Value{}, invalidDurationUnitValue(errorName, value, loc)
 	}
@@ -435,7 +435,7 @@ func durationIntegerNumberValue(value *big.Int, showNegativeSign bool) numberfor
 		return numberformat.BigInt(magnitude)
 	}
 	if magnitude.Sign() == 0 {
-		out, _ := numberformat.Decimal("-0")
+		out, _ := numberformat.ParseValue("-0")
 		return out
 	}
 	return numberformat.BigInt(magnitude.Neg(magnitude))

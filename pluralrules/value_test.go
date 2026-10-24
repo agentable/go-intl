@@ -10,7 +10,7 @@ func mustRangeCategory(category Category, err error) Category {
 }
 
 func decimalValue(s string) Value {
-	value, err := Decimal(s)
+	value, err := ParseValue(s)
 	if err != nil {
 		panic(err)
 	}

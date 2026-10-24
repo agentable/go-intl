@@ -201,7 +201,7 @@ var slots sync.Map // map[*NumberFormat]map[string]any
 
 `internal/ecma402.NumericValue` is the closed record shared across the abstract
 layer. Package-local public `Value` constructors select an explicit Go bridge
-(`Int`, `Uint`, `Float`, `BigInt`, or `Decimal`) and produce that record. The
+(`Int`, `Uint`, `Float`, `BigInt`, or `ParseValue`) and produce that record. The
 concrete decimal representation and arithmetic live in `internal/decimal`.
 
 The Go core does not accept `any` and does not emulate JavaScript
