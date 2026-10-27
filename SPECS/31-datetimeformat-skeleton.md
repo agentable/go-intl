@@ -1,6 +1,5 @@
 # SPEC 31 — DateTimeFormat Skeleton & BestFitFormatMatcher
 
-> **Status:** Draft (2026-05-08)
 > **Owner:** `internal/ecma402/datetimeformat/skeleton.go` + `internal/ecma402/datetimeformat/matcher.go`
 > **Reference contract:** `formatjs/packages/ecma402-abstract/DateTimeFormat/skeleton.ts` + `BestFitFormatMatcher.ts` + `BasicFormatMatcher.ts`
 
@@ -298,23 +297,23 @@ validated data and do not grow a second defensive grammar.
 
 ## 8. Acceptance Criteria
 
-- [ ] `formatjs/packages/intl-datetimeformat/tests/skeleton-resolution.test.ts` All fixtures in `internal/ecma402/datetimeformat/skeleton_test.go` pass (byte-equality).
-- [ ] `formatjs/packages/intl-datetimeformat/tests/best-fit-format-matcher.test.ts` All fixtures passed in `internal/ecma402/datetimeformat/matcher_test.go`.
-- [ ] `formatjs/packages/intl-datetimeformat/tests/basic-format-matcher.test.ts` All fixtures passed.
-- [ ] `parseDateTimeSkeleton("yMMMd")` returns `Formats{Year:numeric, Month:short, Day:numeric, Skeleton:"yMMMd"}`.
-- [ ] `parseDateTimeSkeleton("hms")` returns `Formats{Hour:numeric, HourCycle:h12, Minute:numeric, Second:numeric}`.
-- [ ] `parseDateTimeSkeleton("HHmmss")` returns `Formats{Hour:2-digit, HourCycle:h23, Minute:2-digit, Second:2-digit}`.
-- [ ] `Match(opts={Year:numeric, Month:long}, formats=...)` hits `"MMMM y"` under `en-US` but not `"y"` or `"MMMM"` (complete fields take precedence).
-- [ ] `Match` When testing the algorithm layer independently, there is no need to import `internal/cldr` (import path check passed).
-- [ ] `internal/ecma402/datetimeformat/` package-level `init()` count = 0(`grep -c "func init" *.go == 0`).
-- [ ] `adjustFieldTypes(format={Year:numeric, Pattern:"y"}, opts={Year:"2-digit"})` modifies `format.Pattern` to `"yy"`.
-- [ ] Basic uses normative directional scoring without hour12 preference; BestFit retains independent policy and width adjustment. Public Arabic numeric-width regression and both text/parts projections pass.
-- [ ] `BenchmarkSkeleton_Match` appears in non-blocking benchmark telemetry.
-- [ ] `BenchmarkSkeleton_Parse` appears in non-blocking benchmark telemetry.
-- [ ] LDML literal test: `parseDateTimeSkeleton("'Year:' y")` output `Formats.Pattern` contains literal `"Year:"`, and `Year:numeric`.
-- [ ] LDML escape test: `parseDateTimeSkeleton("'it''s' y")` literal part outputs `"it's"`.
-- [ ] Generator tests reject unbalanced quotes, unknown executable fields, unsupported widths, malformed indexed placeholders, duplicate `{0}`/`{1}`, and forbidden `{2}` with source context.
-- [ ] Current pinned data regenerates byte-identically; inactive quarter/week skeletons are not falsely advertised as executable, and only inactive append-item records may retain one `{2}`.
+- `formatjs/packages/intl-datetimeformat/tests/skeleton-resolution.test.ts` All fixtures in `internal/ecma402/datetimeformat/skeleton_test.go` pass (byte-equality).
+- `formatjs/packages/intl-datetimeformat/tests/best-fit-format-matcher.test.ts` All fixtures passed in `internal/ecma402/datetimeformat/matcher_test.go`.
+- `formatjs/packages/intl-datetimeformat/tests/basic-format-matcher.test.ts` All fixtures passed.
+- `parseDateTimeSkeleton("yMMMd")` returns `Formats{Year:numeric, Month:short, Day:numeric, Skeleton:"yMMMd"}`.
+- `parseDateTimeSkeleton("hms")` returns `Formats{Hour:numeric, HourCycle:h12, Minute:numeric, Second:numeric}`.
+- `parseDateTimeSkeleton("HHmmss")` returns `Formats{Hour:2-digit, HourCycle:h23, Minute:2-digit, Second:2-digit}`.
+- `Match(opts={Year:numeric, Month:long}, formats=...)` hits `"MMMM y"` under `en-US` but not `"y"` or `"MMMM"` (complete fields take precedence).
+- `Match` When testing the algorithm layer independently, there is no need to import `internal/cldr` (import path check passed).
+- `internal/ecma402/datetimeformat/` package-level `init()` count = 0(`grep -c "func init" *.go == 0`).
+- `adjustFieldTypes(format={Year:numeric, Pattern:"y"}, opts={Year:"2-digit"})` modifies `format.Pattern` to `"yy"`.
+- Basic uses normative directional scoring without hour12 preference; BestFit retains independent policy and width adjustment. Public Arabic numeric-width regression and both text/parts projections pass.
+- `BenchmarkSkeleton_Match` appears in non-blocking benchmark telemetry.
+- `BenchmarkSkeleton_Parse` appears in non-blocking benchmark telemetry.
+- LDML literal test: `parseDateTimeSkeleton("'Year:' y")` output `Formats.Pattern` contains literal `"Year:"`, and `Year:numeric`.
+- LDML escape test: `parseDateTimeSkeleton("'it''s' y")` literal part outputs `"it's"`.
+- Generator tests reject unbalanced quotes, unknown executable fields, unsupported widths, malformed indexed placeholders, duplicate `{0}`/`{1}`, and forbidden `{2}` with source context.
+- Current pinned data regenerates byte-identically; inactive quarter/week skeletons are not falsely advertised as executable, and only inactive append-item records may retain one `{2}`.
 
 ---
 

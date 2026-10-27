@@ -194,7 +194,7 @@ func TestDateTimeFormatSmallFormattingHelpers(t *testing.T) {
 	if got := dayPeriodPatternName(gregorianData, 4, afternoon); got != "PM" {
 		t.Fatalf("dayPeriodPatternName(pm default fallback) = %q, want PM", got)
 	}
-	if got := flexibleDayPeriodPatternName(format.cldrLoc, gregorianData, 4, morning); got != "AM" {
+	if got := flexibleDayPeriodPatternName(format.flexibleDayPeriodValue(morning), gregorianData, 4, morning); got != "AM" {
 		t.Fatalf("flexibleDayPeriodPatternName(fallback) = %q, want AM", got)
 	}
 
@@ -203,7 +203,7 @@ func TestDateTimeFormatSmallFormattingHelpers(t *testing.T) {
 	if datePart.Type != PartLiteral || datePart.Value != "QQ" {
 		t.Fatalf("datePatternPart(unknown) = %#v, want literal QQ", datePart)
 	}
-	timePart, ok := format.timePatternPart('?', 2, morning, numberingSystem, format.uses24Hour, format.cldrLoc, gregorianData)
+	timePart, ok := format.timePatternPart('?', 2, morning, numberingSystem, format.uses24Hour, gregorianData)
 	if !ok || timePart.Type != PartLiteral || timePart.Value != "??" {
 		t.Fatalf("timePatternPart(unknown) = %#v, %v; want literal ??", timePart, ok)
 	}

@@ -23,7 +23,7 @@ A Go implementation of the active ECMA-402 `Intl` API with typed constructors an
 go get github.com/agentable/go-intl
 ```
 
-Requires **Go 1.27.2**.
+Requires **Go 1.27.3**.
 
 ## Quick Start
 
@@ -706,6 +706,9 @@ cannot preserve the complete identity. Use `String()`/`Parse` for an unrestricte
 identity round trip. `locale.Options.Variants` replaces the variant sequence;
 for example `Variants: gointl.String("1996")` turns `de-1901` into `de-1996`.
 Acceptance of a locale identifier does not imply available formatter data.
+`GetNumberingSystems()` uses NumberFormat locale lookup, preserving supported
+regional prefixes such as `ar-EG` in `ar-EG-x-private`. An explicit `nu` extension
+is returned directly; unmatched locales return `latn`.
 Root supported-value accessors return ECMA-402 values: calendars are `gregory`
 and `iso8601`, numbering systems include the simple digit systems from
 ECMA-402, units come from the sanctioned unit list, currencies come from CLDR,
@@ -837,6 +840,7 @@ Development guidance for coding agents lives in [`CLAUDE.md`](CLAUDE.md), with
 
 ```bash
 task deps                 # Download modules and tidy go.mod/go.sum
+task deps:update          # Update dependencies across all four modules
 task fmt                  # Format Go code
 task vet                  # Run go vet
 task test                 # Run go test -race -count=1 -p 1 ./...
@@ -851,7 +855,7 @@ task data                 # Regenerate CLDR data into internal/cldr/ (writes bac
 task data:check           # Regenerate/compare CLDR data and run gen-cldr test/vet
 task data:contract        # Verify generated CLDR data contracts
 task build:size           # Report root, formatter, and CLDR binary size deltas
-task build:size:cold      # Report the same size table after clearing Go's build cache
+task build:size:cold      # Measure each build with its own empty Go cache
 task bench:run            # Run one-shot benchmark telemetry
 task bench                # Produce a non-blocking benchmark report, optionally with BASELINE=<file>
 task vuln                 # Run govulncheck

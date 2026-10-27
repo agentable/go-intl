@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json/v2"
 	"errors"
 	"io/fs"
 	"os"
@@ -35,13 +36,35 @@ func TestCheckDataPinsRejectsMalformedCLDRVersion(t *testing.T) {
 
 func TestCheckDataPinsRejectsMissingCLDRPackagePin(t *testing.T) {
 	t.Parallel()
+	for _, name := range []string{"cldr-bcp47", "cldr-core", "cldr-dates-full", "cldr-localenames-full", "cldr-misc-full", "cldr-numbers-full", "cldr-units-full"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newPreflightFixture(t)
+			fixture.updatePackage(name, "")
+			err := checkDataPins(fixture.config)
+			if err == nil || !strings.Contains(err.Error(), name) || !strings.Contains(err.Error(), fixture.config.packageFile) {
+				t.Fatalf("checkDataPins() error = %v, want missing %s in %s", err, name, fixture.config.packageFile)
+			}
+		})
+	}
+}
 
-	fixture := newPreflightFixture(t)
-	fixture.writeFile("tools/gen-cldr/.cldr-json/package.json", `{"dependencies":{"cldr-numbers-full":"48.1.0"}}`)
-
-	err := checkDataPins(fixture.config)
-	if err == nil || !strings.Contains(err.Error(), "cldr-core") || !strings.Contains(err.Error(), "package.json") {
-		t.Fatalf("checkDataPins() error = %v, want missing cldr-core package pin", err)
+func TestCheckDataPinsAdditionalCLDRPackage(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"48.1.0", "48.2.0"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			fixture := newPreflightFixture(t)
+			fixture.updatePackage("cldr-extra", version)
+			err := checkDataPins(fixture.config)
+			if version == "48.1.0" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "cldr-extra") || !strings.Contains(err.Error(), "version mismatch") {
+				t.Fatalf("error = %v, want extra package version mismatch", err)
+			}
+		})
 	}
 }
 
@@ -92,7 +115,7 @@ func TestCheckDataPinsRejectsCorruptPinInputs(t *testing.T) {
 		{
 			name: "package version drift",
 			mutate: func(f preflightFixture) {
-				f.writeFile("tools/gen-cldr/.cldr-json/package.json", `{"dependencies":{"cldr-core":"48.0.0"}}`)
+				f.updatePackage("cldr-core", "48.0.0")
 			},
 			want: "version mismatch",
 		},
@@ -204,7 +227,7 @@ func newPreflightFixture(t *testing.T) preflightFixture {
 		},
 	}
 	fixture.writeVersion("cldr=48.1.0\nicu=78\ntzdata=2025b\n")
-	fixture.writeFile("tools/gen-cldr/.cldr-json/package.json", `{"dependencies":{"cldr-core":"48.1.0","cldr-numbers-full":"48.1.0"}}`)
+	fixture.writeFile("tools/gen-cldr/.cldr-json/package.json", `{"dependencies":{"cldr-bcp47":"48.1.0","cldr-core":"48.1.0","cldr-dates-full":"48.1.0","cldr-localenames-full":"48.1.0","cldr-misc-full":"48.1.0","cldr-numbers-full":"48.1.0","cldr-units-full":"48.1.0"}}`)
 	fixture.writeFile("tools/gen-cldr/tzdata.json", `{"version":"2025b","url":"https://example.test/tzdata2025b.tar.gz","sha256":"11810413345fc7805017e27ea9fa4885fd74cd61b2911711ad038f5d28d71474","license":"public-domain"}`)
 	fixture.writeFile("goroot/lib/time/update.bash", "CODE=2025c\nDATA=2025c\n")
 	return fixture
@@ -257,4 +280,28 @@ func TestTZDataLockRejectsURLAndLicense(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (f preflightFixture) updatePackage(name, version string) {
+	f.t.Helper()
+	data, err := os.ReadFile(f.config.packageFile)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	var manifest struct {
+		Dependencies map[string]string `json:"dependencies"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		f.t.Fatal(err)
+	}
+	if version == "" {
+		delete(manifest.Dependencies, name)
+	} else {
+		manifest.Dependencies[name] = version
+	}
+	data, err = json.Marshal(manifest)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.writeFile("tools/gen-cldr/.cldr-json/package.json", string(data))
 }

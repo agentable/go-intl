@@ -1,6 +1,5 @@
 # SPEC 70 — Conformance Test Strategy
 
-> **Status:** Revised (2026-08-09)
 > **Type:** Flow + Schema + Rule — defines how go-intl proves ECMA-402 observable behavior through generated-reference and native fixtures.
 > **Authority:** ECMA-402 and native/reference fixtures define observable behavior. This spec records the conformance fixture format, fixture sources, divergence handling, correctness gates, and XFAIL discipline. Per-formatter SPECS (10/20/30/40/41/42/43/44) record their own option semantics; this spec records how those semantics are *verified* against the reference implementations.
 
@@ -99,6 +98,31 @@ Each fixture **MUST** conform to the following schema (JSON object):
 
 > **Why**: The unified schema is universal across formatters and lets the shared harness validate every active surface without formatter-specific fixture loaders.
 > **Rejected**: Each formatter custom schema (NumberFormat `"value"` vs DateTimeFormat `"date"`) - 4 sets of harness, 4 sets of loaders, DRY violation.
+
+ListFormat rejects successful instance observations on constructor-error records
+before checking the error. The shared supportedLocalesOf assertion rejects
+instance observations and successful locale observations mixed into an error
+record, while preserving empty arrays and static calls without an instance.
+Evidence: `listformat/conformance_observations_test.go`.
+
+NumberFormat and DateTimeFormat reject foreign ok/locales observations,
+constructor errors mixed with success observations, and records mixing range
+and single-value expectations. Range text/parts and resolved snapshots remain
+independent within the same input family. DateTimeFormat feature labels also
+include topics such as metazone; they are not a closed method-name enum.
+Evidence: both packages' `conformance_observations_test.go`.
+
+DurationFormat and RelativeTimeFormat reject success text/parts on any error
+record and resolved snapshots on constructor errors. Resolved snapshots remain
+valid alongside method errors and are compared before invoking the method.
+Evidence: both packages' `conformance_observations_test.go`.
+
+Locale and PluralRules validate their dispatched feature before constructor
+or observation early returns. Locale weekInfo consumes only its JSON observation;
+canonicalize/maximize/minimize consume only text. PluralRules rejects success
+categories on errors, but retains resolved snapshots on selectRange errors.
+Evidence: `locale/conformance_unified_test.go` and
+`pluralrules/conformance_observations_test.go`.
 
 ### 1.3 Manifest
 
@@ -391,55 +415,55 @@ governance rules that cannot be proven by a Go test.
 
 ### Fixture Schema And Sources
 
-| Contract | Evidence | Status |
-|----------|----------|--------|
-| Conformance fixture files are JSON arrays matching §1.1, with globally unique IDs and source-directory consistency. | `tools/conformance/fixtures.go`; `tools/conformance/skip_test.go`; `tools/check-conformance/main.go`; `task conformance:verify` | Satisfied |
-| Error fixtures live in `errors.json` lanes and assert sentinel behavior through package runners. | `*/testdata/conformance/node-v26/errors.json`; package `conformance_unified_test.go` files | Satisfied |
-| NumberFormat independently executes single/range text, parts, and resolved observations, including empty expected arrays; deliberately incorrect observations fail the actual callback. | `numberformat/conformance_observations_test.go`; `numberformat/conformance_unified_test.go` | Satisfied |
-| PluralRules `selectRange` runtime `invalid_value` executes SelectRange; NaN fails, Infinity remains legal, and Select has no error lane. | `pluralrules/conformance_observations_test.go` | Satisfied |
-| PluralRules executes complete resolved JSON without a select input, including mixed category/snapshot records; parts observations fail explicitly. | `pluralrules/conformance_observations_test.go` | Satisfied |
-| ListFormat independently observes complete resolved JSON without decoding list input; unsupported range observations fail. | `listformat/conformance_observations_test.go` | Satisfied |
-| RelativeTimeFormat executes complete resolved/text/parts independently; runtime error feature selects `format` or `formatToParts`, with unsupported observations rejected. | `relativetimeformat/conformance_observations_test.go` | Satisfied |
-| DateTimeFormat, ListFormat, and RelativeTimeFormat execute parts observations without a text prerequisite and assert empty expected arrays. | Package `conformance_observations_test.go` and `conformance_unified_test.go` files | Satisfied |
-| DurationFormat supportedLocalesOf fixtures call the static method directly, compare the complete locale list, and ignore formatting options. | `durationformat/conformance_observations_test.go` | Satisfied |
-| DurationFormat runtime `invalid_value` lanes execute the method named by `feature` (`format` by default, or `formatToParts`); constructor `invalid_option` stays in New. | `durationformat/conformance_observations_test.go` | Satisfied |
-| DurationFormat uses the shared validated suite, executes text/parts/resolved observations independently, and rejects malformed or expired ledgers before its callback. | `durationformat/conformance_observations_test.go`; `durationformat/conformance_unified_test.go` | Satisfied |
-| DisplayNames compares complete resolved-options JSON snapshots, including omitted languageDisplay; the shared comparator preserves scalar types and zero values. | `displaynames/conformance_snapshots_test.go`; `internal/testcontract/resolved_json_test.go` | Satisfied |
-| NumberFormat compares complete snapshots, including Boolean false grouping and absent fraction properties for significant-digit rounding. | `numberformat/conformance_snapshots_test.go`; `numberformat/testdata/conformance/manual/resolved-options.json` | Satisfied |
-| DateTimeFormat compares complete snapshots, including hour-cycle and style properties and the absence of automatic dayPeriod. | `datetimeformat/conformance_snapshots_test.go`; existing Node resolved-options fixtures | Satisfied |
-| DurationFormat compares complete snapshots and distinguishes omitted fractionalDigits from explicit zero; no formatter uses the former subset comparator. | `durationformat/conformance_snapshots_test.go`; `internal/testcontract/resolved_json.go` | Satisfied |
-| `tools/gen-fixtures-from-formatjs/` is a standalone module and owns generated FormatJS lanes for currently extractable surfaces. | `tools/gen-fixtures-from-formatjs/go.mod`; `tools/gen-fixtures-from-formatjs/main.go`; generated `testdata/conformance/formatjs` fixtures | Satisfied |
-| Native witness validation enforces required topics, constructor error/refusal coverage, and explicit intentional gaps. | `tools/conformance/node_witness.go`; `tools/conformance/node_witness_test.go`; `tools/conformance/product_contract_test.go`; `task conformance:verify` | Satisfied |
-| `.skip-list.json` audits non-extracted and partially extracted reference sources with `source`, `category`, `route`, and `reason`. | `.skip-list.json`; `tools/conformance/coverage.go`; `tools/conformance/coverage_test.go` | Satisfied |
-| The repository reference checkout is identified by its submodule commit; `formatjs=local-reference` is a source label, and arbitrary `-formatjs` directories are not revision-validated. Node witness regeneration enforces the exact active Node version. | Git submodule commit; `tools/.gen-versions`; `tools/gen-fixtures-from-formatjs/main.go:importNode`; `tools/conformance.ActiveNodeWitnessVersion` | Satisfied |
+| Contract | Evidence |
+|----------|----------|
+| Conformance fixture files are JSON arrays matching §1.1, with globally unique IDs and source-directory consistency. | `tools/conformance/fixtures.go`; `tools/conformance/skip_test.go`; `tools/check-conformance/main.go`; `task conformance:verify` |
+| Error fixtures live in `errors.json` lanes and assert sentinel behavior through package runners. | `*/testdata/conformance/node-v26/errors.json`; package `conformance_unified_test.go` files |
+| NumberFormat independently executes single/range text, parts, and resolved observations, including empty expected arrays; deliberately incorrect observations fail the actual callback. | `numberformat/conformance_observations_test.go`; `numberformat/conformance_unified_test.go` |
+| PluralRules `selectRange` runtime `invalid_value` executes SelectRange; NaN fails, Infinity remains legal, and Select has no error lane. | `pluralrules/conformance_observations_test.go` |
+| PluralRules executes complete resolved JSON without a select input, including mixed category/snapshot records; parts observations fail explicitly. | `pluralrules/conformance_observations_test.go` |
+| ListFormat independently observes complete resolved JSON without decoding list input; unsupported range observations fail. | `listformat/conformance_observations_test.go` |
+| RelativeTimeFormat executes complete resolved/text/parts independently; runtime error feature selects `format` or `formatToParts`, with unsupported observations rejected. | `relativetimeformat/conformance_observations_test.go` |
+| DateTimeFormat, ListFormat, and RelativeTimeFormat execute parts observations without a text prerequisite and assert empty expected arrays. | Package `conformance_observations_test.go` and `conformance_unified_test.go` files |
+| DurationFormat supportedLocalesOf fixtures call the static method directly, compare the complete locale list, and ignore formatting options. | `durationformat/conformance_observations_test.go` |
+| DurationFormat runtime `invalid_value` lanes execute the method named by `feature` (`format` by default, or `formatToParts`); constructor `invalid_option` stays in New. | `durationformat/conformance_observations_test.go` |
+| DurationFormat uses the shared validated suite, executes text/parts/resolved observations independently, and rejects malformed or expired ledgers before its callback. | `durationformat/conformance_observations_test.go`; `durationformat/conformance_unified_test.go` |
+| DisplayNames compares complete resolved-options JSON snapshots, including omitted languageDisplay; the shared comparator preserves scalar types and zero values. | `displaynames/conformance_snapshots_test.go`; `internal/testcontract/resolved_json_test.go` |
+| NumberFormat compares complete snapshots, including Boolean false grouping and absent fraction properties for significant-digit rounding. | `numberformat/conformance_snapshots_test.go`; `numberformat/testdata/conformance/manual/resolved-options.json` |
+| DateTimeFormat compares complete snapshots, including hour-cycle and style properties and the absence of automatic dayPeriod. | `datetimeformat/conformance_snapshots_test.go`; existing Node resolved-options fixtures |
+| DurationFormat compares complete snapshots and distinguishes omitted fractionalDigits from explicit zero; no formatter uses the former subset comparator. | `durationformat/conformance_snapshots_test.go`; `internal/testcontract/resolved_json.go` |
+| `tools/gen-fixtures-from-formatjs/` is a standalone module and owns generated FormatJS lanes for currently extractable surfaces. | `tools/gen-fixtures-from-formatjs/go.mod`; `tools/gen-fixtures-from-formatjs/main.go`; generated `testdata/conformance/formatjs` fixtures |
+| Native witness validation enforces required topics, constructor error/refusal coverage, and explicit intentional gaps. | `tools/conformance/node_witness.go`; `tools/conformance/node_witness_test.go`; `tools/conformance/product_contract_test.go`; `task conformance:verify` |
+| `.skip-list.json` audits non-extracted and partially extracted reference sources with `source`, `category`, `route`, and `reason`. | `.skip-list.json`; `tools/conformance/coverage.go`; `tools/conformance/coverage_test.go` |
+| The repository reference checkout is identified by its submodule commit; `formatjs=local-reference` is a source label, and arbitrary `-formatjs` directories are not revision-validated. Node witness regeneration enforces the exact active Node version. | Git submodule commit; `tools/.gen-versions`; `tools/gen-fixtures-from-formatjs/main.go:importNode`; `tools/conformance.ActiveNodeWitnessVersion` |
 
 ### Divergences And XFAIL
 
-| Contract | Evidence | Status |
-|----------|----------|--------|
-| Packages with active or resolved divergence history keep `testdata/divergences.md`; packages without divergence history may omit it. | `datetimeformat/testdata/divergences.md`; `tools/conformance/divergences.go` | Satisfied |
-| Divergence records use a closed, unique field set; malformed, duplicate, unknown, incomplete, or invalid-date records fail. Resolved history is fully validated before filtering, while active records also name an existing fixture and DateTimeFormat native witness when required. | `tools/conformance/divergences.go`; `tools/conformance/coverage_test.go`; `task conformance:verify` | Satisfied |
-| XFAIL records require `id`, `reason`, `expires_at`, and `tracking_issue`; IDs must be unique, real, and unexpired. | `tools/conformance/xfail.go`; `tools/conformance/skip_test.go`; `tools/check-conformance/main_test.go` | Satisfied |
-| `RunFixtures` validates the complete suite before callbacks; duplicate fixture IDs, malformed divergence/XFAIL state, expired entries, unknown IDs, and missing roots fail closed. | `tools/conformance/runner.go`; `tools/conformance/skip_test.go` subprocess witnesses | Satisfied |
-| XFAIL growth must be reviewed toward zero as implementation matures. | `task conformance:verify` reports xfail totals; human review decides whether growth is justified | Governance |
+| Contract | Evidence |
+|----------|----------|
+| Packages with active or resolved divergence history keep `testdata/divergences.md`; packages without divergence history may omit it. | `datetimeformat/testdata/divergences.md`; `tools/conformance/divergences.go` |
+| Divergence records use a closed, unique field set; malformed, duplicate, unknown, incomplete, or invalid-date records fail. Resolved history is fully validated before filtering, while active records also name an existing fixture and DateTimeFormat native witness when required. | `tools/conformance/divergences.go`; `tools/conformance/coverage_test.go`; `task conformance:verify` |
+| XFAIL records require `id`, `reason`, `expires_at`, and `tracking_issue`; IDs must be unique, real, and unexpired. | `tools/conformance/xfail.go`; `tools/conformance/skip_test.go`; `tools/check-conformance/main_test.go` |
+| `RunFixtures` validates the complete suite before callbacks; duplicate fixture IDs, malformed divergence/XFAIL state, expired entries, unknown IDs, and missing roots fail closed. | `tools/conformance/runner.go`; `tools/conformance/skip_test.go` subprocess witnesses |
+| XFAIL growth must be reviewed toward zero as implementation matures. | `task conformance:verify` reports xfail totals; human review decides whether growth is justified |
 
 ### Gates And Drift Rules
 
-| Contract | Evidence | Status |
-|----------|----------|--------|
-| `task verify` runs the conformance gate with the other correctness/security checks. | `Taskfile.yml` `verify` and `conformance:verify` tasks | Satisfied |
-| PR/main CI runs conformance as a blocking correctness gate. | `.github/workflows/ci.yml` | Satisfied |
-| Performance telemetry is non-blocking and separated from conformance correctness. | `SPECS/71-benchmark.md`; `Taskfile.yml` benchmark tasks | Satisfied |
-| Generated fixtures must pass in their package runner except known divergence/XFAIL records. | Package `conformance_unified_test.go` files; `tools/conformance/RunFixtures` | Satisfied |
-| Public API, option, resolved-option, part, and range-source changes must first locate the ECMA-402 owner or a narrow Go typed bridge. | `AGENTS.md`; `SPECS/72-operation-ledger.md`; relevant surface specs | Governance |
-| Mechanically extractable reference cases enter fixtures; non-extractable sources enter `.skip-list.json`; failing generated fixtures are handled only by implementation repair, divergence records, or XFAIL. | `tools/conformance/coverage.go`; `.skip-list.json`; package fixture runners | Satisfied |
+| Contract | Evidence |
+|----------|----------|
+| `task verify` runs the conformance gate with the other correctness/security checks. | `Taskfile.yml` `verify` and `conformance:verify` tasks |
+| PR/main CI runs conformance as a blocking correctness gate. | `.github/workflows/ci.yml` |
+| Performance telemetry is non-blocking and separated from conformance correctness. | `SPECS/71-benchmark.md`; `Taskfile.yml` benchmark tasks |
+| Generated fixtures must pass in their package runner except known divergence/XFAIL records. | Package `conformance_unified_test.go` files; `tools/conformance/RunFixtures` |
+| Public API, option, resolved-option, part, and range-source changes must first locate the ECMA-402 owner or a narrow Go typed bridge. | `AGENTS.md`; `SPECS/72-operation-ledger.md`; relevant surface specs |
+| Mechanically extractable reference cases enter fixtures; non-extractable sources enter `.skip-list.json`; failing generated fixtures are handled only by implementation repair, divergence records, or XFAIL. | `tools/conformance/coverage.go`; `.skip-list.json`; package fixture runners |
 
 ### Toolchain Constraints
 
-| Contract | Evidence | Status |
-|----------|----------|--------|
-| Snapshot/assertion dependencies such as `testify`, `go-snaps`, `cupaloy`, and `goldie` are absent. | `go.mod` | Satisfied |
-| No test-only dependency is required for conformance fixtures; the old `google/go-cmp` allowance is no longer part of the active toolchain. | `go.mod`; stdlib package tests | Satisfied |
+| Contract | Evidence |
+|----------|----------|
+| Snapshot/assertion dependencies such as `testify`, `go-snaps`, `cupaloy`, and `goldie` are absent. | `go.mod` |
+| No test-only dependency is required for conformance fixtures; the old `google/go-cmp` allowance is no longer part of the active toolchain. | `go.mod`; stdlib package tests |
 
 ### Open Governance Notes
 

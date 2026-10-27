@@ -27,6 +27,12 @@ func TestNumberConformanceObservations(t *testing.T) {
 		fixture conformance.Fixture
 		failure string
 	}{
+		{"foreign ok", conformance.Fixture{Expected: new("1"), ExpectedOK: new(false)}, "unsupported numberformat observation"},
+		{"foreign locales", conformance.Fixture{Expected: new("1"), ExpectedLocales: []string{}}, "unsupported numberformat observation"},
+		{"constructor error and text", conformance.Fixture{Options: jsontext.Value(`{"style":"bad"}`), ErrorCode: "invalid_option", Expected: new("IMPOSSIBLE")}, "unsupported numberformat observation"},
+		{"constructor error and resolved", conformance.Fixture{Options: jsontext.Value(`{"style":"bad"}`), ErrorCode: "invalid_option", ExpectedResolved: jsontext.Value(`{}`)}, "unsupported numberformat observation"},
+		{"range and single text", conformance.Fixture{Input: rangeInput, ExpectedRange: new("1–2"), Expected: new("IMPOSSIBLE")}, "unsupported numberformat observation"},
+		{"range and single parts", conformance.Fixture{Input: rangeInput, ExpectedRangeParts: rangeParts, ExpectedParts: []conformance.Part{}}, "unsupported numberformat observation"},
 		{"parts only", conformance.Fixture{ExpectedParts: parts}, ""},
 		{"range parts only", conformance.Fixture{Input: rangeInput, ExpectedRangeParts: rangeParts}, ""},
 		{"resolved only", conformance.Fixture{Input: jsontext.Value(`{}`), ExpectedResolved: resolved}, ""},
@@ -48,7 +54,9 @@ func TestNumberConformanceObservations(t *testing.T) {
 			f.ID = "observation"
 			f.Source = "manual:adapter"
 			f.Locale = "en"
-			f.Options = jsontext.Value(`{}`)
+			if f.Options == nil {
+				f.Options = jsontext.Value(`{}`)
+			}
 			if f.Input == nil {
 				f.Input = jsontext.Value(`1`)
 			}

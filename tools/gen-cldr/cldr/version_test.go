@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/agentable/go-intl/tools/internal/datapin"
 )
 
 func TestReadVersionFileAndCrossCheck(t *testing.T) {
@@ -23,7 +25,7 @@ func TestReadVersionFileAndCrossCheck(t *testing.T) {
 		t.Fatalf("ReadVersionFile = %+v", got)
 	}
 
-	for _, name := range RequiredPackages() {
+	for _, name := range datapin.RequiredCLDRPackages() {
 		pkgDir := filepath.Join(dir, name)
 		if err := os.MkdirAll(pkgDir, 0o777); err != nil {
 			t.Fatal(err)
@@ -64,7 +66,7 @@ func TestCrossCheckRequiresEveryPackageIdentity(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
-			for _, name := range RequiredPackages() {
+			for _, name := range datapin.RequiredCLDRPackages() {
 				dir := filepath.Join(root, name)
 				if err := os.MkdirAll(dir, 0o755); err != nil {
 					t.Fatal(err)

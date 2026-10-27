@@ -1,6 +1,5 @@
 # SPEC 00 — Vision, Scope, and Architecture
 
-> **Status:** Active contract (2026-08-09)
 > **Audience:** Maintainers, contributors, and callers of `go-intl`.
 > **Authority:** ECMA-402 is the behavioral authority. This document is the project-level memory for what `go-intl` is trying to be; focused SPECS (`10-locale.md`, `20-numberformat.md`, …) own individual surfaces and must change when ECMA-402 or the correctness target proves them too narrow.
 
@@ -213,7 +212,7 @@ go-intl/
     ├── ecma402/            # Production-used abstract operations, constructor-locale wrapper, validators
     ├── ecma402/numberformat/    # digit option resolution and FormatNumericToString
     ├── ecma402/datetimeformat/  # skeleton parser and DateTimeFormat pattern matcher
-    ├── ecma402/pluralrules/     # operands and plural categories
+    ├── plural/                 # operands and plural categories; generated rules live in cldr/plural/
     ├── localematcher/      # ResolveLocale, lookup, best-fit, supported-locale filtering
     ├── decimal/            # apd-backed Decimal representation and arithmetic
     ├── intlerr/            # Cycle-free implementation backing root error aliases
@@ -319,12 +318,12 @@ The formerly open questions are resolved by focused SPECS:
 
 ## 9. Definition of Done for this SPEC
 
-- [x] Vision, scope, and non-goals stated.
-- [x] Reference-implementation policy and test-fixture policy defined.
-- [x] Public surface enumerated.
-- [x] Locale model decided (canonical identity with explicit x/text bridges).
-- [x] Package layout and layering rules defined.
-- [x] External consumer dependency boundary and JS host binding constraints recorded.
-- [x] Active boundaries stated.
-- [x] ECMA-402-over-SPECS authority model stated.
-- [x] Design decisions linked to focused SPECS.
+- Vision, scope, and non-goals stated.
+- Reference-implementation policy and test-fixture policy defined.
+- Public surface enumerated.
+- Locale model decided (canonical identity with explicit x/text bridges).
+- Package layout and layering rules defined.
+- External consumer dependency boundary and JS host binding constraints recorded.
+- Active boundaries stated.
+- ECMA-402-over-SPECS authority model stated.
+- Design decisions linked to focused SPECS.

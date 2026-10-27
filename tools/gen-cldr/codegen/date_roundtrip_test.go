@@ -41,7 +41,7 @@ func TestDateRoundTrip(t *testing.T) {
 		loc := resolveKernelLocale(t, tag)
 		want := expectedDayPeriodMinutes(t, tag, rulesByLocale[tag])
 		for minute, period := range want {
-			if got := date.DayPeriodFor(loc, minute/60, minute%60); got != period {
+			if got := date.DayPeriodFor(loc, minute/60, minute%60, 0); got != period {
 				t.Errorf("DayPeriodFor(%q, %02d:%02d) = %q, want %q", tag, minute/60, minute%60, got, period)
 				break
 			}

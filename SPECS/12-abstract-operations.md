@@ -1,6 +1,5 @@
 # SPEC 12 — ECMA-402 Abstract Operations
 
-> **Status:** Revised (2026-08-09)
 > **Priority:** High
 > **Authority:** This SPEC defines the current `internal/ecma402/` contract. Normative source: `.references/ecma402/spec/`. Generated references are an implementation reference, not the authority.
 

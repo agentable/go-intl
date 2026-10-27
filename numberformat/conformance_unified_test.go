@@ -24,6 +24,13 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 func runNumberConformanceFixture(t *testing.T, fixture conformance.Fixture) {
 	t.Helper()
 
+	hasSingle := fixture.Expected != nil || fixture.ExpectedParts != nil
+	hasRange := fixture.ExpectedRange != nil || fixture.ExpectedRangeParts != nil
+	if fixture.ExpectedOK != nil || fixture.ExpectedLocales != nil || hasSingle && hasRange ||
+		fixture.ErrorCode != "" && (hasSingle || hasRange || fixture.ExpectedResolved != nil) {
+		t.Fatalf("fixture %s: unsupported numberformat observation", fixture.ID)
+	}
+
 	loc := intltest.Locale(t, fixture.Locale)
 	format, err := New(locale.List{loc}, conformanceNumberOptions(t, fixture))
 	if testcontract.AssertErrorCode(t, "New()", err, fixture.ErrorCode, func(code string) error {

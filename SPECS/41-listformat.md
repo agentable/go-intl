@@ -1,6 +1,5 @@
 # SPEC 41 — ListFormat
 
-> **Status:** Draft (2026-05-14)
 > **Owner:** `listformat/` + `internal/cldr/list` + `tools/gen-cldr/`
 > **Reference contract:** `.references/ecma402/spec/listformat.html` first, then `formatjs/packages/intl-listformat/`
 
@@ -255,10 +254,10 @@ MUST rules:
 
 Acceptance checks:
 
-- [ ] `go test -race ./listformat/...`
-- [ ] `(cd tools/gen-cldr && go test ./...)`
-- [ ] `task data:check`
-- [ ] `task test`
+- `go test -race ./listformat/...`
+- `(cd tools/gen-cldr && go test ./...)`
+- `task data:check`
+- `task test`
 
 ---
 

@@ -39,3 +39,18 @@ func TestReadTZDataJSONShapes(t *testing.T) {
 		})
 	}
 }
+
+func TestRequiredCLDRPackagesReturnsSnapshot(t *testing.T) {
+	t.Parallel()
+
+	got := RequiredCLDRPackages()
+	if len(got) == 0 {
+		t.Fatal("RequiredCLDRPackages returned no packages")
+	}
+	wantFirst := got[0]
+	got[0] = "mutated"
+
+	if again := RequiredCLDRPackages(); again[0] != wantFirst {
+		t.Fatalf("RequiredCLDRPackages()[0] = %q, want %q", again[0], wantFirst)
+	}
+}

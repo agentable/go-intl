@@ -392,3 +392,12 @@ func TestInactiveFractionOptions(t *testing.T) {
 		}
 	}
 }
+
+func TestPluralRulesCompactDisplayPrecedesDigits(t *testing.T) {
+	t.Parallel()
+	_, err := New(intltest.LocaleList(t, "en"), Options{CompactDisplay: new("bad"), MinimumIntegerDigits: new(0)})
+	if !errors.Is(err, intlerr.ErrInvalidOption) {
+		t.Fatalf("error = %v, want ErrInvalidOption", err)
+	}
+	testcontract.AssertOptionError(t, err, "pluralrules", intlerr.InvalidOption, "compactDisplay", "bad", "en")
+}

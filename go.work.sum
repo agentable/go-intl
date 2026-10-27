@@ -1,3 +1,4 @@
+github.com/agentable/go-intl v0.5.1/go.mod h1:AOM9JFE9iiZJGTcwb/70qEqaTgDVuxJ9PEO+pkH1iOA=
 golang.org/x/mod v0.41.0 h1:qJmnOUb4YB+FsEuM3HcWucdZASCPGhsX6uljO6pog0c=
 golang.org/x/mod v0.41.0/go.mod h1:Ek9pY8RKWXwsWvd3rQiHYtMqkjSUV+s1Rj7j4H5Ur6o=
 golang.org/x/sync v0.24.0 h1:iqiDrGoDgyuvAKrhLQthUEzU/R378N78gXbBjxed7oA=

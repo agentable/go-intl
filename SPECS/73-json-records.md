@@ -1,6 +1,5 @@
 # SPEC 73 — JSON Record Field Names
 
-> **Status:** Revised (2026-08-09)
 > **Priority:** Medium (host-boundary stability for resolved options, parts, duration records, and locale info records)
 > **Authority:** ECMA-402 resolvedOptions objects, part records, duration records, and locale info records define observable JSON field names. Go struct fields are typed bridges only.
 

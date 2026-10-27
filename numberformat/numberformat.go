@@ -32,13 +32,19 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 	if cfg.notation == "compact" && opts.UseGrouping == nil {
 		cfg.useGrouping = string(UseGroupingMin2)
 	}
-	if err := cfg.validate(validationLocaleName); err != nil {
+	if err := cfg.validateBeforeDigits(validationLocaleName); err != nil {
 		return nil, err
 	}
 	mnfdDefault, mxfdDefault := digitDefaults(cfg)
 	resolvedDigits, invalid, ok := ecma402nf.SetNumberFormatDigitOptions(cfg.digits, mnfdDefault, mxfdDefault, cfg.notation)
 	if ok {
 		return nil, ecma402nf.InvalidDigitOptionError(numberFormatOwner, invalid, validationLocaleName)
+	}
+	if err := ecma402.ValidateStringOptions(numberFormatOwner, validationLocaleName,
+		ecma402nf.CompactDisplayOption(cfg.compactDisplay),
+		useGroupingOption(cfg.useGrouping), signDisplayOption(cfg.signDisplay),
+	); err != nil {
+		return nil, err
 	}
 	resolvedLocale, dataLocale, cldrLoc, unitLoc, numberingSystem := resolveLocale(locales, validationLocale, cfg)
 	digitOptions := resolvedDigits.DigitOptions

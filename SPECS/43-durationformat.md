@@ -1,6 +1,5 @@
 # SPEC 43 — DurationFormat
 
-> **Status:** Draft (2026-05-14)
 > **Owner:** `durationformat/` + `internal/cldr` units/number/list/plural payloads + `tools/gen-cldr/`
 > **Reference contract:** `.references/ecma402/spec/durationformat.html` first, then `formatjs/packages/intl-durationformat/` + `formatjs/packages/ecma402-abstract/DurationFormat/`
 
@@ -256,12 +255,12 @@ MUST rules:
 
 Acceptance checks:
 
-- [ ] `go test -race ./durationformat/...`
-- [ ] `(cd tools/gen-cldr && go test ./...)`
-- [ ] `(cd tools/gen-fixtures-from-formatjs && go test ./...)`
-- [ ] `task conformance:verify`
-- [ ] `task data:check`
-- [ ] `task test`
+- `go test -race ./durationformat/...`
+- `(cd tools/gen-cldr && go test ./...)`
+- `(cd tools/gen-fixtures-from-formatjs && go test ./...)`
+- `task conformance:verify`
+- `task data:check`
+- `task test`
 
 ---
 

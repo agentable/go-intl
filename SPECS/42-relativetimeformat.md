@@ -1,6 +1,5 @@
 # SPEC 42 — RelativeTimeFormat
 
-> **Status:** Draft (2026-05-14)
 > **Owner:** `relativetimeformat/` + `internal/cldr/relativetime` + `tools/gen-cldr/`
 > **Reference contract:** `.references/ecma402/spec/relativetimeformat.html` first, then `formatjs/packages/intl-relativetimeformat/` + `formatjs/packages/ecma402-abstract/RelativeTimeFormat/`
 
@@ -306,11 +305,11 @@ MUST rules:
 
 Acceptance checks:
 
-- [ ] `go test -race ./relativetimeformat/...`
-- [ ] `go test -race ./numberformat/... ./pluralrules/...`
-- [ ] `(cd tools/gen-cldr && go test ./...)`
-- [ ] `task data:check`
-- [ ] `task test`
+- `go test -race ./relativetimeformat/...`
+- `go test -race ./numberformat/... ./pluralrules/...`
+- `(cd tools/gen-cldr && go test ./...)`
+- `task data:check`
+- `task test`
 
 ---
 

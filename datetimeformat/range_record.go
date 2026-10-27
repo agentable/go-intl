@@ -250,7 +250,7 @@ func timeRangeFieldEqual(field timeRangeField, periodKind rangePeriodKind, forma
 		case rangePeriodStandard:
 			return (start.Hour < 12) == (end.Hour < 12)
 		case rangePeriodFlexible:
-			return flexibleDayPeriodValue(format.cldrLoc, start) == flexibleDayPeriodValue(format.cldrLoc, end)
+			return format.flexibleDayPeriodValue(start) == format.flexibleDayPeriodValue(end)
 		case rangePeriodNone:
 			return true
 		}

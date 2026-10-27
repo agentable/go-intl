@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
+	"github.com/agentable/go-intl/tools/internal/datapin"
 )
 
 func writeRuntimeCLDRFixtures(t *testing.T, root string) {
@@ -150,7 +150,7 @@ func TestRunAcceptsNestedAvailableLocales(t *testing.T) {
 
 func writeBaseCLDRFixture(t *testing.T, root string) {
 	t.Helper()
-	for _, name := range cldr.RequiredPackages() {
+	for _, name := range datapin.RequiredCLDRPackages() {
 		if err := os.MkdirAll(filepath.Join(root, name), 0o777); err != nil {
 			t.Fatalf("mkdir %s: %v", name, err)
 		}

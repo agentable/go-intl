@@ -21,7 +21,7 @@ func ReadVersionFile(path string) (Versions, error) { return datapin.ReadVersion
 // CrossCheck verifies every CLDR package consumed by the generator against
 // the pinned package identity before any output is written.
 func CrossCheck(cldrJSONRoot string, want Versions) error {
-	for _, name := range requiredPackages {
+	for _, name := range datapin.RequiredCLDRPackages() {
 		pkgPath := filepath.Join(cldrJSONRoot, name, "package.json")
 		raw, err := readRequiredFile(pkgPath)
 		if err != nil {

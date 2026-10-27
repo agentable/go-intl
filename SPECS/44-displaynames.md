@@ -1,6 +1,5 @@
 # 44 — DisplayNames
 
-Status: active
 Owns: `displaynames` package public API, type/style/fallback resolution, CLDR localenames data binding.
 
 References:
@@ -96,7 +95,7 @@ Display-name data comes from generated CLDR payloads in `internal/cldr/displayna
 | Language | `cldr-localenames-full/main/<locale>/languages.json` | `-alt-short` keys map to `Style=ShortStyle`, `-alt-narrow` keys map to `Style=NarrowStyle`; both fall back to long. `LanguageDisplay=StandardLanguageDisplay` starts from a bare language/style name and composes all script, region, and variant names once through `localePattern` / `localeSeparator`. Generated standard rows contain bare languages only; composite dialect rows remain exclusive to dialect lookup. |
 | Region | `cldr-localenames-full/main/<locale>/territories.json` | `-alt-short` mapped to ShortStyle. Numeric UN M.49 region codes are returned as-is when they are not a CLDR-carried macro-region (e.g. `of("840")` → `"840"`), matching V8/Node — go-intl does not synthesize an M.49→alpha-2 alias table. |
 | Script | `cldr-localenames-full/main/<locale>/scripts.json` | |
-| Currency | `cldr-numbers-full/main/<locale>/currencies.json`. All styles return the localized `displayName` (singular noun, exposed through `cldr.Locale.CurrencyCanonicalName`); `of("USD")` is `"US Dollar"` for long/short/narrow alike, matching V8/Node. Currency *symbols* (`$`, `symbol-alt-narrow`) are not exposed through DisplayNames — that surface belongs to NumberFormat. | |
+| Currency | `cldr-numbers-full/main/<locale>/currencies.json`. All styles return the localized `displayName` (singular noun, exposed through `internal/cldr/currency.CanonicalName`, selected by `internal/cldr/displaynames/accessors.go:currencyDisplay`); `of("USD")` is `"US Dollar"` for long/short/narrow alike, matching V8/Node. Currency *symbols* (`$`, `symbol-alt-narrow`) are not exposed through DisplayNames — that surface belongs to NumberFormat. | |
 | Calendar | `cldr-localenames-full/main/<locale>/localeDisplayNames.json#types.calendar`. ECMA-402 calendar keys are aliased to CLDR keys at lookup time (`gregory` → `gregorian`, `ethioaa` → `ethiopic-amete-alem`). | |
 | DateTimeField | `cldr-dates-full/main/<locale>/dateFields.json` `fields.<field>.displayName`. CLDR field keys are normalized to ECMA-402 names (`week` → `weekOfYear`, `zone` → `timeZoneName`); `-short` and `-narrow` suffixes feed the corresponding styles. | |
 
@@ -104,13 +103,15 @@ Lookup walks only the resolved data locale's truncation parent chain (`en-US` �
 
 Generation MUST:
 
-1. Live in `tools/gen-cldr/cldr/displaynames.go`, `tools/gen-cldr/extract/displaynames.go`, and `tools/gen-cldr/codegen/displaynames.go`.
+1. Live in `tools/gen-cldr/cldr/displaynames.go`, `tools/gen-cldr/extract/displaynames.go`, and `tools/gen-cldr/codegen/displaynames_encode.go`.
 2. Use the project-wide locale profile (`tools/locale-profile.json` → `locales`).
 3. Emit const-only `internal/cldr/displaynames/data.go`. The hand-written decode layer owns per-kind lazy gates; language composition additionally reads script/territory/variant payloads as needed. The supported-locale accessor uses its narrow generated index.
 
 ---
 
 ## 4. Errors
+
+Constructor validation reports the first error in `localeMatcher → style → type → fallback → languageDisplay` order. `displaynames/validate_test.go:TestDisplayNamesOptionErrorOrder` exercises simultaneous invalid options through `New`, including missing type with invalid style.
 
 - `gointl.ErrInvalidOption`: missing `Type`, invalid enum value, or unsupported `LocaleMatcher`.
 - `ErrInvalidCode`: invalid `Of` input code shape for the resolved display-name type.

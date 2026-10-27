@@ -39,9 +39,9 @@ func SupportedCalendars() []string {
 // DayPeriodFor returns the day-period type that contains the given wall-clock
 // time for the locale, or "" when no rule matches. Point rules (From == To) take
 // precedence over range rules.
-func DayPeriodFor(loc Locale, hour, minute int) string {
+func DayPeriodFor(loc Locale, hour, minute, second int) string {
 	dayPeriodOnce.Do(loadDayPeriods)
-	value := time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute
+	value := time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute + time.Duration(second)*time.Second
 	rules := dayPeriodRulesForLocale(loc)
 	for _, rule := range rules {
 		if rule.From == rule.To && value == rule.From {

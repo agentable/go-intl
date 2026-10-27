@@ -1,6 +1,5 @@
 # SPEC 40 — PluralRules
 
-> **Status:** Draft (2026-05-08)
 > **Owner:** `pluralrules/` + `internal/plural/` + `tools/gen-plural-rules/`
 > **Reference contract:** `.references/ecma402/spec/pluralrules.html` first, then `formatjs/packages/intl-pluralrules/` + `formatjs/packages/ecma402-abstract/PluralRules/`
 
@@ -576,19 +575,19 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 SPEC 40 is accepted when the generator, public constructor behavior, compact
 semantics, and conformance fixtures agree with the ECMA-402/CLDR boundary.
 
-| Contract | Evidence | Status |
-|----------|----------|--------|
-| `tools/gen-plural-rules/` remains an independent module and emits CLDR 48.1.0 generated files with stable headers. | `tools/gen-plural-rules/go.mod`; `tools/gen-plural-rules/main.go`; `internal/cldr/plural/cardinal_rules.go`; `internal/cldr/plural/ordinal_rules.go`; `internal/cldr/plural/range_rules.go`; `internal/cldr/plural/categories.go`; `internal/cldr/plural/supported.go` | Satisfied |
-| Every active locale has generated cardinal and ordinal rules; missing generation input and missing runtime rule lookup fail with locale/family context instead of defaulting. | `tools/gen-plural-rules/main_test.go`; `internal/cldr/plural/rules.go`; `internal/cldr/plural/rules_test.go`; constructor tests | Satisfied |
-| Codegen does not depend on `dave/jennifer`; runtime and codegen do not depend on `golang.org/x/text/feature/plural`. | `rg "dave/jennifer" tools/gen-plural-rules`; `rg "x/text/feature/plural" internal/plural tools/gen-plural-rules pluralrules/*.go` | Satisfied |
-| The `pluralrules/benchmark_baseline_test.go` `x/text/feature/plural` import is retained only as benchmark comparison evidence and is outside runtime/codegen acceptance. | `pluralrules/benchmark_baseline_test.go` | Accepted exception |
-| Cardinal, ordinal, range, non-finite select/range behavior, NaN range errors, reversed range, rounded equality, and resolved category behavior are covered by package tests and generated fixtures. | `pluralrules/pluralrules_test.go`; `pluralrules/range_test.go`; `pluralrules/options_test.go`; `pluralrules/conformance_unified_test.go`; `pluralrules/testdata/conformance/formatjs/index-test-ts.json` | Satisfied |
-| Public PluralRules compact notation uses source-decimal-plus-exponent behavior, including million-scale `many` fixtures; FormatJS's missing compact-data environment is recorded separately. | `pluralrules/testdata/conformance/node-v26/compact.json`; `pluralrules/testdata/conformance/node-v26/compact-review.json`; `pluralrules/testdata/compact-review.md`; `pluralrules/testdata/divergences.md`; `compact_contract_test.go` | Satisfied |
-| NumberFormat compact suffix selection remains internal and generated-rule based; no public `SelectFormatted` or internal `ResolvePlural` helper exists. | `numberformat/notation.go`; `internal/plural/plural.go`; absence of `SelectFormatted` / `ResolvePlural` in Go source | Satisfied |
-| `OperandsRecord` remains the single internal operand record bridge. | `internal/plural/plural.go`; `pluralrules/pluralrules_test.go` | Satisfied |
-| Race, vet, and generated-data byte stability gates pass for the package and generated CLDR output. | `go test -race ./pluralrules/...`; `go vet ./pluralrules/...`; `task data:check` | Required verification |
-| PluralRules cardinal, ordinal, and range benchmarks remain per-surface and non-blocking. | `pluralrules/benchmark_test.go`; `SPECS/71-benchmark.md`; `task bench` | Satisfied |
-| CLDR bumps are visible as generated-data diffs and must be reviewed with source CLDR version changes. | `internal/cldr/plural/*`; `tools/gen-plural-rules/main.go`; `task data:check` | Required on CLDR update |
+| Contract | Evidence |
+|----------|----------|
+| `tools/gen-plural-rules/` remains an independent module and emits CLDR 48.1.0 generated files with stable headers. | `tools/gen-plural-rules/go.mod`; `tools/gen-plural-rules/main.go`; `internal/cldr/plural/cardinal_rules.go`; `internal/cldr/plural/ordinal_rules.go`; `internal/cldr/plural/range_rules.go`; `internal/cldr/plural/categories.go`; `internal/cldr/plural/supported.go` |
+| Every active locale has generated cardinal and ordinal rules; missing generation input and missing runtime rule lookup fail with locale/family context instead of defaulting. | `tools/gen-plural-rules/main_test.go`; `internal/cldr/plural/rules.go`; `internal/cldr/plural/rules_test.go`; constructor tests |
+| Codegen does not depend on `dave/jennifer`; runtime and codegen do not depend on `golang.org/x/text/feature/plural`. | `rg "dave/jennifer" tools/gen-plural-rules`; `rg "x/text/feature/plural" internal/plural tools/gen-plural-rules pluralrules/*.go` |
+| The `pluralrules/benchmark_baseline_test.go` `x/text/feature/plural` import is retained only as benchmark comparison evidence and is outside runtime/codegen acceptance. | `pluralrules/benchmark_baseline_test.go` |
+| Cardinal, ordinal, range, non-finite select/range behavior, NaN range errors, reversed range, rounded equality, and resolved category behavior are covered by package tests and generated fixtures. | `pluralrules/pluralrules_test.go`; `pluralrules/range_test.go`; `pluralrules/options_test.go`; `pluralrules/conformance_unified_test.go`; `pluralrules/testdata/conformance/formatjs/index-test-ts.json` |
+| Public PluralRules compact notation uses source-decimal-plus-exponent behavior, including million-scale `many` fixtures; FormatJS's missing compact-data environment is recorded separately. | `pluralrules/testdata/conformance/node-v26/compact.json`; `pluralrules/testdata/conformance/node-v26/compact-review.json`; `pluralrules/testdata/compact-review.md`; `pluralrules/testdata/divergences.md`; `compact_contract_test.go` |
+| NumberFormat compact suffix selection remains internal and generated-rule based; no public `SelectFormatted` or internal `ResolvePlural` helper exists. | `numberformat/notation.go`; `internal/plural/plural.go`; absence of `SelectFormatted` / `ResolvePlural` in Go source |
+| `OperandsRecord` remains the single internal operand record bridge. | `internal/plural/plural.go`; `pluralrules/pluralrules_test.go` |
+| Race, vet, and generated-data byte stability gates pass for the package and generated CLDR output. | `go test -race ./pluralrules/...`; `go vet ./pluralrules/...`; `task data:check` |
+| PluralRules cardinal, ordinal, and range benchmarks remain per-surface and non-blocking. | `pluralrules/benchmark_test.go`; `SPECS/71-benchmark.md`; `task bench` |
+| CLDR bumps are visible as generated-data diffs and must be reviewed with source CLDR version changes. | `internal/cldr/plural/*`; `tools/gen-plural-rules/main.go`; `task data:check` |
 
 ---
 

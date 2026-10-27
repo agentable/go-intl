@@ -308,3 +308,36 @@ func TestSubdivisionRegionPreference(t *testing.T) {
 		})
 	}
 }
+
+func TestGetNumberingSystemsLookup(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ tag, want string }{
+		{"ar", "latn"},
+		{"ar-EG", "arab"},
+		{"ar-EG-x-private", "arab"},
+		{"ar-EG-foobar", "arab"},
+		{"ar-EG-t-en", "arab"},
+		{"ar-EG-foobar-foobaz-t-en-u-ca-gregory-x-private", "arab"},
+		{"bn-BD-x-private", "beng"},
+		{"zz-ZZ-x-private", "latn"},
+		{"ar-EG-u-nu-latn", "latn"},
+		{"ar-EG-u-nu", ""},
+		{"ar-EG-u-nu-foobar", "foobar"},
+	} {
+		t.Run(tc.tag, func(t *testing.T) {
+			t.Parallel()
+			loc, err := Parse(tc.tag)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := loc.GetNumberingSystems()
+			if !slices.Equal(got, []string{tc.want}) {
+				t.Fatalf("GetNumberingSystems() = %v, want [%q]", got, tc.want)
+			}
+			got[0] = "mutated"
+			if got := loc.GetNumberingSystems(); !slices.Equal(got, []string{tc.want}) {
+				t.Fatalf("GetNumberingSystems() after mutation = %v, want [%q]", got, tc.want)
+			}
+		})
+	}
+}

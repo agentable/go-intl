@@ -141,3 +141,35 @@ func TestInactiveFractionOptions(t *testing.T) {
 		}
 	}
 }
+
+func TestNumberFormatOptionErrorOrder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		opts  Options
+		value string
+	}{
+		{"localeMatcher", Options{LocaleMatcher: new("bad"), Style: new("bad")}, "bad"},
+		{"numberingSystem", Options{NumberingSystem: new("!"), Style: new("bad")}, "!"},
+		{"style", Options{Style: new("bad"), Currency: new("!")}, "bad"},
+		{"currency", Options{Style: new("currency"), Notation: new("bad")}, ""},
+		{"currency", Options{Currency: new("!"), CurrencyDisplay: new("bad")}, "!"},
+		{"currencyDisplay", Options{CurrencyDisplay: new("bad"), CurrencySign: new("bad")}, "bad"},
+		{"currencySign", Options{CurrencySign: new("bad"), Unit: new("bad")}, "bad"},
+		{"unit", Options{Style: new("unit"), UnitDisplay: new("bad")}, ""},
+		{"unit", Options{Unit: new("bad"), UnitDisplay: new("bad")}, "bad"},
+		{"unitDisplay", Options{UnitDisplay: new("bad"), Notation: new("bad")}, "bad"},
+		{"notation", Options{Notation: new("bad"), MinimumIntegerDigits: new(0)}, "bad"},
+		{"minimumIntegerDigits", Options{MinimumIntegerDigits: new(0), CompactDisplay: new("bad")}, "0"},
+		{"compactDisplay", Options{CompactDisplay: new("bad"), UseGrouping: new("bad")}, "bad"},
+		{"useGrouping", Options{UseGrouping: new("bad"), SignDisplay: new("bad")}, "bad"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := New(intltest.LocaleList(t, "en"), tc.opts)
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("error = %v, want ErrInvalidOption", err)
+			}
+			testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, tc.name, tc.value, "en")
+		})
+	}
+}

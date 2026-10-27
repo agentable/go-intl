@@ -4,28 +4,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
+
+	"github.com/agentable/go-intl/tools/internal/datapin"
 )
-
-var requiredPackages = [...]string{
-	"cldr-bcp47",
-	"cldr-core",
-	"cldr-dates-full",
-	"cldr-localenames-full",
-	"cldr-misc-full",
-	"cldr-numbers-full",
-	"cldr-units-full",
-}
-
-func RequiredPackages() []string {
-	return slices.Clone(requiredPackages[:])
-}
 
 func ResolveLocalDir(root string) (string, error) {
 	if root == "" {
 		return "", fmt.Errorf("cldr-json root is required")
 	}
-	for _, name := range requiredPackages {
+	for _, name := range datapin.RequiredCLDRPackages() {
 		info, err := os.Stat(filepath.Join(root, name))
 		if err != nil {
 			return "", fmt.Errorf("missing %s under %s: %w", name, root, err)

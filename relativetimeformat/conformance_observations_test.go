@@ -25,6 +25,13 @@ func TestRelativeConformanceObservations(t *testing.T) {
 		fixture conformance.Fixture
 		failure string
 	}{
+		{"constructor error and text", conformance.Fixture{Options: jsontext.Value(`{"style":"bad"}`), ErrorCode: "invalid_option", Expected: new("IMPOSSIBLE")}, "unsupported relativetimeformat observation"},
+		{"constructor error and resolved", conformance.Fixture{Options: jsontext.Value(`{"style":"bad"}`), ErrorCode: "invalid_option", ExpectedResolved: jsontext.Value(`{}`)}, "unsupported relativetimeformat observation"},
+		{"format error and text", conformance.Fixture{Feature: "format", Input: jsontext.Value(`{"value":1,"unit":"invalid"}`), ErrorCode: "invalid_value", Expected: new("IMPOSSIBLE")}, "unsupported relativetimeformat observation"},
+		{"parts error and parts", conformance.Fixture{Feature: "formatToParts", Input: jsontext.Value(`{"value":1,"unit":"invalid"}`), ErrorCode: "invalid_value", ExpectedParts: []conformance.Part{}}, "unsupported relativetimeformat observation"},
+		{"format error and resolved", conformance.Fixture{Feature: "format", Input: jsontext.Value(`{"value":1,"unit":"invalid"}`), ErrorCode: "invalid_value", ExpectedResolved: jsontext.Value(`{"locale":"en","style":"long","numeric":"always","numberingSystem":"latn"}`)}, ""},
+		{"parts error and resolved", conformance.Fixture{Feature: "formatToParts", Input: jsontext.Value(`{"value":1,"unit":"invalid"}`), ErrorCode: "invalid_value", ExpectedResolved: jsontext.Value(`{"locale":"en","style":"long","numeric":"always","numberingSystem":"latn"}`)}, ""},
+		{"format error and wrong resolved", conformance.Fixture{Feature: "format", Input: jsontext.Value(`{"value":1,"unit":"invalid"}`), ErrorCode: "invalid_value", ExpectedResolved: jsontext.Value(`{"locale":"wrong"}`)}, "ResolvedOptions"},
 		{"resolved only", conformance.Fixture{Input: jsontext.Value(`null`), ExpectedResolved: jsontext.Value(`{"locale":"en","style":"long","numeric":"always","numberingSystem":"latn"}`)}, ""},
 		{"wrong resolved", conformance.Fixture{ExpectedResolved: jsontext.Value(`{"locale":"wrong","style":"long","numeric":"always","numberingSystem":"latn"}`)}, "ResolvedOptions"},
 		{"missing resolved field", conformance.Fixture{ExpectedResolved: jsontext.Value(`{"locale":"en","style":"long","numeric":"always"}`)}, "ResolvedOptions"},

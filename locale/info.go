@@ -3,11 +3,15 @@ package locale
 import (
 	"encoding/json/v2"
 	"slices"
+	"sync"
 	"time"
 
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	"github.com/agentable/go-intl/internal/localeid"
+	"github.com/agentable/go-intl/internal/localematcher"
+	"github.com/agentable/go-intl/internal/numbering"
 	"github.com/agentable/go-intl/internal/tz"
 )
 
@@ -76,17 +80,21 @@ func (l Locale) GetHourCycles() []string {
 	return cldrlocale.HourCyclePreference(l.Language(), preference.regionOverride, preference.region)
 }
 
+var numberingSystemMatcher = sync.OnceValue(func() *localematcher.Matcher {
+	return localematcher.NewMatcher(cldrnumber.SupportedLocales(), cldrlocale.Maximize)
+})
+
 func (l Locale) GetNumberingSystems() []string {
 	if value, present := l.ext.keywords["nu"]; present {
 		return []string{value}
 	}
-	if resolved, ok := cldrlocale.ResolveLocale(l.tag.String()); ok {
+	match := numberingSystemMatcher().Match([]string{l.tag.String()}, "", localematcher.AlgorithmLookup)
+	if resolved, ok := cldrlocale.ResolveLocale(match.DataLocale); ok {
 		if numberingSystem := resolved.DefaultNumberingSystem(); numberingSystem != "" {
 			return []string{numberingSystem}
 		}
 	}
-	fallback, _ := cldrlocale.ResolveLocale("en")
-	return []string{fallback.DefaultNumberingSystem()}
+	return []string{numbering.DefaultNumberingSystem}
 }
 
 func (l Locale) GetTimeZones() []string {

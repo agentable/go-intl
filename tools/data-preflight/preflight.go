@@ -131,8 +131,10 @@ func checkCLDRPackagePins(path, want string) error {
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		return fmt.Errorf("parse %s: %w", path, err)
 	}
-	if manifest.Dependencies["cldr-core"] == "" {
-		return fmt.Errorf("%s: missing cldr-core package pin", path)
+	for _, name := range datapin.RequiredCLDRPackages() {
+		if manifest.Dependencies[name] == "" {
+			return fmt.Errorf("%s: missing %s package pin", path, name)
+		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(manifest.Dependencies)) {
 		if !strings.HasPrefix(name, "cldr-") {

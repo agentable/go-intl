@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/agentable/go-intl/tools/internal/datapin"
+
 	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 	"github.com/agentable/go-intl/tools/gen-cldr/codegen"
 	"github.com/agentable/go-intl/tools/gen-cldr/extract"
@@ -202,7 +204,7 @@ func buildManifest(versionFile, profileFile, cldrRoot string, versions cldr.Vers
 		{name: "tools/locale-profile.json", path: profileFile},
 	}
 	inputFiles = append(inputFiles, extras...)
-	packages := cldr.RequiredPackages()
+	packages := datapin.RequiredCLDRPackages()
 	hashes := make([]codegen.ManifestHash, len(inputFiles)+len(packages))
 	for i, file := range inputFiles {
 		hash := file.sha256

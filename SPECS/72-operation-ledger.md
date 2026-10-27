@@ -1,6 +1,5 @@
 # 72 - Operation Ledger
 
-Status: active
 Owns: mapping public `go-intl` surfaces to ECMA-402 owners, local implementation files, and verification gates.
 
 This ledger is the maintenance index for public API truthfulness. Package SPECS own detailed semantics; this file answers one narrower question: "why does this exported surface exist, and where is its observable contract tested?"
@@ -127,11 +126,11 @@ rationale, `review_after`, and removal path.
 
 ## 8. Acceptance Criteria
 
-- [ ] New exported surfaces update this ledger in the same change.
-- [ ] Deleted public surfaces remove their ledger row and any README/SPEC references.
-- [ ] Rows for narrowed implementation gaps link to the owning SPEC section with current behavior, `review_after`, and removal path.
-- [ ] New partial capabilities update the capability-slice ledger before they are advertised by public supported-locale or supported-value APIs.
-- [ ] Supported-locale and supported-value expansions include accepted, refused, resolved-options, and CLDR/backend/native-witness proof at the owner package or conformance layer.
-- [ ] Public supported-locale and supported-value APIs do not advertise refused capability slices.
-- [ ] `task lint` and `task test` pass after ledger-affecting code changes.
-- [ ] `task conformance:verify` passes when fixture or divergence references change.
+- New exported surfaces update this ledger in the same change.
+- Deleted public surfaces remove their ledger row and any README/SPEC references.
+- Rows for narrowed implementation gaps link to the owning SPEC section with current behavior, `review_after`, and removal path.
+- New partial capabilities update the capability-slice ledger before they are advertised by public supported-locale or supported-value APIs.
+- Supported-locale and supported-value expansions include accepted, refused, resolved-options, and CLDR/backend/native-witness proof at the owner package or conformance layer.
+- Public supported-locale and supported-value APIs do not advertise refused capability slices.
+- `task lint` and `task test` pass after ledger-affecting code changes.
+- `task conformance:verify` passes when fixture or divergence references change.

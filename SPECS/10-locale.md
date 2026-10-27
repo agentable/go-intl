@@ -1,6 +1,5 @@
 # SPEC 10 — Locale
 
-> **Status:** Revised (2026-10-21)
 > **Priority:** High (all formatter input types; blocking SPEC 11 / 20 / 30 / 40 / 60)
 > **Authority:** ECMA-402 `.references/ecma402/spec/locale.html` is a normative source. This SPEC records the current of `locale.Locale` type, ECMA-402 `Intl.Locale` alignment, parsing and normalization, `Maximize` / `Minimize`, read-only property getter, `String` / `Equal` / `MarshalText` / `UnmarshalText` Go contracts.
 
@@ -172,7 +171,7 @@ replace the extension parsers.
 
 Verification failure returns an error matching the root error category. Parsing failed to match `gointl.ErrInvalidValue`; constructor option failed to match `gointl.ErrInvalidOption`.
 
-> **Why**: One-time verification during construction, the formatter layer no longer verifies the syntax twice; but whether it can be parsed in CLDR (such as `Calendar="vulcan"`) will be reported by the formatter when searching for data (`numberformat`/`datetimeformat` is sentinel by itself).
+> **Why**: Locale identity grammar and formatter data support are separate. A grammatical unknown calendar such as `vulcan` is preserved by Locale; DateTimeFormat negotiates it to a supported calendar through `date.DateLocaleData.For`. Invalid input errors use the root error vocabulary (`errors.go`), constructed internally through `internal/intlerr`. See `datetimeformat/datetimeformat_test.go:TestDateTimeFormatFallsBackForUnsupportedCalendarOption`.
 >
 > **Rejected**: Check the existence of CLDR data during the construction period (hierarchy violation: the construction period does not rely on CLDR; only the formatter layer requires CLDR data).
 
@@ -417,6 +416,12 @@ preferences only when that domain has data; otherwise the base region, `sd`,
 likely region, and world fallback retain their existing precedence.
 
 
+`GetNumberingSystems` preserves an explicit `nu` singleton, including an empty or
+unknown type. Otherwise it uses the shared lookup matcher over generated number
+locales, retaining intermediate region prefixes and mapping derived available
+locales to their payload. The locale kernel supplies that payload’s default; an
+unmatched locale returns `latn`. No best-fit or default-locale negotiation occurs.
+
 ### 5.4 Explicit Calendar fields take precedence
 
 If the calendar keyword is present, `GetCalendars()` returns that type as a singleton, including an empty type. The same presence rule applies to collation, hour-cycle and numbering-system candidate lists. String getters retain their Go zero-value bridge for absent/empty; `String()` and candidate lists preserve presence.
@@ -575,7 +580,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 - ❌ Don't: `loc1 == loc2` (compilation error or undefined behavior).
 
 - **Check the existence of CLDR data during construction** (such as whether `Calendar="vulcan"` is in CLDR): Hierarchy violation.
-- ✅ Do: Only BCP 47 syntax is verified during construction; data existence is determined by formatter reporting an error during data search.
+- ✅ Do: Preserve grammatical locale identity independently of data support; formatter negotiation applies the owning operation’s fallback policy.
 - ❌ Don't: `import "internal/cldr"` inside `Parse` checks the calendar name.
 
 - **Candidate list method returns fixed `[]string` literal** (ignoring region preference): breaks spec consistency.
@@ -596,69 +601,69 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 
 ### Structure
 
-- [ ] `locale.Locale` expresses `Intl.Locale` read-only object using unexported canonical identity + extension state, consistent with §1.1 getter.
-- [ ] `Numeric()` getter returns `bool`; `Options.Numeric *bool` expresses omitted vs explicit boolean constructor input, while string option pointers express omitted vs explicit string constructor input.
+- `locale.Locale` expresses `Intl.Locale` read-only object using unexported canonical identity + extension state, consistent with §1.1 getter.
+- `Numeric()` getter returns `bool`; `Options.Numeric *bool` expresses omitted vs explicit boolean constructor input, while string option pointers express omitted vs explicit string constructor input.
 
 ### Analysis
 
-- [ ] `Parse(s string) (Locale, error)` accepts BCP 47 strings (with `-u-` extension).
-- [ ] `New(tag string, opts Options) (Locale, error)` accepts a `Options` value, `Options{}` represents an empty options object.
-- [ ] `FromTag` and fallible `Tag` are the explicit x/text bridges.
-- [ ] A successful `Tag()` round-trips through `FromTag` with complete identity; lossy conversion returns `ErrInvalidValue`.
-- [ ] The only `golang.org/x/text` type allowed in an export signature is `language.Tag`; the secondary `x/text` type is not leaked.
-- [ ] `ParseList(tags ...string)` constructs the formatter request list.
-- [ ] If parsing fails, an error with `errors.Is(err, gointl.ErrInvalidValue)` being true is returned.
-- [ ] Canonicalizes Unicode types by key from pinned CLDR BCP47 data: `ca=islamicc` → `islamic-civil`, `ms=imperial` → `uksystem`; `co=islamic-civil` remains unchanged and malformed `ca=gregorian` is rejected before lookup.
-- [ ] `Parse("en-US-u-fw-0")` rejects malformed tag syntax, while `Options{FirstDayOfWeek: gointl.String("0")}` normalizes to `-u-fw-sun`; tag parsing never applies constructor-option coercion.
-- [ ] Unicode extension keys have exactly two ASCII characters: alphanumeric followed by a letter. `00` and `a0` are invalid; `0a` and `aa` are valid, including uppercase input. Runtime and generator share `internal/localeid.IsUnicodeKey`.
-- [ ] Tag types are grammar-checked; the §2.3 option rules apply only to explicit options.
-- [ ] Explicit empty string option values (`Calendar`, `Collation`, `HourCycle`, `CaseFirst`, `NumberingSystem`, `FirstDayOfWeek`, and language identifier overrides) return invalid-option errors instead of being treated as omitted.
+- `Parse(s string) (Locale, error)` accepts BCP 47 strings (with `-u-` extension).
+- `New(tag string, opts Options) (Locale, error)` accepts a `Options` value, `Options{}` represents an empty options object.
+- `FromTag` and fallible `Tag` are the explicit x/text bridges.
+- A successful `Tag()` round-trips through `FromTag` with complete identity; lossy conversion returns `ErrInvalidValue`.
+- The only `golang.org/x/text` type allowed in an export signature is `language.Tag`; the secondary `x/text` type is not leaked.
+- `ParseList(tags ...string)` constructs the formatter request list.
+- If parsing fails, an error with `errors.Is(err, gointl.ErrInvalidValue)` being true is returned.
+- Canonicalizes Unicode types by key from pinned CLDR BCP47 data: `ca=islamicc` → `islamic-civil`, `ms=imperial` → `uksystem`; `co=islamic-civil` remains unchanged and malformed `ca=gregorian` is rejected before lookup.
+- `Parse("en-US-u-fw-0")` rejects malformed tag syntax, while `Options{FirstDayOfWeek: gointl.String("0")}` normalizes to `-u-fw-sun`; tag parsing never applies constructor-option coercion.
+- Unicode extension keys have exactly two ASCII characters: alphanumeric followed by a letter. `00` and `a0` are invalid; `0a` and `aa` are valid, including uppercase input. Runtime and generator share `internal/localeid.IsUnicodeKey`.
+- Tag types are grammar-checked; the §2.3 option rules apply only to explicit options.
+- Explicit empty string option values (`Calendar`, `Collation`, `HourCycle`, `CaseFirst`, `NumberingSystem`, `FirstDayOfWeek`, and language identifier overrides) return invalid-option errors instead of being treated as omitted.
 
 ### String round trip
 
-- [ ] `(Locale).String()` output canonical BCP 47:
+- `(Locale).String()` output canonical BCP 47:
 - `-u-` extended keys are in lexicographic order (`ca` < `co` < `fw` < `hc` < `kf` < `kn` < `nu`).
 - Absent keywords are omitted; present empty types are preserved; omitted `Numeric` is not output; explicit `Numeric=true` is output as `-u-kn`; explicit `Numeric=false` is output as `-u-kn-false`.
 - Key-aware alias normalization (`Calendar="islamicc"` outputs `-u-ca-islamic-civil`).
-- [ ] `Parse(loc.String()).Equal(loc) == true`(round-trip).
-- [ ] `MarshalText` / `UnmarshalText` implements `encoding.TextMarshaler` / `TextUnmarshaler`.
+- `Parse(loc.String()).Equal(loc) == true`(round-trip).
+- `MarshalText` / `UnmarshalText` implements `encoding.TextMarshaler` / `TextUnmarshaler`.
 
 ### Maximize / Minimize
 
-- [ ] `(Locale).Maximize() Locale` uses the pinned generated CLDR likely-subtag table and preserves caller-supplied subtags.
-- [ ] `(Locale).Minimize() Locale` is idempotent, preserves maximal LSR, and uses the region-preferred candidate order.
-- [ ] generated-reference `tests/likely-subtags.test.ts` and `tests/minimize.test.ts` All fixtures pass in `locale/canonical_test.go`.
-- [ ] `Maximize` / `Minimize` and language/script/region constructor overrides preserve variants, transformed extensions, modeled and unmodeled Unicode extension content, and private use while replacing only language/script/region.
+- `(Locale).Maximize() Locale` uses the pinned generated CLDR likely-subtag table and preserves caller-supplied subtags.
+- `(Locale).Minimize() Locale` is idempotent, preserves maximal LSR, and uses the region-preferred candidate order.
+- generated-reference `tests/likely-subtags.test.ts` and `tests/minimize.test.ts` All fixtures pass in `locale/canonical_test.go`.
+- `Maximize` / `Minimize` and language/script/region constructor overrides preserve variants, transformed extensions, modeled and unmodeled Unicode extension content, and private use while replacing only language/script/region.
 
 ### Getter
 
-- [ ] Simple fields (7 extended fields) are pre-parsed during construction in `Parse` / `New` (§5.1 table).
-- [ ] Candidate list methods do not cache results into the struct. `GetCollations` projects the explicit locale collation as a singleton or returns the no-match fallback ["emoji", "eor"]; the other candidate-list methods read their owning generated data on each call. `GetTimeZones` uses explicit-region `internal/tz` records, including the full Canadian projection and `IN` → `Asia/Kolkata`.
-- [ ] When the calendar keyword is present, `GetCalendars()` returns a single-element list, including an empty type.
-- [ ] `WeekInfo` / `TextInfo` type signature is consistent with §5.2.
+- Simple fields (7 extended fields) are pre-parsed during construction in `Parse` / `New` (§5.1 table).
+- Candidate list methods do not cache results into the struct. `GetCollations` projects the explicit locale collation as a singleton or returns the no-match fallback ["emoji", "eor"]; the other candidate-list methods read their owning generated data on each call. `GetTimeZones` uses explicit-region `internal/tz` records, including the full Canadian projection and `IN` → `Asia/Kolkata`.
+- When the calendar keyword is present, `GetCalendars()` returns a single-element list, including an empty type.
+- `WeekInfo` / `TextInfo` type signature is consistent with §5.2.
 
 ### Equality
 
-- [ ] `(Locale).Equal(other) bool` compares the complete canonical string.
-- [ ] `Locale` does not implement Go `==` comparable (explicitly prevented by a private zero-length function field).
+- `(Locale).Equal(other) bool` compares the complete canonical string.
+- `Locale` does not implement Go `==` comparable (explicitly prevented by a private zero-length function field).
 
 ### Options
 
-- [ ] The `Options` field is consistent with §7.1, applied via `New(tag, options)`.
-- [ ] Passing multiple `Options` values is impossible through the public Go signature.
-- [ ] does not provide `With*` constructor options or `(Locale).With*` setters; the locale object remains read-only.
+- The `Options` field is consistent with §7.1, applied via `New(tag, options)`.
+- Passing multiple `Options` values is impossible through the public Go signature.
+- does not provide `With*` constructor options or `(Locale).With*` setters; the locale object remains read-only.
 
 ### Error
 
-- [ ] `errors.Is(err, gointl.ErrInvalidValue)` returns true on all parsing/verification failures.
-- [ ] `New` option failed to match `gointl.ErrInvalidOption`.
-- [ ] `Parse` / `New` **not** panic (test covers various abnormal inputs).
+- `errors.Is(err, gointl.ErrInvalidValue)` returns true on all parsing/verification failures.
+- `New` option failed to match `gointl.ErrInvalidOption`.
+- `Parse` / `New` **not** panic (test covers various abnormal inputs).
 
 ### Test
 
-- [ ] All cases of generated-reference `intl-locale/tests/index.test.ts` were ported to `locale/locale_test.go` and passed.
-- [ ] Use `t.Parallel()` for all tests.
-- [ ] At least 1 `Example*` function demonstrating `Parse` + `String()` round-trip.
+- All cases of generated-reference `intl-locale/tests/index.test.ts` were ported to `locale/locale_test.go` and passed.
+- Use `t.Parallel()` for all tests.
+- At least 1 `Example*` function demonstrating `Parse` + `String()` round-trip.
 
 ---
 

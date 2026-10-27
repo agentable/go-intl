@@ -1,6 +1,5 @@
 # SPEC 30 — DateTimeFormat Core
 
-> **Status:** Draft (2026-05-08)
 > **Owner:** `datetimeformat/`
 > **Reference contract:** `.references/ecma402/spec/datetimeformat.html` first, then `formatjs/packages/intl-datetimeformat/` + `formatjs/packages/ecma402-abstract/DateTimeFormat/`
 
@@ -406,7 +405,8 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 6. `DateTimeFormat` **MUST** cache `selectedPattern` and compile its endpoint, date, time, interval, and distinguishing fallback programs in `New`. `Format`, `FormatToParts`, `FormatRange`, and `FormatRangeToParts` execute those immutable programs; they must not tokenize patterns, repeat skeleton lookup, adjust fields, or construct fallback patterns on the hot path. The selected record owns effective date/time formats, date+time interpolation, and the compiled range record used by both range sinks.
 7. `localeMatcher` and `formatMatcher` **MUST** be kept separate: `localeMatcher` only affects the CLDR data locale selection; `formatMatcher` only affects the component options → pattern selection. **BANNED** Substituting locale fallback results for formatMatcher decisions.
 8. Component-style `ResolvedOptions` **MUST** be projected from the effective selected patterns after matcher adjustments and appended fields, not copied from the caller's requested option bag. Fields absent from the effective pattern remain nil; hour-cycle fields are absent when the selected pattern has no hour.
-9. Automatic AM/PM tokens `a` and `b` do not declare the flexible `dayPeriod` resolved property. Only a selected `B` token contributes its width to that property. All three tokens still emit `PartDayPeriod` partition records.
+9. Flexible day periods use the actual local hour and only the minute/second fields present in the complete selected time program; absent fields contribute zero. Milliseconds do not disqualify point periods. Constructor-compiled presence flags are shared by endpoint rendering and range semantic comparison, including interval fragments that omit shared fields. `dayperiod_record_test.go` covers noon boundaries, sparse requests, fractions, French point periods and range sources. This is the ICU display-precision policy; FormatJS uses full milliseconds, an intentional implementation-defined difference.
+10. Automatic AM/PM tokens `a` and `b` do not declare the flexible `dayPeriod` resolved property. Only a selected `B` token contributes its width to that property. All three tokens still emit `PartDayPeriod` partition records.
 
 ```go
 type Part struct {
@@ -508,25 +508,25 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 
 ## 10. Acceptance Criteria
 
-- [ ] `formatjs/packages/intl-datetimeformat/tests/format.test.ts` All fixtures in `datetimeformat/conformance_unified_test.go` pass (byte-equality).
-- [ ] `formatjs/packages/intl-datetimeformat/tests/format-range.test.ts` All fixtures passed.
-- [ ] `formatjs/packages/intl-datetimeformat/tests/offset-timezone.test.ts` All fixtures pass (`+05:30` / `-08:00` and other inputs).
-- [ ] `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_TimezoneContextPreservation`: the same `time.Time` has different output under different options `TimeZone`).
-- [ ] `go test -race ./datetimeformat/...` passes (including `TestDateTimeFormat_MonotonicClockStripping`:`t.Round(0)` followed by equal successful `Format(t)` bytes).
-- [ ] `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_ConcurrentFormat` 100 goroutine × 1000 calls).
-- [ ] `datetimeformat/range_relation_test.go` proves selected-record semantic equality, flexible and standard day periods, resolved fractional precision, DST-fold local equality, and distinguishing cross-date fallbacks; joined range parts equal `FormatRange` bytes.
-- [ ] `go vet ./datetimeformat/...` clean.
-- [ ] `New(locale.List{loc}, Options{Calendar: gointl.String("buddhist")})` succeeds and `ResolvedOptions().Calendar == "gregory"` unless generated locale data adopts that calendar.
-- [ ] `New(locale.List{loc}, Options{Calendar: gointl.String("")})` returns a wrapped error matching `gointl.ErrInvalidOption`.
-- [ ] `New(locale.List{loc}, Options{NumberingSystem: gointl.String("")})` returns a wrapped error matching `gointl.ErrInvalidOption`.
-- [ ] `New(locale.List{loc}, Options{TimeZone: gointl.String("Mars/Olympus")})` returns a wrapped error matching `gointl.ErrUnsupportedOption`.
-- [ ] `New(locale.List{loc}, Options{TimeZone: gointl.String("")})` returns a wrapped error matching `gointl.ErrUnsupportedOption`.
-- [ ] `New(locale.List{loc}, Options{TimeZone: gointl.String("US/Eastern")})` succeeded; `ResolvedOptions().TimeZone == "America/New_York"` (canonical name conversion).
-- [ ] `New(locale.List{loc}, Options{TimeZone: gointl.String("+05:30")})` succeeded; `ResolvedOptions().TimeZone == "+05:30"` (offset string reserved).
-- [ ] `New(locale.List{locEnUS}, Options{Hour12: gointl.Bool(false), Hour: gointl.String(string(NumericFieldStyle))})`: `ResolvedOptions().HourCycle != nil && *ResolvedOptions().HourCycle == "h23"` and `ResolvedOptions().Hour12 != nil && *ResolvedOptions().Hour12 == false`.
-- [ ] `New(locale.List{locFrFR}, Options{Hour: gointl.String(string(NumericFieldStyle))})`: `ResolvedOptions().HourCycle != nil && *ResolvedOptions().HourCycle == "h23"` and `ResolvedOptions().Hour12 != nil && *ResolvedOptions().Hour12 == false` (French default h23).
-- [ ] DateTimeFormat cached and constructor benchmarks appear in non-blocking `task bench` telemetry.
-- [ ] Benchmark reports label DateTimeFormat as a per-surface package, not root facade cost.
+- `formatjs/packages/intl-datetimeformat/tests/format.test.ts` All fixtures in `datetimeformat/conformance_unified_test.go` pass (byte-equality).
+- `formatjs/packages/intl-datetimeformat/tests/format-range.test.ts` All fixtures passed.
+- `formatjs/packages/intl-datetimeformat/tests/offset-timezone.test.ts` All fixtures pass (`+05:30` / `-08:00` and other inputs).
+- `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_TimezoneContextPreservation`: the same `time.Time` has different output under different options `TimeZone`).
+- `go test -race ./datetimeformat/...` passes (including `TestDateTimeFormat_MonotonicClockStripping`:`t.Round(0)` followed by equal successful `Format(t)` bytes).
+- `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_ConcurrentFormat` 100 goroutine × 1000 calls).
+- `datetimeformat/range_relation_test.go` proves selected-record semantic equality, flexible and standard day periods, resolved fractional precision, DST-fold local equality, and distinguishing cross-date fallbacks; joined range parts equal `FormatRange` bytes.
+- `go vet ./datetimeformat/...` clean.
+- `New(locale.List{loc}, Options{Calendar: gointl.String("buddhist")})` succeeds and `ResolvedOptions().Calendar == "gregory"` unless generated locale data adopts that calendar.
+- `New(locale.List{loc}, Options{Calendar: gointl.String("")})` returns a wrapped error matching `gointl.ErrInvalidOption`.
+- `New(locale.List{loc}, Options{NumberingSystem: gointl.String("")})` returns a wrapped error matching `gointl.ErrInvalidOption`.
+- `New(locale.List{loc}, Options{TimeZone: gointl.String("Mars/Olympus")})` returns a wrapped error matching `gointl.ErrUnsupportedOption`.
+- `New(locale.List{loc}, Options{TimeZone: gointl.String("")})` returns a wrapped error matching `gointl.ErrUnsupportedOption`.
+- `New(locale.List{loc}, Options{TimeZone: gointl.String("US/Eastern")})` succeeded; `ResolvedOptions().TimeZone == "America/New_York"` (canonical name conversion).
+- `New(locale.List{loc}, Options{TimeZone: gointl.String("+05:30")})` succeeded; `ResolvedOptions().TimeZone == "+05:30"` (offset string reserved).
+- `New(locale.List{locEnUS}, Options{Hour12: gointl.Bool(false), Hour: gointl.String(string(NumericFieldStyle))})`: `ResolvedOptions().HourCycle != nil && *ResolvedOptions().HourCycle == "h23"` and `ResolvedOptions().Hour12 != nil && *ResolvedOptions().Hour12 == false`.
+- `New(locale.List{locFrFR}, Options{Hour: gointl.String(string(NumericFieldStyle))})`: `ResolvedOptions().HourCycle != nil && *ResolvedOptions().HourCycle == "h23"` and `ResolvedOptions().Hour12 != nil && *ResolvedOptions().Hour12 == false` (French default h23).
+- DateTimeFormat cached and constructor benchmarks appear in non-blocking `task bench` telemetry.
+- Benchmark reports label DateTimeFormat as a per-surface package, not root facade cost.
 
 ---
 

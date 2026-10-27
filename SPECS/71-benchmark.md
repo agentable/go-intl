@@ -1,6 +1,5 @@
 # SPEC 71 — Benchmark Strategy & Performance Telemetry
 
-> **Status:** Revised (2026-05-31)
 > **Type:** Rule + Flow — defines how go-intl measures hot-path performance without turning benchmark numbers into merge gates.
 > **Authority:** This spec records benchmark layout, baseline selection, non-blocking telemetry, and `benchstat` report flow. SPEC 70 records correctness gates; this spec records performance evidence.
 
@@ -257,36 +256,36 @@ not a release or correctness gate.
 
 ### Layout
 
-- [ ] Active benchmarked formatter packages have `benchmark_test.go`; `benchmark_baseline_test.go` exists only for NumberFormat / PluralRules.
-- [ ] benchmark naming follows the `Benchmark<Type>_<Feature>_<Layer>` three-part formula.
-- [ ] All benchmarks use `b.Loop()` and `b.ReportAllocs()`.
-- [ ] baseline benchmark prefix `BenchmarkBaseline_`.
+- Active benchmarked formatter packages have `benchmark_test.go`; `benchmark_baseline_test.go` exists only for NumberFormat / PluralRules.
+- benchmark naming follows the `Benchmark<Type>_<Feature>_<Layer>` three-part formula.
+- All benchmarks use `b.Loop()` and `b.ReportAllocs()`.
+- baseline benchmark prefix `BenchmarkBaseline_`.
 
 ### Baseline
 
-- [ ] `BenchmarkBaseline_XText_Decimal` exists in `numberformat/`.
-- [ ] `BenchmarkBaseline_XText_Plural_Cardinal` / `Ordinal` exists in `pluralrules/`.
-- [ ] `go.mod` does not contain embedded JS engine related dependencies.
+- `BenchmarkBaseline_XText_Decimal` exists in `numberformat/`.
+- `BenchmarkBaseline_XText_Plural_Cardinal` / `Ordinal` exists in `pluralrules/`.
+- `go.mod` does not contain embedded JS engine related dependencies.
 
 ### Telemetry
 
-- [ ] No `perf` build tag, `TestPerf_*`, `testing.Benchmark(...)` budget assertion, or `task bench:gate` exists.
-- [ ] Performance evidence that changes architecture records command, Go version, GOARCH, CPU, package path, and before/after numbers.
-- [ ] Root facade, per-surface formatter, and CLDR linker measurements are labeled separately.
+- No `perf` build tag, `TestPerf_*`, `testing.Benchmark(...)` budget assertion, or `task bench:gate` exists.
+- Performance evidence that changes architecture records command, Go version, GOARCH, CPU, package path, and before/after numbers.
+- Root facade, per-surface formatter, and CLDR linker measurements are labeled separately.
 
 ### Reporting
 
-- [ ] `task bench` subtask exists, run ≥ 5 times benchmark + benchstat report.
-- [ ] Both benchmark tasks use non-race execution with allocation reporting; comparison samples use the same toolchain, hardware, inputs and warmup boundary.
-- [ ] PR-CI may post benchstat reports, but must not fail on benchmark numbers alone.
-- [ ] main/nightly may retain benchmark artifacts ≥ 30 days, but must not block on benchmark numbers alone.
+- `task bench` subtask exists, run ≥ 5 times benchmark + benchstat report.
+- Both benchmark tasks use non-race execution with allocation reporting; comparison samples use the same toolchain, hardware, inputs and warmup boundary.
+- PR-CI may post benchstat reports, but must not fail on benchmark numbers alone.
+- main/nightly may retain benchmark artifacts ≥ 30 days, but must not block on benchmark numbers alone.
 
 ### Tooling
 
-- [ ] benchstat is installed through the pinned `go install` version in `Taskfile.yml`; **not** present in `go.mod`.
-- [ ] CI runner specifications (CPU / Go version / GOARCH) are recorded in the benchstat report header.
-- [ ] Import-cost reports list `go list -deps .` separately from each touched per-surface package.
-- [ ] Binary-size reports label root facade harnesses separately from per-surface harnesses.
+- benchstat is installed through the pinned `go install` version in `Taskfile.yml`; **not** present in `go.mod`.
+- CI runner specifications (CPU / Go version / GOARCH) are recorded in the benchstat report header.
+- Import-cost reports list `go list -deps .` separately from each touched per-surface package.
+- Binary-size reports label root facade harnesses separately from per-surface harnesses.
 
 ---
 

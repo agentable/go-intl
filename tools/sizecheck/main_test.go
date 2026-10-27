@@ -3,14 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json/v2"
 	"errors"
-	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -73,7 +72,7 @@ func TestReadDataProfile(t *testing.T) {
 func TestBuildCaseProducesBinary(t *testing.T) {
 	t.Parallel()
 
-	root, err := os.MkdirTemp(".", "sizecheck-test-*")
+	root, err := os.MkdirTemp(".", ".sizecheck-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +95,7 @@ func main() {}`,
 		t.Fatal(err)
 	}
 
-	got, err := buildCase(t.Context(), "hello", pkgDir, filepath.Join(binDir, "hello"))
+	got, err := buildCase(t.Context(), "hello", pkgDir, filepath.Join(binDir, "hello"), false)
 	if err != nil {
 		t.Fatalf("buildCase() error = %v, want nil", err)
 	}
@@ -108,7 +107,7 @@ func main() {}`,
 func TestBuildCaseReturnsGoBuildFailure(t *testing.T) {
 	t.Parallel()
 
-	root, err := os.MkdirTemp(".", "sizecheck-test-*")
+	root, err := os.MkdirTemp(".", ".sizecheck-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +130,7 @@ func main() {`,
 		t.Fatal(err)
 	}
 
-	_, err = buildCase(t.Context(), "broken", pkgDir, filepath.Join(binDir, "broken"))
+	_, err = buildCase(t.Context(), "broken", pkgDir, filepath.Join(binDir, "broken"), false)
 	if err == nil {
 		t.Fatal("buildCase() error = nil, want go build failure")
 	}
@@ -302,66 +301,110 @@ func TestRunMainReturnsRunError(t *testing.T) {
 	}
 }
 
-func TestRunWithDependenciesBuildsCasesAndWritesOutput(t *testing.T) {
-	t.Parallel()
+func installGoBuildTracer(t *testing.T) string {
+	t.Helper()
+	realGo, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shim := t.TempDir()
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "go"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	if err := os.WriteFile(filepath.Join(shim, name), data, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GO_INTL_SIZECHECK_REAL_GO", realGo)
+	t.Setenv("GO_INTL_SIZECHECK_TRACE", filepath.Join(shim, "trace"))
+	t.Setenv("PATH", shim+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return shim
+}
 
+func TestColdBuildIsolation(t *testing.T) {
+	if os.Getenv("GO_INTL_TEST_COLD_BUILDS") != "1" {
+		t.Skip("run with GO_INTL_TEST_COLD_BUILDS=1 for real cold compiler traces")
+	}
+	shim := installGoBuildTracer(t)
+	callerCache := t.TempDir()
+	sentinel := filepath.Join(callerCache, "sentinel")
+	if err := os.WriteFile(sentinel, []byte("caller-owned"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOCACHE", callerCache)
+	cacheParent := t.TempDir()
+	for _, key := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(key, cacheParent)
+	}
 	root := t.TempDir()
 	writeSizecheckDataProfile(t, root)
-	outDir, err := os.MkdirTemp(".", "sizecheck-run-*")
+	out, err := os.MkdirTemp(".", ".sizecheck-run-*")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := os.RemoveAll(outDir); err != nil {
-			t.Fatalf("remove temp output: %v", err)
+		if err := os.RemoveAll(out); err != nil {
+			t.Error(err)
 		}
 	})
-	var stdout bytes.Buffer
-	cleaned := false
-	err = runWithDependencies(t.Context(), outDir, runOptions{Root: root, Cold: true}, runDependencies{
-		cases: []binaryCase{{
-			name: "hello",
-			source: `package main
-
-func main() {}`,
-		}},
-		cleanBuildCache: func(context.Context) error {
-			cleaned = true
-			return nil
-		},
-		stdout: &stdout,
-	})
-	if err != nil {
-		t.Fatalf("runWithDependencies() error = %v, want nil", err)
+	cases := []binaryCase{
+		{name: "first", source: "package main\nimport \"errors\"\nfunc main(){ _ = errors.New(\"first\") }"},
+		{name: "second", source: "package main\nimport \"errors\"\nfunc main(){ _ = errors.New(\"second\") }"},
 	}
-	if !cleaned {
-		t.Fatal("runWithDependencies() did not clean build cache")
-	}
-	for _, want := range []string{
-		"data-profile: locales=2 cldr=48.1.0 icu=78 tzdata=2025b cold=true",
-		"hello",
-	} {
-		if !strings.Contains(stdout.String(), want) {
-			t.Fatalf("runWithDependencies() stdout = %q, want substring %q", stdout.String(), want)
+	seen := map[string]bool{}
+	for range 2 {
+		var stdout bytes.Buffer
+		if err := runWithDependencies(t.Context(), out, runOptions{Root: root, Cold: true}, runDependencies{cases: cases, stdout: &stdout}); err != nil {
+			t.Fatal(err)
 		}
+		for _, want := range []string{"cold=true", "cache=isolated-per-case", "go=go", "target=", "first", "second"} {
+			if !strings.Contains(stdout.String(), want) {
+				t.Fatalf("report missing %q: %s", want, &stdout)
+			}
+		}
+		traces, err := os.ReadDir(filepath.Join(shim, "trace"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range traces {
+			path := filepath.Join(shim, "trace", entry.Name())
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var trace buildTrace
+			if err := json.Unmarshal(data, &trace); err != nil {
+				t.Fatal(err)
+			}
+			if trace.Cache == callerCache || seen[trace.Cache] || trace.Entries != 0 {
+				t.Fatalf("build did not start with its own empty cache: %+v", trace)
+			}
+			seen[trace.Cache] = true
+			if _, err := os.Stat(trace.Cache); !os.IsNotExist(err) {
+				t.Fatalf("cache remains after build: %s: %v", trace.Cache, err)
+			}
+			if !strings.Contains(trace.Output, "-p errors ") {
+				t.Fatalf("shared errors dependency was not compiled: %s", trace.Output)
+			}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if len(traces) != 2 {
+			t.Fatalf("got %d build traces, want 2", len(traces))
+		}
+		slices.Reverse(cases)
 	}
-}
-
-func TestRunWithDependenciesReturnsCleanBuildCacheError(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeSizecheckDataProfile(t, root)
-	wantErr := errors.New("clean failed")
-	err := runWithDependencies(t.Context(), filepath.Join(t.TempDir(), "out"), runOptions{Root: root, Cold: true}, runDependencies{
-		cases: []binaryCase{},
-		cleanBuildCache: func(context.Context) error {
-			return wantErr
-		},
-		stdout: io.Discard,
-	})
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("runWithDependencies() error = %v, want %v", err, wantErr)
+	if data, err := os.ReadFile(sentinel); err != nil || string(data) != "caller-owned" {
+		t.Fatalf("caller cache changed: %s, %v", data, err)
 	}
 }
 
@@ -375,26 +418,6 @@ func TestWriteCaseReturnsCreateDirectoryError(t *testing.T) {
 	_, err := writeCase(root, binaryCase{name: "hello", source: "package main"})
 	if err == nil {
 		t.Fatal("writeCase() error = nil, want create directory error")
-	}
-}
-
-func TestCleanBuildCacheWithCommand(t *testing.T) {
-	t.Parallel()
-
-	if err := cleanBuildCacheWithCommand(t.Context(), helperCommand(0, "")); err != nil {
-		t.Fatalf("cleanBuildCacheWithCommand() error = %v, want nil", err)
-	}
-}
-
-func TestCleanBuildCacheWithCommandWrapsGoCleanFailure(t *testing.T) {
-	t.Parallel()
-
-	err := cleanBuildCacheWithCommand(t.Context(), helperCommand(7, "boom"))
-	if err == nil {
-		t.Fatal("cleanBuildCacheWithCommand() error = nil, want failure")
-	}
-	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
-		t.Fatalf("cleanBuildCacheWithCommand() error = %T, want *exec.ExitError in chain", err)
 	}
 }
 
@@ -414,27 +437,156 @@ func writeSizecheckDataProfile(t *testing.T, root string) {
 	}
 }
 
-func helperCommand(exitCode int, stderr string) commandContextFunc {
-	return func(ctx context.Context, name string, args ...string) *exec.Cmd {
-		cmdArgs := append([]string{"-test.run=TestHelperProcess", "--", name}, args...)
-		cmd := exec.CommandContext(ctx, os.Args[0], cmdArgs...)
-		cmd.Env = append(os.Environ(),
-			"GO_WANT_HELPER_PROCESS=1",
-			fmt.Sprintf("GO_HELPER_EXIT_CODE=%d", exitCode),
-			"GO_HELPER_STDERR="+stderr,
-		)
-		return cmd
+// The helper observes the real Go subprocess boundary without replacing compilation.
+type buildTrace struct {
+	Cache   string
+	Entries int
+	Output  string
+}
+
+func TestMain(m *testing.M) {
+	realGo := os.Getenv("GO_INTL_SIZECHECK_REAL_GO")
+	if realGo == "" {
+		os.Exit(m.Run())
+	}
+	args := os.Args[1:]
+	trace := buildTrace{Cache: os.Getenv("GOCACHE")}
+	isBuild := len(args) > 0 && args[0] == "build"
+	if isBuild {
+		entries, err := os.ReadDir(trace.Cache)
+		if err != nil {
+			_, _ = os.Stderr.WriteString(err.Error())
+			os.Exit(2)
+		}
+		trace.Entries = len(entries)
+		args = append([]string{"build", "-x"}, args[1:]...)
+	}
+	output, err := exec.Command(realGo, args...).CombinedOutput()
+	if isBuild {
+		trace.Output = string(output)
+		dir := os.Getenv("GO_INTL_SIZECHECK_TRACE")
+		if mkdirErr := os.MkdirAll(dir, 0o700); mkdirErr != nil {
+			os.Exit(2)
+		}
+		file, createErr := os.CreateTemp(dir, "build-*.json")
+		if createErr != nil {
+			os.Exit(2)
+		}
+		data, marshalErr := json.Marshal(trace)
+		if marshalErr != nil {
+			os.Exit(2)
+		}
+		if _, writeErr := file.Write(data); writeErr != nil {
+			os.Exit(2)
+		}
+		if closeErr := file.Close(); closeErr != nil {
+			os.Exit(2)
+		}
+	}
+	if isBuild && os.Getenv("GO_INTL_SIZECHECK_DENY_CLEANUP") == "1" {
+		if err := os.WriteFile(filepath.Join(trace.Cache, "retained"), []byte("x"), 0o600); err != nil {
+			os.Exit(2)
+		}
+		if err := os.Chmod(trace.Cache, 0o500); err != nil {
+			os.Exit(2)
+		}
+	}
+
+	if _, writeErr := os.Stdout.Write(output); writeErr != nil {
+		os.Exit(2)
+	}
+	if err != nil {
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func TestRunWithDependenciesBuildsCasesAndWritesOutput(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeSizecheckDataProfile(t, root)
+	outDir, err := os.MkdirTemp(".", ".sizecheck-run-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(outDir); err != nil {
+			t.Fatalf("remove temp output: %v", err)
+		}
+	})
+	var stdout bytes.Buffer
+	err = runWithDependencies(t.Context(), outDir, runOptions{Root: root}, runDependencies{
+		cases: []binaryCase{{
+			name: "hello",
+			source: `package main
+
+func main() {}`,
+		}},
+		stdout: &stdout,
+	})
+	if err != nil {
+		t.Fatalf("runWithDependencies() error = %v, want nil", err)
+	}
+	for _, want := range []string{
+		"data-profile: locales=2 cldr=48.1.0 icu=78 tzdata=2025b cold=false",
+		"hello",
+		"cache=inherited",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("runWithDependencies() stdout = %q, want substring %q", stdout.String(), want)
+		}
 	}
 }
 
-func TestHelperProcess(t *testing.T) {
-	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
-		return
+func TestBuildCaseColdCleanupFailurePreservesBuildError(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("directory permission failure requires an unprivileged Unix user")
 	}
-	fmt.Fprint(os.Stderr, os.Getenv("GO_HELPER_STDERR"))
-	code, err := strconv.Atoi(os.Getenv("GO_HELPER_EXIT_CODE"))
-	if err != nil {
-		os.Exit(2)
+	installGoBuildTracer(t)
+	parent := t.TempDir()
+	t.Setenv("TMPDIR", parent)
+	t.Setenv("GOFLAGS", "-sizecheck-invalid-flag")
+	t.Setenv("GO_INTL_SIZECHECK_DENY_CLEANUP", "1")
+	t.Cleanup(func() {
+		entries, err := os.ReadDir(parent)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		for _, entry := range entries {
+			if err := os.Chmod(filepath.Join(parent, entry.Name()), 0o700); err != nil {
+				t.Error(err)
+			}
+		}
+	})
+	_, err := buildCase(t.Context(), "failure", ".", filepath.Join(parent, "out"), true)
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+		t.Fatalf("lost build error: %v", err)
 	}
-	os.Exit(code)
+	if !errors.Is(err, os.ErrPermission) || !strings.Contains(err.Error(), "remove build cache for failure") {
+		t.Fatalf("lost cleanup error: %v", err)
+	}
+}
+
+func TestBuildCaseColdFailureAndCancellationCleanup(t *testing.T) {
+	parent := t.TempDir()
+	for _, key := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(key, parent)
+	}
+	t.Setenv("GOFLAGS", "-sizecheck-invalid-flag")
+	_, err := buildCase(t.Context(), "failure", ".", filepath.Join(parent, "out"), true)
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+		t.Fatalf("lost build error: %v", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err = buildCase(ctx, "canceled", ".", filepath.Join(parent, "canceled"), true)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("lost cancellation: %v", err)
+	}
+	entries, err := os.ReadDir(parent)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("cache remains: %v, %v", entries, err)
+	}
 }

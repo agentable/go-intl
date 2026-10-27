@@ -25,6 +25,8 @@ type selectedPattern struct {
 	dateTime        string
 	dateProgram     patternProgram
 	timeProgram     patternProgram
+	hasMinute       bool
+	hasSecond       bool
 	dateTimeProgram ecma402.Pattern
 	dateFormat      ecma402dtf.Formats
 	timeFormat      ecma402dtf.Formats

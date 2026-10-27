@@ -1,8 +1,11 @@
-package localematcher
+package localematcher_test
 
 import (
 	"slices"
+
 	"testing"
+
+	"github.com/agentable/go-intl/internal/localematcher"
 
 	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
@@ -15,40 +18,40 @@ func TestFilterLocales(t *testing.T) {
 		name      string
 		supported []string
 		requested []locale.Locale
-		matcher   Algorithm
+		matcher   localematcher.Algorithm
 		want      []string
 	}{
 		{
 			name:      "lookup preserves matched requested locales",
 			supported: []string{"en", "fr", "zh-Hant"},
 			requested: []locale.Locale{intltest.Locale(t, "en-US-u-ca-gregory"), intltest.Locale(t, "en-US-u-ca-gregory"), intltest.Locale(t, "fr-FR"), intltest.Locale(t, "zh-Hant-TW"), intltest.Locale(t, "de")},
-			matcher:   AlgorithmLookup,
+			matcher:   localematcher.AlgorithmLookup,
 			want:      []string{"en-US-u-ca-gregory", "en-US-u-ca-gregory", "fr-FR", "zh-Hant-TW"},
 		},
 		{
 			name:      "best fit preserves requested locale",
 			supported: []string{"zh", "zh-Hant"},
 			requested: []locale.Locale{intltest.Locale(t, "zh-TW")},
-			matcher:   AlgorithmBestFit,
+			matcher:   localematcher.AlgorithmBestFit,
 			want:      []string{"zh-TW"},
 		},
 		{
 			name:      "lookup preserves requested locale matched by derived available locale",
 			supported: []string{"zh-Hant-HK"},
 			requested: []locale.Locale{intltest.Locale(t, "zh-HK-u-nu-hanidec")},
-			matcher:   AlgorithmLookup,
+			matcher:   localematcher.AlgorithmLookup,
 			want:      []string{"zh-HK-u-nu-hanidec"},
 		},
 		{
 			name:      "empty available set does not invent a default",
 			requested: []locale.Locale{intltest.Locale(t, "en")},
-			matcher:   AlgorithmBestFit,
+			matcher:   localematcher.AlgorithmBestFit,
 		},
 		{
 			name:      "filters unsupported locale",
 			supported: []string{"en", "fr"},
 			requested: []locale.Locale{intltest.Locale(t, "de")},
-			matcher:   AlgorithmLookup,
+			matcher:   localematcher.AlgorithmLookup,
 			want:      nil,
 		},
 	}
@@ -56,9 +59,9 @@ func TestFilterLocales(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := FilterLocales(NewMatcher(tc.supported, nil), tc.requested, tc.matcher)
+			got := localematcher.FilterLocales(localematcher.NewMatcher(tc.supported, nil), tc.requested, tc.matcher)
 			if got := localesToStrings(got); !slices.Equal(got, tc.want) {
-				t.Fatalf("FilterLocales() = %v, want %v", got, tc.want)
+				t.Fatalf("localematcher.FilterLocales() = %v, want %v", got, tc.want)
 			}
 		})
 	}

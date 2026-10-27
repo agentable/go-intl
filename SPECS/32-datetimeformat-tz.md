@@ -1,6 +1,5 @@
 # SPEC 32 — DateTimeFormat TimeZone & Calendar Data
 
-> **Status:** Draft (2026-05-08)
 > **Owner:** `internal/tz/` + `internal/cldr/timezone/` + `internal/cldr/date/`
 > **Reference contract:** ECMA-402 time-zone identifier records + pinned IANA tzdb source + CLDR BCP47 `timezone.json` + Go `time/tzdata` + CLDR `metaZones.json` / localized `timeZoneNames.json` / `ca-gregorian.json`
 
@@ -368,7 +367,7 @@ From, To time.Duration // Time offset from 00:00 on the current day
        "zh": { /* ... */ },
    }
    ```
-2. `internal/cldr/date.DayPeriodFor(loc date.Locale, hour, minute int) string` **MUST** return `"morning1"` / `"noon"` and other type names; the caller then checks `Gregorian.DayPeriods.Flex[type]`.
+2. `internal/cldr/date.DayPeriodFor(loc date.Locale, hour, minute, second int) string` **MUST** return `"morning1"` / `"noon"` and other type names; the caller then checks `Gregorian.DayPeriods.Flex[type]`. Point rules precede ranges; ranges retain inclusive start, exclusive end and midnight wrapping. DateTimeFormat supplies hour/minute/second at the full selected program’s displayed precision (SPEC 30), ignoring milliseconds. `internal/cldr/date/date_test.go:TestSmokeDayPeriodForRules` covers French noon and Japanese midnight/wrapping boundaries.
 3. **Disabled** only hardcoded `en` boundaries; **Required** full codegen.
 
 ---
@@ -419,38 +418,38 @@ From, To time.Duration // Time offset from 00:00 on the current day
 
 ## 6. Acceptance Criteria
 
-- [ ] `internal/tz/tzdata.go` contains only one line `import _ "time/tzdata"`; no other declarations.
-- [ ] `internal/tz.Resolve("America/New_York")` returns non-empty `*time.Location`, offset including DST (-04:00 in summer, -05:00 in winter).
-- [ ] `LookupAt` reports transition flags for New York and Sydney winter/summer, Casablanca before/during/after the 2024 Ramadan suspension, and London wartime/postwar winter; no January/July offset heuristic remains.
-- [ ] `internal/tz.Resolve("US/Eastern")` returns the equivalent (canonicalization) of `Resolve("America/New_York")`.
-- [ ] `internal/tz.Resolve("+05:30")` returns fixed-offset Location, DST is always false.
-- [ ] `internal/tz.Resolve("+23:59")` succeeds and `internal/tz.Resolve("+24:00")` returns internal `ErrUnsupportedTimeZone`, with DateTimeFormat bounds mapped to `gointl.ErrUnsupportedOption`.
-- [ ] `internal/tz.Resolve("Mars/Olympus")` returns internal `ErrUnsupportedTimeZone` wrapped error, the message contains `"Mars/Olympus"`.
-- [ ] `internal/tz.CanonicalLink("US/Eastern") == "America/New_York"`.
-- [ ] Registry generation verifies `tools/gen-cldr/tzdata.json` version `2025b` and SHA-256, covers the pinned tzdb identity set, applies `zone.tab` / `backzone` Link primary rules, rejects cycles, and emits `internal/tz/registry_data.go` deterministically.
-- [ ] `internal/tz.CanonicalLink("America/Montreal") == "America/Toronto"` from the generated identifier record.
-- [ ] `internal/tz.CanonicalLink("America/New_York") == "America/New_York"`(canonical returned as is).
-- [ ] ASCII case variants such as `america/new_york` resolve with source casing restored; identifiers containing non-ASCII case-fold lookalikes are rejected.
-- [ ] Primary witnesses (`Atlantic/Jan_Mayen`, `Pacific/Truk`, `Europe/Kiev`, `Asia/Calcutta`) and `TimeZonesForRegion("IN") == []string{"Asia/Kolkata"}` pass; host-loadable `posixrules` is rejected.
-- [ ] `SupportedTimeZones()` is exactly the sorted defensive projection of records where `Identifier == Primary`; every result resolves through the same registry and Go transition data.
-- [ ] `internal/tz.ParseOffsetString("+05:30") == 5*3600*1000 + 30*60*1000`(ms east of UTC).
-- [ ] `internal/tz.ParseOffsetString("-08:00") == -8*3600*1000`.
-- [ ] The `internal/cldr/VERSION` file contains three lines: `cldr=` / `icu=` / `tzdata=`, and the CI verification hash is consistent.
-- [ ] After `internal/cldr/date.ResolveLocale("en-US")` succeeds, `internal/cldr/date.GregorianFor(loc)` returns the complete `Gregorian` structure, all fields are non-null.
-- [ ] After `internal/cldr/date.ResolveLocale("zh-Hans-CN")` succeeds, `internal/cldr/date.GregorianFor(loc).DayPeriods.Flex` contains all 6 keys of `"morning1" / "afternoon1" / "evening1" / "night1" / "noon" / "midnight"`.
-- [ ] `internal/cldr/date.DayPeriodFor(enUSDateLocale, 5, 0) == "morning1"`.
-- [ ] `internal/cldr/date.DayPeriodFor(zhHansCNDateLocale, 13, 0) == "afternoon1"`.
-- [ ] `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "America/New_York", TimeZoneNameLongGeneric, false, time.Now().UnixMilli(), -5*3600*1000) == "Eastern Time"`.
-- [ ] `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "America/New_York", TimeZoneNameShort, false, instant, -5*3600*1000) == "EST"`.
-- [ ] Exemplar-city fallback uses pinned CLDR `regionFormat`: `en` yields `Dumont d’Urville Station Time`, `fr` yields `heure : Dumont-d’Urville`, and `zh` yields `迪蒙·迪维尔时间` for `Antarctica/DumontDUrville` with `shortGeneric`.
-- [ ] `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "Mars/Olympus", TimeZoneNameShortGeneric, false, instant, -5*3600*1000) == "GMT-05:00"`.
-- [ ] `internal/cldr/timezone/data.go` is generated, and the file header contains `// Code generated by tools/gen-cldr; DO NOT EDIT.`.
-- [ ] `internal/cldr/date/data.go` is generated, the file header contains `// Code generated by tools/gen-cldr; DO NOT EDIT.`; there is no `internal/cldr/calendars/*` active scope placeholder file.
-- [ ] The codegen tool currently reads `ca-gregorian.json`, the date-domain active scope only contains the `"gregorian"` calendar, and `SupportedCalendars()` derives `gregory` / `iso8601` from that generated payload rather than a hand-written list.
-- [ ] `formatjs/packages/intl-datetimeformat/tests/timezone-name.test.ts` All fixtures passed in `datetimeformat/conformance_unified_test.go`.
-- [ ] `formatjs/packages/intl-datetimeformat/tests/day-period.test.ts` All fixtures passed (including `b` / `B` flex day period).
-- [ ] `BenchmarkTZ_Resolve` appears in non-blocking benchmark telemetry.
-- [ ] `BenchmarkCLDR_TimeZoneDisplayName` appears in non-blocking benchmark telemetry.
+- `internal/tz/tzdata.go` contains only one line `import _ "time/tzdata"`; no other declarations.
+- `internal/tz.Resolve("America/New_York")` returns non-empty `*time.Location`, offset including DST (-04:00 in summer, -05:00 in winter).
+- `LookupAt` reports transition flags for New York and Sydney winter/summer, Casablanca before/during/after the 2024 Ramadan suspension, and London wartime/postwar winter; no January/July offset heuristic remains.
+- `internal/tz.Resolve("US/Eastern")` returns the equivalent (canonicalization) of `Resolve("America/New_York")`.
+- `internal/tz.Resolve("+05:30")` returns fixed-offset Location, DST is always false.
+- `internal/tz.Resolve("+23:59")` succeeds and `internal/tz.Resolve("+24:00")` returns internal `ErrUnsupportedTimeZone`, with DateTimeFormat bounds mapped to `gointl.ErrUnsupportedOption`.
+- `internal/tz.Resolve("Mars/Olympus")` returns internal `ErrUnsupportedTimeZone` wrapped error, the message contains `"Mars/Olympus"`.
+- `internal/tz.CanonicalLink("US/Eastern") == "America/New_York"`.
+- Registry generation verifies `tools/gen-cldr/tzdata.json` version `2025b` and SHA-256, covers the pinned tzdb identity set, applies `zone.tab` / `backzone` Link primary rules, rejects cycles, and emits `internal/tz/registry_data.go` deterministically.
+- `internal/tz.CanonicalLink("America/Montreal") == "America/Toronto"` from the generated identifier record.
+- `internal/tz.CanonicalLink("America/New_York") == "America/New_York"`(canonical returned as is).
+- ASCII case variants such as `america/new_york` resolve with source casing restored; identifiers containing non-ASCII case-fold lookalikes are rejected.
+- Primary witnesses (`Atlantic/Jan_Mayen`, `Pacific/Truk`, `Europe/Kiev`, `Asia/Calcutta`) and `TimeZonesForRegion("IN") == []string{"Asia/Kolkata"}` pass; host-loadable `posixrules` is rejected.
+- `SupportedTimeZones()` is exactly the sorted defensive projection of records where `Identifier == Primary`; every result resolves through the same registry and Go transition data.
+- `internal/tz.ParseOffsetString("+05:30") == 5*3600*1000 + 30*60*1000`(ms east of UTC).
+- `internal/tz.ParseOffsetString("-08:00") == -8*3600*1000`.
+- The `internal/cldr/VERSION` file contains three lines: `cldr=` / `icu=` / `tzdata=`, and the CI verification hash is consistent.
+- After `internal/cldr/date.ResolveLocale("en-US")` succeeds, `internal/cldr/date.GregorianFor(loc)` returns the complete `Gregorian` structure, all fields are non-null.
+- After `internal/cldr/date.ResolveLocale("zh-Hans-CN")` succeeds, `internal/cldr/date.GregorianFor(loc).DayPeriods.Flex` contains all 6 keys of `"morning1" / "afternoon1" / "evening1" / "night1" / "noon" / "midnight"`.
+- `internal/cldr/date.DayPeriodFor(enUSDateLocale, 5, 0, 0) == "morning1"`.
+- `internal/cldr/date.DayPeriodFor(zhHansCNDateLocale, 13, 0, 0) == "afternoon2"`.
+- `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "America/New_York", TimeZoneNameLongGeneric, false, time.Now().UnixMilli(), -5*3600*1000) == "Eastern Time"`.
+- `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "America/New_York", TimeZoneNameShort, false, instant, -5*3600*1000) == "EST"`.
+- Exemplar-city fallback uses pinned CLDR `regionFormat`: `en` yields `Dumont d’Urville Station Time`, `fr` yields `heure : Dumont-d’Urville`, and `zh` yields `迪蒙·迪维尔时间` for `Antarctica/DumontDUrville` with `shortGeneric`.
+- `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "Mars/Olympus", TimeZoneNameShortGeneric, false, instant, -5*3600*1000) == "GMT-05:00"`.
+- `internal/cldr/timezone/data.go` is generated, and the file header contains `// Code generated by tools/gen-cldr; DO NOT EDIT.`.
+- `internal/cldr/date/data.go` is generated, the file header contains `// Code generated by tools/gen-cldr; DO NOT EDIT.`; there is no `internal/cldr/calendars/*` active scope placeholder file.
+- The codegen tool currently reads `ca-gregorian.json`, the date-domain active scope only contains the `"gregorian"` calendar, and `SupportedCalendars()` derives `gregory` / `iso8601` from that generated payload rather than a hand-written list.
+- `formatjs/packages/intl-datetimeformat/tests/timezone-name.test.ts` All fixtures passed in `datetimeformat/conformance_unified_test.go`.
+- `formatjs/packages/intl-datetimeformat/tests/day-period.test.ts` All fixtures passed (including `b` / `B` flex day period).
+- `BenchmarkTZ_Resolve` appears in non-blocking benchmark telemetry.
+- `BenchmarkCLDR_TimeZoneDisplayName` appears in non-blocking benchmark telemetry.
 
 ---
 

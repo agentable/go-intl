@@ -97,8 +97,8 @@ func (cfg config) validate(locName string) error {
 		displayNamesOwner,
 		locName,
 		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.hasLocaleMatcher),
-		displayNameTypeOption(cfg.typ),
 		displayNameStyleOption(cfg.style),
+		displayNameTypeOption(cfg.typ),
 		displayNameFallbackOption(cfg.fallback),
 		displayNameLanguageDisplayOption(cfg.languageDisplay),
 	)

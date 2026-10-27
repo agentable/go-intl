@@ -327,7 +327,7 @@ tasks:
       - go run ./tools/sizecheck
 
   build:size:cold:
-    desc: Report binary size deltas and compile time after clearing the Go build cache
+    desc: Report binary size deltas and compile time with an isolated cache per case
     cmds:
       - go run ./tools/sizecheck -cold
 
