@@ -5,40 +5,32 @@ import (
 	"testing"
 
 	gointl "github.com/agentable/go-intl"
+	"github.com/agentable/go-intl/internal/intltest"
 	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/x/localematcher"
 )
 
-func locales(t testing.TB, tags ...string) locale.List {
-	t.Helper()
-	values, err := locale.ParseList(tags...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return values
-}
-
 func TestMatcherLookupRequiresAvailableResource(t *testing.T) {
 	t.Parallel()
-	matcher, err := localematcher.New(locales(t, "de-DE"), localematcher.Options{Algorithm: gointl.String("lookup")})
+	matcher, err := localematcher.New(intltest.LocaleList(t, "de-DE"), localematcher.Options{Algorithm: gointl.String("lookup")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, ok := matcher.Match(locales(t, "de-AT")); ok {
+	if got, ok := matcher.Match(intltest.LocaleList(t, "de-AT")); ok {
 		t.Fatalf("lookup returned unavailable resource %q", got.String())
 	}
-	if got, ok := matcher.Match(locales(t, "de-DE")); !ok || got.String() != "de-DE" {
+	if got, ok := matcher.Match(intltest.LocaleList(t, "de-DE")); !ok || got.String() != "de-DE" {
 		t.Fatalf("exact lookup = (%s, %v), want (de-DE, true)", got.String(), ok)
 	}
 }
 
 func TestMatcherLookupContinuesAfterUnavailableParent(t *testing.T) {
 	t.Parallel()
-	matcher, err := localematcher.New(locales(t, "de-DE", "en"), localematcher.Options{Algorithm: gointl.String("lookup")})
+	matcher, err := localematcher.New(intltest.LocaleList(t, "de-DE", "en"), localematcher.Options{Algorithm: gointl.String("lookup")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, ok := matcher.Match(locales(t, "de-AT", "en"))
+	got, ok := matcher.Match(intltest.LocaleList(t, "de-AT", "en"))
 	if !ok || got.String() != "en" {
 		t.Fatalf("lookup = (%s, %v), want (en, true)", got.String(), ok)
 	}
@@ -62,7 +54,7 @@ func TestNewValidation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := localematcher.New(locales(t, tc.tags...), localematcher.Options{Algorithm: tc.algorithm})
+			got, err := localematcher.New(intltest.LocaleList(t, tc.tags...), localematcher.Options{Algorithm: tc.algorithm})
 			if got != nil || !errors.Is(err, tc.want) {
 				t.Fatalf("New = (%v, %v), want nil, %v", got, err, tc.want)
 			}
@@ -103,11 +95,11 @@ func TestMatcherMatch(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			matcher, err := localematcher.New(locales(t, tc.available...), localematcher.Options{Algorithm: tc.algorithm})
+			matcher, err := localematcher.New(intltest.LocaleList(t, tc.available...), localematcher.Options{Algorithm: tc.algorithm})
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, ok := matcher.Match(locales(t, tc.requested...))
+			got, ok := matcher.Match(intltest.LocaleList(t, tc.requested...))
 			if ok != (tc.want != "") || ok && got.String() != tc.want {
 				t.Fatalf("Match = (%s, %v), want (%s, %v)", got.String(), ok, tc.want, tc.want != "")
 			}
@@ -117,25 +109,25 @@ func TestMatcherMatch(t *testing.T) {
 
 func TestMatcherSnapshotsInputs(t *testing.T) {
 	t.Parallel()
-	available := locales(t, "de-DE")
+	available := intltest.LocaleList(t, "de-DE")
 	algorithm := "lookup"
 	matcher, err := localematcher.New(available, localematcher.Options{Algorithm: &algorithm})
 	if err != nil {
 		t.Fatal(err)
 	}
-	available[0] = locales(t, "en")[0]
+	available[0] = intltest.LocaleList(t, "en")[0]
 	algorithm = "best fit"
-	if got, ok := matcher.Match(locales(t, "de-AT")); ok {
+	if got, ok := matcher.Match(intltest.LocaleList(t, "de-AT")); ok {
 		t.Fatalf("changed algorithm: %s", got.String())
 	}
-	if got, ok := matcher.Match(locales(t, "de-DE")); !ok || got.String() != "de-DE" {
+	if got, ok := matcher.Match(intltest.LocaleList(t, "de-DE")); !ok || got.String() != "de-DE" {
 		t.Fatalf("changed available: (%s,%v)", got.String(), ok)
 	}
 }
 
 func TestMatcherPerKeyCatalog(t *testing.T) {
 	t.Parallel()
-	requested := locales(t, "zh-SG")
+	requested := intltest.LocaleList(t, "zh-SG")
 	for _, tc := range []struct {
 		name         string
 		translations map[string]string
@@ -148,7 +140,7 @@ func TestMatcherPerKeyCatalog(t *testing.T) {
 			t.Parallel()
 			available := make(locale.List, 0, len(tc.translations))
 			for tag := range tc.translations {
-				available = append(available, locales(t, tag)[0])
+				available = append(available, intltest.LocaleList(t, tag)[0])
 			}
 			matcher, err := localematcher.New(available, localematcher.Options{})
 			if err != nil {
@@ -167,7 +159,7 @@ func TestMatcherPerKeyCatalog(t *testing.T) {
 
 func TestMatcherConcurrentRequests(t *testing.T) {
 	t.Parallel()
-	matcher, err := localematcher.New(locales(t, "en", "zh-Hans", "zh-Hant"), localematcher.Options{})
+	matcher, err := localematcher.New(intltest.LocaleList(t, "en", "zh-Hans", "zh-Hant"), localematcher.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,8 +167,9 @@ func TestMatcherConcurrentRequests(t *testing.T) {
 		for _, tc := range []struct{ requested, want string }{{"zh-HK", "zh-Hant"}, {"zh-SG", "zh-Hans"}, {"ko", ""}} {
 			t.Run(tc.requested, func(t *testing.T) {
 				t.Parallel()
+				requested := intltest.LocaleList(t, tc.requested)
 				for range 20 {
-					got, ok := matcher.Match(locales(t, tc.requested))
+					got, ok := matcher.Match(requested)
 					if ok != (tc.want != "") || ok && got.String() != tc.want {
 						t.Fatalf("Match = (%s,%v), want %s", got.String(), ok, tc.want)
 					}
@@ -189,7 +182,7 @@ func TestMatcherConcurrentRequests(t *testing.T) {
 func TestZeroMatcher(t *testing.T) {
 	t.Parallel()
 	var matcher localematcher.Matcher
-	if got, ok := matcher.Match(locales(t, "en")); ok {
+	if got, ok := matcher.Match(intltest.LocaleList(t, "en")); ok {
 		t.Fatalf("zero matcher = %s", got.String())
 	}
 }

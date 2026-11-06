@@ -102,8 +102,7 @@ go-intl/
 │   ├── gen-plural-rules/  # CLDR plural JSON -> generated Go rules
 │   └── gen-fixtures-from-formatjs/ # FormatJS/Node references -> conformance fixtures
 ├── SPECS/                 # Maintained behavior/data decisions; read and correct with implementation evidence
-├── .references/           # Reference implementations; study before coding
-└── reports/               # Dependency issue reports
+└── .references/           # Reference implementations; study before coding
 ```
 
 The root package mirrors the JavaScript `Intl` namespace shape as closely as Go allows. Formatter-specific constructors, options, and methods live in their formatter packages; `internal/*` stays private.
@@ -319,7 +318,7 @@ official proposal; other additions still require an explicit owner and review.
 - No hand-written formatter supported-locale lists; update CLDR codegen, generated supported accessors, or the engine-specific support boundary instead.
 - No `strconv.ParseFloat`, `math.Log10`, or `math.Pow10` in NumberFormat decimal formatting, compact scaling, scientific notation, or percent math. Use `internal/decimal`.
 - No `Append*` byte-buffer methods on formatter types. ECMA-402 has no equivalent surface; if a hot-path caller needs zero-allocation output, wrap the formatter externally rather than growing the public API.
-- No working around dependency bugs inline. Create `reports/<dependency-name>.md` and continue with unaffected work.
+- No working around dependency bugs inline. Record reproducible evidence in the relevant dependency issue and continue with unaffected work.
 
 ## Dependency Issue Reporting
 
@@ -327,7 +326,7 @@ When you encounter a bug, limitation, or unexpected behavior in a dependency:
 
 1. Do not reimplement the dependency's functionality inside go-intl.
 2. Do not silently skip the dependency or fork its logic.
-3. Create `reports/<dependency-name>.md`.
+3. Prepare a reproducible report for the relevant dependency issue.
 4. Include dependency name and version, trigger scenario, expected behavior, actual behavior, relevant errors or traces, and any workaround suggestion without implementing it.
 5. Continue with tasks that do not depend on the broken behavior.
 

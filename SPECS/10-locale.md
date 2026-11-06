@@ -30,8 +30,8 @@ keyword getters project the extension. There is no mutable parallel identity.
 identity and succeeds only when `FromTag(tag, Options{})` preserves `Equal`.
 Lossy or unsupported x/text conversion returns `ErrInvalidValue`. For example,
 `Parse("und-Gara")` succeeds while its `Tag()` bridge can fail. `String`/`Parse`
-and text/JSON round trips work for every valid Locale. See
-[the dependency decision](../reports/golang.org-x-text.md).
+and text/JSON round trips work for every valid Locale. Regression evidence lives
+in [`locale/language_identity_test.go`](../locale/language_identity_test.go).
 
 ### 1.2 Canonical keyword state
 
