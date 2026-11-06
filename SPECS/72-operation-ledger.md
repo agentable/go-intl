@@ -134,3 +134,14 @@ rationale, `review_after`, and removal path.
 - Public supported-locale and supported-value APIs do not advertise refused capability slices.
 - `task lint` and `task test` pass after ledger-affecting code changes.
 - `task conformance:verify` passes when fixture or divergence references change.
+
+## 9. Experimental official draft surface
+
+This is the narrow SPEC 00 / SPEC 80 exception to standardized native ownership,
+not an additional root Intl constructor or an abstract-operation export.
+
+| Surface | Official owner / bridge | Implementation | Verification |
+| --- | --- | --- | --- |
+| `Options`, `Options.Algorithm` | Stage 1 LocaleMatcher constructor options bag and algorithm presence | `x/localematcher/localematcher.go` | `TestNewValidation`, `TestMatcherSnapshotsInputs` |
+| `New`, `Matcher` | `new Intl.LocaleMatcher(availableLocales, options)` at the revision pinned in SPEC 80 | same file, shared exact-set compiler | constructor validation, snapshot and concurrent matching tests |
+| `(*Matcher).Match` | `Intl.LocaleMatcher.prototype.match`; `(locale.Locale, bool)` bridges locale or undefined | same file | lookup continuation, best-fit, per-key translated-text test, executable example |

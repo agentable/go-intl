@@ -125,6 +125,7 @@ Each concept has exactly one owner. Cross-links may explain dependencies, but th
 | [`71-benchmark.md`](./71-benchmark.md) | benchmark layout, non-blocking performance telemetry, benchstat workflow |
 | [`72-operation-ledger.md`](./72-operation-ledger.md) | public surface to ECMA-402 owner, implementation, and verification ledger |
 | [`73-json-records.md`](./73-json-records.md) | JSON field names and presence policy for resolved options, parts, duration records, and locale info |
+| [`80-x-modules.md`](./80-x-modules.md) | experimental LocaleMatcher official draft and exact resource-set contract |
 
 > **Why**: The project has enough surface area that "read SPEC 00" is no longer precise enough. The map routes every design question to one owner and prevents duplicate mini-specs in CLAUDE.md, README.md, tests, or source comments.
 >
@@ -153,6 +154,13 @@ The root package mirrors the JavaScript `Intl` namespace object as closely as Go
 Every exported API must have an identified native JavaScript owner before it is added. Go-only typed bridges are allowed only when they preserve a native operation's semantics while replacing JavaScript dynamic values with Go types; they must not widen the observable Intl surface.
 
 Public ECMA-402 record structs (`ResolvedOptions`, parts, range parts, locale info, and duration records) must marshal to JSON with the same camelCase field names that the corresponding JavaScript record exposes. Omitted JavaScript properties are represented by nil pointer fields plus `omitempty`, not by ambiguous zero values. This JSON shape is a host-boundary bridge, not permission to replace typed Go APIs with `map[string]any`.
+
+### Experimental draft exception
+
+`x/localematcher` is an additional root-module package anchored to an official
+TC39 Stage 1 draft, pinned and specified in [SPEC 80](./80-x-modules.md).
+It is experimental rather than standardized ECMA-402 surface. This single
+exception does not add root aliases or alter any existing constructor contract.
 
 ### 3.1 Outside the active surface
 
