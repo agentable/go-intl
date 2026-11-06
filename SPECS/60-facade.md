@@ -1,6 +1,5 @@
 # SPEC 60 — Root `Intl` Namespace
 
-> **Status:** Revised (2026-08-09)
 > **Type:** Consumer API Spec — defines the public entry surface for the root `go-intl` package.
 > **Authority:** ECMA-402 `.references/ecma402/spec/intl.html` is the normative source. This spec records the current root package contract. SPECS 10/20/30/40/41/42/43/44 record the active constructor package contracts.
 
@@ -275,21 +274,21 @@ Rules:
 
 ## 7. Acceptance Criteria
 
-- [ ] `go doc github.com/agentable/go-intl` presents the package as the `Intl` namespace, not a constructor.
-- [ ] The root package has no `Intl` struct and no root `New`.
-- [ ] The root package exposes no typed one-shot formatting helpers.
-- [ ] The root package exposes active constructor aliases as the Go bridge for ECMA-402 `Intl` constructor properties.
-- [ ] Constructor aliases are not removed for import-cost or build-size reasons; aggregate facade cost is measured and documented separately.
-- [ ] The root package exposes no public cache controls.
-- [ ] The root package exposes the canonical Intl error categories and no formatter-specific error aliases.
-- [ ] README documents direct constructor package imports as the preferred production path for services that need one formatter.
-- [ ] Root package build-size and dependency graph measurements are labeled as aggregate facade cost and kept separate from per-surface package measurements.
-- [ ] `GetCanonicalLocales` preserves order, canonicalizes, and deduplicates.
-- [ ] `GetCanonicalLocales` is the only public locale-list canonicalization helper; root and `locale` do not expose ECMA-402 abstract-operation helpers.
-- [ ] Supported-value accessors cover exactly the ECMA-402 keys in this spec and return generated canonical values.
-- [ ] Supported-value accessors live in the root package, conventionally in `supported.go`, without creating public data-layer packages.
-- [ ] The root package does not expose `SupportedValueKey`, `SupportedValue*` constants, or `SupportedValuesOf`.
-- [ ] `numberformat`, `datetimeformat`, `pluralrules`, `listformat`, `relativetimeformat`, `durationformat`, and `displaynames` own their own `SupportedLocalesOf` functions.
+- `go doc github.com/agentable/go-intl` presents the package as the `Intl` namespace, not a constructor.
+- The root package has no `Intl` struct and no root `New`.
+- The root package exposes no typed one-shot formatting helpers.
+- The root package exposes active constructor aliases as the Go bridge for ECMA-402 `Intl` constructor properties.
+- Constructor aliases are not removed for import-cost or build-size reasons; aggregate facade cost is measured and documented separately.
+- The root package exposes no public cache controls.
+- The root package exposes the canonical Intl error categories and no formatter-specific error aliases.
+- README documents direct constructor package imports as the preferred production path for services that need one formatter.
+- Root package build-size and dependency graph measurements are labeled as aggregate facade cost and kept separate from per-surface package measurements.
+- `GetCanonicalLocales` preserves order, canonicalizes, and deduplicates.
+- `GetCanonicalLocales` is the only public locale-list canonicalization helper; root and `locale` do not expose ECMA-402 abstract-operation helpers.
+- Supported-value accessors cover exactly the ECMA-402 keys in this spec and return generated canonical values.
+- Supported-value accessors live in the root package, conventionally in `supported.go`, without creating public data-layer packages.
+- The root package does not expose `SupportedValueKey`, `SupportedValue*` constants, or `SupportedValuesOf`.
+- `numberformat`, `datetimeformat`, `pluralrules`, `listformat`, `relativetimeformat`, `durationformat`, and `displaynames` own their own `SupportedLocalesOf` functions.
 
 ---
 
@@ -319,7 +318,7 @@ label. This is a local implementation-defined support policy, not Node's list.
 | Codes | Constructor | Pinned source name | Member | Reason |
 |---|---|---|---|---|
 | USD, JPY | yes | `cldr-numbers-full/main/en/currencies.json` | yes | names in profile |
-| AED, SAR, BDT | yes | same | yes | names currently trimmed by extraction |
+| AED, SAR, BDT | yes | same | yes | names retained in the selected profile; verified by `displaynames/currency_coverage_test.go` |
 | AFN, SLL | yes | same | yes | names even when no precision exception |
 | DEM, XXX | yes | same | yes | historic/no-currency names are still display data |
 | ZZZ | yes | absent | no | syntactically valid but no pinned name |

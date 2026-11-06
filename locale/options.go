@@ -1,11 +1,18 @@
 package locale
 
-import "github.com/agentable/go-intl/internal/localeid"
+import (
+	"slices"
+	"strings"
+
+	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
+	"github.com/agentable/go-intl/internal/localeid"
+)
 
 type Options struct {
 	Language        *string
 	Script          *string
 	Region          *string
+	Variants        *string
 	Calendar        *string
 	Collation       *string
 	HourCycle       *string
@@ -16,7 +23,7 @@ type Options struct {
 }
 
 func applyLanguageOptions(loc *Locale, opts Options) error {
-	if opts.Language == nil && opts.Script == nil && opts.Region == nil {
+	if opts.Language == nil && opts.Script == nil && opts.Region == nil && opts.Variants == nil {
 		return nil
 	}
 	lang, script, region := localeid.Parts(loc.tag)
@@ -29,7 +36,18 @@ func applyLanguageOptions(loc *Locale, opts Options) error {
 	if err := applySubtagOption(&region, opts.Region, "region", localeRegionExpected, localeid.CanonicalUnicodeRegionSubtag); err != nil {
 		return err
 	}
-	tag, err := localeid.ReplaceLanguageSubtags(loc.tag, lang, script, region)
+	variants := localeid.VariantSubtags(loc.tag)
+	if opts.Variants != nil {
+		variants = nil
+		for _, value := range strings.Split(*opts.Variants, "-") {
+			canonical, ok := localeid.CanonicalUnicodeVariantSubtag(value)
+			if !ok || slices.Contains(variants, canonical) {
+				return invalidLocaleOptionExpected("variants", *opts.Variants, "one or more distinct Unicode variant subtags", nil)
+			}
+			variants = append(variants, canonical)
+		}
+	}
+	tag, err := localeid.ReplaceLanguageID(loc.tag, lang, script, region, variants, cldrlocale.MaximizeSubtags)
 	if err != nil {
 		return invalidLocaleOptionExpected("languageIdentifier", localeid.Join(lang, script, region), localeLanguageIdentifierExpected, err)
 	}

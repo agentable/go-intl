@@ -98,3 +98,27 @@ func TestDisplayNames_LanguageDisplayValidatedForNonLanguageTypes(t *testing.T) 
 		})
 	}
 }
+
+func TestDisplayNamesOptionErrorOrder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		opts  displaynames.Options
+		value string
+	}{
+		{"style", displaynames.Options{Style: new("bad"), Type: new("bad")}, "bad"},
+		{"style", displaynames.Options{Style: new("bad")}, "bad"},
+		{"localeMatcher", displaynames.Options{LocaleMatcher: new("bad"), Style: new("bad")}, "bad"},
+		{"type", displaynames.Options{Style: new("long")}, ""},
+		{"fallback", displaynames.Options{Type: new("language"), Fallback: new("bad"), LanguageDisplay: new("bad")}, "bad"},
+		{"style", displaynames.Options{Type: new("language"), Style: new("")}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := displaynames.New(intltest.LocaleList(t, "en"), tc.opts)
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("error = %v, want ErrInvalidOption", err)
+			}
+			testcontract.AssertOptionError(t, err, "displaynames", intlerr.InvalidOption, tc.name, tc.value, "en")
+		})
+	}
+}

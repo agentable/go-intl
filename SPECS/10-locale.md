@@ -1,6 +1,5 @@
 # SPEC 10 — Locale
 
-> **Status:** Revised (2026-08-09)
 > **Priority:** High (all formatter input types; blocking SPEC 11 / 20 / 30 / 40 / 60)
 > **Authority:** ECMA-402 `.references/ecma402/spec/locale.html` is a normative source. This SPEC records the current of `locale.Locale` type, ECMA-402 `Intl.Locale` alignment, parsing and normalization, `Maximize` / `Minimize`, read-only property getter, `String` / `Equal` / `MarshalText` / `UnmarshalText` Go contracts.
 
@@ -8,7 +7,11 @@
 
 ## Overview
 
-`locale.Locale` is the input parameter type of all locale-aware operations in the go-intl public API. It is the Go representation of `Intl.Locale`, wrapping the BCP 47 parsing capabilities of [`golang.org/x/text/language.Tag`](https://pkg.go.dev/golang.org/x/text/language#Tag), overlaying ECMA-402/UTS #35 Unicode extension state through `internal/localeid`, and exposing properties required by the spec via read-only getters.
+`locale.Locale` is the immutable Go representation of `Intl.Locale` and the
+input identity for formatter constructors. `internal/localeid` owns Unicode
+syntax and canonical strings, using pinned CLDR alias data. Registry coverage
+never determines grammatical validity. `language.Tag` is an explicit, fallible
+interop projection, not identity storage.
 
 This SPEC defines the `Locale` structure, constructor (`New` / `FromTag` / `Parse`), locale-list helper (`ParseList`), normalization (`Maximize` / `Minimize`), getter materialization strategy, string round trip, comparability. **Do not** define best-fit matching algorithm (SPEC 11), CLDR data format (SPEC 50), formatter internal slot (SPEC 12 / 20 / 30 / 40).
 
@@ -16,45 +19,19 @@ This SPEC defines the `Locale` structure, constructor (`New` / `FromTag` / `Pars
 
 ## 1. Locale Structure <a id="locale-structure"></a>
 
-### 1.1 Decision: Immutable `language.Tag` + extension state
+### 1.1 Decision: canonical identity and immutable extension state
 
-```go
-// locale/locale.go (signature)
-package locale
+Locale stores a canonical private `localeid.Tag` without its separately owned
+Unicode extension, immutable canonical keyword/attribute state, and cached full
+canonical text. The zero value is `und`. L/S/R/variant getters project the tag;
+keyword getters project the extension. There is no mutable parallel identity.
 
-// Locale is the Go representation of ECMA-402 Intl.Locale.
-// The field is not exported; the caller must construct it through Parse/New and read it through getter.
-type Locale struct {
-    tag language.Tag
-    ext extensions
-}
-
-func (l Locale) BaseName() string
-func (l Locale) Tag() language.Tag
-func (l Locale) Calendar() string
-func (l Locale) Collation() string
-func (l Locale) HourCycle() string
-func (l Locale) CaseFirst() string
-func (l Locale) Numeric() bool
-func (l Locale) NumberingSystem() string
-func (l Locale) Language() string
-func (l Locale) Script() string
-func (l Locale) Region() string
-func (l Locale) Variants() []string
-```
-
-> **Why**:
-> 1. **Reuse** - `language.Tag` implements BCP 47 parsing, normalization, and `Base` / `Script` / `Region` / `Variants` access; using the ecosystem's standard handle avoids a second parser and preserves interop.
-> 2. **Read-only model** - ECMA-402 `Intl.Locale.prototype` property is an accessor property and has no setter. The Go side must express the same immutable model with unexported fields + getters.
-> 3. **Semi-transparent transmission** - `language.Tag` can read the string value of `-u-` extended key through `TypeForKey("ca")`, etc., **but does not expose** it as a typed field, does not perform `numeric` string ↔ bool conversion, and does not recognize the literal validity of `caseFirst="false"`. go-intl must hold extension state itself.
-> 4. **Value type** - struct (not `*Locale`) maintains value semantics; the caller passes it by value, and `Locale` is an immutable snapshot.
->
-> **Rejected**:
-> - **`type Locale = language.Tag`(type alias)**: The extension field has nowhere to be placed, violating independent getter semantics such as spec `Intl.Locale.calendar`.
-> - **Flat fields without `Tag`** (keep `language` / `script` / `region` by itself): Reinvent BCP 47 parsing, violating CLAUDE.md "no reinventing locale parsing".
-> - **Exported field struct**: The caller can bypass the constructor and create an illegal state, violating the `Intl.Locale` read-only attribute model.
-> - **`*Locale` pointer type**: Violates SPEC 00 §1 value type preference; `Equal` / `String` uses value semantics to be clearer.
-> - **PHP style flat field struct** (put `language` / `script` / `region` / `calendar` / `hourCycle` all `string`): Give up the parsing ability of `language.Tag`.
+`BaseName()` omits extensions. `Tag() (language.Tag, error)` includes the **full**
+identity and succeeds only when `FromTag(tag, Options{})` preserves `Equal`.
+Lossy or unsupported x/text conversion returns `ErrInvalidValue`. For example,
+`Parse("und-Gara")` succeeds while its `Tag()` bridge can fail. `String`/`Parse`
+and text/JSON round trips work for every valid Locale. See
+[the dependency decision](../reports/golang.org-x-text.md).
 
 ### 1.2 Canonical keyword state
 
@@ -97,6 +74,7 @@ type Options struct {
     Language        *string
     Script          *string
     Region          *string
+    Variants        *string
     Calendar        *string
     Collation       *string
     HourCycle       *string
@@ -107,11 +85,10 @@ type Options struct {
 }
 ```
 
-`language.Tag` is the only `golang.org/x/text` type allowed in the public API. `Locale.Tag()` and
-`FromTag` together constitute the BCP 47 bridge of the Go ecosystem and must meet
-`FromTag(l.Tag()).Tag() == l.Tag()`. Other `x/text` types, including
-`display.Tags`, `transform.Transformer`, `message.Printer`
-etc., can only be left as implementation details within unexported fields, unexported functions or internal packages.
+`language.Tag` is the only x/text type exposed publicly. `FromTag` converts its
+input through the canonical Locale boundary; `Tag` returns `(language.Tag,
+error)` and includes Unicode extensions. Callers normally use Locale directly.
+
 BCP 47 language, script, region, and variant subtag shape checks live in
 `internal/localeid`; constructor options, locale parsing, and internal code
 canonicalization must not grow parallel grammar copies. Locale info methods that
@@ -134,16 +111,34 @@ fmt.Println(loc2.String())   // "ja-u-ca-japanese"
 
 ### 2.2 Parsing behavioral contracts
 
+`Parse` checks the original Unicode language identifier before Unicode extension
+separation and alias replacement. The language, optional
+script, optional region, and variants must have Unicode subtag shapes in that
+order. BCP 47 compatibility syntax such as `i-klingon`, `en-GB-oed`, and `zh-cmn`
+is rejected rather than accepted through its canonical replacement. `New` and
+`ParseList` use the same boundary and retain the original input in invalid-value
+errors. Underscores are rejected throughout the original input, including
+extensions and private use, before the backend can normalize them to hyphens.
+Acceptance is covered by `locale/locale_test.go:TestParseInvalidLocale`.
+
+The same raw check rejects case-insensitive duplicate variants in both the base
+language identifier and a transformed language identifier, and duplicate
+extension singletons. It stops interpreting subtags at private use. Repeated
+Unicode keys keep their first value; repeated transformed field keys remain
+grammatically valid. These are not duplicate singletons. The check shares the
+subtag grammar in `internal/localeid` and does not perform alias selection or
+replace the extension parsers.
+
 | Input | Behavior |
 |------|------|
 | `"en-US"` | OK;`Tag = en-US`, all extended fields are empty |
-| `"en-US-u-hc-h23"` | OK;`HourCycle="h23"`,Tag reserved `-u-hc-h23` |
+| `"en-US-u-hc-h23"` | OK; `HourCycle="h23"`, `String()` retains `-u-hc-h23`, a successful `Tag()` bridge also retains the Unicode extension |
 | `"en-US-u-ca-buddhist-hc-h23"` | OK; The field order is normalized according to spec (see §3.2) |
 | `"en-US-u-ca-islamicc"` | OK; the deprecated CLDR value canonicalizes to `Calendar="islamic-civil"` |
 | `"en-US-u-ca-islamic-civil"` | OK; the canonical value remains unchanged |
 | `"en-US-u-ca-gregorian"` | Returns an error matching `gointl.ErrInvalidValue`; the nine-character subtag is not a well-formed Unicode type |
 | `"en-US-u-ms-imperial"` | OK; key-aware CLDR canonicalization produces `-u-ms-uksystem` |
-| `"xx-INVALID"` | Returns an error matching `gointl.ErrInvalidValue` |
+| `"xx-INVALID"` | Accepted and canonicalized to `xx-invalid`; unknown language and variant subtags are valid identity. |
 | `""` | Returns an error matching `gointl.ErrInvalidValue` (empty string is illegal) |
 | `"en-US-u-kn"`(no value table true) | OK;`Numeric=true` |
 | `"en-US-u-kn-false"` | OK;`Numeric=false` |
@@ -156,7 +151,7 @@ fmt.Println(loc2.String())   // "ja-u-ca-japanese"
 > 3. **No public panic parser** - Test and example code can define local helpers, but production API exposes `Parse` / `ParseList` error returns only.
 >
 > **Rejected**:
-> - **Receive `string` at formatter layer** (`numberformat.New("en-US", ...)`): Violation CLAUDE.md "Locale arguments are typed (`locale.Locale` or `language.Tag`) — never raw `string`. Parsing happens at the boundary, once."
+> - **Receive `string` at formatter layer** (`numberformat.New("en-US", ...)`): Formatter constructors receive `locale.List`; callers parse strings at the boundary. `language.Tag` enters only through `locale.FromTag`.
 > - **`Parse(s) Locale`(panic on error)**: spec RangeError must return error, violating CLAUDE.md "no panic in production code".
 
 ### 2.3 Construction phase verification
@@ -172,11 +167,11 @@ fmt.Println(loc2.String())   // "ja-u-ca-japanese"
 | `CaseFirst` | When the pointer is non-nil: an exact, case-sensitive member of {`"upper"`, `"lower"`, `"false"`} |
 | `Numeric` | `nil` means omitted; non-nil `true` writes `-u-kn`; non-nil `false` writes `-u-kn-false` |
 | `NumberingSystem` | When the pointer is non-nil: the explicit string must be non-empty and match BCP 47 type subtag syntax |
-| `FirstDayOfWeek` | When the pointer is non-nil: the explicit string must be non-empty and ∈ {`"mon"`, `"tue"`, `"wed"`, `"thu"`, `"fri"`, `"sat"`, `"sun"`, `"0"`, `"1"`, `"2"`, `"3"`, `"4"`, `"5"`, `"6"`, `"7"`}; option values normalize through ECMA-402 `WeekdayToUValue`. `Parse` does not perform this option coercion on BCP 47 input. |
+| `FirstDayOfWeek` | A supplied value must be non-empty. Apply ECMA-402 `WeekdayToUValue` to numeric aliases `"0"` through `"7"`, then validate Unicode locale type syntax. Unknown well-formed types such as `"funday"` are valid; this is not a weekday enum. `Parse` never applies option coercion to a tag. |
 
 Verification failure returns an error matching the root error category. Parsing failed to match `gointl.ErrInvalidValue`; constructor option failed to match `gointl.ErrInvalidOption`.
 
-> **Why**: One-time verification during construction, the formatter layer no longer verifies the syntax twice; but whether it can be parsed in CLDR (such as `Calendar="vulcan"`) will be reported by the formatter when searching for data (`numberformat`/`datetimeformat` is sentinel by itself).
+> **Why**: Locale identity grammar and formatter data support are separate. A grammatical unknown calendar such as `vulcan` is preserved by Locale; DateTimeFormat negotiates it to a supported calendar through `date.DateLocaleData.For`. Invalid input errors use the root error vocabulary (`errors.go`), constructed internally through `internal/intlerr`. See `datetimeformat/datetimeformat_test.go:TestDateTimeFormatFallsBackForUnsupportedCalendarOption`.
 >
 > **Rejected**: Check the existence of CLDR data during the construction period (hierarchy violation: the construction period does not rely on CLDR; only the formatter layer requires CLDR data).
 
@@ -196,7 +191,7 @@ func (l Locale) String() string
 
 `String()` Output **Required**:
 
-1. **subtag order**:`language[-script][-region][-variants...]` (given by `language.Tag.String()`).
+1. **subtag order**: `language[-script][-region][-variants...]`; variants are sorted after CLDR aliases.
 2. **`-u-` extended keys in dictionary order**: `ca` < `co` < `fw` < `hc` < `kf` < `kn` < `nu`.
 3. **`-u-` extended value lowercase** (`Calendar="GREGORY"` output `-u-ca-gregory`).
 4. **Absent keywords are omitted; present empty types remain as bare keys**, for example `en-u-ca`; constructor option pointers with explicit `""` are rejected before `String()` canonicalization.
@@ -204,7 +199,15 @@ func (l Locale) String() string
 6. **CaseFirst=`"false"` outputs `-u-kf-false`** (literal legal value).
 7. **Key-aware Unicode type canonicalization** follows pinned CLDR BCP47 data after syntax validation (`ca=islamicc` → `islamic-civil`, `ms=imperial` → `uksystem`).
 8. **Duplicate Unicode extension keys are first-wins**, matching ECMA-402 `UnicodeExtensionComponents` and native engine behavior (`en-u-ca-buddhist-ca-gregory` canonicalizes to `en-u-ca-buddhist`).
-9. **Unicode extension insertion precedes private-use extension** (`en-u-ca-gregory-x-private`, not `en-x-private-u-ca-gregory`).
+9. **Extension singletons are sorted; Unicode extension insertion precedes later singletons and private use** (`en-u-ca-gregory-x-private`, not `en-x-private-u-ca-gregory`).
+
+Explicit unknown subtags are identity fields: `en-Zzzz-ZZ` has Script `Zzzz`,
+Region `ZZ`, and BaseName `en-Zzzz-ZZ`. Language/script/region options replace
+only the selected field, preserving the others and all suffixes. Getters project
+the existing canonical tag; Locale does not store a second mutable identity.
+`locale/language_identity_test.go:TestExplicitUnknownLanguageSubtags` and
+`locale/construct_test.go:TestNewLanguageOptionsPreserveExplicitUnknownSubtags`
+cover getters, JSON, option overrides, and suffix preservation.
 
 Example:
 
@@ -279,6 +282,11 @@ fmt.Println(loc.Maximize().Minimize().String())  // "zh-TW"
 
 Both operations consume the pinned `cldrlocale.MaximizeSubtags` data. Maximize
 uses CLDR fallback order while preserving explicit language, script and region.
+The unknown identifiers `Zzzz` and `ZZ` are treated as missing only at the
+likely-subtag inference boundary, `cldrlocale.MaximizeSubtags`. Identity getters
+retain them. For example, `en-Zzzz-ZZ` maximizes to `en-Latn-US` and minimizes to
+`en`, preserving variants and extensions in both operations. These results follow
+the pinned CLDR inference contract, independently of host ICU differences.
 Minimize first obtains that maximal LSR, then tries its language alone,
 language-region, and language-script. The first candidate that maximizes to the
 same LSR wins; otherwise the maximal LSR remains. This selects the stable
@@ -301,7 +309,7 @@ loc := mustLocale("zh-u-hc-h23-ca-chinese")
 m := loc.Maximize()
 // m.HourCycle() == "h23" // Reserved
 // m.Calendar() == "chinese" // Reserved
-// m.Tag() == zh-Hans-CN // Inference
+// m.String() == "zh-Hans-CN-u-ca-chinese-hc-h23"
 ```
 
 > **Why**: Consistent with generated-reference `intl-locale/index.ts` `maximize()` implementation; extended fields are explicitly selected by the user and Maximize should not silently discard them.
@@ -339,6 +347,7 @@ func (l Locale) GetNumberingSystems() []string
 
 // GetTimeZones returns the sorted primary IANA identifiers assigned to the
 // explicit region subtag; it returns nil when the locale has no region.
+// An explicit region with no assigned zones returns a non-nil empty list.
 func (l Locale) GetTimeZones() []string
 
 // WeekInfo corresponds to ECMA-402 sec-week-info-of-locale.
@@ -362,8 +371,14 @@ loc := mustLocale("ar-SA")
 fmt.Println(loc.GetWeekInfo().FirstDay)    // time.Sunday
 direction := loc.GetTextInfo().Direction
 fmt.Println(direction != nil && *direction == "rtl") // true
-fmt.Println(loc.GetCalendars())            // ["islamic-umalqura", "gregory", "islamic", ...]
+fmt.Println(loc.GetCalendars())            // [gregory] (current active date data)
 ```
+
+An explicit `ca` value is returned by `GetCalendars` before active-data preferences
+are consulted. Without it, the list is restricted to the calendars currently
+supported by the date payload. For weekday options,
+`Options{FirstDayOfWeek: gointl.String("funday")}` is valid, and `"0"` normalizes
+to `sun`; a tag containing `-u-fw-0` remains malformed.
 
 > **Why**(Close SPEC 00 §8 Q3):
 > 1. **Minimum construction period cost** - Simple fields are easily obtained during BCP 47 parsing, zero overhead + fields are read directly (O(1)).
@@ -387,14 +402,25 @@ sorted primary identifiers assigned by the generated `internal/tz` registry's
 IANA `zone.tab` records. It must not maximize a missing region or maintain a
 locale-layer country table.
 
-```go
-// locale/info.go (fragment; non-complete implementation)
-func (l Locale) GetCalendars() []string {
-region := l.Maximize().Tag.Region().String() // Example: "SA"
-    cldrLoc, _ := cldr.ResolveLocale(l.Tag)
-    return cldrLoc.CalendarPreference()  // CLDR calendarPreferenceData
-}
-```
+An explicit unknown region such as `ZZ` is still present: `GetTimeZones` returns
+an empty list, not nil, and region preference does not substitute subdivision or
+likely-region values for it. Generated calendar/week data supplies its ordinary
+no-data fallback. `GetTextInfo` likewise does not maximize an explicit `Zzzz`
+script; the pinned script metadata marks its direction unknown, so Direction is
+nil and omitted from JSON. These distinctions are covered by `locale/info_test.go`.
+
+Subdivision region interpretation uses generated territory aliases. Legal but
+unregistered regions such as `000` are retained and follow ordinary CLDR data
+fallback; getters never call a Must parser on user-derived values. `rg` overrides
+preferences only when that domain has data; otherwise the base region, `sd`,
+likely region, and world fallback retain their existing precedence.
+
+
+`GetNumberingSystems` preserves an explicit `nu` singleton, including an empty or
+unknown type. Otherwise it uses the shared lookup matcher over generated number
+locales, retaining intermediate region prefixes and mapping derived available
+locales to their payload. The locale kernel supplies that payload’s default; an
+unmatched locale returns `latn`. No best-fit or default-locale negotiation occurs.
 
 ### 5.4 Explicit Calendar fields take precedence
 
@@ -412,7 +438,7 @@ fmt.Println(loc.GetCalendars())  // ["buddhist"]
 ### 6.1 Decision: Explicit `Equal` + `String` comparison
 
 ```go
-// (Locale).Equal compares Tag.String() with 7 extension fields.
+// Equal compares the complete canonical string.
 func (l Locale) Equal(other Locale) bool
 
 // (Locale).String returns canonical BCP 47; the same Locale String() results are consistent multiple times.
@@ -421,10 +447,8 @@ func (l Locale) String() string
 
 ### 6.2 `==` Incomparable
 
-`Locale` **not** guaranteed to be comparable to Go `==`; implementation uses unexported zero-length `func` fields to actively prevent comparisons to avoid callers
-ECMA-402 locale object is used as a stable map key. `language.Tag` bridge can be compared according to its own Go type capabilities,
-Therefore `FromTag(l.Tag()).Tag() == l.Tag()` is allowed and required to test lock; `Locale` itself must still pass
-`Equal` or `String()` comparison.
+`Locale` is deliberately not Go-comparable. Use `Equal` or canonical `String`
+keys; the fallible x/text bridge is not the identity comparison mechanism.
 
 ```go
 a, _ := locale.Parse("en-US")
@@ -461,6 +485,7 @@ type Options struct {
     Language        *string
     Script          *string
     Region          *string
+    Variants        *string
     Calendar        *string
     Collation       *string
     HourCycle       *string
@@ -484,9 +509,13 @@ loc, err := locale.New("en", locale.Options{
 
 `nil` string option pointers mean the property was omitted. A non-nil pointer to `""` means the caller explicitly supplied an empty string and must be rejected with an invalid-option error, matching `Intl.Locale` option presence semantics.
 
-Variants are not constructor options. They are part of the BCP 47 language tag:
-`locale.Parse("sl-rozaj")` and `locale.New("sl-rozaj", locale.Options{})`
-preserve them, and `Locale.Variants()` exposes them as a read-only view.
+`Variants *string` replaces the variant sequence and preserves t/u/x and other
+extensions. Nil preserves existing variants. Supplied values must be nonempty,
+contain only grammatical variants, and contain no case-insensitive duplicates.
+Case and alias normalization follow the same owner as Parse. For example,
+`New("de-1901-u-nu-latn", Options{Variants: gointl.String("1996")})` yields
+`de-1996-u-nu-latn`. Input pointers are copied during construction.
+`Locale.Variants()` returns a detached slice.
 
 ### 7.2 Verification timing
 
@@ -532,9 +561,7 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
   - ✅ Do: `numberformat.New(mustLocaleList("en-US"), numberformat.Options{})` for const-like examples, or `locale.ParseList` at application boundaries.
   - ❌ Don't: `numberformat.New("en-US", numberformat.Options{})`.
 
-- **Rewrite BCP 47 parsing**: Violation of CLAUDE.md "no reinventing locale parsing".
-- ✅ Do: Internally superimpose `-u-` on top of `internal/localeid.ParseTag(s)` for extended processing.
-- ❌ Don't: Write `parseBCP47(s string)` yourself.
+- **Duplicate locale parsers or alias tables**: use `internal/localeid` and its generated CLDR data; formatter packages must not invent their own grammar.
 
 - **Reimplement or fork the likelySubtags algorithm**: reinvent maximize/minimize instead of consuming generated CLDR data.
 - ✅ Do: use generated `cldrlocale.MaximizeSubtags` data and prove minimal candidates by maximize equivalence.
@@ -548,12 +575,12 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 - ✅ Do: `Locale` is a struct value type; re-call `locale.New(tag, Options{...})` or `locale.Parse(tag)` when the locale extension needs to be changed.
   - ❌ Don't: `func (l *Locale) WithCalendar(c string)`(in-place mutate).
 
-- **`Locale` implements Go `==` comparable**: `language.Tag` is not comparable internally, nor is the embedded type after embedding.
+- **`Locale` implements Go `==` comparable**: identity equality is an explicit canonical-string contract.
 - ✅ Do: `loc1.Equal(loc2)` or `loc1.String() == loc2.String()`.
 - ❌ Don't: `loc1 == loc2` (compilation error or undefined behavior).
 
 - **Check the existence of CLDR data during construction** (such as whether `Calendar="vulcan"` is in CLDR): Hierarchy violation.
-- ✅ Do: Only BCP 47 syntax is verified during construction; data existence is determined by formatter reporting an error during data search.
+- ✅ Do: Preserve grammatical locale identity independently of data support; formatter negotiation applies the owning operation’s fallback policy.
 - ❌ Don't: `import "internal/cldr"` inside `Parse` checks the calendar name.
 
 - **Candidate list method returns fixed `[]string` literal** (ignoring region preference): breaks spec consistency.
@@ -574,69 +601,69 @@ return Locale{}, intlerr.New(intlerr.InvalidOption, "locale", "hourCycle", hc, "
 
 ### Structure
 
-- [ ] `locale.Locale` expresses `Intl.Locale` read-only object using unexported `language.Tag` + extension state, consistent with §1.1 getter.
-- [ ] `Numeric()` getter returns `bool`; `Options.Numeric *bool` expresses omitted vs explicit boolean constructor input, while string option pointers express omitted vs explicit string constructor input.
+- `locale.Locale` expresses `Intl.Locale` read-only object using unexported canonical identity + extension state, consistent with §1.1 getter.
+- `Numeric()` getter returns `bool`; `Options.Numeric *bool` expresses omitted vs explicit boolean constructor input, while string option pointers express omitted vs explicit string constructor input.
 
 ### Analysis
 
-- [ ] `Parse(s string) (Locale, error)` accepts BCP 47 strings (with `-u-` extension).
-- [ ] `New(tag string, opts Options) (Locale, error)` accepts a `Options` value, `Options{}` represents an empty options object.
-- [ ] `FromTag(tag language.Tag, opts Options) (Locale, error)` is the only public `language.Tag` bridge.
-- [ ] `FromTag(l.Tag()).Tag() == l.Tag()` holds for all legal `Locale`.
-- [ ] The only `golang.org/x/text` type allowed in an export signature is `language.Tag`; the secondary `x/text` type is not leaked.
-- [ ] `ParseList(tags ...string)` constructs the formatter request list.
-- [ ] If parsing fails, an error with `errors.Is(err, gointl.ErrInvalidValue)` being true is returned.
-- [ ] Canonicalizes Unicode types by key from pinned CLDR BCP47 data: `ca=islamicc` → `islamic-civil`, `ms=imperial` → `uksystem`; `co=islamic-civil` remains unchanged and malformed `ca=gregorian` is rejected before lookup.
-- [ ] `Parse("en-US-u-fw-0")` rejects malformed tag syntax, while `Options{FirstDayOfWeek: gointl.String("0")}` normalizes to `-u-fw-sun`; tag parsing never applies constructor-option coercion.
-- [ ] Unicode extension keys have exactly two ASCII characters: alphanumeric followed by a letter. `00` and `a0` are invalid; `0a` and `aa` are valid, including uppercase input. Runtime and generator share `internal/localeid.IsUnicodeKey`.
-- [ ] Tag types are grammar-checked; the §2.3 option rules apply only to explicit options.
-- [ ] Explicit empty string option values (`Calendar`, `Collation`, `HourCycle`, `CaseFirst`, `NumberingSystem`, `FirstDayOfWeek`, and language identifier overrides) return invalid-option errors instead of being treated as omitted.
+- `Parse(s string) (Locale, error)` accepts BCP 47 strings (with `-u-` extension).
+- `New(tag string, opts Options) (Locale, error)` accepts a `Options` value, `Options{}` represents an empty options object.
+- `FromTag` and fallible `Tag` are the explicit x/text bridges.
+- A successful `Tag()` round-trips through `FromTag` with complete identity; lossy conversion returns `ErrInvalidValue`.
+- The only `golang.org/x/text` type allowed in an export signature is `language.Tag`; the secondary `x/text` type is not leaked.
+- `ParseList(tags ...string)` constructs the formatter request list.
+- If parsing fails, an error with `errors.Is(err, gointl.ErrInvalidValue)` being true is returned.
+- Canonicalizes Unicode types by key from pinned CLDR BCP47 data: `ca=islamicc` → `islamic-civil`, `ms=imperial` → `uksystem`; `co=islamic-civil` remains unchanged and malformed `ca=gregorian` is rejected before lookup.
+- `Parse("en-US-u-fw-0")` rejects malformed tag syntax, while `Options{FirstDayOfWeek: gointl.String("0")}` normalizes to `-u-fw-sun`; tag parsing never applies constructor-option coercion.
+- Unicode extension keys have exactly two ASCII characters: alphanumeric followed by a letter. `00` and `a0` are invalid; `0a` and `aa` are valid, including uppercase input. Runtime and generator share `internal/localeid.IsUnicodeKey`.
+- Tag types are grammar-checked; the §2.3 option rules apply only to explicit options.
+- Explicit empty string option values (`Calendar`, `Collation`, `HourCycle`, `CaseFirst`, `NumberingSystem`, `FirstDayOfWeek`, and language identifier overrides) return invalid-option errors instead of being treated as omitted.
 
 ### String round trip
 
-- [ ] `(Locale).String()` output canonical BCP 47:
+- `(Locale).String()` output canonical BCP 47:
 - `-u-` extended keys are in lexicographic order (`ca` < `co` < `fw` < `hc` < `kf` < `kn` < `nu`).
 - Absent keywords are omitted; present empty types are preserved; omitted `Numeric` is not output; explicit `Numeric=true` is output as `-u-kn`; explicit `Numeric=false` is output as `-u-kn-false`.
 - Key-aware alias normalization (`Calendar="islamicc"` outputs `-u-ca-islamic-civil`).
-- [ ] `Parse(loc.String()).Equal(loc) == true`(round-trip).
-- [ ] `MarshalText` / `UnmarshalText` implements `encoding.TextMarshaler` / `TextUnmarshaler`.
+- `Parse(loc.String()).Equal(loc) == true`(round-trip).
+- `MarshalText` / `UnmarshalText` implements `encoding.TextMarshaler` / `TextUnmarshaler`.
 
 ### Maximize / Minimize
 
-- [ ] `(Locale).Maximize() Locale` uses the pinned generated CLDR likely-subtag table and preserves caller-supplied subtags.
-- [ ] `(Locale).Minimize() Locale` is idempotent, preserves maximal LSR, and uses the region-preferred candidate order.
-- [ ] generated-reference `tests/likely-subtags.test.ts` and `tests/minimize.test.ts` All fixtures pass in `locale/canonical_test.go`.
-- [ ] `Maximize` / `Minimize` and language/script/region constructor overrides preserve variants, transformed extensions, modeled and unmodeled Unicode extension content, and private use while replacing only language/script/region.
+- `(Locale).Maximize() Locale` uses the pinned generated CLDR likely-subtag table and preserves caller-supplied subtags.
+- `(Locale).Minimize() Locale` is idempotent, preserves maximal LSR, and uses the region-preferred candidate order.
+- generated-reference `tests/likely-subtags.test.ts` and `tests/minimize.test.ts` All fixtures pass in `locale/canonical_test.go`.
+- `Maximize` / `Minimize` and language/script/region constructor overrides preserve variants, transformed extensions, modeled and unmodeled Unicode extension content, and private use while replacing only language/script/region.
 
 ### Getter
 
-- [ ] Simple fields (7 extended fields) are pre-parsed during construction in `Parse` / `New` (§5.1 table).
-- [ ] Candidate list methods do not cache results into the struct. `GetCollations` projects the explicit locale collation as a singleton or returns the no-match fallback ["emoji", "eor"]; the other candidate-list methods read their owning generated data on each call. `GetTimeZones` uses explicit-region `internal/tz` records, including the full Canadian projection and `IN` → `Asia/Kolkata`.
-- [ ] When the calendar keyword is present, `GetCalendars()` returns a single-element list, including an empty type.
-- [ ] `WeekInfo` / `TextInfo` type signature is consistent with §5.2.
+- Simple fields (7 extended fields) are pre-parsed during construction in `Parse` / `New` (§5.1 table).
+- Candidate list methods do not cache results into the struct. `GetCollations` projects the explicit locale collation as a singleton or returns the no-match fallback ["emoji", "eor"]; the other candidate-list methods read their owning generated data on each call. `GetTimeZones` uses explicit-region `internal/tz` records, including the full Canadian projection and `IN` → `Asia/Kolkata`.
+- When the calendar keyword is present, `GetCalendars()` returns a single-element list, including an empty type.
+- `WeekInfo` / `TextInfo` type signature is consistent with §5.2.
 
 ### Equality
 
-- [ ] `(Locale).Equal(other) bool` semantic comparison by field (`Tag.String()` + 7 extended fields).
-- [ ] `Locale` does not implement Go `==` comparable (the embedded `language.Tag` is not comparable).
+- `(Locale).Equal(other) bool` compares the complete canonical string.
+- `Locale` does not implement Go `==` comparable (explicitly prevented by a private zero-length function field).
 
 ### Options
 
-- [ ] The `Options` field is consistent with §7.1, applied via `New(tag, options)`.
-- [ ] Passing multiple `Options` values is impossible through the public Go signature.
-- [ ] does not provide `With*` constructor options or `(Locale).With*` setters; the locale object remains read-only.
+- The `Options` field is consistent with §7.1, applied via `New(tag, options)`.
+- Passing multiple `Options` values is impossible through the public Go signature.
+- does not provide `With*` constructor options or `(Locale).With*` setters; the locale object remains read-only.
 
 ### Error
 
-- [ ] `errors.Is(err, gointl.ErrInvalidValue)` returns true on all parsing/verification failures.
-- [ ] `New` option failed to match `gointl.ErrInvalidOption`.
-- [ ] `Parse` / `New` **not** panic (test covers various abnormal inputs).
+- `errors.Is(err, gointl.ErrInvalidValue)` returns true on all parsing/verification failures.
+- `New` option failed to match `gointl.ErrInvalidOption`.
+- `Parse` / `New` **not** panic (test covers various abnormal inputs).
 
 ### Test
 
-- [ ] All cases of generated-reference `intl-locale/tests/index.test.ts` were ported to `locale/locale_test.go` and passed.
-- [ ] Use `t.Parallel()` for all tests.
-- [ ] At least 1 `Example*` function demonstrating `Parse` + `String()` round-trip.
+- All cases of generated-reference `intl-locale/tests/index.test.ts` were ported to `locale/locale_test.go` and passed.
+- Use `t.Parallel()` for all tests.
+- At least 1 `Example*` function demonstrating `Parse` + `String()` round-trip.
 
 ---
 
@@ -674,15 +701,23 @@ by runtime parsing. `GetCalendars` retains region/world fallback, filters the
 generated preference against supported calendars, and uses `gregory` when that
 intersection is empty. Explicit `ca` presence bypasses that list selection.
 
-Language identifier parsing and language/script/region replacement share
-`internal/localeid.ParseTag`, using x/text's default parse followed by
-`(Macro | CLDR).Canonicalize`. Separating the stages canonicalizes `twi` to
-`ak` while preserving the `no`/`nb` distinction and explicit scripts such as
-`en-Latn`; grammar validation and Unicode keyword handling remain Locale-owned.
-Variants, transformed extensions and private use survive subtag replacement.
+Language identifier parsing and option replacement share `internal/localeid`.
+Pinned CLDR language/script/territory/variant aliases canonicalize identity,
+while Unicode and transformed extension aliases retain their key namespaces.
+Subdivision aliases normalize rg/sd values. Unknown grammatical subtags survive;
+no/nb remain distinct. Variants and t/u/x suffixes survive L/S/R replacement.
 
 Hour-cycle info checks language-region time data before region time data for each
 RegionPreference candidate (rg override, then base/sd/likely region). Explicit hc
 remains a singleton. If no candidate has time data, the result is `["h23"]`, as
 HourCyclesOfLocale requires; it does not borrow the world allowed list. Kernel
 `HourCyclePreference(language, regions...)` owns this lookup and returns a copy.
+
+Identity acceptance: `locale/language_identity_test.go`,
+`locale/construct_test.go`, `internal/localeid/localeid_test.go`,
+`internal/ecma402/displaynames_test.go`, and `intl_test.go` cover valid unknowns,
+invalid duplicates/extension syntax, alias replacement, option overrides,
+complete bridge failure/success, JSON, matching, and unavailable-data fallback.
+Aliases come from `cldr-core/supplemental/aliases.json` and `cldr-bcp47/bcp47`;
+`tools/gen-cldr/cldr/identity_alias.go` and `bcp47.go` load them, and
+`codegen/unicode_alias.go` emits them into the shared private owner.

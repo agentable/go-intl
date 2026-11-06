@@ -232,3 +232,17 @@ func TestMatcherConcurrentDistinctRequests(t *testing.T) {
 		})
 	}
 }
+
+// Application resources are an exact set; constructor fallback aliases do not
+// establish that an application has a translation for another locale.
+func TestExactMatcherAvailableResources(t *testing.T) {
+	t.Parallel()
+	matcher := NewExactMatcher([]string{"de-DE"}, nil)
+	got := matcher.Match([]string{"de-AT"}, "", AlgorithmLookup)
+	if got.Locale != "" {
+		t.Fatalf("lookup returned unavailable resource %q", got.Locale)
+	}
+	if got := matcher.Match([]string{"de-DE"}, "", AlgorithmLookup); got.Locale != "de-DE" {
+		t.Fatalf("exact lookup = %q, want de-DE", got.Locale)
+	}
+}

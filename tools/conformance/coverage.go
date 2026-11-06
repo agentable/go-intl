@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 var (
@@ -100,7 +101,7 @@ func ValidateSkipList(path string, packageRoots []string) error {
 }
 
 func validateSkipListEntries(path string, entries []skipListEntry, packageRoots []string) error {
-	witnesses, err := loadSkipListWitnesses(packageRoots)
+	witnesses, skipped, err := loadSkipListWitnesses(packageRoots)
 	if err != nil {
 		return err
 	}
@@ -116,7 +117,7 @@ func validateSkipListEntries(path string, entries []skipListEntry, packageRoots 
 		if err := validateSkipListCategory(path, entry); err != nil {
 			return err
 		}
-		if err := validateSkipListRoute(path, entry, witnesses); err != nil {
+		if err := validateSkipListRoute(path, entry, witnesses, skipped); err != nil {
 			return err
 		}
 	}
@@ -159,7 +160,7 @@ func validateSkipListCategory(path string, entry skipListEntry) error {
 	return nil
 }
 
-func validateSkipListRoute(path string, entry skipListEntry, witnesses map[string]Fixture) error {
+func validateSkipListRoute(path string, entry skipListEntry, witnesses map[string]Fixture, skipped map[string]string) error {
 	route := skipListRoute(entry.Route)
 	if !isSkipListRoute(route) {
 		return fmt.Errorf("%s: source %q route %q: %w", path, entry.Source, entry.Route, errInvalidSkipListRoute)
@@ -173,6 +174,9 @@ func validateSkipListRoute(path string, entry skipListEntry, witnesses map[strin
 	if entry.Witness == "" {
 		return fmt.Errorf("%s: source %q route %q missing %s: %w", path, entry.Source, entry.Route, skipListFieldWitness, errMissingSkipListWitness)
 	}
+	if reason, ok := skipped[entry.Witness]; ok {
+		return fmt.Errorf("%s: source %q witness %q is skipped (%s): %w", path, entry.Source, entry.Witness, reason, errInvalidSkipListWitness)
+	}
 	_, witnessStatus := classifyNativeWitness(witnesses, entry.Witness)
 	switch witnessStatus {
 	case nativeWitnessUnknown:
@@ -185,18 +189,20 @@ func validateSkipListRoute(path string, entry skipListEntry, witnesses map[strin
 	return nil
 }
 
-func loadSkipListWitnesses(packageRoots []string) (map[string]Fixture, error) {
+func loadSkipListWitnesses(packageRoots []string) (map[string]Fixture, map[string]string, error) {
 	witnesses := map[string]Fixture{}
+	skipped := map[string]string{}
 	for _, root := range packageRoots {
-		fixtures, err := LoadFixtures(root)
+		suite, err := loadRunSuite(root, time.Now())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		for _, fixture := range fixtures {
+		for _, fixture := range suite.fixtures {
 			witnesses[fixture.ID] = fixture
 		}
+		maps.Copy(skipped, suite.skipReasons)
 	}
-	return witnesses, nil
+	return witnesses, skipped, nil
 }
 
 func CoverageReport(packageRoots []string, skipListPath string) (string, error) {

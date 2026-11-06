@@ -39,7 +39,7 @@ func Example() {
 // Example_options demonstrates Intl.DateTimeFormat constructor options from ECMA-402.
 func Example_options() {
 	format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
-		DateStyle: gointl.String(string(datetimeformat.LongDateTimeStyle)),
+		DateStyle: gointl.String(string(datetimeformat.LongStyle)),
 		TimeZone:  gointl.String("UTC"),
 	})
 	if err != nil {

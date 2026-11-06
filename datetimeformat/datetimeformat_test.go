@@ -123,6 +123,63 @@ func TestDateTimeFormatDefaultFormatUsesDateFields(t *testing.T) {
 	}
 }
 
+func TestDateTimeFormatEraDefaultDateFields(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		opts         Options
+		year         int
+		wantYear     string
+		wantEra      string
+		wantMonthDay bool
+	}{
+		{"era only", Options{Era: stringPtr(ShortFieldStyle)}, 2026, "2026", "AD", true},
+		{"era and time zone name", Options{Era: stringPtr(ShortFieldStyle), TimeZoneName: stringPtr(ShortTimeZoneName)}, 2026, "2026", "AD", true},
+		{"explicit year", Options{Era: stringPtr(ShortFieldStyle), Year: stringPtr(NumericFieldStyle)}, 2026, "2026", "AD", false},
+		{"empty options", Options{}, 2026, "2026", "", true},
+		{"BCE era only", Options{Era: stringPtr(ShortFieldStyle)}, 0, "1", "BC", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			opts := tc.opts
+			opts.TimeZone = stringPtr("UTC")
+			format, err := New(intltest.LocaleList(t, "en"), opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved := format.ResolvedOptions()
+			if resolved.Year == nil || (resolved.Month != nil) != tc.wantMonthDay || (resolved.Day != nil) != tc.wantMonthDay {
+				t.Errorf("resolved date fields = year:%v month:%v day:%v, want month/day present: %t", resolved.Year, resolved.Month, resolved.Day, tc.wantMonthDay)
+			}
+			instant := time.Date(tc.year, time.May, 8, 0, 0, 0, 0, time.UTC)
+			parts, err := format.FormatToParts(instant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fields := make(map[PartType]string)
+			for _, part := range parts {
+				if part.Type != PartLiteral {
+					fields[part.Type] = part.Value
+				}
+			}
+			wantMonth, wantDay := "", ""
+			if tc.wantMonthDay {
+				wantMonth, wantDay = "5", "8"
+			}
+			if fields[PartYear] != tc.wantYear || fields[PartMonth] != wantMonth || fields[PartDay] != wantDay || fields[PartEra] != tc.wantEra {
+				t.Errorf("parts = %#v, want year %s, month %q, day %q, era %q", parts, tc.wantYear, wantMonth, wantDay, tc.wantEra)
+			}
+			text, err := format.Format(instant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if text != joinPartValues(parts) {
+				t.Errorf("Format() = %q, parts = %#v", text, parts)
+			}
+		})
+	}
+}
+
 func TestDateTimeFormatDefaultFormatUsesCLDRDateOrder(t *testing.T) {
 	t.Parallel()
 
@@ -328,7 +385,7 @@ func TestDateTimeFormatRejectsInvalidFractionalSecondDigits(t *testing.T) {
 func TestDateTimeFormatRejectsDateStyleWithGranularField(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(MediumDateTimeStyle), Year: stringPtr(NumericFieldStyle)})
+	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(MediumStyle), Year: stringPtr(NumericFieldStyle)})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New(dateStyle+year) error = %v, want intlerr.ErrInvalidOption", err)
 	}
@@ -345,10 +402,10 @@ func TestDateTimeFormatRejectsStyleWithAnyGranularField(t *testing.T) {
 		opts Options
 		want string
 	}{
-		{name: "dateStyle era", opts: Options{DateStyle: stringPtr(MediumDateTimeStyle), Era: stringPtr(ShortFieldStyle)}, want: "era"},
-		{name: "timeStyle hour", opts: Options{TimeStyle: stringPtr(ShortDateTimeStyle), Hour: stringPtr(NumericFieldStyle)}, want: "hour"},
-		{name: "dateStyle timezone name", opts: Options{DateStyle: stringPtr(FullDateTimeStyle), TimeZoneName: stringPtr(LongTimeZoneName)}, want: "timeZoneName"},
-		{name: "timeStyle fractional second", opts: Options{TimeStyle: stringPtr(ShortDateTimeStyle), FractionalSecondDigits: intPtr(3)}, want: "fractionalSecondDigits"},
+		{name: "dateStyle era", opts: Options{DateStyle: stringPtr(MediumStyle), Era: stringPtr(ShortFieldStyle)}, want: "era"},
+		{name: "timeStyle hour", opts: Options{TimeStyle: stringPtr(ShortStyle), Hour: stringPtr(NumericFieldStyle)}, want: "hour"},
+		{name: "dateStyle timezone name", opts: Options{DateStyle: stringPtr(FullStyle), TimeZoneName: stringPtr(LongTimeZoneName)}, want: "timeZoneName"},
+		{name: "timeStyle fractional second", opts: Options{TimeStyle: stringPtr(ShortStyle), FractionalSecondDigits: intPtr(3)}, want: "fractionalSecondDigits"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -661,7 +718,7 @@ func TestDateTimeFormatFormatEqualsFormatToPartsJoin(t *testing.T) {
 		{
 			name:   "quoted style connector",
 			locale: "en-US",
-			opts:   Options{DateStyle: stringPtr(LongDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), TimeZone: stringPtr("UTC")},
+			opts:   Options{DateStyle: stringPtr(LongStyle), TimeStyle: stringPtr(ShortStyle), TimeZone: stringPtr("UTC")},
 			date:   time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC),
 		},
 		{
@@ -1257,7 +1314,7 @@ func TestDateTimeFormatConcurrentFormatCalls(t *testing.T) {
 func TestDateTimeFormatDateStyleFull(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(FullDateTimeStyle)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(FullStyle)})
 	if err != nil {
 		t.Fatalf("New(DateStyle=full) error = %v", err)
 	}
@@ -1270,7 +1327,7 @@ func TestDateTimeFormatDateStyleFull(t *testing.T) {
 func TestDateTimeFormatDateStyleUsesCLDRPattern(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "zh-Hans-CN")}, Options{DateStyle: stringPtr(FullDateTimeStyle)})
+	format, err := New(locale.List{intltest.Locale(t, "zh-Hans-CN")}, Options{DateStyle: stringPtr(FullStyle)})
 	if err != nil {
 		t.Fatalf("New(zh-Hans-CN dateStyle full) error = %v", err)
 	}
@@ -1297,7 +1354,7 @@ func TestDateTimeFormatDateStyleUsesCLDRPattern(t *testing.T) {
 func TestDateTimeFormatDateStyleShortUsesCLDRPattern(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(ShortDateTimeStyle)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(ShortStyle)})
 	if err != nil {
 		t.Fatalf("New(en-US dateStyle short) error = %v", err)
 	}
@@ -1320,7 +1377,7 @@ func TestDateTimeFormatDateStyleShortUsesCLDRPattern(t *testing.T) {
 func TestDateTimeFormatTimeStyleShort(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{TimeStyle: stringPtr(ShortDateTimeStyle), Hour12: boolPtr(false)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{TimeStyle: stringPtr(ShortStyle), Hour12: boolPtr(false)})
 	if err != nil {
 		t.Fatalf("New(TimeStyle=short) error = %v", err)
 	}
@@ -1333,7 +1390,7 @@ func TestDateTimeFormatTimeStyleShort(t *testing.T) {
 func TestDateTimeFormatTimeStyleMediumUsesCLDRPattern(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "zh-Hans-CN")}, Options{TimeStyle: stringPtr(MediumDateTimeStyle), Hour12: boolPtr(false)})
+	format, err := New(locale.List{intltest.Locale(t, "zh-Hans-CN")}, Options{TimeStyle: stringPtr(MediumStyle), Hour12: boolPtr(false)})
 	if err != nil {
 		t.Fatalf("New(zh-Hans timeStyle medium) error = %v", err)
 	}
@@ -1360,7 +1417,7 @@ func TestDateTimeFormatTimeStyleMediumUsesCLDRPattern(t *testing.T) {
 func TestDateTimeFormatTimeStyleLongUsesCLDRTimeZonePattern(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{TimeStyle: stringPtr(LongDateTimeStyle), TimeZone: stringPtr("America/New_York"), Hour12: boolPtr(false)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{TimeStyle: stringPtr(LongStyle), TimeZone: stringPtr("America/New_York"), Hour12: boolPtr(false)})
 	if err != nil {
 		t.Fatalf("New(en-US timeStyle long) error = %v", err)
 	}
@@ -1385,7 +1442,7 @@ func TestDateTimeFormatTimeStyleLongUsesCLDRTimeZonePattern(t *testing.T) {
 func TestDateTimeFormatLongDateAndFullTimeStyles(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(LongDateTimeStyle), TimeStyle: stringPtr(FullDateTimeStyle), TimeZone: stringPtr("America/New_York"), Hour12: boolPtr(false)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(LongStyle), TimeStyle: stringPtr(FullStyle), TimeZone: stringPtr("America/New_York"), Hour12: boolPtr(false)})
 	if err != nil {
 		t.Fatalf("New(long dateStyle+full timeStyle) error = %v", err)
 	}
@@ -1398,7 +1455,7 @@ func TestDateTimeFormatLongDateAndFullTimeStyles(t *testing.T) {
 func TestDateTimeFormatCombinesDateAndTimeStyles(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(MediumDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), Hour12: boolPtr(false)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(MediumStyle), TimeStyle: stringPtr(ShortStyle), Hour12: boolPtr(false)})
 	if err != nil {
 		t.Fatalf("New(dateStyle+timeStyle) error = %v", err)
 	}
@@ -1411,7 +1468,7 @@ func TestDateTimeFormatCombinesDateAndTimeStyles(t *testing.T) {
 func TestDateTimeFormatCombinesFullDateAndTimeStylesWithAtConnector(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(FullDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), Hour12: boolPtr(true)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(FullStyle), TimeStyle: stringPtr(ShortStyle), Hour12: boolPtr(true)})
 	if err != nil {
 		t.Fatalf("New(full dateStyle+short timeStyle) error = %v", err)
 	}
@@ -1437,7 +1494,7 @@ func TestDateTimeFormatCombinesLongMonthDateAndTimeWithAtConnector(t *testing.T)
 func TestDateTimeFormatCombinesDateAndTimeStylesWithCLDRConnector(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "zh-Hans-CN")}, Options{DateStyle: stringPtr(MediumDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), Hour12: boolPtr(false)})
+	format, err := New(locale.List{intltest.Locale(t, "zh-Hans-CN")}, Options{DateStyle: stringPtr(MediumStyle), TimeStyle: stringPtr(ShortStyle), Hour12: boolPtr(false)})
 	if err != nil {
 		t.Fatalf("New(zh-Hans dateStyle+timeStyle) error = %v", err)
 	}
@@ -1483,6 +1540,39 @@ func TestDateTimeFormatBasicMatcherWithComponents(t *testing.T) {
 	}
 }
 
+func TestDateTimeFormatBasicMatcherNumericWidths(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ matcher, want, day string }{
+		{"basic", "3\u200f/1", "numeric"},
+		{"best fit", "03\u200f/1", "2-digit"},
+	} {
+		t.Run(tc.matcher, func(t *testing.T) {
+			t.Parallel()
+			f, err := New(locale.List{intltest.Locale(t, "ar")}, Options{
+				Month: new("numeric"), Day: new("2-digit"), FormatMatcher: &tc.matcher, TimeZone: new("UTC"),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			instant := time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)
+			if got := mustDateFormat(t, f, instant); got != tc.want {
+				t.Fatalf("Format = %q, want %q", got, tc.want)
+			}
+			resolved := f.ResolvedOptions()
+			if resolved.Month == nil || *resolved.Month != "numeric" || resolved.Day == nil || string(*resolved.Day) != tc.day {
+				t.Fatalf("resolved components = %+v", resolved)
+			}
+			if got := joinPartValues(mustDateFormatToParts(t, f, instant)); got != tc.want {
+				t.Fatalf("parts = %q, want %q", got, tc.want)
+			}
+			end := instant.AddDate(0, 0, 1)
+			if got, want := joinRangePartValues(mustFormatRangeToParts(t, f, instant, end)), mustFormatRange(t, f, instant, end); got != want {
+				t.Fatalf("range parts = %q, text = %q", got, want)
+			}
+		})
+	}
+}
+
 func TestDateTimeFormatResolvedComponentsFollowSelectedPattern(t *testing.T) {
 	t.Parallel()
 
@@ -1516,7 +1606,7 @@ func TestDateTimeFormatResolvedComponentsFollowSelectedPattern(t *testing.T) {
 func TestDateTimeFormatStyleResolvedOptionsSuppressGranularFields(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(MediumDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(MediumStyle), TimeStyle: stringPtr(ShortStyle)})
 	if err != nil {
 		t.Fatalf("New(dateStyle+timeStyle) error = %v", err)
 	}
@@ -1726,7 +1816,7 @@ func TestDateTimeFormatRangeCombinesSharedDateWithTimeIntervalPattern(t *testing
 func TestDateTimeFormatRangeDateTimeStyleUsesTimeIntervalPattern(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(MediumDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), Hour12: boolPtr(true)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(MediumStyle), TimeStyle: stringPtr(ShortStyle), Hour12: boolPtr(true)})
 	if err != nil {
 		t.Fatalf("New(dateStyle+timeStyle) error = %v", err)
 	}
@@ -1740,7 +1830,7 @@ func TestDateTimeFormatRangeDateTimeStyleUsesTimeIntervalPattern(t *testing.T) {
 func TestDateTimeFormatRangeDateStyleUsesIntervalPattern(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(FullDateTimeStyle)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(FullStyle)})
 	if err != nil {
 		t.Fatalf("New(dateStyle) error = %v", err)
 	}
@@ -1773,7 +1863,7 @@ func TestDateTimeFormatRangeDateStyleUsesIntervalPattern(t *testing.T) {
 func TestDateTimeFormatRangeFallbackPartsRemainJoined(t *testing.T) {
 	t.Parallel()
 
-	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(FullDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), Hour12: boolPtr(true)})
+	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{DateStyle: stringPtr(FullStyle), TimeStyle: stringPtr(ShortStyle), Hour12: boolPtr(true)})
 	if err != nil {
 		t.Fatalf("New(dateStyle+timeStyle) error = %v", err)
 	}
@@ -1875,7 +1965,7 @@ func TestDateTimeFormatRangePreservesReversedTimeAndFallbackOrder(t *testing.T) 
 		},
 		{
 			name:      "date-time fallback",
-			opts:      Options{DateStyle: stringPtr(FullDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), Hour12: boolPtr(true)},
+			opts:      Options{DateStyle: stringPtr(FullStyle), TimeStyle: stringPtr(ShortStyle), Hour12: boolPtr(true)},
 			start:     time.Date(2026, time.June, 10, 10, 7, 0, 0, time.UTC),
 			end:       time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC),
 			want:      "Wednesday, June 10, 2026 at 10:07 AM\u2009–\u2009Friday, May 8, 2026 at 9:07 AM",

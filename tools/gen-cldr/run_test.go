@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agentable/go-intl/tools/internal/datapin"
+
 	"github.com/agentable/go-intl/tools/gen-cldr/cldr"
 	"github.com/agentable/go-intl/tools/gen-cldr/codegen"
 	"github.com/agentable/go-intl/tools/internal/localeprofile"
@@ -25,7 +27,7 @@ func TestRunValidatesVersionBeforeReadingCLDRInputs(t *testing.T) {
 	if err := os.WriteFile(versionPath, []byte("cldr=48.1.0\nicu=78\ntzdata=2025b\n"), 0o666); err != nil {
 		t.Fatalf("write VERSION: %v", err)
 	}
-	for _, name := range cldr.RequiredPackages() {
+	for _, name := range datapin.RequiredCLDRPackages() {
 		pkgDir := filepath.Join(dir, "node_modules", name)
 		if err := os.MkdirAll(pkgDir, 0o777); err != nil {
 			t.Fatalf("mkdir %s: %v", name, err)
@@ -64,7 +66,7 @@ func TestBuildManifestRecordsInputHashes(t *testing.T) {
 	}
 
 	cldrRoot := filepath.Join(dir, "node_modules")
-	packages := cldr.RequiredPackages()
+	packages := datapin.RequiredCLDRPackages()
 	packageContents := make(map[string]string)
 	for _, name := range packages {
 		pkgDir := filepath.Join(cldrRoot, name)
@@ -112,4 +114,46 @@ func TestBuildManifestRecordsInputHashes(t *testing.T) {
 func testSHA256(content string) string {
 	sum := sha256.Sum256([]byte(content))
 	return fmt.Sprintf("%x", sum)
+}
+
+func TestRunRejectsInvalidInstalledCLDRPackage(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, metadata string }{
+		{"missing directory", ""},
+		{"wrong name", `{"name":"unrelated","version":"48.1.0"}`},
+		{"wrong version", `{"name":"cldr-units-full","version":"48.2.0"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			versionPath := filepath.Join(dir, "VERSION")
+			if err := os.WriteFile(versionPath, []byte("cldr=48.1.0\nicu=78\ntzdata=2025b\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range datapin.RequiredCLDRPackages() {
+				meta := fmt.Sprintf(`{"name":%q,"version":"48.1.0"}`, name)
+				if name == "cldr-units-full" {
+					if tc.metadata == "" {
+						continue
+					}
+					meta = tc.metadata
+				}
+				pkgDir := filepath.Join(dir, "node_modules", name)
+				if err := os.MkdirAll(pkgDir, 0o750); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(pkgDir, "package.json"), []byte(meta), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			out := filepath.Join(dir, "out")
+			err := Run(t.Context(), Config{CLDRDir: filepath.Join(dir, "node_modules"), OutDir: out, VersionFile: versionPath, ProfileFile: writeLocaleProfileFixture(t, dir)}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			if err == nil || !strings.Contains(err.Error(), "cldr-units-full") {
+				t.Fatalf("Run error = %v, want installed package context", err)
+			}
+			if _, err := os.Stat(out); !os.IsNotExist(err) {
+				t.Fatalf("output touched before input validation: %v", err)
+			}
+		})
+	}
 }

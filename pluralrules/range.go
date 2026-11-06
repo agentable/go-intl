@@ -41,8 +41,8 @@ func selectRangeDecimal(start, end decimal.Decimal, f *PluralRules) Category {
 	digitOptions := f.digitOptions
 	compact := f.compact
 	rule := f.rule
-	startFormatted, _, startCategory := resolveDecimal(start, notation, digitOptions, compact, rule)
-	endFormatted, _, endCategory := resolveDecimal(end, notation, digitOptions, compact, rule)
+	startFormatted, startCategory := resolveDecimal(start, notation, digitOptions, compact, rule)
+	endFormatted, endCategory := resolveDecimal(end, notation, digitOptions, compact, rule)
 	return selectRangeResolved(startFormatted, startCategory, endFormatted, endCategory, f)
 }
 

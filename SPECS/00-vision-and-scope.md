@@ -1,6 +1,5 @@
 # SPEC 00 — Vision, Scope, and Architecture
 
-> **Status:** Active contract (2026-08-09)
 > **Audience:** Maintainers, contributors, and callers of `go-intl`.
 > **Authority:** ECMA-402 is the behavioral authority. This document is the project-level memory for what `go-intl` is trying to be; focused SPECS (`10-locale.md`, `20-numberformat.md`, …) own individual surfaces and must change when ECMA-402 or the correctness target proves them too narrow.
 
@@ -126,6 +125,7 @@ Each concept has exactly one owner. Cross-links may explain dependencies, but th
 | [`71-benchmark.md`](./71-benchmark.md) | benchmark layout, non-blocking performance telemetry, benchstat workflow |
 | [`72-operation-ledger.md`](./72-operation-ledger.md) | public surface to ECMA-402 owner, implementation, and verification ledger |
 | [`73-json-records.md`](./73-json-records.md) | JSON field names and presence policy for resolved options, parts, duration records, and locale info |
+| [`80-x-modules.md`](./80-x-modules.md) | experimental LocaleMatcher official draft and exact resource-set contract |
 
 > **Why**: The project has enough surface area that "read SPEC 00" is no longer precise enough. The map routes every design question to one owner and prevents duplicate mini-specs in CLAUDE.md, README.md, tests, or source comments.
 >
@@ -155,6 +155,13 @@ Every exported API must have an identified native JavaScript owner before it is 
 
 Public ECMA-402 record structs (`ResolvedOptions`, parts, range parts, locale info, and duration records) must marshal to JSON with the same camelCase field names that the corresponding JavaScript record exposes. Omitted JavaScript properties are represented by nil pointer fields plus `omitempty`, not by ambiguous zero values. This JSON shape is a host-boundary bridge, not permission to replace typed Go APIs with `map[string]any`.
 
+### Experimental draft exception
+
+`x/localematcher` is an additional root-module package anchored to an official
+TC39 Stage 1 draft, pinned and specified in [SPEC 80](./80-x-modules.md).
+It is experimental rather than standardized ECMA-402 surface. This single
+exception does not add root aliases or alter any existing constructor contract.
+
 ### 3.1 Outside the active surface
 
 Other ECMA-402 constructors are outside this library's public contract. A
@@ -168,21 +175,22 @@ together.
 
 ### 4.1 Decision
 
-`go-intl` defines its own immutable `Locale` type that stores a `golang.org/x/text/language.Tag` plus ECMA-402 locale extension state. We do **not** alias `language.Tag` directly because ECMA-402 carries data that BCP 47 does not surface as first-class properties (`calendar`, `collation`, `hourCycle`, `caseFirst`, `numeric`, `numberingSystem`, week info).
-
-```go
-// Conceptual shape; final field set defined in SPEC 10.
-type Locale struct {
-    tag language.Tag
-    ext localeExtensions
-}
-```
+`go-intl` defines its own immutable `Locale` whose identity is a canonical
+Unicode locale identifier. `internal/localeid` owns syntax and generated CLDR
+aliases; a syntactically valid unknown subtag is not an error just because
+`golang.org/x/text` cannot represent it. SPEC 10 defines the stored base identity,
+Unicode extension state, and complete string projection.
 
 ### 4.2 Rationale
 
-- `language.Tag` already implements BCP 47 parsing, canonicalization, and matcher infrastructure used across the Go ecosystem. Reusing it preserves interop and avoids re-parsing locale strings at every boundary.
-- ECMA-402 exposes these values through read-only `Intl.Locale.prototype` accessors (`baseName`, `calendar`, `collation`, `hourCycle`, `caseFirst`, `numeric`, `numberingSystem`, etc.). Go must provide methods with the same meaning, not exported mutable fields.
-- A value type keeps `Locale` cheap to pass while preventing callers from constructing invalid internal state through struct literals.
+- Identity validity and formatter data availability are separate questions. One
+  canonical owner keeps Parse/New, overrides, equality, serialization,
+  maximize/minimize, and DisplayNames code canonicalization consistent.
+- `FromTag(language.Tag)` is the explicit input bridge; `Tag() (language.Tag,
+  error)` projects the complete identity, including Unicode extensions, and
+  rejects any lossy round-trip with `ErrInvalidValue`.
+- ECMA-402 exposes locale properties through read-only accessors. Go provides
+  immutable values and methods rather than mutable public representation fields.
 
 ### 4.3 String round-trip
 
@@ -212,7 +220,7 @@ go-intl/
     ├── ecma402/            # Production-used abstract operations, constructor-locale wrapper, validators
     ├── ecma402/numberformat/    # digit option resolution and FormatNumericToString
     ├── ecma402/datetimeformat/  # skeleton parser and DateTimeFormat pattern matcher
-    ├── ecma402/pluralrules/     # operands and plural categories
+    ├── plural/                 # operands and plural categories; generated rules live in cldr/plural/
     ├── localematcher/      # ResolveLocale, lookup, best-fit, supported-locale filtering
     ├── decimal/            # apd-backed Decimal representation and arithmetic
     ├── intlerr/            # Cycle-free implementation backing root error aliases
@@ -318,12 +326,12 @@ The formerly open questions are resolved by focused SPECS:
 
 ## 9. Definition of Done for this SPEC
 
-- [x] Vision, scope, and non-goals stated.
-- [x] Reference-implementation policy and test-fixture policy defined.
-- [x] Public surface enumerated.
-- [x] Locale model decided (wrap `language.Tag`).
-- [x] Package layout and layering rules defined.
-- [x] External consumer dependency boundary and JS host binding constraints recorded.
-- [x] Active boundaries stated.
-- [x] ECMA-402-over-SPECS authority model stated.
-- [x] Design decisions linked to focused SPECS.
+- Vision, scope, and non-goals stated.
+- Reference-implementation policy and test-fixture policy defined.
+- Public surface enumerated.
+- Locale model decided (canonical identity with explicit x/text bridges).
+- Package layout and layering rules defined.
+- External consumer dependency boundary and JS host binding constraints recorded.
+- Active boundaries stated.
+- ECMA-402-over-SPECS authority model stated.
+- Design decisions linked to focused SPECS.

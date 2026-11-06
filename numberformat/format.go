@@ -85,7 +85,16 @@ type stylePluralOperand struct {
 }
 
 func applyStylePattern(parts []Part, operand stylePluralOperand, state *decimalFormatState) []Part {
-	return applyStylePatternForPlural(parts, stylePluralCategory(operand, state.cardinalRule), state)
+	category := pluralop.Other
+	if styleUsesPluralCategory(state.resolved) {
+		category = stylePluralCategory(operand, state.cardinalRule)
+	}
+	return applyStylePatternForPlural(parts, category, state)
+}
+
+func styleUsesPluralCategory(resolved ResolvedOptions) bool {
+	return resolved.Style == UnitStyle ||
+		(resolved.Style == CurrencyStyle && ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) == CurrencyDisplayName)
 }
 
 func stylePluralCategory(operand stylePluralOperand, cardinalRule pluralRuleFunc) pluralop.Category {

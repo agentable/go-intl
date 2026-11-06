@@ -1,75 +1,37 @@
-# go-intl/x — Experimental modules
+# Experimental locale matching
 
-`github.com/agentable/go-intl/x` is the experimental satellite module of
-[go-intl](https://github.com/agentable/go-intl). It hosts packages that are
-useful today but do not belong to the main module's public surface:
-
-- Go bridges for **in-flight TC39 proposals** (Stage 1–3), whose API shape can
-  still change.
-- **Non-surface exposure of finished-spec machinery** (ECMA-402 abstract
-  operations) for CLDR-driven consumers outside `Intl` constructors.
-
-## Stability
-
-The module stays **v0 with no compatibility promise**. Any release may add,
-change, or remove packages and APIs. Pin an exact version and read the release
-notes before upgrading.
-
-The main module is unaffected: every exported symbol there still maps to a
-native ECMA-402 owner. Nothing in `x/` relaxes that rule.
-
-## Versioning
-
-`x/` joins the coordinated go-intl release set: it is tagged `x/vX.Y.Z` at the
-same commit and with the same version as the root module and the `tools/*`
-modules, and its `go.mod` requires the matching root-module version.
-
-## Graduation
-
-A package leaves `x/` when its specification target finalizes and the
-implementation is complete:
-
-- A TC39 proposal that reaches Stage 4 may be promoted into the main module as
-  a constructor package with a root namespace alias; the `x/` package is then
-  deprecated and removed in a later v0 release.
-- A package that exposes finished-spec machinery (such as locale matching) may
-  graduate the same way if its proposal finalizes, or remain in `x/`
-  long-term.
-
-## Packages
-
-| Package | Use |
-|---------|-----|
-| `github.com/agentable/go-intl/x/localematcher` | Match requested locales against an application's available locales with the same ECMA-402 lookup/best-fit algorithms and CLDR data that back the `Intl` constructors. Follows the Stage 1 [`Intl.LocaleMatcher`](https://github.com/tc39/proposal-intl-localematcher) proposal. |
-
-### localematcher example
+`github.com/agentable/go-intl/x/localematcher` provides application resource
+matching based on the official TC39 Stage 1
+[`Intl.LocaleMatcher` draft](https://github.com/tc39/proposal-intl-localematcher/blob/c35e7b759f698b16e9d73d8e98647207e35a14ce/spec.emu).
+It ships in the **root go-intl module**, at the root module's version. The API
+may change as the proposal evolves; pin a version before upgrading.
 
 ```go
-package main
-
-import (
-	"fmt"
-
-	"github.com/agentable/go-intl/x/localematcher"
-)
-
-func main() {
-	// One-shot, mirrors Intl.LocaleMatcher.match.
-	result := localematcher.Match(
-		[]string{"zh-HK"},
-		[]string{"en", "zh-Hans", "zh-Hant", "ja"},
-		"en",
-		localematcher.AlgorithmBestFit,
-	)
-	fmt.Println(result.Locale) // zh-Hant
-
-	// Compiled once, reused per message key in an i18n catalog.
-	matcher := localematcher.New([]string{"en", "zh-Hans", "zh-Hant", "ja"})
-	fmt.Println(matcher.Match([]string{"zh-SG"}, "en", localematcher.AlgorithmBestFit).Locale) // zh-Hans
+available, err := locale.ParseList("en", "zh-Hans", "zh-Hant", "ja")
+if err != nil {
+    return err
+}
+matcher, err := localematcher.New(available, localematcher.Options{})
+if err != nil {
+    return err
+}
+requested, err := locale.ParseList("zh-HK")
+if err != nil {
+    return err
+}
+if matched, ok := matcher.Match(requested); ok {
+    fmt.Println(matched.String()) // zh-Hant
 }
 ```
 
-## Governance
+Import `locale` and `x/localematcher` from `github.com/agentable/go-intl`.
+`Options{}` selects best fit; use `Algorithm: gointl.String("lookup")` for
+lookup. Available locales containing Unicode `u` extensions are rejected.
+Matching returns only a canonical locale from your available set. It adds no
+parent resources or aliases to that set, drops requested Unicode extensions,
+and leaves default fallback to your application.
 
-`SPECS/80-x-modules.md` in the main repository owns the module charter:
-admission criteria, versioning, graduation, and removal rules.
+There is no separate `x/go.mod`, release tag, internal-type re-export, or root
+namespace alias. Existing formatter constructors keep their own available-data
+expansion and default-locale behavior. See [SPEC 80](../SPECS/80-x-modules.md)
+for the draft contract and verification evidence.

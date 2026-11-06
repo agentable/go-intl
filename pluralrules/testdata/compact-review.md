@@ -85,3 +85,14 @@ now expects `many` for compact selection without ambient NumberFormat data and
 adds rounded-magnitude cases. The three original assertions no longer exist;
 their ledger records are resolved history, not exemptions for newly numbered
 fixtures. Native compact witnesses retain their original version and values.
+
+## Rounded-source determinism
+
+The compact exponent is selected from the integer magnitude of the rounded,
+unscaled `FormatNumericToString` result. It is not recomputed by independently
+rounding a scaled raw input. Thus French short/long compact values 999499.6 and
+999500.4 at maximumFractionDigits=0 both classify as `other`, and their ranges
+are order-independent. 999999.6 rounds across the million boundary and selects
+`many`. `pluralrules/range_test.go:TestCompactRoundedSourceDeterminesCategory`
+records this policy independently of host Node versions, which can disagree at
+these thresholds. Existing native snapshots are retained as historical evidence.

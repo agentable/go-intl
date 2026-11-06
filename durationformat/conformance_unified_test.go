@@ -27,9 +27,15 @@ func runDurationConformanceFixture(t *testing.T, fixture conformance.Fixture) {
 		})
 		return
 	}
+	constructorError := fixture.ErrorCode == "invalid_option" || fixture.ErrorCode == "invalid-option"
+	if fixture.ExpectedRange != nil || fixture.ExpectedRangeParts != nil || fixture.ExpectedOK != nil || fixture.ExpectedLocales != nil ||
+		fixture.ErrorCode != "" && (fixture.Expected != nil || fixture.ExpectedParts != nil) ||
+		constructorError && fixture.ExpectedResolved != nil {
+		t.Fatalf("fixture %s: unsupported durationformat observation", fixture.ID)
+	}
 	loc := intltest.Locale(t, fixture.Locale)
 	format, err := New(locale.List{loc}, conformanceDurationOptions(t, fixture))
-	if fixture.ErrorCode == "invalid_option" || fixture.ErrorCode == "invalid-option" {
+	if constructorError {
 		testcontract.AssertErrorCode(t, "New("+fixture.Locale+")", err, fixture.ErrorCode, func(code string) error {
 			return conformanceDurationError(t, code)
 		})
@@ -37,9 +43,6 @@ func runDurationConformanceFixture(t *testing.T, fixture conformance.Fixture) {
 	}
 	if err != nil {
 		t.Fatalf("New(%q) error = %v", fixture.Locale, err)
-	}
-	if fixture.ExpectedRange != nil || fixture.ExpectedRangeParts != nil || fixture.ExpectedOK != nil || fixture.ExpectedLocales != nil {
-		t.Fatal("unsupported durationformat observation")
 	}
 	if fixture.ExpectedResolved != nil {
 		testcontract.AssertResolvedOptionsJSON(t, format.ResolvedOptions(), fixture.ExpectedResolved)

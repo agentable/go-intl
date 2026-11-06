@@ -1,6 +1,5 @@
 # SPEC 30 — DateTimeFormat Core
 
-> **Status:** Draft (2026-05-08)
 > **Owner:** `datetimeformat/`
 > **Reference contract:** `.references/ecma402/spec/datetimeformat.html` first, then `formatjs/packages/intl-datetimeformat/` + `formatjs/packages/ecma402-abstract/DateTimeFormat/`
 
@@ -125,7 +124,7 @@ formatting uses the constructor-resolved display zone after validation.
 ```go
 df, err := datetimeformat.New(locale.List{mustLocale("zh-CN")},
     datetimeformat.Options{
-        DateStyle: gointl.String(string(datetimeformat.FullDateTimeStyle)),
+        DateStyle: gointl.String(string(datetimeformat.FullStyle)),
         TimeZone:  gointl.String("Asia/Shanghai"),
     })
 out, err := df.Format(time.Now())
@@ -212,6 +211,7 @@ type Options struct {
 4. `TimeZone` **MUST** distinguish omitted and explicit empty values. Omitted `nil` uses `internal/tz.Default()`; explicit empty `gointl.String("")` follows the same unsupported-option error path as any unavailable named time zone.
 5. `NumberingSystem` and `Calendar` **MUST** only verify Unicode type syntax. Well-formed but unsupported values are selected by `ResolveLocale` when present in locale data, or fall back to default values when not present.
 6. `FormatMatcher`, `TimeZoneName`, component fields, `HourCycle`, `DateStyle`, and `TimeStyle` **MUST** reject present empty strings through the same constructor option grammar as other ECMA-402 string options.
+7. With neither date/time style nor weekday, year, month, day, dayPeriod, hour, minute, second, or fractionalSecondDigits requested, add numeric year/month/day before matching. Era and timeZoneName alone do not suppress these defaults; an explicit year does. `datetimeformat/datetimeformat_test.go:TestDateTimeFormatEraDefaultDateFields` covers both cases and BCE output.
 
 ### 2.2 HourCycle linkage (§13.1.1.1) <a id="22-hourcycle-linkage-13111"></a>
 
@@ -238,6 +238,23 @@ Evidence: `internal/cldr/date/accessors.go`, `datetimeformat/hour_cycle_test.go`
 and pinned `tools/gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/timeData.json`.
 The readable option-resolution reference is
 `.references/formatjs/packages/ecma402-abstract/DateTimeFormat/InitializeDateTimeFormat.ts`.
+Basic component matching resolves a complete CLDR clock-family variant before
+program compilation. Hour-character substitution alone cannot create AM/PM
+placement or remove a previous family’s literals. The selected variant also
+owns interval lookup; no per-call pattern conversion is needed.
+
+Basic matching retains an explicitly selected flexible day-period (`B`) pattern
+and its interval skeleton across hour-cycle changes; only its hour fields are
+rewritten. Automatic AM/PM (`a`/`b`) patterns still select a complete clock-family
+alternative. `TestBasicHourCyclePreservesFlexibleDayPeriod` verifies h23/h24
+text, resolved fields, and same-day/cross-date ranges.
+
+`datetimeformat/hour_cycle_test.go:TestBasicHourCyclePatterns` verifies complete
+English, French Canadian and Japanese output and range parts.
+
+`TestHourCycleForSelectedPattern` in the hour-cycle suite covers sparse requests
+whose selected pattern adds an hour, four cycles, hour12 precedence, and
+endpoint/range execution. Selection need not match the host ICU candidate.
 Node 26.10.0 selects h12 for unqualified `ja` and h11 for `ja-JP`; this library
 uses the pinned JP preference for both without adding JP to the public tag.
 
@@ -273,7 +290,7 @@ type ResolvedOptions struct {
 
 1. The field order **MUST** be consistent with the ECMA-402 §13.4.5 spec order.
 2. `TimeZone` **MUST** return the IANA canonical name (such as `"America/New_York"`), even if the input is link(`"US/Eastern"`); obtained through [SPEC 32 §CanonicalLink](./32-datetimeformat-tz.md#canonicallink).
-3. `HourCycle` and `Hour12` **MUST** both be nil when no hour field is present, and both be non-nil when `hour` or `timeStyle` makes an hour field observable. `Hour12` is derived from the resolved hour cycle: `h11`/`h12` => `true`; `h23`/`h24` => `false`.
+3. Resolve the hour cycle before pattern selection, even when the caller omits `hour` and `timeStyle`. `HourCycle` and `Hour12` **MUST** both be nil when the selected pattern has no hour field (including date-only styles), and both be non-nil when its actual hour field is observable. `Hour12` is derived from the resolved hour cycle: `h11`/`h12` => `true`; `h23`/`h24` => `false`.
 4. Branch-only resolved options (`HourCycle`, `Hour12`, component fields, `FractionalSecondDigits`, `TimeZoneName`, `DateStyle`, and `TimeStyle`) **MUST** use pointers; nil is the Go bridge for ECMA-402 property absence.
 5. **MUST** return an immutable snapshot (value type) and clone pointer-backed scalar fields so caller mutation cannot affect later calls.
 6. JSON field names and `omitempty` behavior **MUST** comply with [SPEC 73 §JSON Shape Policy](./73-json-records.md#1-json-shape-policy) and [SPEC 73 §Intl.DateTimeFormat](./73-json-records.md#intldatetimeformat). Nil pointer fields represent ECMA-402 property absence for branch-only resolved fields.
@@ -388,7 +405,8 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 6. `DateTimeFormat` **MUST** cache `selectedPattern` and compile its endpoint, date, time, interval, and distinguishing fallback programs in `New`. `Format`, `FormatToParts`, `FormatRange`, and `FormatRangeToParts` execute those immutable programs; they must not tokenize patterns, repeat skeleton lookup, adjust fields, or construct fallback patterns on the hot path. The selected record owns effective date/time formats, date+time interpolation, and the compiled range record used by both range sinks.
 7. `localeMatcher` and `formatMatcher` **MUST** be kept separate: `localeMatcher` only affects the CLDR data locale selection; `formatMatcher` only affects the component options → pattern selection. **BANNED** Substituting locale fallback results for formatMatcher decisions.
 8. Component-style `ResolvedOptions` **MUST** be projected from the effective selected patterns after matcher adjustments and appended fields, not copied from the caller's requested option bag. Fields absent from the effective pattern remain nil; hour-cycle fields are absent when the selected pattern has no hour.
-9. Automatic AM/PM tokens `a` and `b` do not declare the flexible `dayPeriod` resolved property. Only a selected `B` token contributes its width to that property. All three tokens still emit `PartDayPeriod` partition records.
+9. Flexible day periods use the actual local hour and only the minute/second fields present in the complete selected time program; absent fields contribute zero. Milliseconds do not disqualify point periods. Constructor-compiled presence flags are shared by endpoint rendering and range semantic comparison, including interval fragments that omit shared fields. `dayperiod_record_test.go` covers noon boundaries, sparse requests, fractions, French point periods and range sources. This is the ICU display-precision policy; FormatJS uses full milliseconds, an intentional implementation-defined difference.
+10. Automatic AM/PM tokens `a` and `b` do not declare the flexible `dayPeriod` resolved property. Only a selected `B` token contributes its width to that property. All three tokens still emit `PartDayPeriod` partition records.
 
 ```go
 type Part struct {
@@ -424,7 +442,7 @@ Type string // Same as Part.Type
        Source string  // "startRange" | "endRange" | "shared"
    }
    ```
-4. `Source` string constant **MUST** reuse `internal/ecma402.RangeKind` (same as [SPEC 20 §FormatRange](./20-numberformat.md#5-formatrange--formatrangetoparts) `RangeKind`) to avoid spelling drift.
+4. `Source` uses formatter-owned `datetimeformat.RangeSource` constants (`startRange`, `endRange`, `shared`). Part and source types stay scoped to their constructor.
 5. The input of `start.After(end)` must not return an error, nor must the two ends be swapped or `~` added; use the input parameter order according to ECMA-402 `PartitionDateTimeRangePattern`.
 6. Equality is defined by the localized semantic fields present in the effective selected range record, not by instant equality and not by rendered label equality. Lower fields after the record's last present field are irrelevant; distinct narrow month labels remain distinct semantic months; fractional seconds compare at the resolved precision; repeated wall times in a DST fold may collapse. Equal selected records return `Format(start)` with shared parts.
 7. Generated and manual range fixtures must cover date, time, date-time, reversed, semantic-equal, flexible/standard day-period, fractional-precision, and cross-date fallback behavior while retaining CLDR literal spacing instead of handwritten separators.
@@ -476,7 +494,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 
 - **BANNED** Silently format a `time.Time` outside the ECMA TimeClip domain; the four methods return `ErrInvalidValue` for such instants.
 - **DOWN** Calling `time.LoadLocation` on the `Format` path - `*time.Location` must be cached when `New` is used.
-- **BANNED** Check CLDR time zone display name in `Format` path - `metaZones` data must be materialized at `New` time.
+- **BANNED** Repeat locale/time-zone resolution, pattern selection or parsing, or runtime CLDR JSON/file loading during formatting. `New` freezes the resolved zone, data locale, patterns and query configuration; each input instant still determines its transition, DST flag and metazone through the existing in-memory accessors.
 - **NO** Generating calendar pattern data (including Buddhist year offsets) outside of the Gregorian pattern payload before the §3.1 removal path is complete; this is a current implementation boundary, not a permanent range shrinkage.
 - **Banned** Follow the translate-agent mode (directly use `t.Location()` to determine the display time zone) - deviate from ECMA-402.
 - **FORBIDDEN** Transfer instant via `t.Unix() * 1000` - accuracy loss (second level).
@@ -490,25 +508,25 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 
 ## 10. Acceptance Criteria
 
-- [ ] `formatjs/packages/intl-datetimeformat/tests/format.test.ts` All fixtures in `datetimeformat/conformance_unified_test.go` pass (byte-equality).
-- [ ] `formatjs/packages/intl-datetimeformat/tests/format-range.test.ts` All fixtures passed.
-- [ ] `formatjs/packages/intl-datetimeformat/tests/offset-timezone.test.ts` All fixtures pass (`+05:30` / `-08:00` and other inputs).
-- [ ] `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_TimezoneContextPreservation`: the same `time.Time` has different output under different options `TimeZone`).
-- [ ] `go test -race ./datetimeformat/...` passes (including `TestDateTimeFormat_MonotonicClockStripping`:`t.Round(0)` followed by equal successful `Format(t)` bytes).
-- [ ] `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_ConcurrentFormat` 100 goroutine × 1000 calls).
-- [ ] `datetimeformat/range_relation_test.go` proves selected-record semantic equality, flexible and standard day periods, resolved fractional precision, DST-fold local equality, and distinguishing cross-date fallbacks; joined range parts equal `FormatRange` bytes.
-- [ ] `go vet ./datetimeformat/...` clean.
-- [ ] `New(locale.List{loc}, Options{Calendar: gointl.String("buddhist")})` succeeds and `ResolvedOptions().Calendar == "gregory"` unless generated locale data adopts that calendar.
-- [ ] `New(locale.List{loc}, Options{Calendar: gointl.String("")})` returns a wrapped error matching `gointl.ErrInvalidOption`.
-- [ ] `New(locale.List{loc}, Options{NumberingSystem: gointl.String("")})` returns a wrapped error matching `gointl.ErrInvalidOption`.
-- [ ] `New(locale.List{loc}, Options{TimeZone: gointl.String("Mars/Olympus")})` returns a wrapped error matching `gointl.ErrUnsupportedOption`.
-- [ ] `New(locale.List{loc}, Options{TimeZone: gointl.String("")})` returns a wrapped error matching `gointl.ErrUnsupportedOption`.
-- [ ] `New(locale.List{loc}, Options{TimeZone: gointl.String("US/Eastern")})` succeeded; `ResolvedOptions().TimeZone == "America/New_York"` (canonical name conversion).
-- [ ] `New(locale.List{loc}, Options{TimeZone: gointl.String("+05:30")})` succeeded; `ResolvedOptions().TimeZone == "+05:30"` (offset string reserved).
-- [ ] `New(locale.List{locEnUS}, Options{Hour12: gointl.Bool(false), Hour: gointl.String(string(NumericFieldStyle))})`: `ResolvedOptions().HourCycle != nil && *ResolvedOptions().HourCycle == "h23"` and `ResolvedOptions().Hour12 != nil && *ResolvedOptions().Hour12 == false`.
-- [ ] `New(locale.List{locFrFR}, Options{Hour: gointl.String(string(NumericFieldStyle))})`: `ResolvedOptions().HourCycle != nil && *ResolvedOptions().HourCycle == "h23"` and `ResolvedOptions().Hour12 != nil && *ResolvedOptions().Hour12 == false` (French default h23).
-- [ ] DateTimeFormat cached and constructor benchmarks appear in non-blocking `task bench` telemetry.
-- [ ] Benchmark reports label DateTimeFormat as a per-surface package, not root facade cost.
+- `formatjs/packages/intl-datetimeformat/tests/format.test.ts` All fixtures in `datetimeformat/conformance_unified_test.go` pass (byte-equality).
+- `formatjs/packages/intl-datetimeformat/tests/format-range.test.ts` All fixtures passed.
+- `formatjs/packages/intl-datetimeformat/tests/offset-timezone.test.ts` All fixtures pass (`+05:30` / `-08:00` and other inputs).
+- `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_TimezoneContextPreservation`: the same `time.Time` has different output under different options `TimeZone`).
+- `go test -race ./datetimeformat/...` passes (including `TestDateTimeFormat_MonotonicClockStripping`:`t.Round(0)` followed by equal successful `Format(t)` bytes).
+- `go test -race ./datetimeformat/...` passed (including `TestDateTimeFormat_ConcurrentFormat` 100 goroutine × 1000 calls).
+- `datetimeformat/range_relation_test.go` proves selected-record semantic equality, flexible and standard day periods, resolved fractional precision, DST-fold local equality, and distinguishing cross-date fallbacks; joined range parts equal `FormatRange` bytes.
+- `go vet ./datetimeformat/...` clean.
+- `New(locale.List{loc}, Options{Calendar: gointl.String("buddhist")})` succeeds and `ResolvedOptions().Calendar == "gregory"` unless generated locale data adopts that calendar.
+- `New(locale.List{loc}, Options{Calendar: gointl.String("")})` returns a wrapped error matching `gointl.ErrInvalidOption`.
+- `New(locale.List{loc}, Options{NumberingSystem: gointl.String("")})` returns a wrapped error matching `gointl.ErrInvalidOption`.
+- `New(locale.List{loc}, Options{TimeZone: gointl.String("Mars/Olympus")})` returns a wrapped error matching `gointl.ErrUnsupportedOption`.
+- `New(locale.List{loc}, Options{TimeZone: gointl.String("")})` returns a wrapped error matching `gointl.ErrUnsupportedOption`.
+- `New(locale.List{loc}, Options{TimeZone: gointl.String("US/Eastern")})` succeeded; `ResolvedOptions().TimeZone == "America/New_York"` (canonical name conversion).
+- `New(locale.List{loc}, Options{TimeZone: gointl.String("+05:30")})` succeeded; `ResolvedOptions().TimeZone == "+05:30"` (offset string reserved).
+- `New(locale.List{locEnUS}, Options{Hour12: gointl.Bool(false), Hour: gointl.String(string(NumericFieldStyle))})`: `ResolvedOptions().HourCycle != nil && *ResolvedOptions().HourCycle == "h23"` and `ResolvedOptions().Hour12 != nil && *ResolvedOptions().Hour12 == false`.
+- `New(locale.List{locFrFR}, Options{Hour: gointl.String(string(NumericFieldStyle))})`: `ResolvedOptions().HourCycle != nil && *ResolvedOptions().HourCycle == "h23"` and `ResolvedOptions().Hour12 != nil && *ResolvedOptions().Hour12 == false` (French default h23).
+- DateTimeFormat cached and constructor benchmarks appear in non-blocking `task bench` telemetry.
+- Benchmark reports label DateTimeFormat as a per-surface package, not root facade cost.
 
 ---
 

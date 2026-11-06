@@ -54,7 +54,6 @@ expect(new Intl.NumberFormat('fr', {style: 'currency', currency: 'EUR'}).format(
 	}
 	run := func(t *testing.T, fixtureRoot string) (string, error) {
 		t.Helper()
-		//nolint:gosec // The binary was built above in this test's temporary directory.
 		cmd := exec.CommandContext(t.Context(), binary, "-test.run=^TestNumberConformanceObservations$")
 		cmd.Env = append(os.Environ(), "GO_INTL_FIXTURE_ADAPTER_ROOT="+fixtureRoot)
 		output, err := cmd.CombinedOutput()

@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
 	"flag"
 	"fmt"
 	"maps"
@@ -32,6 +35,8 @@ const (
 )
 
 type fixture struct {
+	assertion int
+
 	ID                 string                  `json:"id"`
 	Source             string                  `json:"source"`
 	Locale             string                  `json:"locale"`
@@ -151,7 +156,7 @@ const (
 )
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	if err := run(os.Args[1:]); err != nil && !errors.Is(err, flag.ErrHelp) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -174,11 +179,8 @@ func run(args []string) error {
 		}
 	}
 	if *formatjsPath != "" {
-		formatJSSkips, err := importFormatJS(*formatjsPath, *outDir)
-		if err != nil {
-			return err
-		}
-		return writeSkips(*outDir, formatJSSkips)
+		_, err := importFormatJS(*formatjsPath, *outDir)
+		return err
 	}
 	if *nodePath != "" {
 		return nil
@@ -208,29 +210,60 @@ func importNode(path, outDir string) error {
 	if err != nil {
 		return err
 	}
+	return publishNodeWitness(witness, outDir, os.Rename)
+}
+
+func publishNodeWitness(witness nodeWitness, outDir string, rename func(string, string) error) (retErr error) {
 	if witness.NodeVersion != conformance.ActiveNodeWitnessVersion {
-		return fmt.Errorf("Node witness version: expected %s, got %s", conformance.ActiveNodeWitnessVersion, witness.NodeVersion)
+		return fmt.Errorf("node witness version: expected %s, got %s", conformance.ActiveNodeWitnessVersion, witness.NodeVersion)
 	}
 	nodeDir, err := nodeFixtureDir(witness.NodeVersion)
 	if err != nil {
 		return err
 	}
-	for _, file := range witnessFixtureFiles(witness, nodeDir) {
+	files := witnessFixtureFiles(witness, nodeDir)
+	for _, file := range files {
 		if len(file.Fixtures) == 0 {
-			continue
-		}
-		path := repositoryOutputPath(outDir, file.Path)
-		if err := writeJSON(path, file.Fixtures); err != nil {
-			return err
+			return fmt.Errorf("node witness missing required fixtures for %s", filepath.Join(file.Path...))
 		}
 	}
-	if len(witness.SupportedValues.Values) != 0 {
-		path := repositoryOutputPath(outDir, nodeSupportedValuesPath(nodeDir))
-		if err := writeJSON(path, witness.SupportedValues); err != nil {
-			return err
+	for _, key := range []string{"calendar", "currency", "numberingSystem", "timeZone", "unit"} {
+		if witness.SupportedValues.Values[key] == nil {
+			return fmt.Errorf("node witness missing supportedValues.values.%s", key)
 		}
 	}
-	return nil
+	if err := os.MkdirAll(outDir, 0o750); err != nil {
+		return err
+	}
+	stage, err := os.MkdirTemp(outDir, ".go-intl-node-")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := os.RemoveAll(stage); err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("clean staging %s: %w", stage, err))
+		}
+	}()
+	roots := map[string]bool{}
+	var outputs []stagedOutput
+	for _, file := range files {
+		source := repositoryOutputPath(stage, file.Path)
+		if err := writeJSON(source, file.Fixtures); err != nil {
+			return err
+		}
+		outputs = append(outputs, stagedOutput{source: source, target: repositoryOutputPath(outDir, file.Path)})
+		roots[filepath.Join(stage, file.Path[0])] = true
+	}
+	if err := conformance.ValidateFixtureRoots(slices.Sorted(maps.Keys(roots)), time.Now()); err != nil {
+		return fmt.Errorf("node witness: %w", err)
+	}
+	valuesPath := nodeSupportedValuesPath(nodeDir)
+	source := repositoryOutputPath(stage, valuesPath)
+	if err := writeJSON(source, witness.SupportedValues); err != nil {
+		return err
+	}
+	outputs = append(outputs, stagedOutput{source: source, target: repositoryOutputPath(outDir, valuesPath)})
+	return replaceOutputs(outDir, outputs, rename)
 }
 
 func repositoryOutputPath(outDir string, rel []string) string {
@@ -284,17 +317,13 @@ func nodeSupportedValuesPath(nodeDir string) []string {
 }
 
 func runNodeWitness(nodePath string) (nodeWitness, error) {
-	repoRoot, err := repoRoot()
-	if err != nil {
-		return nodeWitness{}, err
-	}
-	cmd := exec.Command("go", "run", "./tools/node-witness", "-node", nodePath)
-	cmd.Dir = repoRoot
+	//nolint:gosec // The CLI selects the executable; arguments never pass through a shell.
+	cmd := exec.CommandContext(context.Background(), nodePath, "-e", nodeWitnessScript)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nodeWitness{}, fmt.Errorf("run node witness %q: %v: %s", nodePath, err, strings.TrimSpace(stderr.String()))
+		return nodeWitness{}, fmt.Errorf("run node witness %q: %w: %s", nodePath, err, strings.TrimSpace(stderr.String()))
 	}
 	var witness nodeWitness
 	if err := json.Unmarshal(stdout.Bytes(), &witness); err != nil {
@@ -304,24 +333,6 @@ func runNodeWitness(nodePath string) (nodeWitness, error) {
 		return nodeWitness{}, fmt.Errorf("node witness output missing nodeVersion")
 	}
 	return witness, nil
-}
-
-func repoRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	for {
-		candidate := filepath.Join(dir, "tools", "node-witness")
-		if stat, err := os.Stat(filepath.Join(candidate, "main.go")); err == nil && !stat.IsDir() {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("tools/node-witness not found from %s", dir)
-		}
-		dir = parent
-	}
 }
 
 func nodeFixtureDir(version string) (string, error) {
@@ -336,41 +347,43 @@ func nodeFixtureDir(version string) (string, error) {
 	return nodeFixtureDirPrefix + major, nil
 }
 
-func importFormatJS(path, outDir string) ([]skipEntry, error) {
-	stage, err := os.MkdirTemp("", "go-intl-formatjs-")
+func importFormatJS(path, outDir string) (result []skipEntry, retErr error) {
+	if err := os.MkdirAll(outDir, 0o750); err != nil {
+		return nil, err
+	}
+	stage, err := os.MkdirTemp(outDir, ".go-intl-formatjs-")
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(stage)
+	defer func() {
+		if err := os.RemoveAll(stage); err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("clean staging %s: %w", stage, err))
+		}
+	}()
 	skips, err := extractFormatJS(path, stage)
 	if err != nil {
 		return nil, err
 	}
+	if err := writeSkips(stage, skips); err != nil {
+		return nil, err
+	}
+	var outputs []stagedOutput
 	for _, packageName := range []string{"numberformat", "pluralrules", "datetimeformat", "locale", "listformat", "relativetimeformat", "durationformat"} {
-		target := formatJSConformanceRoot(outDir, packageName)
 		source := formatJSConformanceRoot(stage, packageName)
-		if err := os.RemoveAll(target); err != nil {
-			return nil, fmt.Errorf("replace %s: %w", target, err)
-		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o777); err != nil {
+		if err := os.MkdirAll(source, 0o750); err != nil {
 			return nil, err
 		}
-		if _, err := os.Stat(source); os.IsNotExist(err) {
-			if err := os.MkdirAll(target, 0o777); err != nil {
-				return nil, err
-			}
-			continue
-		} else if err != nil {
-			return nil, err
-		}
-		if err := os.Rename(source, target); err != nil {
-			return nil, fmt.Errorf("replace %s: %w", target, err)
-		}
+		outputs = append(outputs, stagedOutput{source: source, target: formatJSConformanceRoot(outDir, packageName)})
+	}
+	outputs = append(outputs, stagedOutput{source: skipListPath(stage), target: skipListPath(outDir)})
+	if err := replaceOutputs(outDir, outputs, os.Rename); err != nil {
+		return nil, err
 	}
 	return skips, nil
 }
 
 func extractFormatJS(path, outDir string) ([]skipEntry, error) {
+	//nolint:prealloc // Package routes append through the pointer before localeSkips exists; the final size is unknown.
 	skips := []skipEntry{}
 	if err := appendFormatJSSurfaceSkips(&skips, path, outDir, formatJSPreLocaleSurfaceRoutes()); err != nil {
 		return nil, err
@@ -388,7 +401,7 @@ func extractFormatJS(path, outDir string) ([]skipEntry, error) {
 
 type formatJSImportSpec struct {
 	packageDir string
-	extract    func(string, string) []fixture
+	extract    func(string, jsSource) []fixture
 	supports   func(fixture) bool
 	slug       func(string) string
 }
@@ -404,7 +417,7 @@ type formatJSSurfaceRoute struct {
 
 func formatJSSurfaceRouteFor(
 	targetPackage, packageDir string,
-	extract func(string, string) []fixture,
+	extract func(string, jsSource) []fixture,
 	supports func(fixture) bool,
 ) formatJSSurfaceRoute {
 	return formatJSSurfaceRoute{
@@ -616,23 +629,34 @@ func importFormatJSTestFixtures(root, targetRoot string, spec formatJSImportSpec
 		case ".snap":
 			return nil
 		case ".ts":
+			//nolint:gosec // WalkDir enumerates the reference checkout explicitly selected by the CLI.
 			data, err := os.ReadFile(path)
 			if err != nil {
 				return err
 			}
-			extracted := spec.extract(rel, string(data))
+			source := scanJSSource(string(data))
+			remaining := source.candidates()
+			extracted := spec.extract(rel, source)
 			supportedCount := 0
+			unsupported := false
 			for _, fixture := range extracted {
 				if spec.supports(fixture) {
 					fixtures = append(fixtures, fixture)
 					supportedCount++
+					delete(remaining, fixture.assertion)
+				} else {
+					unsupported = true
 				}
 			}
-			if len(extracted) > 0 && (supportedCount < len(extracted) || strings.Count(string(data), "expect(") > len(extracted)) {
-				skips = append(skips, formatJSImportPartialExtractionSkip(sourcePrefix+rel))
-			}
-			if len(extracted) == 0 && strings.Contains(string(data), "expect(") {
-				skips = append(skips, formatJSUnsupportedExtractorShapeSkip(sourcePrefix+rel))
+			if len(remaining) > 0 || unsupported || source.issue != "" {
+				skip := formatJSUnsupportedExtractorShapeSkip(sourcePrefix + rel)
+				if supportedCount > 0 {
+					skip = formatJSImportPartialExtractionSkip(sourcePrefix + rel)
+				}
+				if source.issue != "" {
+					skip.Reason = fmt.Sprintf("byte %d: %s", source.at, source.issue)
+				}
+				skips = append(skips, skip)
 			}
 		}
 		return nil
@@ -648,6 +672,11 @@ func importFormatJSTestFixtures(root, targetRoot string, spec formatJSImportSpec
 func writeFixturesBySourceSlug(targetRoot string, fixtures []fixture, sourcePrefix string, slug func(string) string) error {
 	if len(fixtures) == 0 {
 		return nil
+	}
+	var err error
+	fixtures, err = identifyFormatJSFixtures(fixtures)
+	if err != nil {
+		return err
 	}
 	slices.SortFunc(fixtures, func(a, b fixture) int {
 		return strings.Compare(a.ID, b.ID)
@@ -696,11 +725,12 @@ var (
 	numberOptionRE                = regexp.MustCompile(`([A-Za-z][A-Za-z0-9]*)\s*:\s*(-?\d+(?:_\d+)*(?:\.\d+)?(?:e[+-]?\d+)?)`)
 )
 
-func extractNumberFormatFixtures(rel, data string) []fixture {
-	declarations := numberFormatDeclarations(data)
+func extractNumberFormatFixtures(rel string, source jsSource) []fixture {
+	data := source.text
+	declarations := numberFormatDeclarations(source)
 	fixtures := []fixture{}
 	nextIndex := 0
-	for _, match := range inlineFormatExpectationRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(inlineFormatExpectationRE) {
 		locale := data[match[2]:match[3]]
 		options, ok := parseOptionsObject(matchString(data, match, 4))
 		if !ok {
@@ -715,10 +745,11 @@ func extractNumberFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newNumberFormatFixture(rel, nextIndex, locale, options, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
 
-	variableMatches := varFormatExpectationRE.FindAllStringSubmatchIndex(data, -1)
+	variableMatches := source.matches(varFormatExpectationRE)
 	for _, match := range variableMatches {
 		name := data[match[2]:match[3]]
 		decl, ok := latestExplicitLocaleConstructorDeclarationBefore(declarations, name, match[0])
@@ -734,9 +765,10 @@ func extractNumberFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newNumberFormatFixture(rel, nextIndex, decl.locale, decl.options, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
-	for _, match := range varFormatToPartsExpectationRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(varFormatToPartsExpectationRE) {
 		name := data[match[2]:match[3]]
 		decl, ok := latestExplicitLocaleConstructorDeclarationBefore(declarations, name, match[0])
 		if !ok {
@@ -751,9 +783,10 @@ func extractNumberFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newNumberFormatPartsFixture(rel, nextIndex, decl.locale, decl.options, input, parts))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
-	for _, match := range varFormatRangeExpectationRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(varFormatRangeExpectationRE) {
 		name := data[match[2]:match[3]]
 		decl, ok := latestExplicitLocaleConstructorDeclarationBefore(declarations, name, match[0])
 		if !ok {
@@ -772,9 +805,10 @@ func extractNumberFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newNumberFormatRangeFixture(rel, nextIndex, decl.locale, decl.options, start, end, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
-	for _, match := range varRangePartsExpectationRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(varRangePartsExpectationRE) {
 		name := data[match[2]:match[3]]
 		decl, ok := latestExplicitLocaleConstructorDeclarationBefore(declarations, name, match[0])
 		if !ok {
@@ -793,13 +827,14 @@ func extractNumberFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newNumberFormatRangePartsFixture(rel, nextIndex, decl.locale, decl.options, start, end, parts))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
 	return fixtures
 }
 
-func numberFormatDeclarations(data string) map[string][]formatJSConstructorDeclaration {
-	return formatJSConstructorDeclarations(data, numberFormatDeclarationRE, 6, 4)
+func numberFormatDeclarations(source jsSource) map[string][]formatJSConstructorDeclaration {
+	return formatJSConstructorDeclarations(source, numberFormatDeclarationRE, 6, 4)
 }
 
 func newNumberFormatFixture(rel string, index int, locale string, options map[string]any, input any, expected string) fixture {
@@ -830,11 +865,12 @@ var (
 	varPluralRangeExpectationRE  = regexp.MustCompile(`(?s)expect\s*\(\s*([A-Za-z_]\w*)\.selectRange\s*\(\s*((?:BigInt\s*\([^)]*\)|[^,])+?)\s*,\s*((?:BigInt\s*\([^)]*\)|[^)])+?)\s*\)\s*\)\s*\.to(?:Be|Equal)\s*\(\s*['"]((?:\\.|[^\\'"])*?)['"]\s*\)`)
 )
 
-func extractPluralRulesFixtures(rel, data string) []fixture {
-	declarations := pluralRulesDeclarations(data)
+func extractPluralRulesFixtures(rel string, source jsSource) []fixture {
+	data := source.text
+	declarations := pluralRulesDeclarations(source)
 	fixtures := []fixture{}
 	nextIndex := 0
-	for _, match := range inlinePluralSelectRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(inlinePluralSelectRE) {
 		locale := data[match[2]:match[3]]
 		options, ok := parseOptionsObject(matchString(data, match, 4))
 		if !ok {
@@ -849,9 +885,10 @@ func extractPluralRulesFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newPluralRulesFixture(rel, nextIndex, locale, options, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
-	for _, match := range inlinePluralRangeRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(inlinePluralRangeRE) {
 		locale := data[match[2]:match[3]]
 		options, ok := parseOptionsObject(matchString(data, match, 4))
 		if !ok {
@@ -870,10 +907,11 @@ func extractPluralRulesFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newPluralRulesRangeFixture(rel, nextIndex, locale, options, start, end, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
 
-	for _, match := range varPluralSelectExpectationRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(varPluralSelectExpectationRE) {
 		name := data[match[2]:match[3]]
 		decl, ok := latestExplicitLocaleConstructorDeclarationBefore(declarations, name, match[0])
 		if !ok {
@@ -888,9 +926,10 @@ func extractPluralRulesFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newPluralRulesFixture(rel, nextIndex, decl.locale, decl.options, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
-	for _, match := range varPluralRangeExpectationRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(varPluralRangeExpectationRE) {
 		name := data[match[2]:match[3]]
 		decl, ok := latestExplicitLocaleConstructorDeclarationBefore(declarations, name, match[0])
 		if !ok {
@@ -909,13 +948,14 @@ func extractPluralRulesFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newPluralRulesRangeFixture(rel, nextIndex, decl.locale, decl.options, start, end, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
 	return fixtures
 }
 
-func pluralRulesDeclarations(data string) map[string][]formatJSConstructorDeclaration {
-	return formatJSConstructorDeclarations(data, pluralRulesDeclarationRE, 6, 4)
+func pluralRulesDeclarations(source jsSource) map[string][]formatJSConstructorDeclaration {
+	return formatJSConstructorDeclarations(source, pluralRulesDeclarationRE, 6, 4)
 }
 
 func newPluralRulesFixture(rel string, index int, locale string, options map[string]any, input any, expected string) fixture {
@@ -996,12 +1036,13 @@ var (
 	canonicalLocalesRE         = regexp.MustCompile(`(?s)expect\s*\(\s*getCanonicalLocales\s*\(\s*['"]([^'"]*)['"]\s*\)\s*\)\s*\.toEqual\s*\(\s*\[\s*['"]((?:\\.|[^\\'"])*?)['"]\s*\]\s*\)`)
 )
 
-func extractDateTimeFormatFixtures(rel, data string) []fixture {
-	declarations := dateTimeDeclarations(data)
-	dates := dateVariables(data)
+func extractDateTimeFormatFixtures(rel string, source jsSource) []fixture {
+	data := source.text
+	declarations := dateTimeDeclarations(source)
+	dates := dateVariables(source)
 	fixtures := []fixture{}
 	nextIndex := 0
-	for _, match := range varDateTimeFormatRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(varDateTimeFormatRE) {
 		if isSkippedVitestAssertion(data, match[0]) {
 			continue
 		}
@@ -1019,9 +1060,10 @@ func extractDateTimeFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newDateTimeFormatFixture(rel, nextIndex, decl.locale, decl.options, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
-	for _, match := range varDateTimeFormatRangeRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(varDateTimeFormatRangeRE) {
 		if isSkippedVitestAssertion(data, match[0]) {
 			continue
 		}
@@ -1043,9 +1085,10 @@ func extractDateTimeFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newDateTimeFormatRangeFixture(rel, nextIndex, decl.locale, decl.options, start, end, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
-	for _, match := range varDateTimeRangePartsRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(varDateTimeRangePartsRE) {
 		if isSkippedVitestAssertion(data, match[0]) {
 			continue
 		}
@@ -1067,9 +1110,10 @@ func extractDateTimeFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newDateTimeFormatRangePartsFixture(rel, nextIndex, decl.locale, decl.options, start, end, parts))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
-	for _, match := range inlineDateTimeRangePartsRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(inlineDateTimeRangePartsRE) {
 		if isSkippedVitestAssertion(data, match[0]) {
 			continue
 		}
@@ -1091,25 +1135,49 @@ func extractDateTimeFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newDateTimeFormatRangePartsFixture(rel, nextIndex, locale, options, start, end, parts))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
 	return fixtures
 }
 
-func dateTimeDeclarations(data string) map[string][]formatJSConstructorDeclaration {
-	return formatJSConstructorDeclarations(data, dateTimeDeclarationRE, 8, 4, 6)
+func dateTimeDeclarations(source jsSource) map[string][]formatJSConstructorDeclaration {
+	return formatJSConstructorDeclarations(source, dateTimeDeclarationRE, 8, 4, 6)
 }
 
-func formatJSConstructorDeclarations(data string, re *regexp.Regexp, optionsGroup int, localeGroups ...int) map[string][]formatJSConstructorDeclaration {
-	declarations := map[string][]formatJSConstructorDeclaration{}
-	for _, match := range re.FindAllStringSubmatchIndex(data, -1) {
-		name := data[match[2]:match[3]]
-		options, _ := parseOptionsObject(matchString(data, match, optionsGroup))
-		declarations[name] = append(declarations[name], formatJSConstructorDeclaration{
-			index:   match[0],
+var directAssignmentRE = regexp.MustCompile(`(?:(const|let|var)\s+)?([A-Za-z_]\w*)\s*=`)
+
+func formatJSConstructorDeclarations(source jsSource, re *regexp.Regexp, optionsGroup int, localeGroups ...int) map[string][]formatJSConstructorDeclaration {
+	data := source.text
+	constructors := map[int]formatJSConstructorDeclaration{}
+	for _, match := range source.codeMatches(re) {
+		var options map[string]any
+		if !source.overlapsOpaque(match[0], match[1]) {
+			options, _ = parseOptionsObject(matchString(data, match, optionsGroup))
+		}
+		constructors[match[2]] = formatJSConstructorDeclaration{
 			locale:  firstMatchString(data, match, localeGroups...),
 			options: options,
-		})
+		}
+	}
+	declarations := map[string][]formatJSConstructorDeclaration{}
+	for _, match := range directAssignmentRE.FindAllStringSubmatchIndex(data, -1) {
+		if match[1] < len(data) && (data[match[1]] == '=' || data[match[1]] == '>') {
+			continue
+		}
+		if !source.code[match[0]] || source.issue != "" && match[1] > source.at {
+			continue
+		}
+		if match[2] >= 0 && source.overlapsOpaque(match[0], match[0]+1) {
+			continue
+		}
+		name := data[match[4]:match[5]]
+		// Only understood constructor declarations supply configuration. Every
+		// other direct write, including an opaque template's substitution,
+		// ends the preceding binding without evaluating it.
+		decl := constructors[match[4]]
+		decl.index = match[4]
+		declarations[name] = append(declarations[name], decl)
 	}
 	return declarations
 }
@@ -1140,29 +1208,30 @@ func latestExplicitLocaleConstructorDeclarationBefore(declarations map[string][]
 	return decl, true
 }
 
-func dateVariables(data string) map[string][]dateVariable {
+func dateVariables(source jsSource) map[string][]dateVariable {
+	data := source.text
 	dates := map[string][]dateVariable{}
-	for _, match := range dateVarStringRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(dateVarStringRE) {
 		name := data[match[2]:match[3]]
 		if parsed, ok := parseDateString(data[match[4]:match[5]]); ok {
 			dates[name] = append(dates[name], dateVariable{index: match[0], value: parsed})
 		}
 	}
-	for _, match := range dateVarNumberRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(dateVarNumberRE) {
 		name := data[match[2]:match[3]]
 		ms, err := strconv.ParseInt(data[match[4]:match[5]], 10, 64)
 		if err == nil {
 			dates[name] = append(dates[name], dateVariable{index: match[0], value: formatFixtureInstant(time.UnixMilli(ms))})
 		}
 	}
-	for _, match := range dateVarYMDRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(dateVarYMDRE) {
 		name := data[match[2]:match[3]]
 		instant, ok := parseDateYMD(matchStrings(data, match, 4))
 		if ok {
 			dates[name] = append(dates[name], dateVariable{index: match[0], value: instant})
 		}
 	}
-	for _, match := range dateVarUTCRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(dateVarUTCRE) {
 		name := data[match[2]:match[3]]
 		instant, ok := parseDateUTCArgs(data[match[4]:match[5]])
 		if ok {
@@ -1342,49 +1411,55 @@ func supportsGeneratedDateTimeFormatFixture(f fixture) bool {
 	return true
 }
 
-func extractLocaleFixtures(rel, data string) []fixture {
+func extractLocaleFixtures(rel string, source jsSource) []fixture {
+	data := source.text
 	fixtures := []fixture{}
 	nextIndex := 0
-	for _, match := range localeToStringRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(localeToStringRE) {
 		input := data[match[2]:match[3]]
 		expected, ok := decodeJSString(data[match[4]:match[5]])
 		if !ok {
 			continue
 		}
 		fixtures = append(fixtures, newLocaleFixture(formatJSLocaleTestSourcePrefix, rel, nextIndex, fixtureFeatureCanonicalize, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
-	for _, match := range localeMaximizeRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(localeMaximizeRE) {
 		input := data[match[2]:match[3]]
 		expected, ok := decodeJSString(data[match[4]:match[5]])
 		if !ok {
 			continue
 		}
 		fixtures = append(fixtures, newLocaleFixture(formatJSLocaleTestSourcePrefix, rel, nextIndex, fixtureFeatureMaximize, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
-	for _, match := range localeMinimizeRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(localeMinimizeRE) {
 		input := data[match[2]:match[3]]
 		expected, ok := decodeJSString(data[match[4]:match[5]])
 		if !ok {
 			continue
 		}
 		fixtures = append(fixtures, newLocaleFixture(formatJSLocaleTestSourcePrefix, rel, nextIndex, fixtureFeatureMinimize, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
 	return fixtures
 }
 
-func extractCanonicalLocalesFixtures(rel, data string) []fixture {
+func extractCanonicalLocalesFixtures(rel string, source jsSource) []fixture {
+	data := source.text
 	fixtures := []fixture{}
 	nextIndex := 0
-	for _, match := range canonicalLocalesRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(canonicalLocalesRE) {
 		input := data[match[2]:match[3]]
 		expected, ok := decodeJSString(data[match[4]:match[5]])
 		if !ok {
 			continue
 		}
 		fixtures = append(fixtures, newLocaleFixture(formatJSCanonicalLocalesTestSourcePrefix, rel, nextIndex, fixtureFeatureCanonicalize, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
 	return fixtures
@@ -1392,7 +1467,7 @@ func extractCanonicalLocalesFixtures(rel, data string) []fixture {
 
 func newLocaleFixture(sourcePrefix, rel string, index int, feature, input, expected string) fixture {
 	return fixture{
-		ID:       formatJSFixtureID("locale", sourcePrefix+rel, index),
+		ID:       formatJSFixturePrefix("locale", sourcePrefix+rel),
 		Source:   sourcePrefix + rel,
 		Locale:   input,
 		Feature:  feature,
@@ -1415,10 +1490,11 @@ var (
 	inlineDurationFormatExpectationRE     = regexp.MustCompile(`(?s)expect\s*\(\s*(?:new\s+)?(?:Intl\.)?DurationFormat\s*\(\s*['"]([^'"]*)['"]\s*(?:,\s*(\{.*?\}))?\s*\)\.format\s*\(\s*(\{.*?\})\s*\)\s*\)\s*\.to(?:Be|Equal)\s*\(\s*['"]((?:\\.|[^\\'"])*?)['"]\s*\)`)
 )
 
-func extractListFormatFixtures(rel, data string) []fixture {
+func extractListFormatFixtures(rel string, source jsSource) []fixture {
+	data := source.text
 	fixtures := []fixture{}
 	nextIndex := 0
-	for _, match := range inlineListFormatExpectationRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(inlineListFormatExpectationRE) {
 		if !isExtractableComposedFormatAssertion(data, match[0]) {
 			continue
 		}
@@ -1436,6 +1512,7 @@ func extractListFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newListFormatFixture(rel, nextIndex, locale, options, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
 	return fixtures
@@ -1471,10 +1548,11 @@ func supportsGeneratedListFormatFixture(f fixture) bool {
 	return true
 }
 
-func extractRelativeTimeFormatFixtures(rel, data string) []fixture {
+func extractRelativeTimeFormatFixtures(rel string, source jsSource) []fixture {
+	data := source.text
 	fixtures := []fixture{}
 	nextIndex := 0
-	for _, match := range inlineRelativeTimeFormatExpectationRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(inlineRelativeTimeFormatExpectationRE) {
 		if !isExtractableComposedFormatAssertion(data, match[0]) {
 			continue
 		}
@@ -1496,6 +1574,7 @@ func extractRelativeTimeFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newRelativeTimeFormatFixture(rel, nextIndex, locale, options, value, unit, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
 	return fixtures
@@ -1538,10 +1617,11 @@ func supportsGeneratedRelativeTimeFormatFixture(f fixture) bool {
 	return true
 }
 
-func extractDurationFormatFixtures(rel, data string) []fixture {
+func extractDurationFormatFixtures(rel string, source jsSource) []fixture {
+	data := source.text
 	fixtures := []fixture{}
 	nextIndex := 0
-	for _, match := range inlineDurationFormatExpectationRE.FindAllStringSubmatchIndex(data, -1) {
+	for _, match := range source.matches(inlineDurationFormatExpectationRE) {
 		if !isExtractableComposedFormatAssertion(data, match[0]) {
 			continue
 		}
@@ -1559,6 +1639,7 @@ func extractDurationFormatFixtures(rel, data string) []fixture {
 			continue
 		}
 		fixtures = append(fixtures, newDurationFormatFixture(rel, nextIndex, locale, options, input, expected))
+		fixtures[len(fixtures)-1].assertion = match[0]
 		nextIndex++
 	}
 	return fixtures
@@ -1944,13 +2025,49 @@ func fixtureSlug(path string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-func formatJSFixtureID(surface, rel string, index int) string {
-	return fmt.Sprintf("%s-formatjs-%s-%03d", surface, fixtureSlug(rel), index)
+func formatJSFixturePrefix(surface, rel string) string {
+	return surface + "-formatjs-" + fixtureSlug(rel)
+}
+
+// Identity includes the invocation and observation kinds, never expected values or source positions.
+func identifyFormatJSFixtures(fixtures []fixture) ([]fixture, error) {
+	result := make([]fixture, 0, len(fixtures))
+	seen := map[string][]byte{}
+	for _, f := range fixtures {
+		f.Source = strings.ReplaceAll(f.Source, `\`, "/")
+		key := struct {
+			Source, Locale, Feature string
+			Options                 map[string]any
+			Input                   any
+			Observations            [8]bool
+		}{f.Source, f.Locale, f.Feature, f.Options, f.Input, [8]bool{
+			f.Expected != nil, f.ExpectedOK != nil, f.ExpectedLocales != nil, f.ExpectedParts != nil,
+			f.ExpectedRange != nil, f.ExpectedRangeParts != nil, f.ExpectedResolved != nil, f.ErrorCode != "",
+		}}
+		data, err := json.Marshal(key, json.Deterministic(true))
+		if err != nil {
+			return nil, fmt.Errorf("%s: encode case identity: %w", f.Source, err)
+		}
+		f.ID = fmt.Sprintf("%s-%x", f.ID, sha256.Sum256(data))
+		payload, err := json.Marshal(f, json.Deterministic(true))
+		if err != nil {
+			return nil, err
+		}
+		if previous, ok := seen[f.ID]; ok {
+			if !bytes.Equal(previous, payload) {
+				return nil, fmt.Errorf("%s: conflicting expectations for case %s", f.Source, f.ID)
+			}
+			continue
+		}
+		seen[f.ID] = payload
+		result = append(result, f)
+	}
+	return result, nil
 }
 
 func formatJSSurfaceFixture(surface, sourcePrefix, rel string, index int, locale string, options map[string]any, input any) fixture {
 	return fixture{
-		ID:      formatJSFixtureID(surface, rel, index),
+		ID:      formatJSFixturePrefix(surface, rel),
 		Source:  sourcePrefix + rel,
 		Locale:  locale,
 		Options: options,
@@ -1988,7 +2105,7 @@ func ptr(value string) *string {
 }
 
 func writeJSON(path string, v any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o777); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
 	data, err := json.Marshal(v, jsontext.WithIndent("  "), json.Deterministic(true))
@@ -1996,5 +2113,5 @@ func writeJSON(path string, v any) error {
 		return err
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, 0o666)
+	return os.WriteFile(path, data, 0o600)
 }

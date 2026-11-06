@@ -24,8 +24,8 @@ func TestLoadUnicodeTypeAliases(t *testing.T) {
 				}
 			},
 			"t": {
-				"ca": {
-					"ignored": {"_alias":"not-used"}
+				"m0": {
+					"prprname": {"_alias":"names"}
 				}
 			}
 		}
@@ -48,6 +48,7 @@ func TestLoadUnicodeTypeAliases(t *testing.T) {
 	want := []UnicodeTypeAlias{
 		{Key: "ca", Alias: "islamicc", Canonical: "islamic-civil"},
 		{Key: "ms", Alias: "imperial", Canonical: "uksystem"},
+		{Key: "t:m0", Alias: "names", Canonical: "prprname"},
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("loadUnicodeTypeAliases() = %#v, want %#v", got, want)

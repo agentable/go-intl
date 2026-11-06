@@ -16,7 +16,6 @@ type DurationFormat struct {
 	unitOptions                     [unitCount]resolvedUnitConfig
 	listFormatter                   *listformat.ListFormat
 	unitFormatters                  [unitCount]durationNumberFormatters
-	unitFractionFormatters          [unitCount]durationNumberFormatters
 	numericFormatters               [unitCount]durationNumberFormatters
 	secondsNumericFractionFormatter durationNumberFormatters
 	separator                       string

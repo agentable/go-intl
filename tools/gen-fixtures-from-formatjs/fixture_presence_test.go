@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,22 +14,14 @@ func TestNodeWitnessPreservesObservationPresence(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	nodePath := filepath.Join(root, "node")
-	dir, err := nodeFixtureDir(conformance.ActiveNodeWitnessVersion)
-	if err != nil {
-		t.Fatal(err)
+	witness := syntheticNodeWitness(t)
+	witness.NumberFormatSmoke = []fixture{
+		{ID: "numberformat-node-v26-empty", Source: "node:" + conformance.ActiveNodeWitnessVersion + ":numberformat", Locale: "en", Options: map[string]any{}, Input: 1,
+			Expected: new(""), ExpectedOK: new(false), ExpectedLocales: []string{}, ExpectedParts: []conformance.Part{}, ExpectedRange: new(""), ExpectedRangeParts: []conformance.RangePart{}, ExpectedResolved: map[string]any{}},
+		{ID: "numberformat-node-v26-absent", Source: "node:" + conformance.ActiveNodeWitnessVersion + ":numberformat", Locale: "en", Options: map[string]any{}, Input: 1, Expected: new("1")},
 	}
-	script := fmt.Sprintf(`#!/bin/sh
-cat <<'JSON'
-{"nodeVersion":%q,"numberFormatSmoke":[
-{"id":"numberformat-%s-empty","source":"node:%s:numberformat","locale":"en","options":{},"input":1,"expected":"","expectedOk":false,"expectedLocales":[],"expectedParts":[],"expectedRange":"","expectedRangeParts":[],"expectedResolvedOptions":{}},
-{"id":"numberformat-%s-absent","source":"node:%s:numberformat","locale":"en","options":{},"input":1,"expected":"1"}
-]}
-JSON
-`, conformance.ActiveNodeWitnessVersion, dir, conformance.ActiveNodeWitnessVersion, dir, conformance.ActiveNodeWitnessVersion)
-	if err := os.WriteFile(nodePath, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	witness.SupportedValues.Values["currency"] = []string{}
+	nodePath := writeNodeWitness(t, witness)
 	if err := run([]string{"-node", nodePath, "-out", root}); err != nil {
 		t.Fatal(err)
 	}
@@ -38,10 +29,15 @@ JSON
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(loaded) != 2 {
-		t.Fatalf("LoadFixtures() returned %d records, want 2", len(loaded))
+	var empty, absent conformance.Fixture
+	for _, fixture := range loaded {
+		switch fixture.ID {
+		case "numberformat-node-v26-empty":
+			empty = fixture
+		case "numberformat-node-v26-absent":
+			absent = fixture
+		}
 	}
-	empty, absent := loaded[0], loaded[1]
 	if empty.Expected == nil || *empty.Expected != "" || empty.ExpectedOK == nil || *empty.ExpectedOK ||
 		empty.ExpectedLocales == nil || empty.ExpectedParts == nil || empty.ExpectedRange == nil ||
 		*empty.ExpectedRange != "" || empty.ExpectedRangeParts == nil || string(empty.ExpectedResolved) != "{}" {

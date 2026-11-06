@@ -3,34 +3,33 @@ package localematcher_test
 import (
 	"fmt"
 
+	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/x/localematcher"
 )
 
-// Match mirrors the Stage 1 Intl.LocaleMatcher.match proposal: pick the best
-// available locale for one request list.
-func ExampleMatch() {
-	result := localematcher.Match(
-		[]string{"fr-XX", "en"},
-		[]string{"fr", "en"},
-		"en",
-		localematcher.AlgorithmBestFit,
-	)
-	fmt.Println(result.Locale)
-	// Output: fr
-}
-
-// New compiles a fixed available-locale set once, so repeated per-key
-// matching — for example an i18n catalog whose keys exist in different
-// locale subsets — stays on the cached path.
 func ExampleNew() {
-	matcher := localematcher.New([]string{"en", "zh-Hans", "zh-Hant", "ja"})
-
-	for _, requested := range [][]string{{"zh-HK"}, {"zh-SG"}, {"ko"}} {
-		result := matcher.Match(requested, "en", localematcher.AlgorithmBestFit)
-		fmt.Println(result.Locale)
+	available, err := locale.ParseList("en", "zh-Hans", "zh-Hant", "ja")
+	if err != nil {
+		panic(err)
+	}
+	matcher, err := localematcher.New(available, localematcher.Options{})
+	if err != nil {
+		panic(err)
+	}
+	for _, tag := range []string{"zh-HK", "zh-SG", "ko"} {
+		requested, err := locale.ParseList(tag)
+		if err != nil {
+			panic(err)
+		}
+		matched, ok := matcher.Match(requested)
+		if !ok {
+			fmt.Println("no match")
+			continue
+		}
+		fmt.Println(matched.String())
 	}
 	// Output:
 	// zh-Hant
 	// zh-Hans
-	// en
+	// no match
 }

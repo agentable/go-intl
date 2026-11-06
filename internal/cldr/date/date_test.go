@@ -249,21 +249,24 @@ func TestSmokeFlexibleDayPeriods(t *testing.T) {
 
 func TestSmokeDayPeriodForRules(t *testing.T) {
 	t.Parallel()
-
 	en := resolveSmoke(t, "en-US")
 	zh := resolveSmoke(t, "zh-Hans-CN")
+	fr := resolveSmoke(t, "fr")
+	ja := resolveSmoke(t, "ja")
 	for _, tc := range []struct {
-		loc          Locale
-		hour, minute int
-		want         string
+		loc                  Locale
+		hour, minute, second int
+		want                 string
 	}{
-		{en, 5, 0, "morning1"},
-		{en, 12, 0, "noon"},
-		{en, 0, 0, "midnight"},
-		{zh, 13, 0, "afternoon2"},
+		{en, 5, 0, 0, "morning1"}, {en, 12, 0, 0, "noon"},
+		{en, 12, 0, 1, "afternoon1"}, {en, 0, 0, 0, "midnight"},
+		{zh, 13, 0, 0, "afternoon2"},
+		{fr, 12, 0, 0, "noon"}, {fr, 12, 0, 1, "afternoon1"},
+		{ja, 23, 59, 59, "night2"}, {ja, 0, 0, 0, "midnight"},
+		{ja, 0, 0, 1, "night2"}, {ja, 3, 59, 59, "night2"}, {ja, 4, 0, 0, "morning1"},
 	} {
-		if got := DayPeriodFor(tc.loc, tc.hour, tc.minute); got != tc.want {
-			t.Errorf("DayPeriodFor(%d:%02d) = %q, want %q", tc.hour, tc.minute, got, tc.want)
+		if got := DayPeriodFor(tc.loc, tc.hour, tc.minute, tc.second); got != tc.want {
+			t.Errorf("DayPeriodFor(%d, %d:%02d:%02d) = %q, want %q", tc.loc, tc.hour, tc.minute, tc.second, got, tc.want)
 		}
 	}
 }
@@ -278,7 +281,7 @@ func TestDayPeriodForMissingLocaleReturnsEmpty(t *testing.T) {
 		{12, 0},
 		{23, 59},
 	} {
-		if got := DayPeriodFor(Locale(65535), tc.hour, tc.minute); got != "" {
+		if got := DayPeriodFor(Locale(65535), tc.hour, tc.minute, 0); got != "" {
 			t.Errorf("DayPeriodFor(missing, %d:%02d) = %q, want empty", tc.hour, tc.minute, got)
 		}
 	}

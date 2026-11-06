@@ -123,7 +123,10 @@ func resolveLanguage(tag, localePattern, localeSeparator string, display styledN
 	}
 	base, ok := resolveStyled(display, style, parts[0])
 	if !ok {
-		return "", false
+		if !fallbackCode {
+			return "", false
+		}
+		base = parts[0]
 	}
 	index := 1
 	script := ""

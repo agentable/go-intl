@@ -10,10 +10,10 @@ const (
 )
 
 var dateTimeStyleValues = [...]string{
-	string(FullDateTimeStyle),
-	string(LongDateTimeStyle),
-	string(MediumDateTimeStyle),
-	string(ShortDateTimeStyle),
+	string(FullStyle),
+	string(LongStyle),
+	string(MediumStyle),
+	string(ShortStyle),
 }
 
 type Options struct {

@@ -1,24 +1,6 @@
 [
   {
-    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-000",
-    "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
-    "locale": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
-    "feature": "canonicalize",
-    "options": {},
-    "input": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
-    "expected": "en-u-bar-foo-ca-buddhist-kk-nu-thai"
-  },
-  {
-    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-001",
-    "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
-    "locale": "und-x-private",
-    "feature": "canonicalize",
-    "options": {},
-    "input": "und-x-private",
-    "expected": "und-x-private"
-  },
-  {
-    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-002",
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-06ee8a34ba29a0f33c907015caa60b791978f201f4bc77e60f1fbb8350bb1947",
     "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
     "locale": "zh-hANs-sG",
     "feature": "canonicalize",
@@ -27,16 +9,34 @@
     "expected": "zh-Hans-SG"
   },
   {
-    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-003",
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-49e2b0e9f51791b505e6bc3384848b27f8c7e80e6473dbd38a9c883a636f875f",
     "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
-    "locale": "twi",
+    "locale": "und-x-private",
     "feature": "canonicalize",
     "options": {},
-    "input": "twi",
-    "expected": "ak"
+    "input": "und-x-private",
+    "expected": "und-x-private"
   },
   {
-    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-004",
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-65dc9c024c07d9c862bf3fc66240c3bd0aebb111b034502608fd8141d5db998c",
+    "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
+    "locale": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
+    "expected": "en-u-bar-foo-ca-buddhist-kk-nu-thai"
+  },
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-992ccf49807faa5b6e708115bd1ad7afa40cce78cf4c43055233a028d29fe40b",
+    "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
+    "locale": "und-Armn-SU",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "und-Armn-SU",
+    "expected": "und-Armn-AM"
+  },
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-ebc1cd3185cf67657a4806e3368820b185fcadfed483215108af04f548d6fc0f",
     "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
     "locale": "ug-Arab-CN",
     "feature": "canonicalize",
@@ -45,12 +45,12 @@
     "expected": "ug-Arab-CN"
   },
   {
-    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-005",
+    "id": "locale-formatjs-formatjs-packages-intl-getcanonicallocales-tests-index-test-ts-f6b6edbf8e33e0678aed0c6761523457d8e6dc99ead880f99757db053db4f211",
     "source": "formatjs:packages/intl-getcanonicallocales/tests/index.test.ts",
-    "locale": "und-Armn-SU",
+    "locale": "twi",
     "feature": "canonicalize",
     "options": {},
-    "input": "und-Armn-SU",
-    "expected": "und-Armn-AM"
+    "input": "twi",
+    "expected": "ak"
   }
 ]

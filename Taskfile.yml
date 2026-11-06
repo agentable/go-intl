@@ -6,10 +6,10 @@ vars:
   GOBIN: '{{.PROJECT_ROOT}}/bin'
   GOLANGCI_LINT_LOCAL_BINARY: '{{.GOBIN}}/golangci-lint{{exeExt}}'
   REQUIRED_GOLANGCI_LINT_VERSION:
-    sh: cat .golangci.version 2>/dev/null || echo "2.13.1"
+    sh: cat .golangci.version 2>/dev/null || echo "2.14.0"
   GOLANGCI_LINT_BINARY:
     sh: |
-      required="$(cat .golangci.version 2>/dev/null || echo "2.13.1")"
+      required="$(cat .golangci.version 2>/dev/null || echo "2.14.0")"
       matches_required() {
         [ -x "$1" ] || return 1
         [ "$("$1" version --short 2>/dev/null || true)" = "$required" ]
@@ -144,16 +144,20 @@ tasks:
         git submodule update --init --recursive --remote --force
   test:
     desc: Run all tests with race detection
+    deps:
+      - data:fetch
     cmds:
       - echo "Running all tests..."
-      - go test -race -p 1 ./...
+      - go test -race -count=1 -p 1 ./...
 
   modules:verify:
-    desc: Check tests, vet, and tidy diff in all five release modules
+    desc: Check tests, vet, and tidy diff in all four release modules
+    deps:
+      - data:fetch
     cmds:
       - |
         set -eu
-        for module in . x tools/gen-cldr tools/gen-plural-rules tools/gen-fixtures-from-formatjs; do
+        for module in . tools/gen-cldr tools/gen-plural-rules tools/gen-fixtures-from-formatjs; do
           echo "Checking module $module"
           go -C "$module" mod tidy -diff
           go -C "$module" vet ./...
@@ -252,22 +256,7 @@ tasks:
     deps:
       - data:fetch
     cmds:
-      - >-
-        go -C tools/gen-cldr run .
-        -cldr-dir .cldr-json/node_modules
-        -out ../../internal/cldr
-        -version-file ../../internal/cldr/VERSION
-        -profile ../locale-profile.json
-        -localeid-out ../../internal/localeid/unicode_alias_data.go
-        -localematcher-out ../../internal/localematcher/profile_data.go
-        -tzdata-lock tzdata.json
-        -timezone-out ../../internal/tz/registry_data.go
-      - >-
-        go -C tools/gen-plural-rules run .
-        -plurals ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/plurals.json
-        -ranges ../gen-cldr/.cldr-json/node_modules/cldr-core/supplemental/pluralRanges.json
-        -out ../../internal/cldr/plural
-        -profile ../locale-profile.json
+      - go run ./tools/generate-data
       - task: data:contract
       - |
         echo ""
@@ -338,7 +327,7 @@ tasks:
       - go run ./tools/sizecheck
 
   build:size:cold:
-    desc: Report binary size deltas and compile time after clearing the Go build cache
+    desc: Report binary size deltas and compile time with an isolated cache per case
     cmds:
       - go run ./tools/sizecheck -cold
 
@@ -355,7 +344,7 @@ tasks:
   bench:run:
     desc: Run benchmarks once with allocation reporting
     cmds:
-      - go test -race -run '^$' -bench=. -benchmem ./...
+      - go test -run '^$' -bench=. -benchmem ./...
 
   bench:
     desc: Run non-blocking benchmark telemetry with benchstat-compatible output
@@ -420,7 +409,6 @@ tasks:
           echo "ERROR: conformance:witness requires node on PATH" >&2
           exit 1
         fi
-        go run ./tools/node-witness -node "$node_path" >/dev/null
         (cd tools/gen-fixtures-from-formatjs && go run . -node "$node_path" -out ../..)
       - |
         echo ""

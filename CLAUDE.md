@@ -7,8 +7,8 @@ For human usage examples, read [`README.md`](README.md). This file is the develo
 ## Commands
 
 ```bash
-task test                 # go test -race -p 1 ./...
-task modules:verify       # test + vet + tidy diff for root, x, and three tools modules
+task test                 # go test -race -count=1 -p 1 ./...
+task modules:verify       # test + vet + tidy diff for root and three tools modules
 task lint                 # go mod tidy diff check + pinned golangci-lint v2
 task fmt                  # golangci-lint fmt ./...
 task vet                  # go vet ./...
@@ -29,6 +29,11 @@ task build:size           # root, formatter, and CLDR binary size delta report
 task bench:run            # one-shot benchmark telemetry
 task bench                # benchmark report, optionally BASELINE=<file>
 ```
+
+`task test`, `task modules:verify`, and `task verify` prepare the pinned CLDR
+and SHA-256-verified IANA inputs through the shared `data:fetch` prerequisite.
+Node/npm must be installed. A fresh checkout must not rely on an existing
+`.tzdata` cache: generation failure tests exercise both real generators.
 
 Targeted checks:
 
@@ -52,18 +57,22 @@ The repository publishes one coordinated release set:
 | Module | Tag |
 |--------|-----|
 | `github.com/agentable/go-intl` | `vX.Y.Z` |
-| `github.com/agentable/go-intl/x` | `x/vX.Y.Z` |
 | `github.com/agentable/go-intl/tools/gen-cldr` | `tools/gen-cldr/vX.Y.Z` |
 | `github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs` | `tools/gen-fixtures-from-formatjs/vX.Y.Z` |
 | `github.com/agentable/go-intl/tools/gen-plural-rules` | `tools/gen-plural-rules/vX.Y.Z` |
 
-All five modules use the same version, selected as the next patch after the
+All four modules use the same version, selected as the next patch after the
 highest current version in the set. Their tags must be annotated, point to the
 same commit, and be pushed together with one explicit atomic tag push. Nested
 example, test, integration, reference, and validation modules are verified but
-not published unless this inventory explicitly adds them. The `x/` module is
-the experimental satellite (v0, no compatibility promise); its charter is
-[`SPECS/80-x-modules.md`](SPECS/80-x-modules.md).
+not published unless this inventory explicitly adds them.
+
+The committed `go.work` joins these four modules for local development and
+CI integration/data-generation checks. Published
+module manifests pin the coordinated root version and contain no local-path
+replaces, so the generator commands can run through `go run <module>@<version>`.
+Release checks additionally use `GOWORK=off` against the exact candidate module
+graph; workspace tests alone do not prove the published dependency graph.
 
 ## Architecture
 
@@ -80,8 +89,6 @@ go-intl/
 ├── durationformat/        # Intl.DurationFormat duration formatting and parts
 ├── displaynames/          # Intl.DisplayNames code-to-name lookup
 ├── option/                # Zero-dependency leaf: Int/Bool/String pointer helpers for optional scalar options; re-exported by root as gointl.Int/Bool/String
-├── x/                     # Experimental satellite module (SPEC 80): v0, no compatibility promise; thin re-exports over internal/*
-│   └── localematcher/     # Stage 1 Intl.LocaleMatcher-shaped matcher re-export (SPEC 11 §11)
 ├── internal/
 │   ├── ecma402/           # Shared ECMA-402 abstract operations
 │   ├── cldr/              # Per-domain CLDR packages (number/date/currency/unit/list/relativetime/timezone/displaynames/plural) + locale kernel + codec; const-only data.go, hand-written decode.go/accessors.go
@@ -182,7 +189,7 @@ Specification documents in [`SPECS/`](SPECS/) are maintained records of design c
 | [`71-benchmark.md`](SPECS/71-benchmark.md) | Benchmark layout, non-blocking performance telemetry, benchstat workflow |
 | [`72-operation-ledger.md`](SPECS/72-operation-ledger.md) | Public surface to ECMA-402 owner, implementation, and verification ledger |
 | [`73-json-records.md`](SPECS/73-json-records.md) | JSON field names and presence policy for resolved options, parts, duration records, and locale info |
-| [`80-x-modules.md`](SPECS/80-x-modules.md) | Experimental `x/` satellite module charter: admission, v0 governance, versioning, graduation |
+| [`80-x-modules.md`](SPECS/80-x-modules.md) | Experimental official LocaleMatcher draft and application resource matching |
 
 ## References Index
 
@@ -214,14 +221,24 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - **Native API mapping is mandatory** - Before adding or changing exported API, identify the exact ECMA-402 JavaScript owner: `Intl`, `Intl.Locale`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.PluralRules`, `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DurationFormat`, or `Intl.DisplayNames`. If no native owner exists, do not add it unless it is a narrow Go typed bridge for an existing native operation.
 - **Public surface earns its place** - Exported symbols must be recorded in SPECS/72 with an ECMA-402 owner or narrow typed-bridge rationale. ECMA-402 abstract operations stay in `internal/*`; callers see native owners, not implementation steps.
 - **Constructor parity** - Formatter `New` functions mirror `new Intl.<Constructor>(locales, options)`: callers pass exactly one typed `Options` value, and zero-valued `Options{}` means the ECMA-402 empty options object.
-- **Typed bridges only** - Typed Go values such as `numberformat.Int` and `numberformat.Decimal` are bridges for JavaScript methods like `format(value)`; they must not introduce behavior that native Intl lacks.
+- **Typed bridges only** - Typed Go values such as `numberformat.Int` and `numberformat.ParseValue` are bridges for JavaScript methods like `format(value)`; they must not introduce behavior that native Intl lacks.
 - **Typed boundaries** - User locale identifiers enter through `locale.Parse`, `locale.ParseList`, or `locale.New`; formatter constructors receive `locale.List`, while `locale.FromTag` is the explicit `language.Tag` bridge. `language.Tag` is the only `golang.org/x/text` type allowed in exported signatures; secondary `x/text` types stay internal.
+
+## Experimental Draft Exception
+
+`x/localematcher` is an additional package in the root module, anchored to the
+official TC39 Stage 1 LocaleMatcher draft pinned in [SPEC 80](SPECS/80-x-modules.md).
+It uses an exact application resource set and shares internal algorithms/data.
+This is a narrow exception to the active standardized surface rules above:
+there is no root alias, separate module/tag, or change to existing constructors.
+Root verification commands cover it. Its public contract may evolve with the
+official proposal; other additions still require an explicit owner and review.
 
 ## Coding Rules
 
 ### Must Follow
 
-- Go 1.27.0. Use modern stdlib features already present in the codebase: `slices`, `maps`, `for range N`, `sync.OnceValue`, `sync.Map`, `log/slog`, and `testing.B.Loop()`.
+- Go 1.27.3. Use modern stdlib features already present in the codebase: `slices`, `maps`, `for range N`, `sync.OnceValue`, `sync.Map`, `log/slog`, and `testing.B.Loop()`.
 - Follow Google Go Best Practices: <https://google.github.io/go-style/best-practices>.
 - Follow Google Go Style Decisions: <https://google.github.io/go-style/decisions>.
 - Keep interfaces small and consumer-owned; do not expose broad internal abstractions.
@@ -234,24 +251,27 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep `ResolveConstructorLocale` narrow. It owns shared requested-locale preparation, `localeMatcher` dispatch, default-locale fallback, and relevant-extension merging only; formatter packages still own CLDR data fallback, unsupported-option errors, pattern/data selection, numbering-system defaults, and embedded formatter construction.
 - Keep best-fit distance facts in the generated CLDR `written-new` profile owned by `internal/localematcher`. Preserve rule order, `oneway`, match-variable containment, paradigm penalties, and the 838 threshold; do not add formatter-local pair tables, fixed same/other-language fallbacks, or `language.Matcher` confidence.
 - Keep likely-subtag maximization on the CLDR fallback order (full tag, language-region, language-script, language, `und`-script, `und`-region, `und`) while preserving caller-supplied subtags. Matcher Tier 2 and Tier 3 receive that maximizer from constructors rather than reimplementing it.
-- Keep formatter supported locale lists generated from actual CLDR payloads. Constructor `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` with generated accessors instead of duplicating matcher, filtering, or requested-locale dedupe loops.
+- Keep formatter supported locale lists generated from actual CLDR payloads. Constructor `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf` with the formatter-owned compiled matcher backed by generated accessors instead of duplicating matcher, filtering, or requested-locale dedupe loops.
+- Keep constructor validation in the owning ECMA-402 evaluation order. NumberFormat resolves digit options before compactDisplay, grouping and signDisplay; PluralRules intentionally validates compactDisplay before digits. DisplayNames validates style before type. Shared validators own legality, not a cross-constructor stage framework.
 - Keep shared string and integer option validation in `internal/ecma402`. Formatter packages pass formatter-owned allowed values through helpers such as `RequiredStringOption`, `OptionalStringOption`, `InvalidStringOption`, and `InvalidIntegerOption`; do not hand-roll equivalent `switch` or `slices.Contains` loops.
 - Keep root supported-value accessors in the root package, conventionally in `supported.go`, backed by CLDR/tz data or ECMA-402 sanctioned constants. Do not create public `cldr`, `ecma402`, or `supported` packages for this data. Calendars must include `iso8601`; numbering systems must include the ECMA-402 simple digit table; do not add ad hoc runtime lists.
 - Keep `DateTimeFormat` calendar support tied to `internal/cldr/date.SupportedCalendars()` and generated date data; do not copy calendar allow-lists into constructors.
 - Keep time-zone facts separated by owner. The pinned official IANA archive owns the complete Zone/Link set and `zone.tab` region membership; pinned CLDR BCP47 timezone records own ECMA/ICU primary selection and rename state; `internal/tz` owns the generated immutable registry; Go `time.LoadLocation` owns transition lookup from `ZONEINFO`, host paths, GOROOT and the embedded `time/tzdata` fallback; `internal/cldr/timezone` owns localized display names only.
 - Keep the IANA identity source reproducible through `tools/gen-cldr/tzdata.json`, its SHA-256-verified cache, generated manifest hashes, and `task data:check`. The Go transition-data version must not be older than the identity pin; exact equality with CLDR display data is not required.
 - Require the pinned IANA archive and CLDR BCP47 time-zone joins whenever generating localized time-zone data; `-timezone-out` controls registry output only. See [SPEC 50](SPECS/50-cldr-data.md).
+- Keep the required CLDR package set in `tools/internal/datapin.RequiredCLDRPackages`; preflight, installed-package identity checks and manifest enumeration consume it directly.
 - Keep pin syntax in `tools/internal/datapin`, preflight agreement checks in `tools/data-preflight`, and verified IANA cache/download handling in `tools/fetch-tzdata`. Generation revalidates its inputs; preflight does not identify the host's active transition data. See [SPEC 50](SPECS/50-cldr-data.md).
 - Keep generated-data verification structural and fail closed. `tools/check-generated-data` derives ownership from generated headers, compares the complete relative-path set in both directions, then compares bytes. Do not restore hand-maintained per-file diff lists.
 - Preserve explicit number symbols and each supplied format family independently. Fill missing root symbols from the verified same-release generator snapshot; locale-to-latn aliases restart at the requested locale. Do not replace explicit families with latn or expand this bounded loader into generic LDML inheritance. See [SPEC 50](SPECS/50-cldr-data.md).
 - Compose DisplayNames standard language names from separate language/script/region/variant components; only dialect mode may consume a matched composite name. Keep locale patterns and fallback semantics in [SPEC 44](SPECS/44-displaynames.md); validate source patterns during generation as specified in [SPEC 50](SPECS/50-cldr-data.md).
 - Let `SupportedCurrencies()` enumerate the selected CLDR profile's name keys; precision exceptions do not define membership. Retain all selected currency name/symbol rows.
 - Validate DateTimeFormat `time.Time` instants against the ECMA TimeClip boundary before truncating toward zero to milliseconds. All four formatting methods return `(result, error)` and use `ErrInvalidValue` for out-of-domain instants.
-- Validate all required CLDR package names/versions before generation; plural cardinal/ordinal/ranges sources must report one cldr-core version. `task modules:verify` covers test/vet/tidy-diff in all five published modules.
+- Validate all required CLDR package names/versions before generation; plural cardinal/ordinal/ranges sources must report one cldr-core version. `task modules:verify` covers test/vet/tidy-diff in all four published modules.
 - Keep DisplayNames lookup inside the resolved data locale and its truncation parent chain. Missing data is resolved by the public `fallback` option; never borrow an English name from an unrelated locale.
 - Keep text direction generated from pinned CLDR `scriptMetadata.json`. `locale.TextInfo.Direction` is `*string`: known LTR/RTL is present, unknown direction is nil and omitted from JSON; do not restore a hand-written script list or guessed LTR default.
-- Keep Locale language-subtag transforms suffix-preserving: constructor language/script/region options and maximize/minimize may replace only those three subtags; variants, transformed extensions, Unicode extensions, and private use retain their canonical order. Numeric `firstDayOfWeek` aliases are constructor-option values, not valid `-u-fw-*` tag syntax.
-- Keep language alias canonicalization on the shared two-stage x/text path: `language.Parse`, then `(language.Macro | language.CLDR).Canonicalize`. Preserve distinct `no`/`nb` identities and explicit scripts across Locale and DisplayNames; see [SPEC 10](SPECS/10-locale.md).
+- Keep Locale.GetNumberingSystems on NumberFormat available-locale lookup through the existing matcher; preserve regional prefixes, return explicit nu directly, and use latn only for unmatched/default data.
+- Keep Locale language-subtag transforms suffix-preserving: constructor language/script/region options and maximize/minimize replace only those three subtags; the explicit Variants option alone replaces variants; variants, transformed extensions, Unicode extensions, and private use retain their canonical order. Numeric `firstDayOfWeek` aliases are constructor-option values, not valid `-u-fw-*` tag syntax.
+- Keep Unicode identity in the shared `internal/localeid` grammar and pinned CLDR alias owner. Registry coverage must not reject grammatical unknown subtags. `Locale.Tag()` is a fallible full-identity x/text bridge. Preserve distinct `no`/`nb` identities and explicit scripts across Locale and DisplayNames; see [SPEC 10](SPECS/10-locale.md).
 - Keep ECMA-402 digit rounding centralized in `internal/ecma402/numberformat.FormatNumericToString`; `numberformat` and `pluralrules` both feed it one constructor-resolved `ResolvedDigitOptions` record, including typed rounding mode and branch. Runtime formatting must not reparse options, infer a second rounding branch, or erase negative zero from the rounded result.
 - Keep NumberFormat string output as a projection of its canonical private parts partition. Do not restore parallel text renderers or integer-only fast paths that duplicate sign, grouping, notation, localization, currency, or unit semantics.
 - Use `internal/pattern.ParseCompact` for compact scaling and affix compilation; preserve LDML quotes and number-omitting words, and resolve fallback for a complete family. See [SPEC 20](SPECS/20-numberformat.md).
@@ -260,11 +280,12 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Keep NumberFormat style plural selection on one unlocalized formatted operand: preserve digit-option zeros, restore a scientific, engineering, or compact mantissa to its full magnitude with the selected exponent, and retain that exponent as `c/e`. Currency name, currency-name placement, and unit pattern must consume that same category; do not rebuild it from `Rounded.String()` or erase visible zeros.
 - Keep `currencyDisplay="name"` placement on the generated plural-sensitive `unitPattern-count-*` rows for the resolved numbering system. Fall back to `other` within the same locale and insert the complete numeric parts partition into the constructor-compiled pattern; do not hard-code name order, ASCII spacing, or a separate accounting wrapper.
 - Keep generated plural-rule coverage total for every active data locale and both rule families. The generator and formatter constructors must fail when a rule is missing; do not restore English or always-`other` runtime fallback.
-- Keep compact plural contracts split: NumberFormat compact suffix selection uses the scaled visible display decimal plus compact exponent; its outer currency/unit style selection restores that mantissa to full magnitude. Public PluralRules compact selection uses the source decimal string plus compact exponent.
-- Keep PluralRules range equality on the shared formatter's signed string, including special values. Cardinal and ordinal range selection consume the same generated category-pair table. See [SPEC 40](SPECS/40-pluralrules.md).
+- Keep compact plural contracts split: NumberFormat compact suffix selection uses the scaled visible display decimal plus compact exponent; its outer currency/unit style selection restores that mantissa to full magnitude. Public PluralRules compact selection derives its exponent from the rounded, unscaled formatted source magnitude and selects from that same formatted string.
+- Keep PluralRules range equality on its unsigned finite FormattedString projection; the shared formatter still preserves signed text and negative zero in RoundedNumber. Special values retain their separate identity strings. Cardinal and ordinal range selection consume the same generated category-pair table. See [SPEC 40](SPECS/40-pluralrules.md).
 - Keep RelativeTimeFormat on one ECMAScript Number boundary. `Int` and `Uint` convert through `float64`, `Float` preserves signed zero, and literal lookup, tense, NumberFormat, and PluralRules all project that same normalized value. Text joins the canonical parts partition; do not add an exact-decimal bridge or parallel renderer.
 - Keep DurationFormat on one ECMAScript Number boundary. Validate each public `float64` field as finite and integral, project it once to the exact represented integer, and perform sign, limit, rollup, and NumberFormat work without `int64` narrowing or later `float64` arithmetic.
-- Freeze constructor-derived hot-path state on formatter instances. Cached method calls must not redo locale negotiation, option validation, digit-option resolution, plural-rule lookup, interval-pattern selection, pattern tokenization, or embedded formatter construction. DateTimeFormat compiles endpoint, date/time, interval, and distinguishing cross-date fallback programs in `New`; DurationFormat composes constructor-resolved `NumberFormat` and `ListFormat` instances.
+- Freeze constructor-derived hot-path state on formatter instances. Cached method calls must not redo locale negotiation, option validation, digit-option resolution, plural-rule lookup, interval-pattern selection, pattern tokenization, or embedded formatter construction. DateTimeFormat compiles endpoint, date/time, interval, and distinguishing cross-date fallback programs in `New`; DurationFormat composes constructor-resolved `NumberFormat` and `ListFormat` instances, selecting ordinary or fractional options before constructing each unit formatter pair. See [SPEC 43](SPECS/43-durationformat.md).
+- Keep flexible day-period selection tied to minute/second presence in the complete constructor-compiled format. Hidden components are zero; milliseconds do not affect point rules. Rendering and range identity share this decision, independent of interval fragments. See [SPEC 30](SPECS/30-datetimeformat.md).
 - Apply the resolved DateTimeFormat hour cycle to selected component, style, and interval programs; resolve `hour12` from generated language-region/region/world clock preferences, independently of date-pattern coverage. Localize fractional separators only in freshly compiled instance programs, keeping shared candidates numbering-system-neutral. See [SPEC 30](SPECS/30-datetimeformat.md) and [SPEC 31](SPECS/31-datetimeformat-skeleton.md).
 - Compile ListFormat's finite Spanish/Hebrew pair/end alternatives in the constructor; select them from the original next element without rewriting caller text or parsing patterns during formatting. See [SPEC 41](SPECS/41-listformat.md).
 - Keep constructor and `SupportedLocalesOf` options aligned with the JavaScript single-options-object model. Public Go entrypoints receive exactly one typed `Options` value; use `Options{}` for omitted or empty JS options instead of variadic `Options`.
@@ -274,10 +295,20 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - Each formatter package declares its own `PartType` constant set that mirrors the ECMA-402 partition record types it can emit (including types reachable only through embedded NumberFormat / list patterns). Do not share `PartType` types across packages — partition records are scoped to the constructor, and sharing creates cross-package coupling where ECMA-402 has none.
 - Prefer exact modern stdlib helpers over one-off private helpers: `strings.IndexByte` for ASCII pattern-byte membership, `slices`/`maps` for deterministic collection transforms. Keep manual parser loops when the index advances by token width or quoted-literal spans.
 
+- Keep witness eligibility tied to `loadRunSuite` skip reasons. XFAIL/divergence
+  skips cannot serve as required-topic, skip-list, or divergence witnesses.
+- Keep generated FormatJS case IDs semantic: invocation and observation kinds,
+  excluding expected values and source positions. Conflicting expectations fail.
+- Keep Node witness execution inside the published generator module; do not
+  search the caller's working directory for source code to execute.
+- `task data` stages both generators before installing generated files. Generator
+  failure preserves the worktree; installation failure may be partial and must
+  retain the candidate with a contextual error. `data:contract` runs after install.
+
 ### Forbidden
 
 - No `panic` in production code except intentional `Must*` helpers.
-- No reinventing locale parsing; use `golang.org/x/text/language` and the project canonicalization layer.
+- No formatter-local locale parsers or alias tables; use the shared `internal/localeid` grammar and generated canonicalization data. x/text is an explicit bridge, not syntax authority.
 - No runtime JSON/ICU file loading for formatter data.
 - No public cache controls or root-level formatter option re-exports.
 - No root diagnostic APIs such as `Version()`; CLDR, ICU, and tzdata pins are internal metadata.
@@ -306,8 +337,10 @@ When you encounter a bug, limitation, or unexpected behavior in a dependency:
 - Call `t.Parallel()` in tests and subtests unless shared state makes parallel execution invalid.
 - Use `b.Loop()` for benchmarks.
 - Run `task test` for the race-detector gate.
+- Cold size measurements use a fresh per-case GOCACHE and clean only that directory. Run `GO_INTL_TEST_COLD_BUILDS=1 go test ./tools/sizecheck -run TestColdBuildIsolation -count=1 -timeout=30m` for real compiler traces; ordinary tests cover error cleanup without clearing shared caches.
 - Put FormatJS-derived cases in formatter `testdata/` as JSON fixtures and assert byte-equal output.
 - Validate fixture shapes before callbacks; reject explicit null outside the `input` bridge and execute declared observations independently. Preserve false, zero, empty text, and empty arrays as observations rather than omission. See [SPEC 70](SPECS/70-conformance.md).
+- Reject unsupported or incompatible fixture observations before early returns. Constructor errors cannot also claim instance success; successful construction may combine resolved options with a method error. Only dispatching adapters treat feature as an operation name.
 - Verify raw pinned source retention separately from source-to-generated roundtrip; shared omissions can make a roundtrip pass. Use public fixtures for text, parts and complete resolved JSON, and record host versions separately from library data pins. See [SPEC 50](SPECS/50-cldr-data.md) and [SPEC 70](SPECS/70-conformance.md).
 - Compare complete resolved-options JSON snapshots in NumberFormat, DateTimeFormat, DurationFormat, and DisplayNames through `internal/testcontract.AssertResolvedOptionsJSON`; extra/missing properties and scalar type changes must fail. Do not add subset comparators. See [SPEC 73](SPECS/73-json-records.md).
 - Generate FormatJS-derived fixtures with `tools/gen-fixtures-from-formatjs`; generated files live under `<package>/testdata/conformance/formatjs/`. The active generated gate covers statically reducible NumberFormat `format`, `formatToParts`, `formatRange`, and `formatRangeToParts`; DateTimeFormat `format`, `formatToParts`, `formatRange`, and `formatRangeToParts`; PluralRules `select` and `selectRange`; Locale `toString`, `maximize`, `minimize`, and `Intl.getCanonicalLocales`; ListFormat `format`; RelativeTimeFormat `format`; DurationFormat `format`.
@@ -325,7 +358,7 @@ When you encounter a bug, limitation, or unexpected behavior in a dependency:
 
 | Dependency | Purpose |
 |------------|---------|
-| `golang.org/x/text` | BCP 47 parsing, `language.Tag`, and Unicode/CLDR building blocks |
+| `golang.org/x/text` | Explicit `language.Tag` interoperability and comparison benchmarks; locale identity belongs to `internal/localeid` |
 | `github.com/cockroachdb/apd/v3` | Decimal math backend for Intl mathematical values and rounding |
 
 Add runtime dependencies only for a demonstrated active behavior need; record their ownership and boundary in the relevant SPEC.

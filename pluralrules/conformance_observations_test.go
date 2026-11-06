@@ -20,6 +20,11 @@ func TestPluralConformanceObservations(t *testing.T) {
 		fixture conformance.Fixture
 		failure string
 	}{
+		{"constructor error and text", conformance.Fixture{Options: jsontext.Value(`{"type":"bad"}`), ErrorCode: "invalid_option", Expected: new("IMPOSSIBLE")}, "unsupported pluralrules observation"},
+		{"constructor error and resolved", conformance.Fixture{Options: jsontext.Value(`{"type":"bad"}`), ErrorCode: "invalid_option", ExpectedResolved: resolved}, "unsupported pluralrules observation"},
+		{"method error and category", conformance.Fixture{Feature: "selectRange", Input: jsontext.Value(`{"start":"NaN","end":1}`), ErrorCode: "invalid_value", Expected: new("IMPOSSIBLE")}, "unsupported pluralrules observation"},
+		{"unknown operation and constructor error", conformance.Fixture{Feature: "unknown", Options: jsontext.Value(`{"type":"bad"}`), ErrorCode: "invalid_option"}, "unsupported pluralrules feature"},
+		{"unknown operation and resolved", conformance.Fixture{Feature: "unknown", ExpectedResolved: resolved}, "unsupported pluralrules feature"},
 		{"resolved only", conformance.Fixture{Input: jsontext.Value(`null`), ExpectedResolved: resolved}, ""},
 		{"category and resolved", conformance.Fixture{Expected: new("one"), ExpectedResolved: resolved}, ""},
 		{"wrong resolved", conformance.Fixture{Expected: new("one"), ExpectedResolved: jsontext.Value(`{"locale":"wrong"}`)}, "ResolvedOptions"},
@@ -40,7 +45,9 @@ func TestPluralConformanceObservations(t *testing.T) {
 			t.Parallel()
 			f := tc.fixture
 			f.ID, f.Source, f.Locale = "observation", "manual:adapter", "en"
-			f.Options = jsontext.Value(`{}`)
+			if f.Options == nil {
+				f.Options = jsontext.Value(`{}`)
+			}
 			if f.Input == nil {
 				f.Input = jsontext.Value(`1`)
 			}

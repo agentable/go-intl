@@ -181,7 +181,7 @@ func TestNumberFormatCLDRPrimarySecondaryGrouping(t *testing.T) {
 	if got := format.Format(Int(123456789)); got != "12,34,56,789" {
 		t.Fatalf("Format(123456789) = %q, want Indian grouping", got)
 	}
-	value, err := Decimal("123456.456")
+	value, err := ParseValue("123456.456")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,15 +269,15 @@ func TestNumberFormatDecimalInputUsesMathematicalValue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
-			value, err := Decimal(tc.input)
+			value, err := ParseValue(tc.input)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if got := defaultFormat.Format(value); got != tc.wantDefault {
-				t.Errorf("default Format(Decimal(%q)) = %q, want %q", tc.input, got, tc.wantDefault)
+				t.Errorf("default Format(ParseValue(%q)) = %q, want %q", tc.input, got, tc.wantDefault)
 			}
 			if got := fixedFormat.Format(value); got != tc.wantFixed {
-				t.Errorf("fixed Format(Decimal(%q)) = %q, want %q", tc.input, got, tc.wantFixed)
+				t.Errorf("fixed Format(ParseValue(%q)) = %q, want %q", tc.input, got, tc.wantFixed)
 			}
 		})
 	}
@@ -395,8 +395,8 @@ func TestNumberFormatFormatToPartsNegative(t *testing.T) {
 func TestNumberFormatFormatInvalidValue(t *testing.T) {
 	t.Parallel()
 
-	if _, err := Decimal("not a number"); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
-		t.Fatalf("Decimal() error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
+	if _, err := ParseValue("not a number"); !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(err, decimal.ErrInvalidDecimal) {
+		t.Fatalf("ParseValue() error = %v, want intlerr.ErrInvalidValue and ErrInvalidDecimal", err)
 	} else {
 		testcontract.AssertIntlError(t, err, intlerr.InvalidValue, "numberformat", "decimal", "not a number", "")
 		testcontract.AssertErrorExpected(t, err, "an Intl numeric string (decimal, binary, octal, hexadecimal, or Infinity), or NaN")
@@ -1222,7 +1222,7 @@ func TestNumberFormatToPartsUsesCLDRNumberSymbols(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := Decimal("-1234.5")
+	value, err := ParseValue("-1234.5")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1312,4 +1312,38 @@ func TestNumberFormatConcurrentFormat(t *testing.T) {
 		})
 	}
 	wg.Wait()
+}
+
+func TestNumberFormatStripIfIntegerPreservesIntegerDigits(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		opts Options
+	}{
+		{"default", Options{}},
+		{"fraction padding", Options{MinimumFractionDigits: new(1), MaximumFractionDigits: new(3)}},
+		{"more precision", Options{RoundingPriority: new("morePrecision"), MaximumSignificantDigits: new(4), MaximumFractionDigits: new(3)}},
+		{"less precision", Options{RoundingPriority: new("lessPrecision"), MaximumSignificantDigits: new(6), MaximumFractionDigits: new(1)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.opts.TrailingZeroDisplay = new("stripIfInteger")
+			f, err := New(intltest.LocaleList(t, "en"), tc.opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, input := range []struct{ in, want string }{
+				{"10", "10"}, {"100", "100"}, {"1000", "1,000"}, {"-100", "-100"},
+				{"0", "0"}, {"-0", "-0"}, {"12.5", "12.5"},
+			} {
+				value := mustDecimalValue(t, input.in)
+				if got := f.Format(value); got != input.want {
+					t.Errorf("Format(%s) = %q; want %q", input.in, got, input.want)
+				}
+				if got := joinNumberParts(f.FormatToParts(value)); got != input.want {
+					t.Errorf("parts(%s) = %q; want %q", input.in, got, input.want)
+				}
+			}
+		})
+	}
 }

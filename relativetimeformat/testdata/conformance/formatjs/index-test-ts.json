@@ -1,17 +1,6 @@
 [
   {
-    "id": "relativetimeformat-formatjs-index-test-ts-000",
-    "source": "formatjs:packages/intl-relativetimeformat/tests/index.test.ts",
-    "locale": "zh-CN",
-    "options": {},
-    "input": {
-      "unit": "second",
-      "value": -1
-    },
-    "expected": "1秒钟前"
-  },
-  {
-    "id": "relativetimeformat-formatjs-index-test-ts-001",
+    "id": "relativetimeformat-formatjs-index-test-ts-07216efc0729532a3ad16aa4b46d6baf67b329c64ca7f48cfab8502a98b83e57",
     "source": "formatjs:packages/intl-relativetimeformat/tests/index.test.ts",
     "locale": "zh-TW",
     "options": {},
@@ -22,7 +11,7 @@
     "expected": "1 秒前"
   },
   {
-    "id": "relativetimeformat-formatjs-index-test-ts-002",
+    "id": "relativetimeformat-formatjs-index-test-ts-149ee6afc0e6cead497b865597ed2c7ccd8fe7abf8208f314cf845fb629b5080",
     "source": "formatjs:packages/intl-relativetimeformat/tests/index.test.ts",
     "locale": "zh-TW",
     "options": {
@@ -36,7 +25,18 @@
     "expected": "1 秒前"
   },
   {
-    "id": "relativetimeformat-formatjs-index-test-ts-003",
+    "id": "relativetimeformat-formatjs-index-test-ts-188365860f7fbf3b21c99f02e24365ac3892c221ae478a7ef443ee1400040d68",
+    "source": "formatjs:packages/intl-relativetimeformat/tests/index.test.ts",
+    "locale": "zh-CN",
+    "options": {},
+    "input": {
+      "unit": "second",
+      "value": -1
+    },
+    "expected": "1秒钟前"
+  },
+  {
+    "id": "relativetimeformat-formatjs-index-test-ts-d532889cefae7e49969ba19617e3082919848f6e330ddb235bbc0ca020e542b2",
     "source": "formatjs:packages/intl-relativetimeformat/tests/index.test.ts",
     "locale": "en-AI",
     "options": {},

@@ -25,6 +25,39 @@ func TestRunFixturesRejectsMalformedShapeBeforeCallbacks(t *testing.T) {
 	assertRunFixturesFailsBeforeCallbacks(t, root, "TestRunFixturesRejectsMalformedShapeBeforeCallbacks", errInvalidFixtureShape.Error())
 }
 
+func TestRunFixturesRejectsDuplicateIDsBeforeCallbacks(t *testing.T) {
+	if runFixturesFailureChild(t) {
+		return
+	}
+	for _, mode := range []string{"same-file", "different-files", "divergence", "xfail"} {
+		t.Run(mode, func(t *testing.T) {
+			root := t.TempDir()
+			first := `{"id":"duplicate","source":"manual","locale":"en","options":{},"input":1,"expected":"1"}`
+			second := `{"id":"duplicate","source":"manual","locale":"en","options":{},"input":2,"expected":"2"}`
+			if mode == "different-files" {
+				writeCoverageFixtureFile(t, root, "manual/first.json", "["+first+"]")
+				writeCoverageFixtureFile(t, root, "manual/second.json", "["+second+"]")
+			} else {
+				writeConformanceFixtureFile(t, root, "["+first+","+second+"]")
+			}
+			if mode == "divergence" {
+				writeDivergenceFile(t, root, "id: duplicate\nsource: manual\nowner: conformance\nstatus: accepted\nreason: reference difference\nreview_after: 2999-01-01\nremoval_path: refresh reference\n")
+			}
+			if mode == "xfail" {
+				writeXFailFile(t, root, `[{"id":"duplicate","reason":"pending","expires_at":"2999-01-01","tracking_issue":"SPEC-70"}]`)
+			}
+			assertRunFixturesFailsBeforeCallbacks(t, root, "TestRunFixturesRejectsDuplicateIDsBeforeCallbacks", errDuplicateFixtureID.Error())
+			_, err := LoadFixtures(root)
+			if !errors.Is(err, errDuplicateFixtureID) || !strings.Contains(err.Error(), `"duplicate"`) || !strings.Contains(err.Error(), conformanceFixturesPath(root)) {
+				t.Fatalf("duplicate diagnostic = %v, want ID and source path", err)
+			}
+			if mode == "different-files" && (!strings.Contains(err.Error(), "first.json") || !strings.Contains(err.Error(), "second.json")) {
+				t.Fatalf("duplicate diagnostic = %v, want both source files", err)
+			}
+		})
+	}
+}
+
 func TestRunFixturesRejectsMalformedDivergenceBeforeCallbacks(t *testing.T) {
 	if runFixturesFailureChild(t) {
 		return

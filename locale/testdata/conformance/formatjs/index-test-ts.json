@@ -1,20 +1,20 @@
 [
   {
-    "id": "locale-formatjs-formatjs-packages-intl-locale-tests-index-test-ts-000",
-    "source": "formatjs:packages/intl-locale/tests/index.test.ts",
-    "locale": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
-    "feature": "canonicalize",
-    "options": {},
-    "input": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
-    "expected": "en-u-bar-foo-ca-buddhist-kk-nu-thai"
-  },
-  {
-    "id": "locale-formatjs-formatjs-packages-intl-locale-tests-index-test-ts-001",
+    "id": "locale-formatjs-formatjs-packages-intl-locale-tests-index-test-ts-38f86f25af2e3870916817bec160b899747391d36d825ba3c80a7dac5a676319",
     "source": "formatjs:packages/intl-locale/tests/index.test.ts",
     "locale": "und-x-private",
     "feature": "canonicalize",
     "options": {},
     "input": "und-x-private",
     "expected": "und-x-private"
+  },
+  {
+    "id": "locale-formatjs-formatjs-packages-intl-locale-tests-index-test-ts-86727e5a4b4fe468647465dcbb174b13be99481895f76795a7b29099c164ea68",
+    "source": "formatjs:packages/intl-locale/tests/index.test.ts",
+    "locale": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
+    "feature": "canonicalize",
+    "options": {},
+    "input": "en-u-foo-bar-nu-thai-ca-buddhist-kk-true",
+    "expected": "en-u-bar-foo-ca-buddhist-kk-nu-thai"
   }
 ]

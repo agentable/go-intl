@@ -1,94 +1,6 @@
 [
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-000",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 0,
-    "expected": "0"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-001",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 1,
-    "expected": "1"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-002",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 9,
-    "expected": "9"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-003",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 42,
-    "expected": "42"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-004",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 99,
-    "expected": "99"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-005",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 100,
-    "expected": "100"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-006",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 999,
-    "expected": "999"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-007",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 1000,
-    "expected": "1,000"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-008",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 9999,
-    "expected": "9,999"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-009",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 999999,
-    "expected": "999,999"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-010",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": -42,
-    "expected": "-42"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-011",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-1128728df2280fd55f6bdb9b45172c7bc8a11ffa69ea84c84a8177ef535e567b",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {},
@@ -96,7 +8,25 @@
     "expected": "-999"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-012",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-21e2e0c29c833ba80647d2f8efcc1006f8921af0488099ca9ec55c8db1e3ba15",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {
+      "useGrouping": "min2"
+    },
+    "input": 10000,
+    "expected": "10,000"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-26d947c816754f0bf184aebced04998bef4ae64df500078407dccfb6fc96f97d",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 1000,
+    "expected": "1,000"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-29e05c63b009be2bb1e2b69155381f5fdd1a0e37e3d1fadab9d9e9b26b5e8039",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {},
@@ -104,40 +34,45 @@
     "expected": "-1,000"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-013",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-30ac7a76d2aecf9ef43809e2492acab4ae1e8c3c43849099e0818ed727f91844",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
-      "currency": "USD",
-      "style": "currency"
+      "useGrouping": "always"
     },
-    "input": 42,
-    "expected": "$42.00"
+    "input": 1000,
+    "expected": "1,000"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-014",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-3be3b4bf9b027bcd2aa9bd75146f1ce1c2516f41bd1fd3970dab0b2228250223",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 9999,
+    "expected": "9,999"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-3d071f340ddf1a0a5bcf61f6f6f63c5f9c3e39d9604ab488facecf65cf6329d2",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
-      "currency": "USD",
-      "style": "currency"
+      "useGrouping": false
     },
-    "input": 0,
-    "expected": "$0.00"
+    "input": 1000000,
+    "expected": "1000000"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-015",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-400f55964876a47febe916905002cb50e521c38c3a2a9de8adb17933203a9ea9",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
-      "currency": "USD",
-      "style": "currency"
+      "style": "percent"
     },
-    "input": 999,
-    "expected": "$999.00"
+    "input": -0.5,
+    "expected": "-50%"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-016",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-4ab3c551423255851e792a8a846d8fa9264865be3a04e03d1301e91293b7f8f1",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
@@ -148,28 +83,7 @@
     "expected": "-$42.00"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-017",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {
-      "currency": "USD",
-      "style": "currency"
-    },
-    "input": 999999,
-    "expected": "$999,999.00"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-018",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {
-      "style": "percent"
-    },
-    "input": 0.42,
-    "expected": "42%"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-019",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-6892ddfd5976a70e062f35289cb6753e0684052e439bba91a4b12e8897f9ad1c",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
@@ -179,67 +93,7 @@
     "expected": "0%"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-020",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {
-      "style": "percent"
-    },
-    "input": -0.5,
-    "expected": "-50%"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-021",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {
-      "style": "percent"
-    },
-    "input": 1,
-    "expected": "100%"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-022",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 0.123,
-    "expected": "0.123"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-023",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 1.5,
-    "expected": "1.5"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-024",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 100000000000000000000,
-    "expected": "100,000,000,000,000,000,000"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-025",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 1000000,
-    "expected": "1,000,000"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-026",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {},
-    "input": 10000000,
-    "expected": "10,000,000"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-027",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-69c37d772e2d3c13271231edb8f0b01033db6adb710472128cfaa892a907b277",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
@@ -250,29 +104,34 @@
     "expected": "42.00"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-028",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-6eceaec64dde5b09c5c6d0b6358084ca0a8dc28b3148161022be9a49df254c69",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 10000000,
+    "expected": "10,000,000"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-7642e611fe7f4be16f219c24a4ec5fdddaf04a1d04ef12ea07056f9281ec3292",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 1.5,
+    "expected": "1.5"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-799cb1a10d9ad0673983963bb3cb8f54f94b0c0d115d7ea212653746ca4bf4c8",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 2
+      "currency": "USD",
+      "style": "currency"
     },
-    "input": 0,
-    "expected": "0.00"
+    "input": 999999,
+    "expected": "$999,999.00"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-029",
-    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
-    "locale": "en",
-    "options": {
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 2
-    },
-    "input": 42.5,
-    "expected": "42.50"
-  },
-  {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-030",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-79f700a922c38bca8b9739827c58ddc1833f9edf34e593e818f3d149807394ab",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
@@ -283,7 +142,7 @@
     "expected": "0.12"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-031",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-7a0fd6665341a5817e09ccd4f41555cb88ab005c7971862a666aec87bfdf4e61",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
@@ -293,17 +152,100 @@
     "expected": "999"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-032",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-8078d57c7f9929d771fdd9859922e57a192d18d2132a1bc3293c8be7ea352113",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
-      "useGrouping": "always"
+      "currency": "USD",
+      "style": "currency"
     },
-    "input": 1000,
-    "expected": "1,000"
+    "input": 0,
+    "expected": "$0.00"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-033",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-82f7d4b6114c5fbf8e4a1a15d3678230341ce120512eba386bda3b714f588cbc",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {
+      "style": "percent"
+    },
+    "input": 1,
+    "expected": "100%"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-8c99a2a88d2870dfd3751d3217d2e2e5125e80c98b604bf4af03a49a8ae8d786",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": -42,
+    "expected": "-42"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-8ec70927add0ccc4f920be5ccb8910f4c01dd00a12839fabd5f3c6af918992e9",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 0,
+    "expected": "0"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-92ea5cb5af94c679a84fd85f534859552eb6df079bbd2210d504f13e734c2bcb",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {
+      "style": "percent"
+    },
+    "input": 0.42,
+    "expected": "42%"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-97c1f8f98d9ab1d83bf04e34ca429c11ff8b98f76f5f5dd811c75430201b6054",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {
+      "currency": "USD",
+      "style": "currency"
+    },
+    "input": 42,
+    "expected": "$42.00"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-9826dbbda8f9aa88170cd9e358848e6e32e3b284895153ebc6abd7be888f733f",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 1000000,
+    "expected": "1,000,000"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-9af89068574b94d53436764bbb2a57ad03d675ad97f9b91e5d8d87a49e5f14f6",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 100,
+    "expected": "100"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-a1bb1429ecf0dff9c2ac47bc9f424eb4fdf0237f147ac3b2feb9662f1474308f",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {
+      "currency": "USD",
+      "style": "currency"
+    },
+    "input": 999,
+    "expected": "$999.00"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-b1738609356d0e6cf68b31422e6decab75a5b785367e721dfed0153eb042fcb9",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 1,
+    "expected": "1"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-b51859aecebbd644c2e5dbc1be244934b9e8f1364f5cf11663292d1a7d9d8987",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
@@ -313,23 +255,81 @@
     "expected": "1000"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-034",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-b7166d715b78ec5d451db829321fc282cd34b3d5b907f17769843c2b5d9c2f33",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
-    "options": {
-      "useGrouping": "min2"
-    },
-    "input": 10000,
-    "expected": "10,000"
+    "options": {},
+    "input": 100000000000000000000,
+    "expected": "100,000,000,000,000,000,000"
   },
   {
-    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-035",
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-be469d5df334a32c7d306509b7c19ec2c8f733c77fda53e2804782b2ae10d0f4",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 42,
+    "expected": "42"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-c18216f04a978d2edfa35b76fed0ab315dd3b763ba617c62477d8698f70aa6c6",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 99,
+    "expected": "99"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-c5f70cf056687db72129e642316a94ade1fafaf277944ddc7a42cd6a7aaf7cd0",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 9,
+    "expected": "9"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-c6cd6cec2d9873f895a1642867dd2f2c5b1022f0e8c5594b031f23878cb705c0",
     "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
     "locale": "en",
     "options": {
-      "useGrouping": false
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2
     },
-    "input": 1000000,
-    "expected": "1000000"
+    "input": 0,
+    "expected": "0.00"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-cd459f728621a95ca42cd772ba9d47138dd6826e82ea68826066d6f077efbd7f",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 0.123,
+    "expected": "0.123"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-d127392f236a3e720906a00ffe2b57fea6147ba4020fd9f71a4b89177c4697a7",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 999999,
+    "expected": "999,999"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-d83dbe8cdfc933804d3fc23079e8bc1799584046b698c92dfe3d4d94cb511fdd",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {},
+    "input": 999,
+    "expected": "999"
+  },
+  {
+    "id": "numberformat-formatjs-fast-path-optimizations-test-ts-f4c91c23d17fdedb245b635e7fd65501847ed34a1f8e5c77f3e2099acc78bf8b",
+    "source": "formatjs:packages/intl-numberformat/tests/fast-path-optimizations.test.ts",
+    "locale": "en",
+    "options": {
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2
+    },
+    "input": 42.5,
+    "expected": "42.50"
   }
 ]

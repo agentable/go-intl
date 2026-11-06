@@ -1,6 +1,5 @@
 # SPEC 21 — Number Math & Decimal
 
-> **Status:** Active
 > **Authority:** ECMA-402 number-format algorithms are normative. This SPEC documents the current Go contract for the `internal/decimal` package, `Decimal` type, typed numeric bridges, nine ECMA-402 rounding modes, exact increment quantization, and trailing-zero arithmetic. ECMA-402 digit-option and rounding-branch resolution is owned by SPEC 20.
 
 ---
@@ -10,7 +9,7 @@
 ECMA-402's mathematical-value algorithms consume values that can express
 `NaN`, `±Infinity`, and arbitrary-precision finite decimals. JavaScript first
 normalizes dynamic values at its host boundary. Go instead exposes explicit
-`Int`, `Uint`, `Float`, `BigInt`, and `Decimal` constructors; those constructors
+`Int`, `Uint`, `Float`, `BigInt`, and `ParseValue` constructors; those constructors
 produce one closed `NumericValue` record before formatter algorithms run.
 
 Generated reference uses `@formatjs/bigdecimal` to implement this data structure. Go uses `cockroachdb/apd/v3` (IEEE 754-2008 GDA Decimal) for finite/special-value representation, while ECMA-402 rounding uses exact coefficient/exponent arithmetic. No finite `apd.Context.Precision` participates in selecting rounding neighbours or ties.
@@ -51,7 +50,7 @@ require github.com/cockroachdb/apd/v3 v3.x.x
 >
 > **Rejected `shopspring/decimal` Details**:
 > - ❌ No NaN / +Inf / -Inf representation; direct `panic("decimal: NaN not supported")` during construction, violating the "no panic" red line.
-> - ❌ Formatter `Float(math.NaN())` and `Decimal("NaN")` bridges must preserve a NaN-shaped value; `shopspring` would require a separate sentinel representation.
+> - ❌ Formatter `Float(math.NaN())` and `ParseValue("NaN")` bridges must preserve a NaN-shaped value; `shopspring` would require a separate sentinel representation.
 > - ❌ Missing `Log10` native; ComputeExponent needs to implement `floor(log10(|x|))` by itself, and the accuracy boundary is difficult to control.
 >
 > **Rejected `math/big.Float`**:
@@ -191,7 +190,7 @@ func ParseString(s string) (Decimal, error)
 The backend parser must never return an apd special form wrapped as a finite
 Decimal. Intl string grammar and host-boundary normalization belong to
 `internal/ecma402.ParseDecimalInput`, not to this backend constructor. Public
-`numberformat.Decimal` and `pluralrules.Decimal` expose malformed input as a
+`numberformat.ParseValue` and `pluralrules.ParseValue` expose malformed input as a
 structured `ErrInvalidValue`, preserving the input and formatter owner.
 
 `ParseDecimalInput` owns StringNumericLiteral: ECMAScript whitespace and line
@@ -235,9 +234,6 @@ func (d Decimal) Cmp(other Decimal) int
 
 // Abs returns d without a sign.
 func Abs(d Decimal) Decimal
-
-// AbsDiffCmp compares |base-a| and |base-b| for rounding-priority selection.
-func AbsDiffCmp(base, a, b Decimal) int
 
 // MulInt returns d multiplied by n, preserving non-finite values.
 func MulInt(d Decimal, n int64) Decimal
@@ -425,6 +421,13 @@ With two fraction digits, `auto` retains `3.00`; `stripIfInteger` emits `3`
 for an integral rounded value and retains `3.14` for a nonintegral value.
 Stored input scale does not determine formatter-visible zeros.
 
+Fraction trimming never removes integer digits: with default digit bounds,
+`stripIfInteger` preserves `10`, `100`, and `1000`. The same mathematical
+value selects the same plural category through every typed numeric bridge.
+Public regression evidence is
+`numberformat/format_test.go:TestNumberFormatStripIfIntegerPreservesIntegerDigits`
+and `pluralrules/range_bridge_test.go:TestStripIfIntegerBridgeValues`.
+
 For finite inputs, `FormattedNumeric.Formatted` contains the selected padded
 numeric text and may retain a minus sign, including `-0`.
 `FormattedNumeric.Rounded` retains the mathematical sign, including negative
@@ -445,17 +448,17 @@ Evidence: `internal/decimal/decimal_test.go`,
 
 `ComputeExponent`(ECMA-402 §15.5.3) determines the exponent of a value in scientific / engineering / compact notation:
 
-```text
-ComputeExponent(nf, x):
-  if x == 0: return 0
-  magnitude := floor(log10(|x|))
-  exponent := ComputeExponentForMagnitude(nf, magnitude)
-  if exponent < 0:
-      mv := x × 10^(-exponent)
-  else:
-mv := x × 10^exponent # Wrong! It should be x ÷ 10^exponent
-  return exponent
-```
+For a nonzero value, choose the notation exponent from its decimal magnitude,
+scale by `10^(-exponent)`, then round the scaled value with the resolved digit
+options. If the rounded value is nonzero and its magnitude has increased,
+choose the exponent again from the original magnitude plus one. This carry
+recheck handles values such as 999 rounding to 1000. Zero uses exponent zero.
+
+`internal/ecma402/numberformat/exponent.go:computeExponent` owns this algorithm;
+scientific, engineering, and compact callers share it. The normative operation
+is `.references/ecma402/spec/numberformat.html:ComputeExponent`, with an
+implementation reference in
+`.references/formatjs/packages/ecma402-abstract/NumberFormat/ComputeExponent.ts`.
 
 The exact decimal result of `floor(log10(|x|))` is required (cannot use `math.Log10(float64(...))`, precision loss).
 
@@ -539,7 +542,8 @@ var (
 // ErrInvalidDecimal: ParseString input illegal decimal literal.
     ErrInvalidDecimal = errors.New("decimal: invalid numeric literal")
 
-// ErrInvalidRoundingIncrement: Not in the ValidRoundingIncrements list.
+// ErrInvalidRoundingIncrement: Currently declared but not returned by quantization
+// or wrapped by formatter option validation.
     ErrInvalidRoundingIncrement = errors.New("decimal: invalid rounding increment")
 
 // ErrNaNComparison: Reserved comparison-domain sentinel; current Cmp callers
@@ -553,16 +557,16 @@ var (
 
 ### 7.2 Reconcile with numberformat / pluralrules errors
 
-`gointl.ErrInvalidOption` Error wrapping this package at formatter boundary:
+Formatter constructors validate `roundingIncrement` through
+`internal/ecma402/numberformat.validateDigitConfig`. `InvalidDigitOptionError`
+returns a structured invalid-option error with the option, value, locale and
+allowed values. Callers use `errors.Is(err, gointl.ErrInvalidOption)`; the error
+does not wrap `decimal.ErrInvalidRoundingIncrement`.
 
-```go
-// numberformat/options.go (wrap mode in SPEC 20)
-if !decimal.IsValidRoundingIncrement(inc) {
-    return fmt.Errorf("numberformat: %w: roundingIncrement=%d", decimal.ErrInvalidRoundingIncrement, inc)
-}
-```
-
-> **Why this package does not return the error after wrap**: Error boundary record - the error in this package is raw sentinel; wrapping by SPEC 20 / 40 adds context at the boundary.
+`QuantizeToIncrement` returns a `Decimal`, not an error. Its internal guard
+returns the input unchanged for non-finite values or invalid increments;
+public option validation rejects invalid increments before this operation.
+Malformed decimal strings retain their separate `ErrInvalidDecimal` cause.
 
 ---
 
@@ -602,7 +606,7 @@ func Coerce(value any) decimal.Decimal
 
 // ✅ Correct: the public package exposes explicit typed bridges.
 v := numberformat.Int(42)
-d, err := numberformat.Decimal("9007199254740993")
+d, err := numberformat.ParseValue("9007199254740993")
 ```
 
 > **Why**: JavaScript coercion is a host-language operation. An explicit Go
@@ -688,85 +692,85 @@ type NumericValue struct {
 
 ### Backend
 
-- [ ] `go.mod` contains `github.com/cockroachdb/apd/v3`, **not** contains `github.com/shopspring/decimal` or `github.com/ericlagergren/decimal`.
-- [ ] `internal/decimal/` contains only decimal representation, conversion, arithmetic, magnitude, rounding, quantization, and error ownership; formatter option policy remains in `internal/ecma402/numberformat`.
-- [ ] The public API of the `internal/decimal` package does not expose any `apd.*` types (`grep -r "apd\." | grep -v "internal/decimal/" | grep -v "_test.go"` returns null).
+- `go.mod` contains `github.com/cockroachdb/apd/v3`, **not** contains `github.com/shopspring/decimal` or `github.com/ericlagergren/decimal`.
+- `internal/decimal/` contains only decimal representation, conversion, arithmetic, magnitude, rounding, quantization, and error ownership; formatter option policy remains in `internal/ecma402/numberformat`.
+- The public API of the `internal/decimal` package does not expose any `apd.*` types (`grep -r "apd\." | grep -v "internal/decimal/" | grep -v "_test.go"` returns null).
 
 ### Decimal type
 
-- [ ] `Decimal` is a value type (struct); `Decimal{}` is `Form=Finite, Coeff=0, Exp=0` (equivalent to +0).
-- [ ] `Form` enumeration values `Finite=0` / `Infinite=1` / `NaN=2` / `NaNSignaling=3` (can be converted by apd).
-- [ ] Package-level singletons `Zero` / `NaNValue` / `PosInfinity` / `NegInfinity` cannot be mutated.
-- [ ] `IsNaN` / `IsInf` / `IsFinite` are semantically consistent with the stored form.
+- `Decimal` is a value type (struct); `Decimal{}` is `Form=Finite, Coeff=0, Exp=0` (equivalent to +0).
+- `Form` enumeration values `Finite=0` / `Infinite=1` / `NaN=2` / `NaNSignaling=3` (can be converted by apd).
+- Package-level singletons `Zero` / `NaNValue` / `PosInfinity` / `NegInfinity` cannot be mutated.
+- `IsNaN` / `IsInf` / `IsFinite` are semantically consistent with the stored form.
 
 ### Construction
 
-- [ ] `New(negative, coeff, exp) Decimal` accepts `*big.Int` coefficients.
-- [ ] `FromInt64(int64) Decimal` appears in benchmark telemetry with allocation reporting.
-- [ ] `FromFloat64(NaN)` returns `NaNValue`(IsNaN()=true).
-- [ ] `FromFloat64(±Inf)` returns `±PosInfinity`.
-- [ ] `FromFloat64(0.1).String() == "0.1"` and `FromFloat64(0.2).String() == "0.2"` (shortest round-trip decimal conversion).
-- [ ] `ParseString("NaN")` / `"Infinity"` / `"-Infinity"` are each correct.
-- [ ] `ParseString("foo")` returns `ErrInvalidDecimal` wrap error.
+- `New(negative, coeff, exp) Decimal` accepts `*big.Int` coefficients.
+- `FromInt64(int64) Decimal` appears in benchmark telemetry with allocation reporting.
+- `FromFloat64(NaN)` returns `NaNValue`(IsNaN()=true).
+- `FromFloat64(±Inf)` returns `±PosInfinity`.
+- `FromFloat64(0.1).String() == "0.1"` and `FromFloat64(0.2).String() == "0.2"` (shortest round-trip decimal conversion).
+- `ParseString("NaN")` / `"Infinity"` / `"-Infinity"` are each correct.
+- `ParseString("foo")` returns `ErrInvalidDecimal` wrap error.
 
 ### Arithmetic
 
-- [ ] `Cmp` compares finite values and callers reject NaN/non-finite inputs before using it for ECMA-402 equality.
-- [ ] `Abs`, `AbsDiffCmp`, `MulInt`, and `Scale10` preserve value semantics and do not mutate caller-owned inputs.
-- [ ] `Scale10` preserves NaN and infinities unchanged.
+- `Cmp` compares finite values and callers reject NaN/non-finite inputs before using it for ECMA-402 equality.
+- `Abs`, `MulInt`, and `Scale10` preserve value semantics and do not mutate caller-owned inputs.
+- `Scale10` preserves NaN and infinities unchanged.
 
 ### Rounding Modes
 
-- [ ] `RoundingMode` 9 constants; `String()` output spec verbatim name (`"halfCeil"` not `"half-ceil"`).
-- [ ] `ParseRoundingMode("halfExpand") == RoundHalfExpand`,`ParseRoundingMode("HALFEXPAND")` failed (case sensitive).
-- [ ] `ApplyUnsignedRoundingMode` results under `halfCeil` / `halfFloor` with generated-reference `ApplyUnsignedRoundingMode.test.ts` byte-equal.
-- [ ] `UnsignedRoundingMode` aligns with spec §15.5.6 verbatim table.
-- [ ] generated-reference `ecma402-abstract/NumberFormat/tests/ApplyUnsignedRoundingMode.test.ts` All fixtures pass.
+- `RoundingMode` 9 constants; `String()` output spec verbatim name (`"halfCeil"` not `"half-ceil"`).
+- `ParseRoundingMode("halfExpand") == RoundHalfExpand`,`ParseRoundingMode("HALFEXPAND")` failed (case sensitive).
+- `ApplyUnsignedRoundingMode` results under `halfCeil` / `halfFloor` with generated-reference `ApplyUnsignedRoundingMode.test.ts` byte-equal.
+- `UnsignedRoundingMode` aligns with spec §15.5.6 verbatim table.
+- generated-reference `ecma402-abstract/NumberFormat/tests/ApplyUnsignedRoundingMode.test.ts` All fixtures pass.
 
 ### Resolved rounding branch
 
-- [ ] `SetNumberFormatDigitOptions` freezes fraction, significant, more-precision, or less-precision routing in `ResolvedDigitOptions` and `FormatNumericToString` executes that field without re-inference.
-- [ ] All nine rounding-mode strings are parsed to `decimal.RoundingMode` during option resolution; no runtime fallback substitutes `halfExpand` for invalid state.
+- `SetNumberFormatDigitOptions` freezes fraction, significant, more-precision, or less-precision routing in `ResolvedDigitOptions` and `FormatNumericToString` executes that field without re-inference.
+- All nine rounding-mode strings are parsed to `decimal.RoundingMode` during option resolution; no runtime fallback substitutes `halfExpand` for invalid state.
 
 ### RoundingIncrement
 
-- [ ] `RoundingIncrements()` returns the 15 sanctioned values and a caller cannot mutate package state through the returned slice.
-- [ ] `IsValidRoundingIncrement(3) == false`,`IsValidRoundingIncrement(50) == true`.
-- [ ] `QuantizeToIncrement(123.456, 25, -2, RoundHalfExpand).String() == "123.50"` (the target step is `25 × 10^-2 = 0.25`).
-- [ ] 1-, 100-, 101-, 250-, and 1000-digit coefficients retain their low-order rounding information across positive and negative exponent alignment.
-- [ ] No fixed `apd.Context.Precision` participates in quotient, neighbour, distance, or half-even selection.
-- [ ] `QuantizeToIncrement` handles compact inputs with exponents `+1_000_000_000` and `-1_000_000_000` without constructing exponent-sized powers of ten; exact multiples remain unchanged and tiny values select zero or one target step according to the rounding mode.
-- [ ] generated-reference `ecma402-abstract/NumberFormat/tests/Quantize.test.ts` fixture passed (if exists).
+- `RoundingIncrements()` returns the 15 sanctioned values and a caller cannot mutate package state through the returned slice.
+- `IsValidRoundingIncrement(3) == false`,`IsValidRoundingIncrement(50) == true`.
+- `QuantizeToIncrement(123.456, 25, -2, RoundHalfExpand).String() == "123.50"` (the target step is `25 × 10^-2 = 0.25`).
+- 1-, 100-, 101-, 250-, and 1000-digit coefficients retain their low-order rounding information across positive and negative exponent alignment.
+- No fixed `apd.Context.Precision` participates in quotient, neighbour, distance, or half-even selection.
+- `QuantizeToIncrement` handles compact inputs with exponents `+1_000_000_000` and `-1_000_000_000` without constructing exponent-sized powers of ten; exact multiples remain unchanged and tiny values select zero or one target step according to the rounding mode.
+- generated-reference `ecma402-abstract/NumberFormat/tests/Quantize.test.ts` fixture passed (if exists).
 
 ### TrailingZeroDisplay
 
-- [ ] Shared `FormatNumericToString` retains digit-option zeros under `auto` and strips the fraction only for an integral rounded result under `stripIfInteger`.
-- [ ] Its negative finite text and rounded value preserve the selected sign; a negative value rounded to zero retains negative zero.
-- [ ] Decimal String preserves nonzero stored scale, while zero text is `0` and Negative retains the sign.
+- Shared `FormatNumericToString` retains digit-option zeros under `auto` and strips the fraction only for an integral rounded result under `stripIfInteger`.
+- Its negative finite text and rounded value preserve the selected sign; a negative value rounded to zero retains negative zero.
+- Decimal String preserves nonzero stored scale, while zero text is `0` and Negative retains the sign.
 
 ### Log10Floor
 
-- [ ] `Log10Floor(FromInt64(98765)) == 4`(98765 ∈ [10^4, 10^5)).
-- [ ] `Log10Floor(FromInt64(0))` returns `ErrLog10Domain`.
-- [ ] `Log10Floor(NaNValue)` returns `ErrLog10Domain`.
+- `Log10Floor(FromInt64(98765)) == 4`(98765 ∈ [10^4, 10^5)).
+- `Log10Floor(FromInt64(0))` returns `ErrLog10Domain`.
+- `Log10Floor(NaNValue)` returns `ErrLog10Domain`.
 
 ### NumericValue bridge
 
-- [ ] `internal/ecma402.NumericValue` preserves decimal, int64, and uint64 bridge kinds.
-- [ ] `internal/decimal` production files **not** imported `internal/ecma402`;`rg '"github.com/agentable/go-intl/internal/ecma402"' internal/decimal --glob '!**/*_test.go'` should be empty.
+- `internal/ecma402.NumericValue` preserves decimal, int64, and uint64 bridge kinds.
+- `internal/decimal` production files **not** imported `internal/ecma402`;`rg '"github.com/agentable/go-intl/internal/ecma402"' internal/decimal --glob '!**/*_test.go'` should be empty.
 
 ### Error
 
-- [ ] `errors.Is(err, ErrInvalidDecimal)` is true if `ParseString` fails.
-- [ ] `errors.Is(err, ErrInvalidRoundingIncrement)` is true after invalid rounding increment is wrapped by the callee.
-- [ ] There are **no** `panic` calls in the package.
+- `errors.Is(err, ErrInvalidDecimal)` is true if `ParseString` fails.
+- Invalid public rounding increments return an error matching `gointl.ErrInvalidOption` with `roundingIncrement` context; no internal decimal increment sentinel is promised.
+- There are **no** `panic` calls in the package.
 
 ### Test
 
-- [ ] generated-reference `bigdecimal/tests/` All fixtures were ported to `internal/decimal/testdata/` and passed.
-- [ ] generated-reference `ecma402-abstract/NumberFormat/tests/{ApplyUnsignedRoundingMode,SetNumberFormatDigitOptions}.test.ts` fixture passed.
-- [ ] Use `t.Parallel()` for all tests.
-- [ ] Relevant decimal construction benchmarks run through `task bench:run` and remain non-blocking telemetry.
+- generated-reference `bigdecimal/tests/` All fixtures were ported to `internal/decimal/testdata/` and passed.
+- generated-reference `ecma402-abstract/NumberFormat/tests/{ApplyUnsignedRoundingMode,SetNumberFormatDigitOptions}.test.ts` fixture passed.
+- Use `t.Parallel()` for all tests.
+- Relevant decimal construction benchmarks run through `task bench:run` and remain non-blocking telemetry.
 
 ---
 

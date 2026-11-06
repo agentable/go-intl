@@ -1,198 +1,195 @@
 package localematcher_test
 
 import (
+	"errors"
 	"testing"
 
+	gointl "github.com/agentable/go-intl"
+	"github.com/agentable/go-intl/locale"
 	"github.com/agentable/go-intl/x/localematcher"
 )
 
-func TestMatch(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		requested     []string
-		available     []string
-		defaultLocale string
-		algorithm     localematcher.Algorithm
-		wantLocale    string
-		wantData      string
-		wantExtension string
-		wantDistance  int
-	}{
-		{
-			name:          "proposal example: fr-XX falls back to fr",
-			requested:     []string{"fr-XX", "en"},
-			available:     []string{"fr", "en"},
-			defaultLocale: "en",
-			algorithm:     localematcher.AlgorithmBestFit,
-			wantLocale:    "fr",
-			wantData:      "fr",
-		},
-		{
-			// zh-Hant is data-backed, so its maximize alias zh-TW is
-			// available as a derived fallback; the exact hit keeps the
-			// requested locale and points DataLocale at the payload.
-			name:          "best fit serves zh-TW from the zh-Hant payload",
-			requested:     []string{"zh-TW"},
-			available:     []string{"zh-Hans", "zh-Hant", "en"},
-			defaultLocale: "en",
-			algorithm:     localematcher.AlgorithmBestFit,
-			wantLocale:    "zh-TW",
-			wantData:      "zh-Hant",
-			wantDistance:  0,
-		},
-		{
-			name:          "best fit maximizes zh-HK onto zh-Hant",
-			requested:     []string{"zh-HK"},
-			available:     []string{"en", "zh-Hans", "zh-Hant", "ja"},
-			defaultLocale: "en",
-			algorithm:     localematcher.AlgorithmBestFit,
-			wantLocale:    "zh-Hant",
-			wantData:      "zh-Hant",
-		},
-		{
-			name:          "best fit maximizes zh-SG onto zh-Hans",
-			requested:     []string{"zh-SG"},
-			available:     []string{"en", "zh-Hans", "zh-Hant", "ja"},
-			defaultLocale: "en",
-			algorithm:     localematcher.AlgorithmBestFit,
-			wantLocale:    "zh-Hans",
-			wantData:      "zh-Hans",
-		},
-		{
-			// zh-Hant-HK is data-backed, so the zh-HK language-region
-			// alias is available and keeps the concrete data locale.
-			name:          "derived alias keeps the concrete data locale",
-			requested:     []string{"zh-HK"},
-			available:     []string{"zh-Hant-HK"},
-			defaultLocale: "en",
-			algorithm:     localematcher.AlgorithmBestFit,
-			wantLocale:    "zh-HK",
-			wantData:      "zh-Hant-HK",
-		},
-		{
-			// Lookup truncates zh-SG to zh; best fit maximizes it to
-			// zh-Hans-SG and lands on the zh-Hans payload instead.
-			name:          "lookup truncates without maximizing",
-			requested:     []string{"zh-SG"},
-			available:     []string{"zh-Hans"},
-			defaultLocale: "en",
-			algorithm:     localematcher.AlgorithmLookup,
-			wantLocale:    "zh",
-			wantData:      "zh-Hans",
-		},
-		{
-			name:          "best fit maximizes where lookup truncates",
-			requested:     []string{"zh-SG"},
-			available:     []string{"zh-Hans"},
-			defaultLocale: "en",
-			algorithm:     localematcher.AlgorithmBestFit,
-			wantLocale:    "zh-Hans",
-			wantData:      "zh-Hans",
-		},
-		{
-			name:          "lookup matches and keeps the requested extension",
-			requested:     []string{"en-US-u-ca-buddhist"},
-			available:     []string{"en-US"},
-			defaultLocale: "en",
-			algorithm:     localematcher.AlgorithmLookup,
-			wantLocale:    "en-US",
-			wantData:      "en-US",
-			wantExtension: "-u-ca-buddhist",
-		},
-		{
-			name:          "lookup misses an unrelated language",
-			requested:     []string{"fr-FR"},
-			available:     []string{"zh-Hant"},
-			defaultLocale: "en",
-			algorithm:     localematcher.AlgorithmLookup,
-			wantLocale:    "en",
-			wantData:      "en",
-		},
-		{
-			name:          "best fit rejects distant languages",
-			requested:     []string{"ko"},
-			available:     []string{"en", "zh-Hans", "zh-Hant", "ja"},
-			defaultLocale: "en",
-			algorithm:     localematcher.AlgorithmBestFit,
-			wantLocale:    "en",
-			wantData:      "en",
-		},
-		{
-			name:          "empty request falls back to the default locale",
-			requested:     nil,
-			available:     []string{"de"},
-			defaultLocale: "de",
-			algorithm:     localematcher.AlgorithmBestFit,
-			wantLocale:    "de",
-			wantData:      "de",
-		},
+func locales(t testing.TB, tags ...string) locale.List {
+	t.Helper()
+	values, err := locale.ParseList(tags...)
+	if err != nil {
+		t.Fatal(err)
 	}
+	return values
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+func TestMatcherLookupRequiresAvailableResource(t *testing.T) {
+	t.Parallel()
+	matcher, err := localematcher.New(locales(t, "de-DE"), localematcher.Options{Algorithm: gointl.String("lookup")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := matcher.Match(locales(t, "de-AT")); ok {
+		t.Fatalf("lookup returned unavailable resource %q", got.String())
+	}
+	if got, ok := matcher.Match(locales(t, "de-DE")); !ok || got.String() != "de-DE" {
+		t.Fatalf("exact lookup = (%s, %v), want (de-DE, true)", got.String(), ok)
+	}
+}
+
+func TestMatcherLookupContinuesAfterUnavailableParent(t *testing.T) {
+	t.Parallel()
+	matcher, err := localematcher.New(locales(t, "de-DE", "en"), localematcher.Options{Algorithm: gointl.String("lookup")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := matcher.Match(locales(t, "de-AT", "en"))
+	if !ok || got.String() != "en" {
+		t.Fatalf("lookup = (%s, %v), want (en, true)", got.String(), ok)
+	}
+}
+
+func TestNewValidation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		tags      []string
+		algorithm *string
+		want      error
+		field     string
+	}{
+		{"unknown algorithm", []string{"en"}, gointl.String("invalid"), gointl.ErrInvalidOption, "algorithm"},
+		{"explicit empty algorithm", []string{"en"}, gointl.String(""), gointl.ErrInvalidOption, "algorithm"},
+		{"algorithm casing", []string{"en"}, gointl.String("LOOKUP"), gointl.ErrInvalidOption, "algorithm"},
+		{"available keyword", []string{"en-u-ca-gregory"}, nil, gointl.ErrInvalidValue, "availableLocales"},
+		{"available attribute", []string{"en-u-foobar"}, nil, gointl.ErrInvalidValue, "availableLocales"},
+		{"available wins evaluation order", []string{"en-u-nu-latn"}, gointl.String("invalid"), gointl.ErrInvalidValue, "availableLocales"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := localematcher.Match(tt.requested, tt.available, tt.defaultLocale, tt.algorithm)
-			if got.Locale != tt.wantLocale {
-				t.Errorf("Locale = %q, want %q", got.Locale, tt.wantLocale)
+			got, err := localematcher.New(locales(t, tc.tags...), localematcher.Options{Algorithm: tc.algorithm})
+			if got != nil || !errors.Is(err, tc.want) {
+				t.Fatalf("New = (%v, %v), want nil, %v", got, err, tc.want)
 			}
-			if got.DataLocale != tt.wantData {
-				t.Errorf("DataLocale = %q, want %q", got.DataLocale, tt.wantData)
-			}
-			if got.Extension != tt.wantExtension {
-				t.Errorf("Extension = %q, want %q", got.Extension, tt.wantExtension)
-			}
-			if tt.wantDistance != 0 && got.Distance != tt.wantDistance {
-				t.Errorf("Distance = %d, want %d", got.Distance, tt.wantDistance)
+			detail, ok := errors.AsType[*gointl.Error](err)
+			if !ok || detail.Owner != "localematcher" || detail.Name != tc.field {
+				t.Fatalf("error context = %#v", detail)
 			}
 		})
 	}
 }
 
-// Per-key best-fit: an i18n catalog whose keys exist in uneven locale subsets
-// matches each key against the locales in which that key actually exists, and
-// reads the payload from Result.DataLocale.
-func TestMatchPerKeyCatalog(t *testing.T) {
+func TestMatcherMatch(t *testing.T) {
 	t.Parallel()
-
-	catalog := map[string][]string{
-		"title":   {"en", "zh-Hans", "zh-Hant", "ja"},
-		"summary": {"en", "zh-Hant"},
-	}
-
-	title := localematcher.Match([]string{"zh-SG"}, catalog["title"], "en", localematcher.AlgorithmBestFit)
-	if title.Locale != "zh-Hans" || title.DataLocale != "zh-Hans" {
-		t.Errorf("title = (%q, %q), want (zh-Hans, zh-Hans)", title.Locale, title.DataLocale)
-	}
-
-	summary := localematcher.Match([]string{"zh-SG"}, catalog["summary"], "en", localematcher.AlgorithmBestFit)
-	if summary.Locale != "zh" || summary.DataLocale != "zh-Hant" {
-		t.Errorf("summary = (%q, %q), want (zh, zh-Hant)", summary.Locale, summary.DataLocale)
+	for _, tc := range []struct {
+		name                 string
+		available, requested []string
+		algorithm            *string
+		want                 string
+	}{
+		{"proposal example", []string{"fr", "en"}, []string{"fr-XX", "en"}, nil, "fr"},
+		{"traditional Chinese", []string{"en", "zh-Hans", "zh-Hant", "ja"}, []string{"zh-HK"}, nil, "zh-Hant"},
+		{"simplified Chinese", []string{"en", "zh-Hans", "zh-Hant", "ja"}, []string{"zh-SG"}, nil, "zh-Hans"},
+		{"best fit returns actual resource", []string{"zh-Hant"}, []string{"zh-TW"}, nil, "zh-Hant"},
+		{"lookup does not add alias", []string{"zh-Hant-HK"}, []string{"zh-HK"}, gointl.String("lookup"), ""},
+		{"lookup does not add parent", []string{"zh-Hans"}, []string{"zh-SG"}, gointl.String("lookup"), ""},
+		{"lookup actual parent", []string{"de"}, []string{"de-AT"}, gointl.String("lookup"), "de"},
+		{"lookup strips unicode extension", []string{"en-US"}, []string{"en-US-u-ca-buddhist"}, gointl.String("lookup"), "en-US"},
+		{"best fit strips unicode extension", []string{"en-US"}, []string{"en-US-u-nu-thai"}, nil, "en-US"},
+		{"canonical case", []string{"EN-us"}, []string{"en-us"}, gointl.String("lookup"), "en-US"},
+		{"canonical aliases", []string{"he"}, []string{"iw"}, gointl.String("lookup"), "he"},
+		{"duplicate available", []string{"en-US", "EN-us"}, []string{"en-US"}, nil, "en-US"},
+		{"empty available", nil, []string{"en"}, nil, ""},
+		{"empty requested", []string{"en"}, nil, nil, ""},
+		{"distant language", []string{"en", "zh-Hant", "ja"}, []string{"ko"}, nil, ""},
+		{"well formed unknown locale", []string{"qaa-Qaaa-ZZ"}, []string{"qaa-Qaaa-ZZ"}, nil, "qaa-Qaaa-ZZ"},
+		{"private use containing u", []string{"en-x-u-ca-gregory"}, []string{"en-x-u-ca-gregory"}, gointl.String("lookup"), "en-x-u-ca-gregory"},
+		{"und differs from no match", []string{"und"}, []string{"und"}, gointl.String("lookup"), "und"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			matcher, err := localematcher.New(locales(t, tc.available...), localematcher.Options{Algorithm: tc.algorithm})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok := matcher.Match(locales(t, tc.requested...))
+			if ok != (tc.want != "") || ok && got.String() != tc.want {
+				t.Fatalf("Match = (%s, %v), want (%s, %v)", got.String(), ok, tc.want, tc.want != "")
+			}
+		})
 	}
 }
 
-func TestMatcherReuse(t *testing.T) {
+func TestMatcherSnapshotsInputs(t *testing.T) {
 	t.Parallel()
-
-	matcher := localematcher.New([]string{"en", "zh-Hans", "zh-Hant", "ja"})
-
-	if got := matcher.Match([]string{"zh-HK"}, "en", localematcher.AlgorithmBestFit); got.Locale != "zh-Hant" {
-		t.Errorf("zh-HK: Locale = %q, want zh-Hant", got.Locale)
+	available := locales(t, "de-DE")
+	algorithm := "lookup"
+	matcher, err := localematcher.New(available, localematcher.Options{Algorithm: &algorithm})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := matcher.Match([]string{"zh-SG"}, "en", localematcher.AlgorithmBestFit); got.Locale != "zh-Hans" {
-		t.Errorf("zh-SG: Locale = %q, want zh-Hans", got.Locale)
+	available[0] = locales(t, "en")[0]
+	algorithm = "best fit"
+	if got, ok := matcher.Match(locales(t, "de-AT")); ok {
+		t.Fatalf("changed algorithm: %s", got.String())
 	}
-	if got := matcher.Match([]string{"ko"}, "en", localematcher.AlgorithmBestFit); got.Locale != "en" {
-		t.Errorf("ko: Locale = %q, want en", got.Locale)
+	if got, ok := matcher.Match(locales(t, "de-DE")); !ok || got.String() != "de-DE" {
+		t.Fatalf("changed available: (%s,%v)", got.String(), ok)
 	}
 }
 
-func TestDefaultMatchingThreshold(t *testing.T) {
+func TestMatcherPerKeyCatalog(t *testing.T) {
 	t.Parallel()
+	requested := locales(t, "zh-SG")
+	for _, tc := range []struct {
+		name         string
+		translations map[string]string
+		want         string
+	}{
+		{"title", map[string]string{"en": "Title", "zh-Hans": "标题", "zh-Hant": "標題"}, "标题"},
+		{"summary", map[string]string{"en": "Summary", "zh-Hant": "摘要"}, "摘要"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			available := make(locale.List, 0, len(tc.translations))
+			for tag := range tc.translations {
+				available = append(available, locales(t, tag)[0])
+			}
+			matcher, err := localematcher.New(available, localematcher.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			matched, ok := matcher.Match(requested)
+			if !ok {
+				t.Fatal("no match")
+			}
+			if got := tc.translations[matched.String()]; got != tc.want {
+				t.Fatalf("translation = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
 
-	if localematcher.DefaultMatchingThreshold != 838 {
-		t.Errorf("DefaultMatchingThreshold = %d, want 838", localematcher.DefaultMatchingThreshold)
+func TestMatcherConcurrentRequests(t *testing.T) {
+	t.Parallel()
+	matcher, err := localematcher.New(locales(t, "en", "zh-Hans", "zh-Hant"), localematcher.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 16 {
+		for _, tc := range []struct{ requested, want string }{{"zh-HK", "zh-Hant"}, {"zh-SG", "zh-Hans"}, {"ko", ""}} {
+			t.Run(tc.requested, func(t *testing.T) {
+				t.Parallel()
+				for range 20 {
+					got, ok := matcher.Match(locales(t, tc.requested))
+					if ok != (tc.want != "") || ok && got.String() != tc.want {
+						t.Fatalf("Match = (%s,%v), want %s", got.String(), ok, tc.want)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestZeroMatcher(t *testing.T) {
+	t.Parallel()
+	var matcher localematcher.Matcher
+	if got, ok := matcher.Match(locales(t, "en")); ok {
+		t.Fatalf("zero matcher = %s", got.String())
 	}
 }

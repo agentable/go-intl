@@ -1,6 +1,5 @@
 # SPEC 12 — ECMA-402 Abstract Operations
 
-> **Status:** Revised (2026-08-09)
 > **Priority:** High
 > **Authority:** This SPEC defines the current `internal/ecma402/` contract. Normative source: `.references/ecma402/spec/`. Generated references are an implementation reference, not the authority.
 
@@ -64,7 +63,7 @@ Surviving algorithms keep spec or reference names when that name remains honest:
 | sanctioned unit syntax | `IsSanctionedSimpleUnitIdentifier` / `IsWellFormedUnitIdentifier` |
 | typed mathematical-value bridge | `NumericValue`, `DecimalNumericValue`, `Int64NumericValue`, `Uint64NumericValue`, `Float64NumericValue`, `BigIntNumericValue`, `ParseDecimalInput`, `ParseFiniteDecimalInput`, `RequireFiniteDecimalInput` |
 | constructor locale negotiation | `ResolveConstructorLocale` typed wrapper around locale-list, matcher, default-locale, and relevant-extension processing |
-| option resolution | `options.One`, `LocaleMatcherAlgorithm`, `LocaleMatcherOption` / `LocaleMatcherOptionInput`, `SupportedLocalesOf`, `InvalidStringOption`, `InvalidIntegerOption`, Unicode type option validators, `GetOption`-family helpers or typed equivalents that preserve ECMA-402 semantics |
+| option resolution | `LocaleMatcherAlgorithm`, `LocaleMatcherOption` / `LocaleMatcherOptionInput`, `SupportedLocalesOf`, `InvalidStringOption`, `InvalidIntegerOption`, Unicode type option validators, `GetOption`-family helpers or typed equivalents that preserve ECMA-402 semantics |
 | digit rounding and padding stage | `numberformat.FormatNumericToString` |
 | date skeleton parsing | `datetimeformat.ParseSkeleton`-family internals |
 | plural operand construction | `pluralrules.Operands`-family internals |
@@ -88,7 +87,6 @@ Those constructors validate enum values, numeric ranges, identifiers, and unsupp
 The abstract layer should provide reusable option and syntax helpers when they encode normative ECMA-402 behavior:
 
 - `ErrInvalidOption`
-- `options.One`
 - `LocaleMatcherAlgorithm`
 - `LocaleMatcherOption` / `LocaleMatcherOptionInput`
 - `ResolveConstructorLocale`
@@ -202,7 +200,7 @@ var slots sync.Map // map[*NumberFormat]map[string]any
 
 `internal/ecma402.NumericValue` is the closed record shared across the abstract
 layer. Package-local public `Value` constructors select an explicit Go bridge
-(`Int`, `Uint`, `Float`, `BigInt`, or `Decimal`) and produce that record. The
+(`Int`, `Uint`, `Float`, `BigInt`, or `ParseValue`) and produce that record. The
 concrete decimal representation and arithmetic live in `internal/decimal`.
 
 The Go core does not accept `any` and does not emulate JavaScript
@@ -246,3 +244,11 @@ values. Host adapters must choose one typed bridge before entering the core.
 - `.references/formatjs/packages/ecma402-abstract/` — readable implementation reference for algorithms that still exist here.
 - `.references/formatjs/packages/ecma402-abstract/NumberFormat/` — digit pipeline and rounding reference.
 - `.references/formatjs/packages/ecma402-abstract/DateTimeFormat/` — skeleton and matcher reference.
+
+Canonical identity is owned by `internal/localeid` using grammatical Unicode
+identifiers and generated CLDR aliases. DisplayNames first applies its narrower
+language-ID grammar, then uses the same canonicalizer as Locale; it does not
+choose a second identity when x/text rejects a value. Digit-option family bounds
+are validated only when the resolved rounding strategy consumes that family.
+See SPEC 10 and `options_test.go:TestInactiveFractionOptions` in NumberFormat
+and PluralRules.

@@ -92,23 +92,16 @@ func applyOptions(cfg *config, opts Options) {
 	ecma402.ApplyUnicodeTypeOptionInput(&cfg.numberingSystem, &cfg.hasNumberingSystem, "nu", opts.NumberingSystem)
 }
 
-func (c config) validate(locName string) error {
-	if err := ecma402.ValidateStringOptions(
-		numberFormatOwner,
-		locName,
-		styleOption(c.style),
-		ecma402nf.NotationOption(c.notation),
-		ecma402nf.CompactDisplayOption(c.compactDisplay),
-		currencyDisplayOption(c.currencyDisplay),
-		currencySignOption(c.currencySign),
-		unitDisplayOption(c.unitDisplay),
-		signDisplayOption(c.signDisplay),
-		useGroupingOption(c.useGrouping),
+func (c config) validateBeforeDigits(locName string) error {
+	if err := ecma402.ValidateStringOptions(numberFormatOwner, locName,
 		ecma402.LocaleMatcherOptionInput(c.localeMatcher, c.hasLocaleMatcher),
 	); err != nil {
 		return err
 	}
 	if err := ecma402.ValidateUnicodeTypeOptionInput(numberFormatOwner, "numberingSystem", c.numberingSystem, locName, c.hasNumberingSystem); err != nil {
+		return err
+	}
+	if err := ecma402.ValidateStringOptions(numberFormatOwner, locName, styleOption(c.style)); err != nil {
 		return err
 	}
 	if c.hasCurrency && !ecma402.IsWellFormedCurrencyCode(c.currency) {
@@ -117,13 +110,20 @@ func (c config) validate(locName string) error {
 	if c.style == string(CurrencyStyle) && !c.hasCurrency {
 		return missingStyleOptionError("currency", `a currency code when style is "currency"`, locName)
 	}
+	if err := ecma402.ValidateStringOptions(numberFormatOwner, locName,
+		currencyDisplayOption(c.currencyDisplay), currencySignOption(c.currencySign),
+	); err != nil {
+		return err
+	}
 	if c.hasUnit && !ecma402.IsWellFormedUnitIdentifier(c.unit) {
 		return ecma402.InvalidUnitIdentifierOptionError(numberFormatOwner, "unit", c.unit, locName)
 	}
 	if c.style == string(UnitStyle) && !c.hasUnit {
 		return missingStyleOptionError("unit", `a sanctioned unit identifier when style is "unit"`, locName)
 	}
-	return nil
+	return ecma402.ValidateStringOptions(numberFormatOwner, locName,
+		unitDisplayOption(c.unitDisplay), ecma402nf.NotationOption(c.notation),
+	)
 }
 
 func styleOption(value string) ecma402.StringOption {

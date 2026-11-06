@@ -48,6 +48,10 @@ func compilePatternProgram(pattern string) patternProgram {
 func (p *selectedPattern) compilePrograms() {
 	p.dateProgram = compilePatternProgram(p.date)
 	p.timeProgram = compilePatternProgram(p.time)
+	for _, token := range p.timeProgram {
+		p.hasMinute = p.hasMinute || token.field == 'm'
+		p.hasSecond = p.hasSecond || token.field == 's'
+	}
 	p.dateTimeProgram = compileDateTimeProgram(p.dateTime)
 }
 
@@ -163,7 +167,7 @@ func (f *DateTimeFormat) patternTokenPart(token patternToken, t localTime) (Part
 	if isDatePatternField(token.field) {
 		return datePatternPart(token.field, token.width, t, &f.gregorian, numberingSystem), true
 	}
-	return f.timePatternPart(token.field, token.width, t, numberingSystem, f.uses24Hour, f.cldrLoc, &f.gregorian)
+	return f.timePatternPart(token.field, token.width, t, numberingSystem, f.uses24Hour, &f.gregorian)
 }
 
 func datePatternPart(field rune, width int, t localTime, gregorian *cldrdate.Gregorian, numberingSystem string) Part {
@@ -182,7 +186,7 @@ func datePatternPart(field rune, width int, t localTime, gregorian *cldrdate.Gre
 	return Part{Type: PartLiteral, Value: strings.Repeat(string(field), width)}
 }
 
-func (f *DateTimeFormat) timePatternPart(field rune, width int, t localTime, numberingSystem string, uses24Hour bool, cldrLoc cldrdate.Locale, gregorian *cldrdate.Gregorian) (Part, bool) {
+func (f *DateTimeFormat) timePatternPart(field rune, width int, t localTime, numberingSystem string, uses24Hour bool, gregorian *cldrdate.Gregorian) (Part, bool) {
 	switch field {
 	case 'h', 'H', 'K', 'k':
 		if uses24Hour && (field == 'h' || field == 'K') && width < 2 {
@@ -202,7 +206,7 @@ func (f *DateTimeFormat) timePatternPart(field rune, width int, t localTime, num
 		}
 		return Part{Type: PartDayPeriod, Value: dayPeriodPatternName(gregorian, width, t)}, true
 	case 'B', 'b':
-		return Part{Type: PartDayPeriod, Value: flexibleDayPeriodPatternName(cldrLoc, gregorian, width, t)}, true
+		return Part{Type: PartDayPeriod, Value: flexibleDayPeriodPatternName(f.flexibleDayPeriodValue(t), gregorian, width, t)}, true
 	case 'z':
 		return Part{Type: PartTimeZoneName, Value: f.timeZonePatternName(width, t.Time)}, true
 	case 'v':

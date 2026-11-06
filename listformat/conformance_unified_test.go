@@ -26,6 +26,10 @@ func runListConformanceFixture(t *testing.T, fixture conformance.Fixture) {
 		runSupportedLocalesFixture(t, fixture)
 		return
 	}
+	if fixture.ExpectedRange != nil || fixture.ExpectedRangeParts != nil || fixture.ExpectedOK != nil || fixture.ExpectedLocales != nil ||
+		fixture.ErrorCode != "" && (fixture.Expected != nil || fixture.ExpectedParts != nil || fixture.ExpectedResolved != nil) {
+		t.Fatalf("fixture %s: unsupported listformat observation", fixture.ID)
+	}
 
 	format, err := New(locale.List{intltest.Locale(t, fixture.Locale)}, conformanceListOptions(t, fixture))
 	if testcontract.AssertErrorCode(t, "New()", err, fixture.ErrorCode, func(code string) error {
@@ -35,9 +39,6 @@ func runListConformanceFixture(t *testing.T, fixture conformance.Fixture) {
 	}
 	if err != nil {
 		t.Fatal(err)
-	}
-	if fixture.ExpectedRange != nil || fixture.ExpectedRangeParts != nil || fixture.ExpectedOK != nil || fixture.ExpectedLocales != nil {
-		t.Fatal("unsupported listformat observation")
 	}
 	if fixture.ExpectedResolved != nil {
 		testcontract.AssertResolvedOptionsJSON(t, format.ResolvedOptions(), fixture.ExpectedResolved)

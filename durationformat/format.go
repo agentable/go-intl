@@ -131,13 +131,13 @@ func partitionDurationFormatPattern(values *durationRecord, f *DurationFormat, s
 			}
 
 			formatters := f.unitFormatters[spec.index]
-			if fractional {
-				formatters = f.unitFractionFormatters[spec.index]
-			}
 			showNegativeSign := sign < 0 && signAvailable
 
 			if fractional {
 				valueString := durationFractionalValueString(values, spec.index, showNegativeSign)
+				if opt.display == AutoDisplay && (valueString == "0" || valueString == "-0") {
+					return result, nil
+				}
 				parts, err := formatDurationDecimalNumberParts(formatters, spec.formatUnit, spec.unit, valueString, signAvailable, loc)
 				if err != nil {
 					return nil, err
@@ -260,7 +260,7 @@ func durationDecimalNumberValue(errorName, value string, signVisible bool, loc l
 	if !signVisible {
 		value = strings.TrimPrefix(value, "-")
 	}
-	numericValue, err := numberformat.Decimal(value)
+	numericValue, err := numberformat.ParseValue(value)
 	if err != nil {
 		return numberformat.Value{}, invalidDurationUnitValue(errorName, value, loc)
 	}
@@ -435,7 +435,7 @@ func durationIntegerNumberValue(value *big.Int, showNegativeSign bool) numberfor
 		return numberformat.BigInt(magnitude)
 	}
 	if magnitude.Sign() == 0 {
-		out, _ := numberformat.Decimal("-0")
+		out, _ := numberformat.ParseValue("-0")
 		return out
 	}
 	return numberformat.BigInt(magnitude.Neg(magnitude))

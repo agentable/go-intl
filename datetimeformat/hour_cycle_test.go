@@ -57,6 +57,65 @@ func TestStyleHourCycles(t *testing.T) {
 	}
 }
 
+func TestHourCycleForSelectedPattern(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		tag    string
+		opts   Options
+		cycle  string
+		noHour bool
+	}{
+		{"minute h11", "en", Options{Minute: new("numeric"), HourCycle: new("h11")}, "h11", false},
+		{"minute h12", "en", Options{Minute: new("numeric"), HourCycle: new("h12")}, "h12", false},
+		{"minute h23", "en", Options{Minute: new("numeric"), HourCycle: new("h23")}, "h23", false},
+		{"minute h24", "en", Options{Minute: new("numeric"), HourCycle: new("h24")}, "h24", false},
+		{"hour12 overrides hc", "en-u-hc-h24", Options{Minute: new("numeric"), Hour12: new(true)}, "h12", false},
+		{"date components", "en", Options{Year: new("numeric"), HourCycle: new("h24")}, "", true},
+		{"date style", "en", Options{DateStyle: new("long"), HourCycle: new("h24")}, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			opts := tc.opts
+			opts.TimeZone = new("UTC")
+			f, err := New(intltest.LocaleList(t, tc.tag), opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := f.ResolvedOptions()
+			midnight := time.Date(2026, 5, 8, 0, 7, 0, 0, time.UTC)
+			parts, err := f.FormatToParts(midnight)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hasHour := false
+			for _, p := range parts {
+				hasHour = hasHour || p.Type == PartHour
+			}
+			if hasHour != (r.Hour != nil) || (tc.noHour && hasHour) {
+				t.Fatalf("hour presence disagrees: resolved=%#v parts=%v", r, parts)
+			}
+			if tc.opts.Hour12 != nil && strings.Contains(r.Locale.String(), "hc-") {
+				t.Errorf("hour12 retained overridden hc: %s", r.Locale)
+			}
+			if !hasHour {
+				if r.HourCycle != nil || r.Hour12 != nil {
+					t.Errorf("hourCycle/hour12 present without hour: %#v", r)
+				}
+				return
+			}
+			want12 := tc.cycle == "h11" || tc.cycle == "h12"
+			if r.HourCycle == nil || string(*r.HourCycle) != tc.cycle || r.Hour12 == nil || *r.Hour12 != want12 {
+				t.Errorf("resolved = %#v, want %s/%t", r, tc.cycle, want12)
+			}
+			assertHourCycle(t, f, tc.cycle, midnight)
+			assertHourCycle(t, f, tc.cycle, midnight.Add(21*time.Hour))
+			assertCycleRange(t, f, tc.cycle, midnight, midnight.Add(3*time.Hour))
+			assertCycleRange(t, f, tc.cycle, midnight, midnight.Add(27*time.Hour))
+		})
+	}
+}
+
 func assertCycleRange(t *testing.T, f *DateTimeFormat, cycle string, start, end time.Time) {
 	t.Helper()
 	parts, err := f.FormatRangeToParts(start, end)
@@ -150,6 +209,90 @@ func TestExplicitHourCycles(t *testing.T) {
 			t.Errorf("overridden hc retained: %s", f.ResolvedOptions().Locale)
 		}
 		assertHourCycle(t, f, optionCycle, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	}
+}
+
+func TestBasicHourCyclePatterns(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ locale, cycle, hour, minute string }{
+		{"en-US", "h11", "0 AM", "0:07 AM"},
+		{"en-GB", "h12", "12 am", "12:07 am"},
+		{"fr-CA", "h12", "12 h a.m.", "12 h 07 a.m."},
+		{"ja-JP", "h12", "午前12時", "午前12:07"},
+		{"en-US", "h23", "00", "00:07"},
+	} {
+		t.Run(tc.locale+"/"+tc.cycle, func(t *testing.T) {
+			t.Parallel()
+			for _, withMinute := range []bool{false, true} {
+				opts := Options{Hour: new("numeric"), HourCycle: new(tc.cycle), FormatMatcher: new("basic"), TimeZone: new("UTC")}
+				want := tc.hour
+				if withMinute {
+					opts.Minute = new("numeric")
+					want = tc.minute
+				}
+				f, err := New(intltest.LocaleList(t, tc.locale), opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				start := time.Date(2026, 1, 1, 0, 7, 0, 0, time.UTC)
+				if got := mustDateFormat(t, f, start); got != want {
+					t.Errorf("minute=%t: Format = %q, want %q", withMinute, got, want)
+				}
+				if got := joinPartValues(mustDateFormatToParts(t, f, start)); got != want {
+					t.Errorf("minute=%t: parts = %q, want %q", withMinute, got, want)
+				}
+				assertCycleRange(t, f, tc.cycle, start, start.Add(3*time.Hour))
+				assertCycleRange(t, f, tc.cycle, start, start.Add(27*time.Hour))
+			}
+		})
+	}
+}
+
+func TestBasicHourCyclePreservesFlexibleDayPeriod(t *testing.T) {
+	t.Parallel()
+	for _, cycle := range []string{"h23", "h24"} {
+		t.Run(cycle, func(t *testing.T) {
+			f, err := New(intltest.LocaleList(t, "en-US"), Options{
+				FormatMatcher: new("basic"), TimeZone: new("UTC"),
+				HourCycle: new(cycle), Hour: new("numeric"),
+				Minute: new("2-digit"), Second: new("2-digit"), DayPeriod: new("short"),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := f.ResolvedOptions().DayPeriod; got == nil || *got != ShortFieldStyle {
+				t.Errorf("resolved dayPeriod = %v, want short", got)
+			}
+			start := time.Date(2026, 1, 1, 13, 7, 8, 0, time.UTC)
+			want := "13:07:08 in the afternoon"
+			if got := mustDateFormat(t, f, start); got != want {
+				t.Errorf("Format = %q, want %q", got, want)
+			}
+			if got := joinPartValues(mustDateFormatToParts(t, f, start)); got != want {
+				t.Errorf("parts = %q, want %q", got, want)
+			}
+			for _, delta := range []time.Duration{time.Hour, 25 * time.Hour} {
+				end := start.Add(delta)
+				parts := mustDateFormatRangeToParts(t, f, start, end)
+				var joined strings.Builder
+				periods := 0
+				for _, part := range parts {
+					joined.WriteString(part.Value)
+					if part.Type == PartDayPeriod {
+						periods++
+						if part.Value != "in the afternoon" {
+							t.Errorf("range dayPeriod = %q", part.Value)
+						}
+					}
+				}
+				if periods == 0 {
+					t.Errorf("range %v omitted flexible dayPeriod: %v", delta, parts)
+				}
+				if got := mustDateFormatRange(t, f, start, end); got != joined.String() {
+					t.Errorf("range text = %q, parts = %q", got, joined.String())
+				}
+			}
+		})
 	}
 }
 

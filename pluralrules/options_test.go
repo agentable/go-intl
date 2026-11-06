@@ -360,3 +360,44 @@ func TestSupportedLocalesOfErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestInactiveFractionOptions(t *testing.T) {
+	t.Parallel()
+	locales := intltest.LocaleList(t, "en")
+	control, err := New(locales, Options{MaximumSignificantDigits: new(2)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, digits := range [][2]int{{-1, 2}, {0, 101}, {5, 2}} {
+		for _, priority := range []string{"auto", "morePrecision", "lessPrecision"} {
+			f, err := New(locales, Options{MaximumSignificantDigits: new(2), MinimumFractionDigits: new(digits[0]), MaximumFractionDigits: new(digits[1]), RoundingPriority: new(priority)})
+			if priority != "auto" {
+				if !errors.Is(err, intlerr.ErrInvalidOption) {
+					t.Fatalf("%s %v: error = %v", priority, digits, err)
+				}
+				continue
+			}
+			if err != nil {
+				t.Fatalf("inactive %v: %v", digits, err)
+			}
+			resolved := f.ResolvedOptions()
+			if resolved.MinimumFractionDigits != nil || resolved.MaximumFractionDigits != nil {
+				t.Fatal("inactive fraction slots present")
+			}
+			for _, value := range []int64{1, 12, 123} {
+				if got, want := f.Select(Int(value)), control.Select(Int(value)); got != want {
+					t.Fatalf("%v: got %v, want %v", digits, got, want)
+				}
+			}
+		}
+	}
+}
+
+func TestPluralRulesCompactDisplayPrecedesDigits(t *testing.T) {
+	t.Parallel()
+	_, err := New(intltest.LocaleList(t, "en"), Options{CompactDisplay: new("bad"), MinimumIntegerDigits: new(0)})
+	if !errors.Is(err, intlerr.ErrInvalidOption) {
+		t.Fatalf("error = %v, want ErrInvalidOption", err)
+	}
+	testcontract.AssertOptionError(t, err, "pluralrules", intlerr.InvalidOption, "compactDisplay", "bad", "en")
+}

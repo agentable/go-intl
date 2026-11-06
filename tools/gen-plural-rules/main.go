@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
 	"flag"
 	"fmt"
 	"go/format"
@@ -78,7 +79,7 @@ var categoryOrder = [...]Category{
 }
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	if err := run(os.Args[1:]); err != nil && !errors.Is(err, flag.ErrHelp) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

@@ -23,7 +23,7 @@ A Go implementation of the active ECMA-402 `Intl` API with typed constructors an
 go get github.com/agentable/go-intl
 ```
 
-Requires **Go 1.27.0**.
+Requires **Go 1.27.3**.
 
 ## Quick Start
 
@@ -59,7 +59,7 @@ func main() {
 	price := priceFormat.Format(numberformat.Float(1234.5))
 
 	dateFormat, err := datetimeformat.New(locales, datetimeformat.Options{
-		DateStyle: gointl.String(datetimeformat.LongDateTimeStyle),
+		DateStyle: gointl.String(datetimeformat.LongStyle),
 		TimeZone:  gointl.String("America/New_York"),
 	})
 	if err != nil {
@@ -101,29 +101,27 @@ Prefer constructor subpackages in services that need one formatter. Importing `g
 
 See the [Go package documentation](https://pkg.go.dev/github.com/agentable/go-intl) for the full API reference.
 
-## Experimental Modules
+## Experimental LocaleMatcher
 
-`github.com/agentable/go-intl/x` is the experimental satellite module: Go bridges for in-flight TC39 proposals and non-surface exposure of finished-spec machinery, governed by [SPEC 80](SPECS/80-x-modules.md). It stays **v0 with no compatibility promise** — pin an exact version.
-
-| Package | Use |
-|---------|-----|
-| `github.com/agentable/go-intl/x/localematcher` | Match requested locales against your available locales with the same ECMA-402 lookup/best-fit algorithms and CLDR data that back the `Intl` constructors (Stage 1 `Intl.LocaleMatcher` shape). |
-
-```bash
-go get github.com/agentable/go-intl/x/localematcher
-```
+[`x/localematcher`](x/README.md) matches application resource locales using the
+official Stage 1 `Intl.LocaleMatcher` constructor draft. It ships in the root
+module and may change with the proposal; pin a root-module version.
 
 ```go
-result := localematcher.Match(
-    []string{"zh-HK"},
-    []string{"en", "zh-Hans", "zh-Hant", "ja"},
-    "en",
-    localematcher.AlgorithmBestFit,
-)
-fmt.Println(result.Locale) // zh-Hant
+available, err := locale.ParseList("en", "zh-Hans", "zh-Hant")
+if err != nil { return err }
+matcher, err := localematcher.New(available, localematcher.Options{})
+if err != nil { return err }
+requested, err := locale.ParseList("zh-HK")
+if err != nil { return err }
+if matched, ok := matcher.Match(requested); ok {
+    fmt.Println(matched.String()) // zh-Hant
+}
 ```
 
-See [x/README.md](x/README.md) for the module charter, versioning, and graduation policy.
+Import `github.com/agentable/go-intl/x/localematcher` alongside `locale`.
+Results come from your available set; your application owns default fallback.
+See [SPEC 80](SPECS/80-x-modules.md) for the pinned official draft contract.
 
 ## Native Intl Mapping
 
@@ -189,11 +187,13 @@ Short examples below use a local `mustLocaleList` helper for brevity; production
 
 Use constructor packages directly in production services that need one `Intl` constructor, or when calls share locale, options, parts, ranges, or resolved options. This keeps the dependency graph tied to the formatter you use; the root package is measured as aggregate facade cost.
 
+Use the zero-dependency `github.com/agentable/go-intl/option` package for optional scalar helpers when importing constructor packages directly.
+
 ```go
 locales := mustLocaleList("en-US")
 
 compactFormat, err := numberformat.New(locales, numberformat.Options{
-	Notation: gointl.String(numberformat.CompactNotation),
+	Notation: option.String(numberformat.CompactNotation),
 })
 if err != nil {
 	return err
@@ -323,7 +323,7 @@ root-namespace examples above stay the primary documented style.
 
 ### Format Exact Decimals
 
-Use `Decimal` when binary `float64` cannot represent the value you need to
+Use `ParseValue` when binary `float64` cannot represent the value you need to
 format. It accepts Intl numeric strings, including surrounding ECMAScript
 whitespace, empty strings (zero), and unsigned `0b`/`0o`/`0x` integers.
 Malformed strings return an error. Finite nonzero values retain their exact
@@ -340,7 +340,7 @@ if err != nil {
 	return err
 }
 
-value, err := numberformat.Decimal("0.075")
+value, err := numberformat.ParseValue("0.075")
 if err != nil {
 	return err
 }
@@ -441,8 +441,8 @@ for the complete presence policy.
 
 ```go
 format, err := datetimeformat.New(mustLocaleList("en-US"), datetimeformat.Options{
-	DateStyle: gointl.String(datetimeformat.MediumDateTimeStyle),
-	TimeStyle: gointl.String(datetimeformat.ShortDateTimeStyle),
+	DateStyle: gointl.String(datetimeformat.MediumStyle),
+	TimeStyle: gointl.String(datetimeformat.ShortStyle),
 	TimeZone:  gointl.String("America/New_York"),
 })
 if err != nil {
@@ -464,7 +464,10 @@ if err != nil {
 fmt.Println(rangeText)
 ```
 
-Omitting `TimeZone` uses the host default. A Go `TZ` file path such as
+Omitting `TimeZone` uses a recognizable name from Go's local zone or the Unix
+`/etc/localtime` link, falling back to UTC when neither provides a name. Automatic
+Windows zone discovery is not verified; use an explicit IANA `TimeZone` for
+portable results. A Go `TZ` file path such as
 `/usr/share/zoneinfo/America/New_York` may lack a usable Intl time-zone
 identifier, so `New` can return `gointl.ErrUnsupportedOption` even when Go can
 load that file. Set `TimeZone: gointl.String("America/New_York")`, as above,
@@ -537,9 +540,10 @@ range data even when their mathematical rounded values compare equal. Cardinal
 ranges use the locale's explicit category-pair result when present and return
 `other` when that pair is not defined.
 
-Compact plural selection follows native Intl behavior. Public `PluralRules`
-compact notation selects from the source decimal string plus the selected
-compact exponent. `NumberFormat` separately chooses the compact suffix from
+Public `PluralRules` compact notation selects from the rounded, unscaled source
+decimal string. Its compact exponent comes from that same formatted magnitude,
+so equal formatted source strings always select the same category. Pinned data
+and native-engine versions can differ at rounding thresholds. `NumberFormat` separately chooses the compact suffix from
 the visible compact mantissa, while localized currency names and unit phrases
 use the rounded value at its original magnitude.
 
@@ -717,7 +721,16 @@ single curated default cannot serve the product.
 
 To check runtime support, call the constructor package's `SupportedLocalesOf`.
 
-Locale parsing accepts BCP 47 tags through `golang.org/x/text/language`.
+Locale parsing accepts grammatical Unicode BCP 47 identifiers, including unknown
+subtags, and canonicalizes them with pinned CLDR aliases. `Locale.Tag()` returns
+`(language.Tag, error)` and includes Unicode extensions; it fails if x/text
+cannot preserve the complete identity. Use `String()`/`Parse` for an unrestricted
+identity round trip. `locale.Options.Variants` replaces the variant sequence;
+for example `Variants: gointl.String("1996")` turns `de-1901` into `de-1996`.
+Acceptance of a locale identifier does not imply available formatter data.
+`GetNumberingSystems()` uses NumberFormat locale lookup, preserving supported
+regional prefixes such as `ar-EG` in `ar-EG-x-private`. An explicit `nu` extension
+is returned directly; unmatched locales return `latn`.
 Root supported-value accessors return ECMA-402 values: calendars are `gregory`
 and `iso8601`, numbering systems include the simple digit systems from
 ECMA-402, units come from the sanctioned unit list, currencies come from CLDR,
@@ -793,6 +806,7 @@ resolved divergence history. Do not create or retain empty placeholder
 `divergences.md` files. The current active divergence audit is:
 
 - [`datetimeformat/testdata/divergences.md`](datetimeformat/testdata/divergences.md)
+- [`numberformat/testdata/divergences.md`](numberformat/testdata/divergences.md)
 
 Each entry uses the strict `id`, `source`, `owner`, `status`, `reason`, optional
 DateTimeFormat `native_witness`, `review_after`, and `removal_path` fields.
@@ -848,9 +862,10 @@ Development guidance for coding agents lives in [`CLAUDE.md`](CLAUDE.md), with
 
 ```bash
 task deps                 # Download modules and tidy go.mod/go.sum
+task deps:update          # Update dependencies across all four modules
 task fmt                  # Format Go code
 task vet                  # Run go vet
-task test                 # Run go test -race -p 1 ./...
+task test                 # Run go test -race -count=1 -p 1 ./...
 task modules:verify       # Test, vet, and check tidy diff in all four release modules
 task lint                 # Run go mod tidy check and golangci-lint
 task codegraph:source        # Build a source-only CodeGraph mirror under .tmp/codegraph-source
@@ -862,12 +877,28 @@ task data                 # Regenerate CLDR data into internal/cldr/ (writes bac
 task data:check           # Regenerate/compare CLDR data and run gen-cldr test/vet
 task data:contract        # Verify generated CLDR data contracts
 task build:size           # Report root, formatter, and CLDR binary size deltas
-task build:size:cold      # Report the same size table after clearing Go's build cache
+task build:size:cold      # Measure each build with its own empty Go cache
 task bench:run            # Run one-shot benchmark telemetry
 task bench                # Produce a non-blocking benchmark report, optionally with BASELINE=<file>
 task vuln                 # Run govulncheck
 task verify               # Run deps, fmt, vet, lint, race/module tests, conformance, data contract, and vuln
 ```
+
+`task test`, `task modules:verify`, and `task verify` automatically prepare the
+pinned CLDR packages and verify/download the pinned IANA archive before tests.
+Install Node/npm as well as Go and Task on a fresh checkout; an existing local
+time-zone archive cache is not required.
+
+The committed `go.work` links the four release modules during local development.
+The generators can also run outside a checkout at a coordinated release version:
+
+```bash
+go run github.com/agentable/go-intl/tools/gen-cldr@v0.4.17 -h
+go run github.com/agentable/go-intl/tools/gen-plural-rules@v0.4.17 -h
+go run github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs@v0.4.17 -h
+```
+
+Generation requires the explicit input and output paths shown by each command.
 
 Run a targeted package while developing:
 

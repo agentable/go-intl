@@ -106,3 +106,23 @@ func BenchmarkNumberFormat_New(b *testing.B) {
 		_ = format
 	}
 }
+
+func BenchmarkNumberFormat_SupportedLocalesOf(b *testing.B) {
+	for _, tag := range []string{"en", "nn"} {
+		for _, algorithm := range []string{"lookup", "best fit"} {
+			b.Run(tag+"/"+algorithm, func(b *testing.B) {
+				requested := intltest.LocaleList(b, tag)
+				opts := Options{LocaleMatcher: &algorithm}
+				if _, err := SupportedLocalesOf(requested, opts); err != nil {
+					b.Fatal(err)
+				}
+				b.ReportAllocs()
+				for b.Loop() {
+					if _, err := SupportedLocalesOf(requested, opts); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		}
+	}
+}

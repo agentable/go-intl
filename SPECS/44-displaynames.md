@@ -1,6 +1,5 @@
 # 44 — DisplayNames
 
-Status: active
 Owns: `displaynames` package public API, type/style/fallback resolution, CLDR localenames data binding.
 
 References:
@@ -96,7 +95,7 @@ Display-name data comes from generated CLDR payloads in `internal/cldr/displayna
 | Language | `cldr-localenames-full/main/<locale>/languages.json` | `-alt-short` keys map to `Style=ShortStyle`, `-alt-narrow` keys map to `Style=NarrowStyle`; both fall back to long. `LanguageDisplay=StandardLanguageDisplay` starts from a bare language/style name and composes all script, region, and variant names once through `localePattern` / `localeSeparator`. Generated standard rows contain bare languages only; composite dialect rows remain exclusive to dialect lookup. |
 | Region | `cldr-localenames-full/main/<locale>/territories.json` | `-alt-short` mapped to ShortStyle. Numeric UN M.49 region codes are returned as-is when they are not a CLDR-carried macro-region (e.g. `of("840")` → `"840"`), matching V8/Node — go-intl does not synthesize an M.49→alpha-2 alias table. |
 | Script | `cldr-localenames-full/main/<locale>/scripts.json` | |
-| Currency | `cldr-numbers-full/main/<locale>/currencies.json`. All styles return the localized `displayName` (singular noun, exposed through `cldr.Locale.CurrencyCanonicalName`); `of("USD")` is `"US Dollar"` for long/short/narrow alike, matching V8/Node. Currency *symbols* (`$`, `symbol-alt-narrow`) are not exposed through DisplayNames — that surface belongs to NumberFormat. | |
+| Currency | `cldr-numbers-full/main/<locale>/currencies.json`. All styles return the localized `displayName` (singular noun, exposed through `internal/cldr/currency.CanonicalName`, selected by `internal/cldr/displaynames/accessors.go:currencyDisplay`); `of("USD")` is `"US Dollar"` for long/short/narrow alike, matching V8/Node. Currency *symbols* (`$`, `symbol-alt-narrow`) are not exposed through DisplayNames — that surface belongs to NumberFormat. | |
 | Calendar | `cldr-localenames-full/main/<locale>/localeDisplayNames.json#types.calendar`. ECMA-402 calendar keys are aliased to CLDR keys at lookup time (`gregory` → `gregorian`, `ethioaa` → `ethiopic-amete-alem`). | |
 | DateTimeField | `cldr-dates-full/main/<locale>/dateFields.json` `fields.<field>.displayName`. CLDR field keys are normalized to ECMA-402 names (`week` → `weekOfYear`, `zone` → `timeZoneName`); `-short` and `-narrow` suffixes feed the corresponding styles. | |
 
@@ -104,13 +103,15 @@ Lookup walks only the resolved data locale's truncation parent chain (`en-US` �
 
 Generation MUST:
 
-1. Live in `tools/gen-cldr/cldr/displaynames.go`, `tools/gen-cldr/extract/displaynames.go`, and `tools/gen-cldr/codegen/displaynames.go`.
+1. Live in `tools/gen-cldr/cldr/displaynames.go`, `tools/gen-cldr/extract/displaynames.go`, and `tools/gen-cldr/codegen/displaynames_encode.go`.
 2. Use the project-wide locale profile (`tools/locale-profile.json` → `locales`).
 3. Emit const-only `internal/cldr/displaynames/data.go`. The hand-written decode layer owns per-kind lazy gates; language composition additionally reads script/territory/variant payloads as needed. The supported-locale accessor uses its narrow generated index.
 
 ---
 
 ## 4. Errors
+
+Constructor validation reports the first error in `localeMatcher → style → type → fallback → languageDisplay` order. `displaynames/validate_test.go:TestDisplayNamesOptionErrorOrder` exercises simultaneous invalid options through `New`, including missing type with invalid style.
 
 - `gointl.ErrInvalidOption`: missing `Type`, invalid enum value, or unsupported `LocaleMatcher`.
 - `ErrInvalidCode`: invalid `Of` input code shape for the resolved display-name type.
@@ -128,7 +129,7 @@ func SupportedLocalesOf(locales locale.List, opts Options) (locale.List, error)
 MUST rules:
 
 1. Use `internal/cldr/displaynames.SupportedLocales()` as the supported set.
-2. Call `localematcher.FilterLocalesWithMaximizer`.
+2. Call `internal/ecma402.SupportedLocalesOf` with the formatter-owned compiled matcher, requested locales, and localeMatcher option. This shared boundary owns option validation, canonical deduplication, and matcher dispatch.
 3. Accept one `Options` value; `Options{}` represents omitted static-method options.
 4. Read only `LocaleMatcher`; ignore other options for this static method. `nil` means omitted and an explicit empty string is invalid.
 
@@ -151,10 +152,16 @@ locale. `fallback=code` inserts a missing component code, while `none` yields no
 name. Lookups never borrow a name from unrelated English data. Currency names
 are no longer restricted to an arbitrary common-currency allowlist.
 
-Language code canonicalization shares x/text's default parse followed by
-`(Macro | CLDR).Canonicalize` through `internal/localeid.ParseTag` with Locale,
-preserving the `no`/`nb` distinction. DisplayNames retains its narrower
-language-identifier grammar and fallback handling for legitimate unrecognized
-codes; extensions and private use remain invalid for `Of`.
+Language code canonicalization shares `internal/localeid.ParseTag` and pinned
+CLDR aliases with Locale, including unknown grammatical identities and no/nb.
+DisplayNames retains its narrower language-identifier grammar: extensions and
+private use are invalid for `Of`. If the language itself is unknown,
+`fallback=code` uses that language code as the base and still composes known
+script/region/variant names (`zz-US` → `zz (United States)` in English).
+`fallback=none` returns no name. This composition policy follows ICU; it is not a
+claim that ECMA-402 mandates that exact localized wording. Evidence:
+`displaynames/language_composition_test.go:TestUnknownLanguageComponentFallback`
+and `.references/node/deps/icu-small/source/common/locdspnm.cpp`.
+
 
 Composition normalizes parentheses only in the joined remainder before inserting it into the locale pattern, following ICU `locdspnm.cpp`: a fullwidth opening parenthesis in the outer pattern selects fullwidth brackets; otherwise ASCII parentheses become ASCII brackets. Bare names and standalone region names retain their original spelling. `composition-parentheses.json` covers en/zh/fr, both language display modes, and standalone regions.

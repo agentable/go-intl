@@ -39,6 +39,12 @@ func TestListConformanceObservations(t *testing.T) {
 		{"wrong element", conformance.Fixture{Expected: new("A and B"), ExpectedParts: []conformance.Part{{Type: "element", Value: "wrong"}}}, "FormatToParts"},
 		{"wrong literal", conformance.Fixture{Expected: new("A and B"), ExpectedParts: []conformance.Part{{Type: "literal", Value: "A and B"}}}, "FormatToParts"},
 		{"empty expected parts", conformance.Fixture{Expected: new("A and B"), ExpectedParts: []conformance.Part{}}, "FormatToParts"},
+		{"constructor error and text", conformance.Fixture{Options: jsontext.Value(`{"style":"invalid"}`), ErrorCode: "invalid_option", Expected: new("IMPOSSIBLE")}, "unsupported listformat observation"},
+		{"constructor error and resolved", conformance.Fixture{Options: jsontext.Value(`{"style":"invalid"}`), ErrorCode: "invalid_option", ExpectedResolved: jsontext.Value(`{}`)}, "unsupported listformat observation"},
+		{"static and instance text", conformance.Fixture{Feature: "supportedLocalesOf", Input: jsontext.Value(`["en"]`), ExpectedLocales: []string{"en"}, Expected: new("IMPOSSIBLE")}, "unsupported supportedLocalesOf observation"},
+		{"static error and locales", conformance.Fixture{Feature: "supportedLocalesOf", Options: jsontext.Value(`{"localeMatcher":"bad"}`), Input: jsontext.Value(`["en"]`), ErrorCode: "invalidOption", ExpectedLocales: []string{}}, "unsupported supportedLocalesOf observation"},
+		{"static ignores instance options", conformance.Fixture{Feature: "supportedLocalesOf", Options: jsontext.Value(`{"style":"invalid"}`), Input: jsontext.Value(`["en"]`), ExpectedLocales: []string{"en"}}, ""},
+		{"static error only", conformance.Fixture{Feature: "supportedLocalesOf", Options: jsontext.Value(`{"localeMatcher":"bad"}`), Input: jsontext.Value(`["en"]`), ErrorCode: "invalidOption"}, ""},
 		{"supported empty", conformance.Fixture{Feature: "supportedLocalesOf", Input: jsontext.Value(`[]`), ExpectedLocales: []string{}}, ""},
 	}
 	for _, tc := range tests {
@@ -49,7 +55,9 @@ func TestListConformanceObservations(t *testing.T) {
 			f.ID = "observation"
 			f.Source = "manual:adapter"
 			f.Locale = "en"
-			f.Options = jsontext.Value(`{}`)
+			if f.Options == nil {
+				f.Options = jsontext.Value(`{}`)
+			}
 			if f.Input == nil {
 				f.Input = jsontext.Value(`["A","B"]`)
 			}

@@ -143,8 +143,8 @@ func TestRootErrorSentinelsClassifyFormatterErrors(t *testing.T) {
 		t.Fatalf("displaynames.Of(invalid code) error = %v, want root ErrInvalidCode", err)
 	}
 
-	if _, err := numberformat.Decimal("not a number"); !errors.Is(err, ErrInvalidValue) {
-		t.Fatalf("numberformat.Decimal(invalid) error = %v, want root ErrInvalidValue", err)
+	if _, err := numberformat.ParseValue("not a number"); !errors.Is(err, ErrInvalidValue) {
+		t.Fatalf("numberformat.ParseValue(invalid) error = %v, want root ErrInvalidValue", err)
 	} else {
 		testcontract.AssertIntlError(t, err, InvalidValue, "numberformat", "decimal", "not a number", "")
 		testcontract.AssertErrorExpected(t, err, "an Intl numeric string (decimal, binary, octal, hexadecimal, or Infinity), or NaN")
@@ -311,3 +311,29 @@ func requireRootRelativeTimeFormatAlias(*RelativeTimeFormat) {}
 func requireRootDurationFormatAlias(*DurationFormat) {}
 
 func requireRootDisplayNamesAlias(*DisplayNames) {}
+
+func TestUnknownLocaleIdentityAndFormatterData(t *testing.T) {
+	t.Parallel()
+	requested, err := locale.ParseList("abcdefgh", "xx-INVALID", "und-Gara")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := GetCanonicalLocales(requested)
+	for i, want := range []string{"abcdefgh", "xx-invalid", "und-Gara"} {
+		if got[i].String() != want {
+			t.Fatalf("canonical identity: %s", got[i])
+		}
+	}
+	// Lookup membership asks whether there is data, not whether syntax was accepted.
+	supported, err := numberformat.SupportedLocalesOf(requested, numberformat.Options{LocaleMatcher: new("lookup")})
+	if err != nil || len(supported) != 0 {
+		t.Fatalf("unknown identity advertised as supported: %v, %v", supported, err)
+	}
+	nf, err := numberformat.New(requested, numberformat.Options{LocaleMatcher: new("lookup")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := nf.Format(numberformat.Int(123)); got != "123" {
+		t.Fatalf("default data fallback: %q", got)
+	}
+}

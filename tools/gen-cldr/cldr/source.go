@@ -15,6 +15,7 @@ type Source struct {
 	LikelySubtags      map[string]string
 	ScriptDirections   map[string]bool
 	UnicodeTypeAliases []UnicodeTypeAlias
+	IdentityAliases    IdentityAliases
 	LanguageMatching   LanguageMatching
 	Numbers            map[string]Numbers
 	NumberRootHashes   map[string]string
@@ -60,6 +61,10 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 		return nil, err
 	}
 	unicodeTypeAliases, err := loadUnicodeTypeAliases(resolved)
+	if err != nil {
+		return nil, err
+	}
+	identityAliases, err := loadIdentityAliases(resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +119,7 @@ func LoadAll(ctx context.Context, root string, versions Versions, localeAllowlis
 		LikelySubtags:      likely,
 		ScriptDirections:   scriptDirections,
 		UnicodeTypeAliases: unicodeTypeAliases,
+		IdentityAliases:    identityAliases,
 		LanguageMatching:   languageMatching,
 		Numbers:            numbers,
 		NumberRootHashes:   numberRoot.hashes,

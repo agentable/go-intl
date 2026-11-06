@@ -652,3 +652,38 @@ func writeConformanceTestFile(t *testing.T, path, data string) {
 		t.Fatal(err)
 	}
 }
+
+func TestSkippedWitnessReferences(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"xfail", "self", "mutual"} {
+		t.Run(mode, func(t *testing.T) {
+			root := filepath.Join(t.TempDir(), "datetimeformat")
+			writeCoverageFixtureFile(t, root, "node-v26/test.json", `[
+ {"id":"datetimeformat-node-v26-a","source":"node:v26.0.0:datetimeformat","locale":"en","options":{},"input":"2020-01-01T00:00:00Z","expected":"datetimeformat-node-v26-a"},
+ {"id":"datetimeformat-node-v26-b","source":"node:v26.0.0:datetimeformat","locale":"en","options":{},"input":"2020-01-01T00:00:00Z","expected":"datetimeformat-node-v26-b"}]`)
+			entry := func(id, witness string) string {
+				return "id: " + id + "\nsource: node:v26.0.0:datetimeformat\nowner: datetimeformat\nstatus: accepted\nreason: test\nnative_witness: " + witness + "\nreview_after: 2999-01-01\nremoval_path: test\n"
+			}
+			ledger := entry("datetimeformat-node-v26-a", "datetimeformat-node-v26-b")
+			switch mode {
+			case "xfail":
+				writeXFailFile(t, root, `[{"id":"datetimeformat-node-v26-b","reason":"broken witness","expires_at":"2999-01-01","tracking_issue":"test"}]`)
+			case "self":
+				ledger = entry("datetimeformat-node-v26-a", "datetimeformat-node-v26-a")
+			case "mutual":
+				ledger += entry("datetimeformat-node-v26-b", "datetimeformat-node-v26-a")
+			}
+			writeDivergenceFile(t, root, ledger)
+			if err := ValidateDivergences(root); !errors.Is(err, errInvalidDivergenceWitness) {
+				t.Fatalf("accepted %s witness: %v", mode, err)
+			}
+		})
+	}
+	root := filepath.Join(t.TempDir(), "numberformat")
+	writeCoverageFixtureFile(t, root, "node-v26/test.json", `[{"id":"numberformat-node-v26-w","source":"node:v26.0.0:numberformat","locale":"en","options":{},"input":1,"expected":"1"}]`)
+	writeXFailFile(t, root, `[{"id":"numberformat-node-v26-w","reason":"broken witness","expires_at":"2999-01-01","tracking_issue":"test"}]`)
+	entries := []skipListEntry{{Source: "formatjs:test", Category: "unsupported-extractor-shape", Route: "native-witness", Reason: "test", Witness: "numberformat-node-v26-w"}}
+	if err := validateSkipListEntries("test", entries, []string{root}); !errors.Is(err, errInvalidSkipListWitness) {
+		t.Fatalf("accepted skipped route: %v", err)
+	}
+}

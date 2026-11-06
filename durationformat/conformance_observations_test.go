@@ -19,6 +19,13 @@ func TestDurationConformanceObservations(t *testing.T) {
 		fixture conformance.Fixture
 		failure string
 	}{
+		{"constructor error and text", conformance.Fixture{Options: jsontext.Value(`{"style":"bad"}`), ErrorCode: "invalid_option", Expected: new("IMPOSSIBLE")}, "unsupported durationformat observation"},
+		{"constructor error and resolved", conformance.Fixture{Options: jsontext.Value(`{"style":"bad"}`), ErrorCode: "invalid_option", ExpectedResolved: jsontext.Value(`{}`)}, "unsupported durationformat observation"},
+		{"format error and text", conformance.Fixture{Feature: "format", Input: jsontext.Value(`{"seconds":1.5}`), ErrorCode: "invalid_value", Expected: new("IMPOSSIBLE")}, "unsupported durationformat observation"},
+		{"parts error and parts", conformance.Fixture{Feature: "formatToParts", Input: jsontext.Value(`{"seconds":1.5}`), ErrorCode: "invalid_value", ExpectedParts: []conformance.Part{}}, "unsupported durationformat observation"},
+		{"format error and resolved", conformance.Fixture{Feature: "format", Input: jsontext.Value(`{"seconds":1.5}`), ErrorCode: "invalid_value", ExpectedResolved: resolved}, ""},
+		{"parts error and resolved", conformance.Fixture{Feature: "formatToParts", Input: jsontext.Value(`{"seconds":1.5}`), ErrorCode: "invalid_value", ExpectedResolved: resolved}, ""},
+		{"format error and wrong resolved", conformance.Fixture{Feature: "format", Input: jsontext.Value(`{"seconds":1.5}`), ErrorCode: "invalid_value", ExpectedResolved: jsontext.Value(`{"locale":"wrong"}`)}, "ResolvedOptions"},
 		{"resolved only", conformance.Fixture{Input: jsontext.Value(`"not a duration"`), ExpectedResolved: resolved}, ""},
 		{"format fraction", conformance.Fixture{Feature: "format", Input: jsontext.Value(`{"seconds":1.5}`), ErrorCode: "invalid_value"}, ""},
 		{"parts fraction", conformance.Fixture{Feature: "formatToParts", Input: jsontext.Value(`{"seconds":1.5}`), ErrorCode: "invalid_value"}, ""},

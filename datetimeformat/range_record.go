@@ -73,7 +73,7 @@ func (r *rangePatternRecord) addDateFallbackPatterns(selected selectedPattern, p
 		if !ok {
 			return
 		}
-		dateTimePattern := dateTimeStylePattern(gregorian, ShortDateTimeStyle)
+		dateTimePattern := dateTimeStylePattern(gregorian, ShortStyle)
 		fallback := combineRangeEndpointPattern(dateTimePattern, dateFormat.Pattern, selected.time)
 		for field := dateRangeYear; field < dateRangeFieldCount; field++ {
 			r.dateFallbacks[field] = compilePatternProgram(fallback)
@@ -250,7 +250,7 @@ func timeRangeFieldEqual(field timeRangeField, periodKind rangePeriodKind, forma
 		case rangePeriodStandard:
 			return (start.Hour < 12) == (end.Hour < 12)
 		case rangePeriodFlexible:
-			return flexibleDayPeriodValue(format.cldrLoc, start) == flexibleDayPeriodValue(format.cldrLoc, end)
+			return format.flexibleDayPeriodValue(start) == format.flexibleDayPeriodValue(end)
 		case rangePeriodNone:
 			return true
 		}

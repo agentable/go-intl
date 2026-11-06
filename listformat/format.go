@@ -67,45 +67,47 @@ func (f *ListFormat) FormatToParts(list []string) []Part {
 		return []Part{}
 	case 1:
 		return []Part{{Type: PartElement, Value: list[0]}}
-	case 2:
-		return listPatternParts(templates.pair.forElement(list[1]), list[0], []Part{{Type: PartElement, Value: list[1]}})
 	}
 
-	lastPairIndex := len(list) - 2
 	last := list[len(list)-1]
-	result := listPatternParts(templates.end.forElement(last), list[lastPairIndex], []Part{{Type: PartElement, Value: last}})
-	for i := lastPairIndex - 1; i > 0; i-- {
-		result = listPatternParts(templates.middle, list[i], result)
+	var pattern, end ecma402.Pattern
+	var count int
+	if len(list) == 2 {
+		pattern = templates.pair.forElement(last)
+		count = len(pattern)
+	} else {
+		pattern = templates.start
+		end = templates.end.forElement(last)
+		count = len(pattern) + (len(list)-3)*(len(templates.middle)-1) + len(end) - 1
 	}
-	return listPatternParts(templates.start, list[0], result)
+	out := make([]Part, count)
+	left, right := 0, len(out)-1
+	// Each fold wraps the remaining suffix at {1}. Fill the wrapper from both
+	// ends, leaving its suffix in place instead of copying it at every level.
+	for i, first := range list[:len(list)-1] {
+		for j, part := range pattern {
+			if part.Type == ecma402.PatternPartPlaceholder1 {
+				for k := len(pattern) - 1; k > j; k-- {
+					out[right] = listPatternPart(pattern[k], first)
+					right--
+				}
+				break
+			}
+			out[left] = listPatternPart(part, first)
+			left++
+		}
+		pattern = templates.middle
+		if i == len(list)-3 {
+			pattern = end
+		}
+	}
+	out[left] = Part{Type: PartElement, Value: last}
+	return out
 }
 
-func listPatternParts(pattern ecma402.Pattern, first string, second []Part) []Part {
-	partCount := 0
-	for _, part := range pattern {
-		switch part.Type {
-		case ecma402.PatternPartPlaceholder0:
-			partCount++
-		case ecma402.PatternPartPlaceholder1:
-			partCount += len(second)
-		case ecma402.PatternPartLiteral:
-			partCount++
-		}
+func listPatternPart(part ecma402.Part, first string) Part {
+	if part.Type == ecma402.PatternPartPlaceholder0 {
+		return Part{Type: PartElement, Value: first}
 	}
-
-	out := make([]Part, partCount)
-	outIndex := 0
-	for _, part := range pattern {
-		switch part.Type {
-		case ecma402.PatternPartPlaceholder0:
-			out[outIndex] = Part{Type: PartElement, Value: first}
-			outIndex++
-		case ecma402.PatternPartPlaceholder1:
-			outIndex += copy(out[outIndex:], second)
-		case ecma402.PatternPartLiteral:
-			out[outIndex] = Part{Type: PartLiteral, Value: part.Value}
-			outIndex++
-		}
-	}
-	return out
+	return Part{Type: PartLiteral, Value: part.Value}
 }

@@ -1,6 +1,8 @@
 package listformat
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/agentable/go-intl/internal/intltest"
@@ -40,4 +42,39 @@ func benchmarkListFormat(b *testing.B, opts Options) *ListFormat {
 		b.Fatal(err)
 	}
 	return format
+}
+
+func BenchmarkListFormat_Format_Scale(b *testing.B) {
+	for _, size := range []int{10, 100, 1000} {
+		b.Run(strconv.Itoa(size), func(b *testing.B) {
+			format := benchmarkListFormat(b, Options{})
+			list := strings.Split(strings.Repeat("Alpha,", size-1)+"Alpha", ",")
+			want := strings.Repeat("Alpha, ", size-1) + "and Alpha"
+			var got string
+			b.ReportAllocs()
+			for b.Loop() {
+				got = format.Format(list)
+			}
+			if got != want {
+				b.Fatalf("Format returned incorrect output for %d elements", size)
+			}
+		})
+	}
+}
+
+func BenchmarkListFormat_FormatToParts_Scale(b *testing.B) {
+	for _, size := range []int{10, 100, 1000} {
+		b.Run(strconv.Itoa(size), func(b *testing.B) {
+			format := benchmarkListFormat(b, Options{})
+			list := strings.Split(strings.Repeat("Alpha,", size-1)+"Alpha", ",")
+			var got []Part
+			b.ReportAllocs()
+			for b.Loop() {
+				got = format.FormatToParts(list)
+			}
+			if len(got) != 2*size-1 || got[0] != (Part{Type: PartElement, Value: "Alpha"}) || got[len(got)-1] != got[0] {
+				b.Fatalf("FormatToParts returned incorrect output for %d elements", size)
+			}
+		})
+	}
 }

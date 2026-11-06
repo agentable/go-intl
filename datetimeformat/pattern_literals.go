@@ -23,6 +23,9 @@ func normalizePatternLiteral(value string) string {
 }
 
 func consumeQuotedPatternLiteral(pattern string) (string, string) {
+	if strings.HasPrefix(pattern, "''") {
+		return "'", pattern[2:]
+	}
 	var b strings.Builder
 	for i := 1; i < len(pattern); i++ {
 		if pattern[i] != '\'' {

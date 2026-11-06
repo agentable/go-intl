@@ -1,6 +1,5 @@
 # SPEC 20 — NumberFormat
 
-> **Status:** Draft (2026-05-08)
 > **Closes Open Question:** SPECS/00 §8 Q2 (Functional Options vs Config Struct)
 > **Owner:** `numberformat/`
 > **Reference contract:** `.references/ecma402/spec/numberformat.html` first, then `formatjs/packages/intl-numberformat/` + `formatjs/packages/ecma402-abstract/NumberFormat/`
@@ -62,7 +61,7 @@ func Int(v int64) Value
 func Uint(v uint64) Value
 func Float(v float64) Value
 func BigInt(v *big.Int) Value
-func Decimal(s string) (Value, error)
+func ParseValue(s string) (Value, error)
 
 func (f *NumberFormat) Format(v Value) string
 func (f *NumberFormat) FormatToParts(v Value) []Part
@@ -77,15 +76,15 @@ func (f *NumberFormat) ResolvedOptions() ResolvedOptions
 1. `New` **MUST** complete all option verification during the construction period, and `error` will be returned if it fails.
 2. `New` accepts a `Options` value. `New(locales, Options{})` is equivalent to JS passing an empty options object or omitting options; multiple options objects are not Go API shapes and are rejected by the compiler.
 3. `Format` / `FormatToParts` / range methods **MUST** accept opaque `Value`; the caller expresses ECMA-402 numeric input through typed constructors.
-4. `Decimal` **MUST** return `ErrInvalidValue` for malformed decimal; `"NaN"` / `"Infinity"` / `"-Infinity"` are legal decimal strings.
+4. `ParseValue` **MUST** return `ErrInvalidValue` for malformed decimal; `"NaN"` / `"Infinity"` / `"-Infinity"` are legal decimal strings.
 5. `NumberFormat` is an immutable value; all methods on `*NumberFormat` must be concurrency-safe.
 6. `ResolvedOptions` **MUST** return an immutable snapshot (value type); multiple calls return equal results.
 
-> **Why**: Construction-time verification centrally handles configuration errors; runtime numeric type boundaries are expressed by `Value` constructors. The JS side `format(NaN)` does not throw, so `Format(numberformat.Float(math.NaN()))` still returns `"NaN"`; but the failure of Go's decimal string parsing is a caller error and must be exposed through `Decimal`'s `ErrInvalidValue`.
+> **Why**: Construction-time verification centrally handles configuration errors; runtime numeric type boundaries are expressed by `Value` constructors. The JS side `format(NaN)` does not throw, so `Format(numberformat.Float(math.NaN()))` still returns `"NaN"`; but the failure of Go's decimal string parsing is a caller error and must be exposed through `ParseValue`'s `ErrInvalidValue`.
 >
 > **Rejected**:
 > - public `Format(v any)` / `FormatToParts(v any)` - Mix unsupported input, malformed string, NaN display and user errors in the same hot path.
-> - public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal magnitude should use `Decimal`.
+> - public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal magnitude should use `ParseValue`.
 
 ### 1.2 Typed Options(Close §8 Q2)
 
@@ -119,7 +118,7 @@ nf, err := numberformat.New(mustLocaleList("zh-Hant-TW"),
         Notation:       gointl.String(numberformat.CompactNotation),
         CompactDisplay: gointl.String(numberformat.ShortCompactDisplay),
     })
-// nf.Format(numberformat.Int(98765)) == "99,000"
+// nf.Format(numberformat.Int(98765)) == "9.9萬"
 ```
 
 ```go
@@ -167,7 +166,7 @@ Compact and scientific/engineering are adjusted in SetNumberFormatDigitOptions
 10. signDisplay        := typed `*Options.SignDisplay`, where nil means default auto and `gointl.String("")` is invalid
 ```
 
-> **Why**: The order of steps is the observable behavior of the ECMA-402 algorithm (different steps produce different error messages); changing the order will destroy byte equality.
+> **Why**: When several options are invalid, the first structured error is observable. `numberformat/options_test.go:TestNumberFormatOptionErrorOrder` checks the option owner, kind, name and sentinel through `New`. Unit options validate style, currency presence/shape, currencyDisplay, currencySign, unit presence/shape, then unitDisplay. Digits precede compactDisplay, grouping and signDisplay. PluralRules deliberately validates compactDisplay before digits, as its own constructor requires.
 
 ### 2.1 SetNumberFormatUnitOptions
 
@@ -333,7 +332,7 @@ output; it does not call a public `pluralrules.PluralRules` instance.
 2. `formattedDisplayDecimal` is the unlocalized decimal string after scaling the source value by `10^-exponent` and applying the resolved digit options. Forced trailing zeros are retained.
 3. `exponent` is the compact exponent selected from generated compact pattern data, including the rounded-carry case where a value moves into the next compact magnitude.
 4. NumberFormat **MUST** resolve the exact generated cardinal rule for its constructor data locale in `New`. A missing rule is a constructor/data error; runtime formatting must not substitute English or an always-`other` rule. NumberFormat must not parse the plural DSL, copy generated plural rules, or hold a public `pluralrules.PluralRules` instance.
-5. Public `pluralrules.PluralRules` compact notation is a different observable operation: it selects the public plural category from the source decimal string plus the compact exponent. That contract is owned by [SPEC 40 §Compact Operand Contract](./40-pluralrules.md#compact-operand-contract).
+5. Public `pluralrules.PluralRules` compact notation is a different observable operation: it selects the public plural category from the rounded, unscaled source decimal string plus the compact exponent derived from that same string. That contract is owned by [SPEC 40 §Compact Operand Contract](./40-pluralrules.md#compact-operand-contract).
 6. Compact exponent extraction and NumberFormat affix compilation consume the same `internal/pattern.ParseCompact` result. LDML quotes protect literal digits and semicolons; doubled apostrophes emit one apostrophe. The positive subpattern supplies the compact affix; the existing sign partition supplies the sign. A plural pattern may omit the number field (for example Italian `mille`); formatting then retains the compact word and sign without inserting the numeric mantissa. The generator rejects unclosed quotes with the source locale, display and row key, and constructors propagate unexpected malformed embedded data rather than silently using an empty affix.
 7. The constructor selects one complete compact pattern family in this order: requested numbering system/display, `latn` with that display, requested numbering system/short, `latn`/short. The first nonempty family supplies all magnitudes and plural rows; missing individual magnitudes do not borrow rows from another family. This template fallback does not change resolved `numberingSystem` or `compactDisplay`, and does not choose number symbols. An invalid pattern in the selected family remains a constructor error.
 8. Non-name currency compact formatting consumes the generated currency compact family; decimal, percent, unit and currency-name formatting consume the decimal family. A currency compact row is a complete pattern: `¤` becomes a `currency` part, compact words remain `compact`, and whitespace remains `literal`. Its sign is supplied by the canonical sign partition outside the compiled pattern. When a complete currency compact pattern has already supplied a currency part, neither single-value nor range style assembly wraps it in another standard/accounting pattern. Missing compact entries and the raw `0` sentinel use the normal currency pattern.
@@ -460,7 +459,7 @@ package's legal collapse or source attribution strategy.
 **MUST** rules (corresponding to ECMA-402 §15.5.1):
 
 1. Public hot path is **FORBIDDEN** to accept `any`; the caller must construct `numberformat.Value` first, and then call `Format`, `FormatToParts`, `FormatRange` or `FormatRangeToParts`.
-2. `Decimal` accepts ECMA-402 `StringNumericLiteral`, such as `"1234.5"` / `"NaN"` / `"Infinity"`; the resulting `Value` represents the mathematical value, so `"1"`, `"1.0"`, and `"1.00"` have the same value and differ in visible zeros only when resolved digit options require them. The range method consumes the constructed `Value`.
+2. `ParseValue` accepts ECMA-402 `StringNumericLiteral`, such as `"1234.5"` / `"NaN"` / `"Infinity"`; the resulting `Value` represents the mathematical value, so `"1"`, `"1.0"`, and `"1.00"` have the same value and differ in visible zeros only when resolved digit options require them. The range method consumes the constructed `Value`.
 3. malformed decimal string **MUST** return `ErrInvalidValue`; silent fallback to `"NaN"` is prohibited.
 4. The conformance fixture can keep the unexported `formatValue(any)` adapter in the package, but it must not appear in the public API, README or root package.
 
@@ -474,12 +473,12 @@ package's legal collapse or source attribution strategy.
 
 **MUST** Rules:
 
-1. NumberFormat internal state **MUST** all be calculated and frozen at the time of `New`; the `*NumberFormat` returned by `New` is an immutable snapshot.
-2. The CLDR number-domain data (`numberSymbols / patterns / compactDecimalFormats`) **MUST** be pulled once through the resolved `internal/cldr/number.Locale` accessors in `New` and saved to the `NumberFormat` internal slot; the `Format` path **is prohibited** from calling CLDR accessors again.
+1. `New` resolves and freezes options, digit policy, locale, patterns and generated plural rules. Formatter configuration remains immutable after construction.
+2. The CLDR number-domain data (`numberSymbols / patterns / compactDecimalFormats`) **MUST** be pulled once through the resolved `internal/cldr/number.Locale` accessors in `New` and saved to the `NumberFormat` internal slot; formatting reuses these compiled values. Currency-name placement is also compiled in `New`, but the plural-sensitive name is looked up through `internal/cldr/currency.DisplayName` during formatting. Its names blob is decoded once on the first name/symbol access in the process; later accesses are read-only lookups.
 3. `New` resolves the generated cardinal rule once; formatting never constructs a public PluralRules instance.
 4. Exact rounding consumes constructor-resolved digit options; there is no per-formatter apd context or mutable rounding policy.
 
-> **Why**: The `internalSlot` mode of `generated-reference` (checking slot every time `format()`) corresponds to "materialization during construction and read-only during runtime" on Go. This is consistent with the CLAUDE.md "constructor-eager / Format-no-error" rule.
+> Constructor work fixes configuration and executable patterns. Input-dependent style plural selection runs only for unit and currency-name consumers; compact suffix selection retains its separate scaled operand. This selection and lazy shared name lookup remain runtime work; neither repeats locale negotiation or reads external data files.
 
 ---
 
@@ -490,7 +489,7 @@ package's legal collapse or source attribution strategy.
 1. Construction-time errors **MUST** be the wrapped form of `gointl.ErrInvalidOption`, and expose field names, user-input values, locale and expected-value guidance through `*gointl.Error`.
 2. Sentinel **MUST** match root `gointl.ErrInvalidOption`(SPEC 12); this package does not establish a separate independent error category.
 3. **BANNED** `panic` any user path; `MustNew` does not exist (user can wrap it in the caller).
-4. Typed NaN and Infinity format normally. Malformed numeric strings return a structured error from `Decimal`; range methods reject NaN endpoints.
+4. Typed NaN and Infinity format normally. Malformed numeric strings return a structured error from `ParseValue`; range methods reject NaN endpoints.
 
 ```go
 // Error form example (signature)
@@ -521,7 +520,7 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 - **BANNED** Use `Format` with `fmt.Sprintf("%v", value)` on hot path - trailing-zero behavior is unaligned + ~150 ns per allocation.
 - **FORBIDDEN** NumberFormat parses plural DSL, copies plural rule tables, or selects compact suffix by exposing a `pluralrules.PluralRules` instance; can only call `internal/plural.GetOperands` and use `internal/cldr/plural` generated rules.
 - **FORBIDDEN** Extract `CollapseNumberRange` into a cross-package generic - Part fields are different.
-- **FORBIDDEN** Calling CLDR domain accessors on the `Format` path; CLDR data must be materialized on `New`.
+- **FORBIDDEN** Repeating locale negotiation, option resolution, pattern compilation or external CLDR file loading during formatting. Read-only name lookup over lazily decoded shared data is allowed.
 - **BANNED** Builder chaining API(`numberformat.NewBuilder().Currency("USD").Build()`); active scope exposes only `New(mustLocaleList("en-US"), Options{...})` or equivalent `locale.List` variables.
 - **BANNED** Pointer configuration API (`numberformat.New(locales, &Options{...})`) and functional options; the only public configuration form after turning off §8 Q2 is the typed `Options` value.
 - **FORBIDDEN** Self-developed `BigDecimal`; all math layers go through [SPEC 21 §Decimal API](./21-number-math.md#decimal-api)(`apd/v3` backend).
@@ -534,18 +533,18 @@ SPEC 20 is accepted by observable behavior, not by step-order traces. The
 implementation can simplify internal sequencing when these contracts remain
 green.
 
-| Contract | Evidence | Status |
-|----------|----------|--------|
-| FormatJS `format`, `formatToParts`, `formatRange`, and `formatRangeToParts` fixtures are byte-equal except accepted divergence/XFAIL records. | `numberformat/conformance_unified_test.go`; `numberformat/testdata/conformance/formatjs/*.json`; `task conformance:verify` | Required callback verification; the structural gate alone does not prove this |
-| Compact `zh-TW` output stays source-owned by the generated FormatJS lane, including `format(98765) == "9.9\u842c"`. | `numberformat/testdata/conformance/formatjs/notation-compact-zh-tw-test-ts.json` | Satisfied |
-| Constructor, invalid option, NaN, decimal parse, accounting sign, compact long, and rounding-priority behavior are covered by package tests and Node/manual fixtures. | `numberformat/format_test.go`; `numberformat/resolved_options_test.go`; `numberformat/range_test.go`; `numberformat/testdata/conformance/node-v26/*.json`; `numberformat/testdata/conformance/manual/*.json` | Satisfied |
-| Number ranges select shared unit and currency-name morphology from the cardinal range category, and paired sign/percent affixes preserve native text, parts, and sources. | `numberformat/range_test.go`; `numberformat/testdata/conformance/node-v26/edge.json`; `tools/node-witness/main.go`; `tools/conformance/product_contract_test.go`; `task conformance:verify` | Satisfied |
-| Resolved optional scalar fields preserve ECMA-402 absence semantics with pointers. | `numberformat/resolved_options_test.go`; `numberformat/conformance_unified_test.go` | Satisfied |
-| Locale grouping thresholds and JSON Boolean false remain observable; all sign/exponent bidi boundaries and mixed-sign range sources are preserved. | `numberformat/grouping_minimum_test.go`; `numberformat/grouping_json_test.go`; `numberformat/bidi_parts_test.go` | Satisfied |
-| NumberFormat compact suffix selection is independent from public PluralRules compact source-decimal selection. | `compact_contract_test.go`; SPEC 40 Node compact fixtures | Satisfied |
-| NumberFormat keeps decimal rounding centralized in `internal/ecma402/numberformat` and does not expose public compact-plural helpers. | `internal/ecma402/numberformat/*`; absence of `SelectFormatted` / `ResolvePlural` in Go source | Satisfied |
-| Race and vet gates pass for the package. | `go test -race ./numberformat/...`; `go vet ./numberformat/...` | Required verification |
-| Benchmark telemetry remains per-surface and non-blocking. | `numberformat/benchmark_test.go`; `SPECS/71-benchmark.md`; `task bench` | Satisfied |
+| Contract | Evidence |
+|----------|----------|
+| FormatJS `format`, `formatToParts`, `formatRange`, and `formatRangeToParts` fixtures are byte-equal except accepted divergence/XFAIL records. | `numberformat/conformance_unified_test.go`; `numberformat/testdata/conformance/formatjs/*.json`; `task conformance:verify`; Required callback verification; the structural gate alone does not prove this |
+| Compact `zh-TW` output stays source-owned by the generated FormatJS lane, including `format(98765) == "9.9\u842c"`. | `numberformat/testdata/conformance/formatjs/notation-compact-zh-tw-test-ts.json` |
+| Constructor, invalid option, NaN, decimal parse, accounting sign, compact long, and rounding-priority behavior are covered by package tests and Node/manual fixtures. | `numberformat/format_test.go`; `numberformat/resolved_options_test.go`; `numberformat/range_test.go`; `numberformat/testdata/conformance/node-v26/*.json`; `numberformat/testdata/conformance/manual/*.json` |
+| Number ranges select shared unit and currency-name morphology from the cardinal range category, and paired sign/percent affixes preserve native text, parts, and sources. | `numberformat/range_test.go`; `numberformat/testdata/conformance/node-v26/edge.json`; `tools/gen-fixtures-from-formatjs/node_script.go`; `tools/conformance/product_contract_test.go`; `task conformance:verify` |
+| Resolved optional scalar fields preserve ECMA-402 absence semantics with pointers. | `numberformat/resolved_options_test.go`; `numberformat/conformance_unified_test.go` |
+| Locale grouping thresholds and JSON Boolean false remain observable; all sign/exponent bidi boundaries and mixed-sign range sources are preserved. | `numberformat/grouping_minimum_test.go`; `numberformat/grouping_json_test.go`; `numberformat/bidi_parts_test.go` |
+| NumberFormat compact suffix selection is independent from public PluralRules compact source-decimal selection. | `compact_contract_test.go`; SPEC 40 Node compact fixtures |
+| NumberFormat keeps decimal rounding centralized in `internal/ecma402/numberformat` and does not expose public compact-plural helpers. | `internal/ecma402/numberformat/*`; absence of `SelectFormatted` / `ResolvePlural` in Go source |
+| Race and vet gates pass for the package. | `go test -race ./numberformat/...`; `go vet ./numberformat/...` |
+| Benchmark telemetry remains per-surface and non-blocking. | `numberformat/benchmark_test.go`; `SPECS/71-benchmark.md`; `task bench` |
 
 The older `TestInitializeNumberFormat_StepOrder` acceptance item is not
 retained: no such test exists, and a trace of internal option steps would lock
@@ -643,3 +642,9 @@ private symbol partition: ALM/LRM/RLM surrounding a sign are `literal` parts,
 and the sign part contains only its core. Style affixes consume the complete
 leading sign partition so currency/percent patterns do not duplicate controls.
 Text remains the projection of these parts, including range source attribution.
+
+SetNumberFormatDigitOptions validates bounds and min/max relationships only in
+active digit families. Auto priority with significant digits ignores inactive
+fraction options, including out-of-range values; more/lessPrecision validates
+both families. `numberformat/options_test.go:TestInactiveFractionOptions` and
+`pluralrules/options_test.go:TestInactiveFractionOptions` cover public behavior.

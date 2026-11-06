@@ -1,110 +1,19 @@
 [
   {
-    "id": "numberformat-formatjs-misc-test-ts-000",
+    "id": "numberformat-formatjs-misc-test-ts-004dc22d435963938eceb5c3e6e8d7c049d966c2f1ed0fe1c28b4e3d2a6c36f8",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-BS",
+    "locale": "en-CA",
     "options": {
-      "notation": "compact",
-      "style": "percent"
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "ceil"
     },
-    "input": 10000,
-    "expected": "1M"
+    "input": 26,
+    "expected": "30"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-001",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-BS",
-    "options": {
-      "style": "unit",
-      "unit": "bit"
-    },
-    "input": 1000,
-    "expected": "1,000 bit"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-002",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-BS",
-    "options": {
-      "style": "unit",
-      "unit": "celsius"
-    },
-    "input": 1000,
-    "expected": "1,000°C"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-003",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-BS",
-    "options": {
-      "style": "unit",
-      "unit": "gallon"
-    },
-    "input": 1000,
-    "expected": "1,000 US gal"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-004",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "th",
-    "options": {
-      "compactDisplay": "short",
-      "notation": "compact",
-      "signDisplay": "exceptZero"
-    },
-    "input": 10000,
-    "expected": "+10K"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-005",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-US",
-    "options": {
-      "compactDisplay": "short",
-      "currency": "USD",
-      "currencyDisplay": "narrowSymbol",
-      "currencySign": "standard",
-      "notation": "standard",
-      "signDisplay": "exceptZero",
-      "style": "currency"
-    },
-    "input": 10000,
-    "expected": "+$10,000.00"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-006",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-US",
-    "options": {
-      "compactDisplay": "short",
-      "currency": "ZWD",
-      "currencyDisplay": "narrowSymbol",
-      "currencySign": "standard",
-      "notation": "compact",
-      "signDisplay": "exceptZero",
-      "style": "currency"
-    },
-    "input": 10000,
-    "expected": "+ZWD 10K"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-007",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-US",
-    "options": {
-      "compactDisplay": "long",
-      "currency": "ZWD",
-      "currencyDisplay": "narrowSymbol",
-      "currencySign": "standard",
-      "notation": "compact",
-      "signDisplay": "exceptZero",
-      "style": "currency"
-    },
-    "input": 10000,
-    "expected": "+ZWD 10K"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-008",
+    "id": "numberformat-formatjs-misc-test-ts-0440dc66ef579b1e6f7d009b6bbdb3240d17df98715b756c5261ba0e9a7e9cdd",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
     "locale": "en-US",
     "options": {
@@ -120,7 +29,76 @@
     "expected": "+10 thousand Zimbabwean dollars (1980–2008)"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-009",
+    "id": "numberformat-formatjs-misc-test-ts-057c9a407de557cd0cf02e5ef24e357961c2b812e6aae0c29d093a298c69bdd1",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "feature": "formatRange",
+    "options": {
+      "notation": "scientific"
+    },
+    "input": {
+      "end": 5000,
+      "start": 3000
+    },
+    "expectedRange": "3E3–5E3"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-05abbf219757c566b0d005dd7d88db86e5e3c6eeb35757a1bbc247a85f5a0a0c",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "compactDisplay": "short",
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 0,
+      "notation": "compact"
+    },
+    "input": 1500000000000,
+    "expected": "1.5T"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-09880c8629ba2946ed27b7c08738c93054029967f1ea3275673246acfaf18007",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-US",
+    "options": {
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2,
+      "roundingIncrement": 5,
+      "roundingMode": "halfExpand"
+    },
+    "input": 1.227,
+    "expected": "1.25"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-10cc79f401464b3634c025713c316ed25bdd6e422c86104613e64e96df274ca9",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "pt-PT",
+    "feature": "formatRange",
+    "options": {
+      "currency": "EUR",
+      "signDisplay": "always",
+      "style": "currency"
+    },
+    "input": {
+      "end": 3.1,
+      "start": -2.9
+    },
+    "expectedRange": "-2,90 - +3,10 €"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-1ce9c71d5afe8d68689e92e43d06bcf4838df3f3359eee13bfd89fbaa9a7d0b4",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "compactDisplay": "short",
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 0,
+      "notation": "compact"
+    },
+    "input": 100000000000000,
+    "expected": "100T"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-2223ca26079f9d338a90c1b712a3258d7b223f10710058457bb7579d28068f46",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
     "locale": "uk",
     "options": {
@@ -136,109 +114,60 @@
     "expected": "+10 тис. англійських фунтів"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-010",
+    "id": "numberformat-formatjs-misc-test-ts-2de2c601c6d71f25ab0e6110f9235cb2e81eb9a8b08c6c55b3730f8a963bcc74",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "uk",
+    "locale": "en-CA",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "ceil"
+    },
+    "input": 27.07,
+    "expected": "30"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-3010197d56050e1186b0eecadc4cc3a00828b8aa13f5df3010fd8d310b343615",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-US",
     "options": {
       "compactDisplay": "short",
-      "currency": "GBP",
-      "currencyDisplay": "name",
-      "currencySign": "accounting",
-      "notation": "scientific",
+      "currency": "USD",
+      "currencyDisplay": "narrowSymbol",
+      "currencySign": "standard",
+      "notation": "standard",
       "signDisplay": "exceptZero",
       "style": "currency"
     },
     "input": 10000,
-    "expected": "+1Е4 англійських фунтів"
+    "expected": "+$10,000.00"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-011",
+    "id": "numberformat-formatjs-misc-test-ts-3074ad1a37f4093fa587cde9b022aa76f85537bd8b5240224450d6f2fb869565",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "de",
+    "locale": "en-BS",
     "options": {
-      "compactDisplay": "long",
-      "currency": "USD",
-      "currencyDisplay": "name",
-      "currencySign": "accounting",
-      "notation": "compact",
-      "signDisplay": "auto",
-      "style": "currency"
-    },
-    "input": 10000,
-    "expected": "10 Tausend US-Dollar"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-012",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "currency": "EUR",
-      "notation": "compact",
-      "style": "currency"
-    },
-    "input": 30,
-    "expected": "€30"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-013",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "useGrouping": "min2"
+      "style": "unit",
+      "unit": "bit"
     },
     "input": 1000,
-    "expected": "1000"
+    "expected": "1,000 bit"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-014",
+    "id": "numberformat-formatjs-misc-test-ts-31aa445cc7245743da40a52634985643201ce09545c6472d1413bde57021546c",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
+    "locale": "en-CA",
     "options": {
-      "numberingSystem": "lepc"
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "halfExpand"
     },
-    "input": 123,
-    "expected": "᱁᱂᱃"
+    "input": 27.07,
+    "expected": "25"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-015",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "numberingSystem": "arab"
-    },
-    "input": 12345.67,
-    "expected": "١٢٬٣٤٥٫٦٧"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-016",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 2,
-      "notation": "compact",
-      "style": "decimal",
-      "useGrouping": false
-    },
-    "input": 999.995,
-    "expected": "1.00K"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-017",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 2,
-      "notation": "compact",
-      "style": "decimal",
-      "useGrouping": false
-    },
-    "input": 999995000,
-    "expected": "1.00B"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-018",
+    "id": "numberformat-formatjs-misc-test-ts-32fb4ad5c8b7cc38da298b08d6f405920fb5e39012889499d9c9647efa03dee1",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
     "locale": "en",
     "options": {
@@ -249,106 +178,23 @@
     "expected": "10K"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-019",
+    "id": "numberformat-formatjs-misc-test-ts-35ff0478c359a01485e9a20b48ae71fa3e6e632e95f0fc2c0a434f95507a0cee",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "de-AT",
+    "locale": "en-US",
     "options": {
-      "currency": "EUR",
+      "compactDisplay": "long",
+      "currency": "ZWD",
+      "currencyDisplay": "narrowSymbol",
+      "currencySign": "standard",
+      "notation": "compact",
+      "signDisplay": "exceptZero",
       "style": "currency"
     },
-    "input": 12345678,
-    "expected": "€ 12.345.678,00"
+    "input": 10000,
+    "expected": "+ZWD 10K"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-020",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "maximumFractionDigits": 1,
-      "notation": "compact",
-      "roundingMode": "trunc"
-    },
-    "input": 1050,
-    "expected": "1K"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-021",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "zh-Hant",
-    "options": {
-      "notation": "compact",
-      "useGrouping": "always"
-    },
-    "input": 1000,
-    "expected": "1,000"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-022",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "floor"
-    },
-    "input": 27.07,
-    "expected": "25"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-023",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "floor"
-    },
-    "input": 22,
-    "expected": "20"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-024",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "floor"
-    },
-    "input": 23,
-    "expected": "20"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-025",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "floor"
-    },
-    "input": 27,
-    "expected": "25"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-026",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "floor"
-    },
-    "input": 28,
-    "expected": "25"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-027",
+    "id": "numberformat-formatjs-misc-test-ts-3973a895ff35f2f007070f608ddf79f4cde0bf6be45f42f34607686d5d9b83e9",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
     "locale": "en-CA",
     "options": {
@@ -361,7 +207,35 @@
     "expected": "25"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-028",
+    "id": "numberformat-formatjs-misc-test-ts-3b7a05757b25755e94e4a7b35aa000b9655172804cda83335db28e59474f0821",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "currency": "EUR",
+      "notation": "compact",
+      "style": "currency"
+    },
+    "input": 30,
+    "expected": "€30"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-3bf6eaae363d81d2aafd33a5aecee6e05fcb8a484cb63e20f5c74fda06e7e182",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-US",
+    "options": {
+      "compactDisplay": "short",
+      "currency": "ZWD",
+      "currencyDisplay": "narrowSymbol",
+      "currencySign": "standard",
+      "notation": "compact",
+      "signDisplay": "exceptZero",
+      "style": "currency"
+    },
+    "input": 10000,
+    "expected": "+ZWD 10K"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-439b2cd0ea22acaac81182e21693071fd8d1ec78a1e130f911db890275b2fd61",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
     "locale": "en-CA",
     "options": {
@@ -370,306 +244,11 @@
       "roundingIncrement": 5,
       "roundingMode": "floor"
     },
-    "input": 30,
-    "expected": "30"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-029",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "ceil"
-    },
-    "input": 27.07,
-    "expected": "30"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-030",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "ceil"
-    },
-    "input": 21,
-    "expected": "25"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-031",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "ceil"
-    },
-    "input": 25,
-    "expected": "25"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-032",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "ceil"
-    },
-    "input": 26,
-    "expected": "30"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-033",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "halfExpand"
-    },
-    "input": 27.07,
-    "expected": "25"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-034",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "halfExpand"
-    },
-    "input": 27.5,
-    "expected": "30"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-035",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "halfExpand"
-    },
-    "input": 22.4,
+    "input": 23,
     "expected": "20"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-036",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-CA",
-    "options": {
-      "maximumFractionDigits": 0,
-      "minimumFractionDigits": 0,
-      "roundingIncrement": 5,
-      "roundingMode": "halfExpand"
-    },
-    "input": 22.5,
-    "expected": "25"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-037",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-US",
-    "options": {
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 2,
-      "roundingIncrement": 5,
-      "roundingMode": "halfExpand"
-    },
-    "input": 1.234,
-    "expected": "1.25"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-038",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-US",
-    "options": {
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 2,
-      "roundingIncrement": 5,
-      "roundingMode": "halfExpand"
-    },
-    "input": 1.222,
-    "expected": "1.20"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-039",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-US",
-    "options": {
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 2,
-      "roundingIncrement": 5,
-      "roundingMode": "halfExpand"
-    },
-    "input": 1.227,
-    "expected": "1.25"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-040",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-US",
-    "options": {
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 2,
-      "roundingIncrement": 5,
-      "roundingMode": "ceil",
-      "trailingZeroDisplay": "stripIfInteger"
-    },
-    "input": 1.221,
-    "expected": "1.25"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-041",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en-US",
-    "options": {
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 2,
-      "roundingIncrement": 5,
-      "roundingMode": "ceil",
-      "trailingZeroDisplay": "stripIfInteger"
-    },
-    "input": 1,
-    "expected": "1"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-042",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "compactDisplay": "short",
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 0,
-      "notation": "compact"
-    },
-    "input": 1000000000000,
-    "expected": "1T"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-043",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "compactDisplay": "short",
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 0,
-      "notation": "compact"
-    },
-    "input": 1500000000000,
-    "expected": "1.5T"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-044",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "compactDisplay": "short",
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 0,
-      "notation": "compact"
-    },
-    "input": 10000000000000,
-    "expected": "10T"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-045",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "compactDisplay": "short",
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 0,
-      "notation": "compact"
-    },
-    "input": 100000000000000,
-    "expected": "100T"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-046",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "compactDisplay": "short",
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 0,
-      "notation": "compact"
-    },
-    "input": 1756820000000000,
-    "expected": "1756.82T"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-047",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "compactDisplay": "short",
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 0,
-      "notation": "compact"
-    },
-    "input": 1000000000000000,
-    "expected": "1000T"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-048",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "compactDisplay": "short",
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 0,
-      "notation": "compact"
-    },
-    "input": 10000000000000000,
-    "expected": "10000T"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-049",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "compactDisplay": "short",
-      "maximumFractionDigits": 2,
-      "minimumFractionDigits": 0,
-      "notation": "compact"
-    },
-    "input": 55000000000000000,
-    "expected": "55000T"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-050",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "signDisplay": "exceptZero"
-    },
-    "input": 0,
-    "expected": "0"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-051",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "options": {
-      "signDisplay": "exceptZero"
-    },
-    "input": 0,
-    "expected": "0"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-052",
+    "id": "numberformat-formatjs-misc-test-ts-456a428e7ecba7352c857d369c117be9aa2fc947e290d27c437a86846c2ce88d",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
     "locale": "pl",
     "options": {},
@@ -677,23 +256,7 @@
     "expected": "1000"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-053",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "pl",
-    "options": {},
-    "input": -1000,
-    "expected": "-1000"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-054",
-    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "pl",
-    "options": {},
-    "input": 10000,
-    "expected": "10 000"
-  },
-  {
-    "id": "numberformat-formatjs-misc-test-ts-055",
+    "id": "numberformat-formatjs-misc-test-ts-46462d528235d5d3b03b6a7cf1fe6a7ad3f3d2ecf7a8e555203075924e351790",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
     "locale": "pt-PT",
     "feature": "formatRange",
@@ -709,21 +272,359 @@
     "expectedRange": "3 - 5 €"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-056",
+    "id": "numberformat-formatjs-misc-test-ts-4831bab85fc17332087d37500a2eed94dd77d6a20a0eeea48e642d77dc643190",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "en",
-    "feature": "formatRange",
+    "locale": "uk",
     "options": {
-      "notation": "scientific"
+      "compactDisplay": "short",
+      "currency": "GBP",
+      "currencyDisplay": "name",
+      "currencySign": "accounting",
+      "notation": "scientific",
+      "signDisplay": "exceptZero",
+      "style": "currency"
     },
-    "input": {
-      "end": 5000,
-      "start": 3000
-    },
-    "expectedRange": "3E3–5E3"
+    "input": 10000,
+    "expected": "+1Е4 англійських фунтів"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-057",
+    "id": "numberformat-formatjs-misc-test-ts-52d3f9acd75f280e39ddca421b8672783cf11b245dbd4c745d06748860516054",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-US",
+    "options": {
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2,
+      "roundingIncrement": 5,
+      "roundingMode": "halfExpand"
+    },
+    "input": 1.222,
+    "expected": "1.20"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-54f675d808423b6e649d42b0c93f8701176e652d7d90955da7fce70605cded16",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-BS",
+    "options": {
+      "style": "unit",
+      "unit": "gallon"
+    },
+    "input": 1000,
+    "expected": "1,000 US gal"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-5ec9a90ee737a7eccea458b65363bfa6074b58fabd44ce427bda7dd5d7699251",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "pl",
+    "options": {},
+    "input": 10000,
+    "expected": "10 000"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-60dc3ec105c74b0bc0782c2c50357c118b57ad37dd4a51b224f24c50760e65e1",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "numberingSystem": "arab"
+    },
+    "input": 12345.67,
+    "expected": "١٢٬٣٤٥٫٦٧"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-6274faf88b574c4356a39a694e4d2324b0d3a555db56033722f3fe720302024f",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "compactDisplay": "short",
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 0,
+      "notation": "compact"
+    },
+    "input": 55000000000000000,
+    "expected": "55000T"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-6408b61ff35f4d342f008dc61ebfcf69adb6eb39aa54aee8daeb0ab1ab16c35b",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2,
+      "notation": "compact",
+      "style": "decimal",
+      "useGrouping": false
+    },
+    "input": 999995000,
+    "expected": "1.00B"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-677d53db30a07a4c0e35302bf5c258f1bf34f660ea4bd7529b453fe9f4cbb08b",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-US",
+    "options": {
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2,
+      "roundingIncrement": 5,
+      "roundingMode": "halfExpand"
+    },
+    "input": 1.234,
+    "expected": "1.25"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-77b57ecc37c1e8a2804efbddc4fbdcefda6c3b70c88d76acea6f1e3dc11359cc",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "de",
+    "options": {
+      "compactDisplay": "long",
+      "currency": "USD",
+      "currencyDisplay": "name",
+      "currencySign": "accounting",
+      "notation": "compact",
+      "signDisplay": "auto",
+      "style": "currency"
+    },
+    "input": 10000,
+    "expected": "10 Tausend US-Dollar"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-78c6584c2cfb1f83f7b8ffd612baac0d8d0c3b759d3ac6ac52408d5fa30a5461",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-CA",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "floor"
+    },
+    "input": 30,
+    "expected": "30"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-7c039dfac2ea887f9fc4942be69acb52250f8e24d21b1c6e5103be46ff9de727",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "zh-Hant",
+    "options": {
+      "notation": "compact",
+      "useGrouping": "always"
+    },
+    "input": 1000,
+    "expected": "1,000"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-7cc15bf4e6facece96a932e1f0c82786349855184be6752ed49d18f0a8a6dd1d",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "compactDisplay": "short",
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 0,
+      "notation": "compact"
+    },
+    "input": 1756820000000000,
+    "expected": "1756.82T"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-811691993a3d26499e9f140ed95d6fd2356ae64e587afc8e7bd62ee14607d59f",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-CA",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "halfExpand"
+    },
+    "input": 22.4,
+    "expected": "20"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-8753809facaad6e8bbb0406c104e5d5860b54cd2ddd3d5b3634a8894c819d372",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "compactDisplay": "short",
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 0,
+      "notation": "compact"
+    },
+    "input": 10000000000000,
+    "expected": "10T"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-89abcbcfab62a8b1427bb6623f42e698353f9058bbbf72865a57a92c02170301",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "compactDisplay": "short",
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 0,
+      "notation": "compact"
+    },
+    "input": 1000000000000000,
+    "expected": "1000T"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-8a1666b91d74aabedbb80b9d0fe2e3abcc783695adbd4c3fdf0b638ece5859c4",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-US",
+    "options": {
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2,
+      "roundingIncrement": 5,
+      "roundingMode": "ceil",
+      "trailingZeroDisplay": "stripIfInteger"
+    },
+    "input": 1.221,
+    "expected": "1.25"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-8e9d973a86851f8d1ac6048145a627de3be09193e221c1d0f356803f2f43b0a6",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "numberingSystem": "lepc"
+    },
+    "input": 123,
+    "expected": "᱁᱂᱃"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-9cbd1d9e79d927b2a1df62aea18511bcc15ea9cc3dc7334a57089233dda91145",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "compactDisplay": "short",
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 0,
+      "notation": "compact"
+    },
+    "input": 10000000000000000,
+    "expected": "10000T"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-9d6b8ead8940f9a6fccfcbc353e89bf337ebfb616fabc3b561aae08de2d08ba7",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-CA",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "floor"
+    },
+    "input": 27.07,
+    "expected": "25"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-a1d2e08c783f1cad91fddeb4d097019cf456a4f58b8e68d6d1b2236a2e74f742",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "signDisplay": "exceptZero"
+    },
+    "input": 0,
+    "expected": "0"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-b054ca4cff3250b8a7df181861a82f40131019b70b09908622152baa57ae62c2",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-CA",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "halfExpand"
+    },
+    "input": 27.5,
+    "expected": "30"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-bd810b5941a5a506d926b9f1bd022075f4a14d1943af76dfd1976043022b89c4",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "useGrouping": "min2"
+    },
+    "input": 1000,
+    "expected": "1000"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-c0475340fd422273a105a0c3103ea207fb0bf1c8174bed0fe18e8c8e6dad32ae",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "compactDisplay": "short",
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 0,
+      "notation": "compact"
+    },
+    "input": 1000000000000,
+    "expected": "1T"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-cc3c32bba0cd101581c66118d100f87848f0ac7ed98b6a0ac46baf30bccbcd3e",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "maximumFractionDigits": 1,
+      "notation": "compact",
+      "roundingMode": "trunc"
+    },
+    "input": 1050,
+    "expected": "1K"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-cecd297d07be41273405d4eebe093e226b0cd1c787be8cceb9e58b97f50b0691",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-CA",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "ceil"
+    },
+    "input": 25,
+    "expected": "25"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-d40c333b87fa5b30523ffdc90f5eac107abff0717e1a7df0467498f955aed4d4",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-US",
+    "options": {
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2,
+      "roundingIncrement": 5,
+      "roundingMode": "ceil",
+      "trailingZeroDisplay": "stripIfInteger"
+    },
+    "input": 1,
+    "expected": "1"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-d439388acb032ba6e9104a153775bbbd498c8221850483d96bce499c65b86658",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-CA",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "ceil"
+    },
+    "input": 21,
+    "expected": "25"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-d56e370893452036356056595461f1e9deea19a4072bcdf035c2eac8b3e5f0f8",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en",
+    "options": {
+      "maximumFractionDigits": 2,
+      "minimumFractionDigits": 2,
+      "notation": "compact",
+      "style": "decimal",
+      "useGrouping": false
+    },
+    "input": 999.995,
+    "expected": "1.00K"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-dc3f2dd7e146f1d083ab6ad725d28421874941cc9bd3c29d3ffcb29ff00f0766",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
     "locale": "pt-PT",
     "feature": "formatRange",
@@ -739,7 +640,55 @@
     "expectedRange": "+2,90 - 3,10 €"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-058",
+    "id": "numberformat-formatjs-misc-test-ts-ddf83bff5f663f1c2222b00ce238df36a6b5dc4d444a073ecb36e4d8d263d7c0",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-CA",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "halfExpand"
+    },
+    "input": 22.5,
+    "expected": "25"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-de9add98f6ed8ea2de022d3486289d0ce97dd8aeac74cccd682fea7fb2c665d2",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "de-AT",
+    "options": {
+      "currency": "EUR",
+      "style": "currency"
+    },
+    "input": 12345678,
+    "expected": "€ 12.345.678,00"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-e01356b640dd68c3651b243cef6bc555647f2cf43b4425bd6c220a91a7b5d781",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-BS",
+    "options": {
+      "notation": "compact",
+      "style": "percent"
+    },
+    "input": 10000,
+    "expected": "1M"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-e1908d4b5e36895765d8783a09ab72d20bdcad04dc059ea70da7c21a7ab09542",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-CA",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "floor"
+    },
+    "input": 22,
+    "expected": "20"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-e3cc5894b4f5da76aae48d71707a416424697bd476806d00177f5de4aa6b1ad0",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
     "locale": "pt-PT",
     "feature": "formatRange",
@@ -755,19 +704,60 @@
     "expectedRange": "-3,10 - 2,90 €"
   },
   {
-    "id": "numberformat-formatjs-misc-test-ts-059",
+    "id": "numberformat-formatjs-misc-test-ts-ebeebc9f3b83a2d20c2ce42d188adf7d6a430284a845d0850a930291ea9e3f27",
     "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
-    "locale": "pt-PT",
-    "feature": "formatRange",
+    "locale": "pl",
+    "options": {},
+    "input": -1000,
+    "expected": "-1000"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-f2fc352168d44bc6efe5083bdbe00add10e8280db65e49e8cf89ab655ba7940c",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-CA",
     "options": {
-      "currency": "EUR",
-      "signDisplay": "always",
-      "style": "currency"
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "floor"
     },
-    "input": {
-      "end": 3.1,
-      "start": -2.9
+    "input": 28,
+    "expected": "25"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-f319d50e829fa87e209a21949cfcf74f0ff2ed336f61ab91e921f05e56cf09c6",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-BS",
+    "options": {
+      "style": "unit",
+      "unit": "celsius"
     },
-    "expectedRange": "-2,90 - +3,10 €"
+    "input": 1000,
+    "expected": "1,000°C"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-f93e8f77d2cb0aa5b684879b6866e9fc881f3b7fc9876a9f1160bcef64e08c75",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "th",
+    "options": {
+      "compactDisplay": "short",
+      "notation": "compact",
+      "signDisplay": "exceptZero"
+    },
+    "input": 10000,
+    "expected": "+10K"
+  },
+  {
+    "id": "numberformat-formatjs-misc-test-ts-fd0b5df95961df3605e8ee3b2252de754046d05b9794b86abe49b84bfc4b9ef3",
+    "source": "formatjs:packages/intl-numberformat/tests/misc.test.ts",
+    "locale": "en-CA",
+    "options": {
+      "maximumFractionDigits": 0,
+      "minimumFractionDigits": 0,
+      "roundingIncrement": 5,
+      "roundingMode": "floor"
+    },
+    "input": 27,
+    "expected": "25"
   }
 ]

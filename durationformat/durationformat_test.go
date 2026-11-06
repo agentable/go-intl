@@ -177,25 +177,121 @@ func TestDurationFormatFormatDefaultShort(t *testing.T) {
 
 func TestDurationFormatFormatEmptyDuration(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		opts Options
+	}{
+		{"default", Options{}},
+		{"fractional seconds", Options{Seconds: stringPtr(LongUnitStyle), SecondsDisplay: stringPtr(AutoDisplay), Milliseconds: stringPtr(NumericUnitStyle)}},
+		{"fractional milliseconds", Options{Milliseconds: stringPtr(LongUnitStyle), MillisecondsDisplay: stringPtr(AutoDisplay), Microseconds: stringPtr(NumericUnitStyle)}},
+		{"fractional microseconds", Options{Microseconds: stringPtr(LongUnitStyle), MicrosecondsDisplay: stringPtr(AutoDisplay), Nanoseconds: stringPtr(NumericUnitStyle)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			format, err := New(intltest.LocaleList(t, "en"), tc.opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := format.Format(Duration{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != "" {
+				t.Errorf("Format(empty) = %q, want empty string", got)
+			}
+			parts, err := format.FormatToParts(Duration{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(parts) != 0 {
+				t.Errorf("FormatToParts(empty) = %#v, want no parts", parts)
+			}
+		})
+	}
+}
 
-	format, err := New(locale.List{intltest.Locale(t, "en")}, Options{})
-	if err != nil {
-		t.Fatalf("New(en) error = %v", err)
-	}
-
-	got, err := format.Format(Duration{})
-	if err != nil {
-		t.Fatalf("Format(empty) error = %v", err)
-	}
-	if got != "" {
-		t.Fatalf("Format(empty) = %q, want empty string", got)
-	}
-	parts, err := format.FormatToParts(Duration{})
-	if err != nil {
-		t.Fatalf("FormatToParts(empty) error = %v", err)
-	}
-	if parts != nil {
-		t.Fatalf("FormatToParts(empty) = %#v, want nil", parts)
+func TestDurationFormatFractionalDisplayBeforeRounding(t *testing.T) {
+	t.Parallel()
+	for _, parent := range []struct {
+		unit     Unit
+		opts     Options
+		positive Duration
+		negative Duration
+	}{
+		{Second, Options{Seconds: stringPtr(LongUnitStyle), Milliseconds: stringPtr(NumericUnitStyle)}, Duration{Milliseconds: 1}, Duration{Milliseconds: -1}},
+		{Millisecond, Options{Milliseconds: stringPtr(LongUnitStyle), Microseconds: stringPtr(NumericUnitStyle)}, Duration{Microseconds: 1}, Duration{Microseconds: -1}},
+		{Microsecond, Options{Microseconds: stringPtr(LongUnitStyle), Nanoseconds: stringPtr(NumericUnitStyle)}, Duration{Nanoseconds: 1}, Duration{Nanoseconds: -1}},
+	} {
+		t.Run(string(parent.unit), func(t *testing.T) {
+			t.Parallel()
+			withPrior := parent.negative
+			withPrior.Days = -1
+			for _, tc := range []struct {
+				name     string
+				duration Duration
+				always   bool
+				digits   *int
+				want     string
+			}{
+				{"child nonzero", parent.positive, false, nil, "0.001 " + string(parent.unit) + "s"},
+				{"always zero", Duration{}, true, nil, "0 " + string(parent.unit) + "s"},
+				{"prior unit only", Duration{Days: 1}, false, nil, "1 day"},
+				{"positive rounded zero", parent.positive, false, intPtr(0), "0 " + string(parent.unit) + "s"},
+				{"negative rounded zero", parent.negative, false, intPtr(0), "-0 " + string(parent.unit) + "s"},
+				{"negative prior unit", withPrior, false, intPtr(0), "-1 day, 0 " + string(parent.unit) + "s"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					opts := parent.opts
+					opts.Style = stringPtr(LongStyle)
+					opts.FractionalDigits = tc.digits
+					display := AutoDisplay
+					if tc.always {
+						display = AlwaysDisplay
+					}
+					switch parent.unit {
+					case Second:
+						opts.SecondsDisplay = stringPtr(display)
+					case Millisecond:
+						opts.MillisecondsDisplay = stringPtr(display)
+					case Microsecond:
+						opts.MicrosecondsDisplay = stringPtr(display)
+					default:
+						t.Fatalf("unexpected fractional parent unit %q", parent.unit)
+					}
+					format, err := New(intltest.LocaleList(t, "en"), opts)
+					if err != nil {
+						t.Fatal(err)
+					}
+					got, err := format.Format(tc.duration)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got != tc.want {
+						t.Errorf("Format() = %q, want %q", got, tc.want)
+					}
+					parts, err := format.FormatToParts(tc.duration)
+					if err != nil {
+						t.Fatal(err)
+					}
+					var text strings.Builder
+					minusSigns := 0
+					for _, part := range parts {
+						text.WriteString(part.Value)
+						if part.Type == PartMinusSign {
+							minusSigns++
+						}
+						if part.Unit == parent.unit || tc.duration.Days != 0 && part.Unit == Day || part.Type == PartLiteral && part.Unit == "" {
+							continue
+						}
+						t.Errorf("unexpected part unit: %#v", part)
+					}
+					if text.String() != tc.want || minusSigns != strings.Count(tc.want, "-") {
+						t.Errorf("parts = %#v, want text %q with one duration sign", parts, tc.want)
+					}
+				})
+			}
+		})
 	}
 }
 

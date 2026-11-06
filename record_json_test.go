@@ -39,8 +39,8 @@ func TestECMA402RecordJSONShapes(t *testing.T) {
 		Hour12: &hour12,
 	}).ResolvedOptions()
 	styleDateTime := mustDateTimeFormat(t, datetimeformat.Options{
-		DateStyle: stringPtr(datetimeformat.MediumDateTimeStyle),
-		TimeStyle: stringPtr(datetimeformat.ShortDateTimeStyle),
+		DateStyle: stringPtr(datetimeformat.MediumStyle),
+		TimeStyle: stringPtr(datetimeformat.ShortStyle),
 	}).ResolvedOptions()
 	defaultDuration := mustDurationFormat(t, durationformat.Options{}).ResolvedOptions()
 	fractionalDuration := mustDurationFormat(t, durationformat.Options{

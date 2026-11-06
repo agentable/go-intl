@@ -67,10 +67,10 @@ const (
 	ShortGenericTimeZoneName TimeZoneName = "shortGeneric"
 	LongGenericTimeZoneName  TimeZoneName = "longGeneric"
 
-	FullDateTimeStyle   Style = "full"
-	LongDateTimeStyle   Style = "long"
-	MediumDateTimeStyle Style = "medium"
-	ShortDateTimeStyle  Style = "short"
+	FullStyle   Style = "full"
+	LongStyle   Style = "long"
+	MediumStyle Style = "medium"
+	ShortStyle  Style = "short"
 )
 
 const (

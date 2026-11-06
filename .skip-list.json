@@ -3,7 +3,7 @@
     "source": "formatjs:packages/intl-datetimeformat/tests/CalendarDateFromTime.test.ts",
     "category": "unsupported-extractor-shape",
     "route": "extractor",
-    "reason": "unsupported Vitest assertion shape"
+    "reason": "byte 4402: ambiguous regular-expression or division slash"
   },
   {
     "source": "formatjs:packages/intl-datetimeformat/tests/abstract/BestFitFormatMatcher.test.ts",
@@ -31,9 +31,9 @@
   },
   {
     "source": "formatjs:packages/intl-datetimeformat/tests/format.test.ts",
-    "category": "partial-extraction",
+    "category": "unsupported-extractor-shape",
     "route": "extractor",
-    "reason": "mechanical assertions outside current generated fixture gate"
+    "reason": "unsupported Vitest assertion shape"
   },
   {
     "source": "formatjs:packages/intl-datetimeformat/tests/ftp-main.test.ts",

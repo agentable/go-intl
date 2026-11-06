@@ -28,6 +28,12 @@ func TestDateTimeConformanceObservations(t *testing.T) {
 		fixture conformance.Fixture
 		failure string
 	}{
+		{"foreign ok", conformance.Fixture{Expected: new("1970"), ExpectedOK: new(false)}, "unsupported datetimeformat observation"},
+		{"foreign locales", conformance.Fixture{Expected: new("1970"), ExpectedLocales: []string{}}, "unsupported datetimeformat observation"},
+		{"constructor error and text", conformance.Fixture{Options: jsontext.Value(`{"year":"bad"}`), ErrorCode: "invalid_option", Expected: new("IMPOSSIBLE")}, "unsupported datetimeformat observation"},
+		{"constructor error and resolved", conformance.Fixture{Options: jsontext.Value(`{"year":"bad"}`), ErrorCode: "invalid_option", ExpectedResolved: jsontext.Value(`{}`)}, "unsupported datetimeformat observation"},
+		{"range and single text", conformance.Fixture{Input: rangeInput, ExpectedRange: new("1970 – 1971"), Expected: new("IMPOSSIBLE")}, "unsupported datetimeformat observation"},
+		{"range and single parts", conformance.Fixture{Input: rangeInput, ExpectedRangeParts: rangeParts, ExpectedParts: []conformance.Part{}}, "unsupported datetimeformat observation"},
 		{"parts only", conformance.Fixture{ExpectedParts: parts}, ""},
 		{"range parts only", conformance.Fixture{Input: rangeInput, ExpectedRangeParts: rangeParts}, ""},
 		{"resolved only", conformance.Fixture{Input: rangeInput, ExpectedResolved: resolved}, ""},
@@ -49,7 +55,9 @@ func TestDateTimeConformanceObservations(t *testing.T) {
 			f.ID = "observation"
 			f.Source = "manual:adapter"
 			f.Locale = "en"
-			f.Options = jsontext.Value(`{"timeZone":"UTC","year":"numeric"}`)
+			if f.Options == nil {
+				f.Options = jsontext.Value(`{"timeZone":"UTC","year":"numeric"}`)
+			}
 			if f.Input == nil {
 				f.Input = jsontext.Value(`"1970-01-01T00:00:00Z"`)
 			}

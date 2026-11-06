@@ -1,7 +1,6 @@
 # 72 - Operation Ledger
 
-Status: active
-Owns: mapping public `go-intl` and `go-intl/x` surfaces to ECMA-402 owners, local implementation files, and verification gates.
+Owns: mapping public `go-intl` surfaces to ECMA-402 owners, local implementation files, and verification gates.
 
 This ledger is the maintenance index for public API truthfulness. Package SPECS own detailed semantics; this file answers one narrower question: "why does this exported surface exist, and where is its observable contract tested?"
 
@@ -16,7 +15,7 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 3. A public surface with no ECMA-402 owner, no typed bridge rationale, and no verification entry must be deleted or moved to `internal`.
 4. A row cannot justify a local API by historical convenience; if ECMA-402 ownership is weak, the owning SPEC must either name the Go typed bridge or remove the surface.
 5. Rows for implementation gaps must point to the owning SPEC's support-tier section; the ledger itself does not accept divergences.
-6. `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf`, which parses `localeMatcher`, returns formatter-owned `OptionError` values for invalid matcher input, and delegates to `internal/ecma402.SupportedLocales`.
+6. `SupportedLocalesOf` methods must use `internal/ecma402.SupportedLocalesOf`, which parses `localeMatcher`, returns shared `gointl.Error` details carrying the formatter owner for invalid matcher input, and canonicalizes requests and filters through the formatter-owned compiled matcher.
 7. Constructor and `SupportedLocalesOf` entrypoints must receive a single typed `Options` value; option count is enforced by the public Go signature.
 8. `localeMatcher` parsing must use `internal/ecma402.LocaleMatcherAlgorithm` through `internal/ecma402.ResolveConstructorLocale`, `internal/ecma402.SupportedLocalesOf`, or a formatter-owned pre-resolution check; constructor validation should use `internal/ecma402.LocaleMatcherOptionInput` when the public options bag preserves omitted versus explicit empty input.
 8a. Production code may enter `internal/localematcher.ResolveLocale` only through `internal/ecma402.ResolveConstructorLocale`; formatter constructors must not grow private negotiation copies.
@@ -41,7 +40,7 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 | Root constructor aliases | `Intl.<Constructor>` namespace properties | `intl.go` type aliases | `intl_test.go`, SPEC 60 |
 | Structured error details | Go error bridge for ECMA-402 `RangeError` / `TypeError`-equivalent failures | `errors.go`, `internal/intlerr/errors.go`, `internal/ecma402/errors.go`, `ErrorKind`, `Error`, four reachable root category sentinels | `internal/intlerr/errors_test.go`, `internal/ecma402/errors_test.go`, constructor option tests, public error-text tests |
 | ECMA-402 record JSON | Host-boundary bridge for `resolvedOptions()`, parts, range parts, locale info, and duration records | package `ResolvedOptions` structs, package `Part` / `RangePart` structs, `locale.WeekInfo`, `locale.TextInfo`, `durationformat.Duration` | `record_json_test.go` |
-| Locale construction | `Intl.Locale` constructor plus Go `language.Tag` bridge | `locale/locale.go`, `locale.New`, `locale.FromTag`, `locale.Parse` | `locale/construct_test.go`, `locale/locale_test.go`, `locale/conformance_unified_test.go`, `locale/list_test.go` |
+| Locale construction | `Intl.Locale` constructor plus Go `language.Tag` bridge | `locale/locale.go`, `locale.New` (including `Variants`), `locale.FromTag`, `locale.Parse`, `Locale.Tag() (language.Tag, error)` | `locale/construct_test.go`, `locale/locale_test.go`, `locale/conformance_unified_test.go`, `locale/list_test.go` |
 | Locale identifier subtag grammar | Unicode language identifier grammar used by `Intl.Locale`, locale info subdivision prefixes, locale matching aliases, CLDR accessors, and code canonicalization | `internal/localeid` subtag validators for language, script, region, and variant subtags | `internal/localeid/localeid_test.go`, `locale/locale_test.go`, `locale/info_test.go`, `internal/ecma402/displaynames_test.go`, `internal/localematcher/compiled_test.go`, `internal/cldr/date/date_test.go`, `internal/cldr/displaynames/displaynames_test.go` |
 | Locale option presence fields | `Intl.Locale(tag, options)` option bag typed bridge | `locale.Options` string pointers, `Numeric *bool`, root `gointl.String` / `gointl.Bool` | `locale/construct_test.go`, `locale/options_ptr_test.go`, `locale/locale_test.go` |
 | Locale string identity | `Intl.Locale.prototype.toString`, `baseName` | `Locale.String`, suffix-free `BaseName`, `MarshalText`, `UnmarshalText` | `locale/locale_test.go`, `locale/extension_test.go` |
@@ -58,7 +57,7 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 |---------|----------------------------|----------------|--------------|
 | Constructor options object | `new Intl.<Constructor>(locales, options?)` | package `New(locales locale.List, opts Options)` | package constructor and resolved-options tests |
 | Locale negotiation | `ResolveLocale`, relevant extension keys | package constructors through `internal/ecma402.ResolveConstructorLocale`; `internal/localematcher` owns the algorithm only | package resolved-options tests, `internal/ecma402/locale_matcher_test.go`, `internal/ecma402/locale_list_test.go`, `internal/localematcher/*_test.go` |
-| Supported locales | `Intl.<Constructor>.supportedLocalesOf` | package `SupportedLocalesOf`, `internal/ecma402.SupportedLocalesOf` / `SupportedLocales` | package `TestSupportedLocalesOf`, `internal/localematcher/filter_test.go`, derived available-locale alias tests |
+| Supported locales | `Intl.<Constructor>.supportedLocalesOf` | package `SupportedLocalesOf`, `internal/ecma402.SupportedLocalesOf` | package `TestSupportedLocalesOf`, `internal/localematcher/filter_test.go`, derived available-locale alias tests |
 | Resolved options | `resolvedOptions()` | package `ResolvedOptions` methods | package resolved-options tests |
 
 ---
@@ -68,6 +67,7 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 | Surface | ECMA-402 owner / operation | Go entrypoints | Verification |
 |---------|----------------------------|----------------|--------------|
 | Number formatting | `Intl.NumberFormat.prototype.format` | `numberformat/format.go`, `Value` constructors, `Format` | `numberformat/format_test.go`, conformance fixtures |
+| Numeric string input | Go typed bridge for `ToIntlMathematicalValue` / `StringIntlMV` | `numberformat.ParseValue`, `pluralrules.ParseValue`; malformed input retains the `decimal` diagnostic name | `decimal_input_test.go`, package value and range tests |
 | Number parts | `formatToParts` | `FormatToParts` | `numberformat/format_test.go`, conformance fixtures |
 | Number ranges | `formatRange`, `formatRangeToParts` | `numberformat/range.go`, `FormatRange`, `FormatRangeToParts` | `numberformat/range_test.go`, invalid-value tests, conformance fixtures |
 | Number option presence fields | ECMA-402 option bag typed bridge | `LocaleMatcher *string`, `NumberingSystem *string`, `Style *string`, `Currency *string`, `CurrencyDisplay *string`, `CurrencySign *string`, `Unit *string`, `UnitDisplay *string`, `Notation *string`, `CompactDisplay *string`, `UseGrouping *string`, `SignDisplay *string`, `RoundingMode *string`, `RoundingPriority *string`, `TrailingZeroDisplay *string`, `*int` digit fields, root `gointl.String` / `gointl.Int` | `numberformat/resolved_options_test.go`, option error tests, conformance fixtures, pointer copy tests |
@@ -85,6 +85,7 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 | Surface | ECMA-402 owner / operation | Go entrypoints | Verification |
 |---------|----------------------------|----------------|--------------|
 | Date formatting | `Intl.DateTimeFormat.prototype.format` | `datetimeformat/datetimeformat.go`, `Format` | `datetimeformat/datetimeformat_test.go`, conformance fixtures |
+| Date/time style vocabulary | `Intl.DateTimeFormat` `dateStyle` / `timeStyle` options | `datetimeformat.Style`, `FullStyle`, `LongStyle`, `MediumStyle`, `ShortStyle` | `datetimeformat/datetimeformat_test.go`, `datetimeformat/example_test.go`, snapshot and option-pointer tests |
 | Date parts | `formatToParts`, including `fractionalSecond` records | `datetimeformat/parts.go`, `Part`, `PartFractionalSecond` | `datetimeformat/datetimeformat_test.go`, `record_json_test.go`, conformance fixtures |
 | Date ranges | `formatRange`, `formatRangeToParts`, including `fractionalSecond` range records | constructor-compiled `datetimeformat/range_record.go`, semantic localized-field relation, distinguishing cross-date fallback, shared endpoint/source steps in `range.go`, `RangePart`, `PartFractionalSecond` | `datetimeformat/range_relation_test.go`, `datetimeformat/range_execution_test.go`, `datetimeformat/datetimeformat_test.go`, `record_json_test.go`, manual/generated conformance fixtures |
 | Date option presence fields | ECMA-402 option bag typed bridge | `LocaleMatcher *string`, `Calendar *string`, `NumberingSystem *string`, `FormatMatcher *string`, `TimeZone *string`, `TimeZoneName *string`, component/style/hour-cycle `*string` fields, `Hour12 *bool`, `FractionalSecondDigits *int`, root `gointl.Bool` / `gointl.Int` / `gointl.String` | `datetimeformat/datetimeformat_test.go`, conformance fixtures, pointer copy tests |
@@ -110,20 +111,7 @@ The ledger is a live truth table, not a compatibility defense. It records the cu
 
 ---
 
-## 7. Satellite `x/` Module
-
-The `x/` satellite module is v0 with no compatibility promise ([SPEC 80](./80-x-modules.md)). Its rows still name an external anchor and a verification entry; the anchor is a TC39 proposal or an ECMA-402 abstract operation rather than an active native owner.
-
-| Surface | ECMA-402 owner / operation | Go entrypoints | Verification |
-|---------|----------------------------|----------------|--------------|
-| Locale matching | Stage 1 `Intl.LocaleMatcher.match` proposal over `LookupMatcher` / `BestFitMatcher` (ECMA-402 §9.2.5–9.2.6) | `x/localematcher.Match`, `x/localematcher.New`, `Matcher.Match` | `x/localematcher/localematcher_test.go`, `x/localematcher/example_test.go` |
-| Matcher algorithm enum | Proposal `options.algorithm` typed bridge | `Algorithm`, `AlgorithmLookup`, `AlgorithmBestFit` | `x/localematcher/localematcher_test.go` |
-| Match result record | Go typed bridge for the proposal's match result | `Result` (`Locale` / `DataLocale` / `Extension` / `Distance`) | `x/localematcher/localematcher_test.go` |
-| Best-fit threshold | Generated-reference `DEFAULT_MATCHING_THRESHOLD` verbatim | `DefaultMatchingThreshold` | `x/localematcher/localematcher_test.go` |
-
----
-
-## 8. Capability Slice Ledger
+## 7. Capability Slice Ledger
 
 This table records partial capabilities that are intentionally narrower than the
 full ECMA-402 surface. It does not grant permission to ship approximations. Each
@@ -136,13 +124,24 @@ rationale, `review_after`, and removal path.
 
 ---
 
-## 9. Acceptance Criteria
+## 8. Acceptance Criteria
 
-- [ ] New exported surfaces update this ledger in the same change.
-- [ ] Deleted public surfaces remove their ledger row and any README/SPEC references.
-- [ ] Rows for narrowed implementation gaps link to the owning SPEC section with current behavior, `review_after`, and removal path.
-- [ ] New partial capabilities update the capability-slice ledger before they are advertised by public supported-locale or supported-value APIs.
-- [ ] Supported-locale and supported-value expansions include accepted, refused, resolved-options, and CLDR/backend/native-witness proof at the owner package or conformance layer.
-- [ ] Public supported-locale and supported-value APIs do not advertise refused capability slices.
-- [ ] `task lint` and `task test` pass after ledger-affecting code changes.
-- [ ] `task conformance:verify` passes when fixture or divergence references change.
+- New exported surfaces update this ledger in the same change.
+- Deleted public surfaces remove their ledger row and any README/SPEC references.
+- Rows for narrowed implementation gaps link to the owning SPEC section with current behavior, `review_after`, and removal path.
+- New partial capabilities update the capability-slice ledger before they are advertised by public supported-locale or supported-value APIs.
+- Supported-locale and supported-value expansions include accepted, refused, resolved-options, and CLDR/backend/native-witness proof at the owner package or conformance layer.
+- Public supported-locale and supported-value APIs do not advertise refused capability slices.
+- `task lint` and `task test` pass after ledger-affecting code changes.
+- `task conformance:verify` passes when fixture or divergence references change.
+
+## 9. Experimental official draft surface
+
+This is the narrow SPEC 00 / SPEC 80 exception to standardized native ownership,
+not an additional root Intl constructor or an abstract-operation export.
+
+| Surface | Official owner / bridge | Implementation | Verification |
+| --- | --- | --- | --- |
+| `Options`, `Options.Algorithm` | Stage 1 LocaleMatcher constructor options bag and algorithm presence | `x/localematcher/localematcher.go` | `TestNewValidation`, `TestMatcherSnapshotsInputs` |
+| `New`, `Matcher` | `new Intl.LocaleMatcher(availableLocales, options)` at the revision pinned in SPEC 80 | same file, shared exact-set compiler | constructor validation, snapshot and concurrent matching tests |
+| `(*Matcher).Match` | `Intl.LocaleMatcher.prototype.match`; `(locale.Locale, bool)` bridges locale or undefined | same file | lookup continuation, best-fit, per-key translated-text test, executable example |

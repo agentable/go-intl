@@ -1,6 +1,5 @@
 # SPEC 40 — PluralRules
 
-> **Status:** Draft (2026-05-08)
 > **Owner:** `pluralrules/` + `internal/plural/` + `tools/gen-plural-rules/`
 > **Reference contract:** `.references/ecma402/spec/pluralrules.html` first, then `formatjs/packages/intl-pluralrules/` + `formatjs/packages/ecma402-abstract/PluralRules/`
 
@@ -69,7 +68,7 @@ func Int(v int64) Value
 func Uint(v uint64) Value
 func Float(v float64) Value
 func BigInt(v *big.Int) Value
-func Decimal(s string) (Value, error)
+func ParseValue(s string) (Value, error)
 
 func (r *PluralRules) Select(v Value) Category
 func (r *PluralRules) SelectRange(start, end Value) (Category, error)
@@ -81,13 +80,13 @@ func (r *PluralRules) ResolvedOptions() ResolvedOptions
 1. `New` **MUST** complete all option verification during the construction period, and `error` will be returned if it fails.
 2. `New` accepts a `Options` value. `New(locales, Options{})` is equivalent to JS passing an empty options object or omitting options; multiple options objects are not Go API shapes and are rejected by the compiler.
 3. `Select` / `SelectRange` **MUST** accept opaque `Value`; the caller expresses ECMA-402 numeric input through typed constructors.
-4. `Select` **MUST** return `Other` for NaN and positive or negative infinity. `SelectRange` **MUST** return `ErrInvalidValue` only when an endpoint is NaN and **MUST** accept positive or negative infinity. `Decimal` **MUST** accept well-formed decimal strings plus `NaN`, `Infinity`, and `-Infinity`, and **MUST** return `ErrInvalidValue` for malformed strings. Finite decimal spellings denote mathematical values: input-only trailing zeros do not affect category or formatted range equality.
+4. `Select` **MUST** return `Other` for NaN and positive or negative infinity. `SelectRange` **MUST** return `ErrInvalidValue` only when an endpoint is NaN and **MUST** accept positive or negative infinity. `ParseValue` **MUST** accept well-formed decimal strings plus `NaN`, `Infinity`, and `-Infinity`, and **MUST** return `ErrInvalidValue` for malformed strings. Finite decimal spellings denote mathematical values: input-only trailing zeros do not affect category or formatted range equality.
 5. `PluralRules` is an immutable value; all methods on `*PluralRules` must be concurrency-safe.
 6. `Options` is the only public configuration value; restoring functional options or multiple options merge is prohibited.
 7. The `Category.String()` return value **MUST** be the exact ECMA-402 category string so callers can branch without a second mapping table.
 8. `New` **MUST** resolve the exact generated cardinal or ordinal rule for its data locale and freeze that function on the formatter. Missing active-locale data is a constructor failure; `Select` is total only after successful construction and therefore returns `Category` without an error.
 
-> **Rejected**: public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal operands should use `Decimal`.
+> **Rejected**: public `BigFloat(*big.Float)` - ECMA-402 has Number, BigInt, and string-to-decimal bridges; arbitrary-precision floating point is a Go convenience shape with no native Intl owner. Callers that need exact decimal operands should use `ParseValue`.
 
 ### 1.2 Options
 
@@ -245,7 +244,7 @@ func GetOperands(formatted string, exponent int) OperandsRecord
 > **Why**:
 > 1. generated-reference `intl-pluralrules/scripts/plural-rules-compiler.ts` has compiled the plural DSL into a directly executed function on the TS side; the Go side maintains the same product form and does not interpret the DSL at runtime.
 > 2. Consistent with SPEC 50 §"embed-only / no runtime I/O" - data is the Go source.
-> 3. Compiled function zero-allocation query vs runtime interpreter has 2–3 times more overhead.
+> 3. Generated functions avoid runtime DSL parsing. Performance comparisons require the same inputs and a measured baseline; no fixed speedup is promised.
 > 4. `golang.org/x/text/feature/plural` is not available (see §3.2 for details).
 >
 > **Rejected**:
@@ -355,7 +354,7 @@ func renderCategoriesFile(cardinal, ordinal map[string][]Rule) string
 
 Public `PluralRules` compact notation and NumberFormat compact suffix selection are separate observable contracts.
 
-- Public `pluralrules.PluralRules.Select` uses the source decimal string plus the selected compact exponent.
+- Public `pluralrules.PluralRules.Select` uses the rounded, unscaled source decimal string plus the compact exponent derived from that same string.
 - NumberFormat compact suffix selection uses the scaled display decimal plus the selected compact exponent; see [SPEC 20 §4.1 Compact Notation and Plural Operand Contract](./20-numberformat.md#41-compact-notation-and-plural-operand-contract).
 
 Both contracts share `internal/plural.GetOperands` for operand construction, but they pass different formatted decimal strings by design.
@@ -380,14 +379,16 @@ func CardinalRule(loc string) (func(pluralop.OperandsRecord) pluralop.Category, 
 
 1. Public PluralRules compact selection **required**:
    ```text
-   1. exponent       := ComputeCompactExponent(locale, compactDisplay, sourceValue, digitOptions)
-   2. formatted      := FormatNumericToString(sourceValue).String
+   1. formatted      := FormatNumericToString(sourceValue).String
+   2. exponent       := CompactExponentForMagnitude(integerMagnitude(abs(formatted)))
    3. ops            := GetOperands(formatted, exponent)
    4. category       := PluralRuleSelect(localeTag, type, ops)
    ```
 2. Public PluralRules compact selection **MUST** use constructor-owned compact
    data and the pinned CLDR rule, without an optional-data fallback to exponent
-   zero. Native Node/V8 fixtures independently verify this behavior. The
+   zero. Equal formatted source strings therefore have the same category. Native
+   fixtures cover ordinary cases; rounding-threshold policy is independently
+   fixed by `range_test.go:TestCompactRoundedSourceDeterminesCategory`. The
    FormatJS test environment can omit NumberFormat data; that reference setup
    is not a product requirement. The exact three French cases and their source
    evidence are recorded in `pluralrules/testdata/compact-review.md`.
@@ -407,6 +408,29 @@ func CardinalRule(loc string) (func(pluralop.OperandsRecord) pluralop.Category, 
 >
 > **Rejected**: Public `PluralRules.SelectFormatted` - This is not an ECMA-402 public API, nor is it a language that Go users need.
 > **Rejected**: Let NumberFormat copy plural DSL or rules table - rules are only allowed from `internal/cldr/plural` codegen.
+
+### 4.3 Scientific and engineering operands
+
+`ResolvePlural` formats the original mathematical value with the resolved digit
+options. That string supplies both range identity and the N/I/V/W/F/T operands;
+notation must not replace it with a scaled mantissa. C/E come from the shared
+`ScientificExponent` operation on the rounded source value, including its carry
+recheck and engineering multiple-of-three rule. Standard notation uses E=0;
+the compact path above retains its own generated exponent selection.
+
+This implementation-defined CLDR choice preserves full magnitude, option-induced
+fractional zeros and exponent-sensitive categories without a second mantissa
+formatting path. en 1000 selects `other`; fr/ca 12345678 selects `many` under
+both notations. Source rounding remains observable: ru 1001 with maxFraction=0
+selects `one`, and ar 0.001 with maxFraction=0 selects `zero`.
+
+ICU instead classifies a rounded notation mantissa restored to full magnitude;
+FormatJS currently leaves the scientific/engineering exponent at zero. Neither
+is copied wholesale. The versioned finite matrix and exact reference paths are
+in `pluralrules/testdata/notation-review.md`. `TestPluralRulesNotationAffectsOperands`
+and `TestResolveDecimalUsesExplicitConstructorState` protect the public categories
+and source operand boundary. NumberFormat's style-operand restoration remains a
+different contract and is not used by PluralRules.
 
 ---
 
@@ -441,6 +465,15 @@ prove integer operands are unchanged. ResolvePlural formatted strings are unsign
 `-1` and `1` therefore have equal formatted strings. All typed bridges share this
 result; Node 26.10.0 currently returns `other` for the signed pair, which conflicts
 with the current ECMA-402 formatted-string rule and is not the witness for this case.
+
+Scientific and engineering notation retain this source-value identity for both
+range comparison and category operands (§4.3). Equal mantissas at different
+exponents do not establish range equality: en `(1, 1000)` and ar `(2, 2000)`
+continue to the category-pair table and resolve to `other`. The shared numeric
+formatter returns signed text; PluralRules removes the finite value's sign for
+this comparison, while retaining distinct special-value strings. Public bridge
+and rounded-equality coverage lives in `TestSelectRangeNotationIdentity` in
+`pluralrules/range_bridge_test.go`.
 
 3. A locale explicit-row hit **MUST** return its generated category. Missing
    locale data or a missing `(sCat, eCat)` row **MUST** return `Other` without
@@ -542,19 +575,19 @@ Benchmark numbers guide profiling and prioritization; they do not override ECMA-
 SPEC 40 is accepted when the generator, public constructor behavior, compact
 semantics, and conformance fixtures agree with the ECMA-402/CLDR boundary.
 
-| Contract | Evidence | Status |
-|----------|----------|--------|
-| `tools/gen-plural-rules/` remains an independent module and emits CLDR 48.1.0 generated files with stable headers. | `tools/gen-plural-rules/go.mod`; `tools/gen-plural-rules/main.go`; `internal/cldr/plural/cardinal_rules.go`; `internal/cldr/plural/ordinal_rules.go`; `internal/cldr/plural/range_rules.go`; `internal/cldr/plural/categories.go`; `internal/cldr/plural/supported.go` | Satisfied |
-| Every active locale has generated cardinal and ordinal rules; missing generation input and missing runtime rule lookup fail with locale/family context instead of defaulting. | `tools/gen-plural-rules/main_test.go`; `internal/cldr/plural/rules.go`; `internal/cldr/plural/rules_test.go`; constructor tests | Satisfied |
-| Codegen does not depend on `dave/jennifer`; runtime and codegen do not depend on `golang.org/x/text/feature/plural`. | `rg "dave/jennifer" tools/gen-plural-rules`; `rg "x/text/feature/plural" internal/plural tools/gen-plural-rules pluralrules/*.go` | Satisfied |
-| The `pluralrules/benchmark_baseline_test.go` `x/text/feature/plural` import is retained only as benchmark comparison evidence and is outside runtime/codegen acceptance. | `pluralrules/benchmark_baseline_test.go` | Accepted exception |
-| Cardinal, ordinal, range, non-finite select/range behavior, NaN range errors, reversed range, rounded equality, and resolved category behavior are covered by package tests and generated fixtures. | `pluralrules/pluralrules_test.go`; `pluralrules/range_test.go`; `pluralrules/options_test.go`; `pluralrules/conformance_unified_test.go`; `pluralrules/testdata/conformance/formatjs/index-test-ts.json` | Satisfied |
-| Public PluralRules compact notation uses source-decimal-plus-exponent behavior, including million-scale `many` fixtures; FormatJS's missing compact-data environment is recorded separately. | `pluralrules/testdata/conformance/node-v26/compact.json`; `pluralrules/testdata/conformance/node-v26/compact-review.json`; `pluralrules/testdata/compact-review.md`; `pluralrules/testdata/divergences.md`; `compact_contract_test.go` | Satisfied |
-| NumberFormat compact suffix selection remains internal and generated-rule based; no public `SelectFormatted` or internal `ResolvePlural` helper exists. | `numberformat/notation.go`; `internal/plural/plural.go`; absence of `SelectFormatted` / `ResolvePlural` in Go source | Satisfied |
-| `OperandsRecord` remains the single internal operand record bridge. | `internal/plural/plural.go`; `pluralrules/pluralrules_test.go` | Satisfied |
-| Race, vet, and generated-data byte stability gates pass for the package and generated CLDR output. | `go test -race ./pluralrules/...`; `go vet ./pluralrules/...`; `task data:check` | Required verification |
-| PluralRules cardinal, ordinal, and range benchmarks remain per-surface and non-blocking. | `pluralrules/benchmark_test.go`; `SPECS/71-benchmark.md`; `task bench` | Satisfied |
-| CLDR bumps are visible as generated-data diffs and must be reviewed with source CLDR version changes. | `internal/cldr/plural/*`; `tools/gen-plural-rules/main.go`; `task data:check` | Required on CLDR update |
+| Contract | Evidence |
+|----------|----------|
+| `tools/gen-plural-rules/` remains an independent module and emits CLDR 48.1.0 generated files with stable headers. | `tools/gen-plural-rules/go.mod`; `tools/gen-plural-rules/main.go`; `internal/cldr/plural/cardinal_rules.go`; `internal/cldr/plural/ordinal_rules.go`; `internal/cldr/plural/range_rules.go`; `internal/cldr/plural/categories.go`; `internal/cldr/plural/supported.go` |
+| Every active locale has generated cardinal and ordinal rules; missing generation input and missing runtime rule lookup fail with locale/family context instead of defaulting. | `tools/gen-plural-rules/main_test.go`; `internal/cldr/plural/rules.go`; `internal/cldr/plural/rules_test.go`; constructor tests |
+| Codegen does not depend on `dave/jennifer`; runtime and codegen do not depend on `golang.org/x/text/feature/plural`. | `rg "dave/jennifer" tools/gen-plural-rules`; `rg "x/text/feature/plural" internal/plural tools/gen-plural-rules pluralrules/*.go` |
+| The `pluralrules/benchmark_baseline_test.go` `x/text/feature/plural` import is retained only as benchmark comparison evidence and is outside runtime/codegen acceptance. | `pluralrules/benchmark_baseline_test.go` |
+| Cardinal, ordinal, range, non-finite select/range behavior, NaN range errors, reversed range, rounded equality, and resolved category behavior are covered by package tests and generated fixtures. | `pluralrules/pluralrules_test.go`; `pluralrules/range_test.go`; `pluralrules/options_test.go`; `pluralrules/conformance_unified_test.go`; `pluralrules/testdata/conformance/formatjs/index-test-ts.json` |
+| Public PluralRules compact notation uses source-decimal-plus-exponent behavior, including million-scale `many` fixtures; FormatJS's missing compact-data environment is recorded separately. | `pluralrules/testdata/conformance/node-v26/compact.json`; `pluralrules/testdata/conformance/node-v26/compact-review.json`; `pluralrules/testdata/compact-review.md`; `pluralrules/testdata/divergences.md`; `compact_contract_test.go` |
+| NumberFormat compact suffix selection remains internal and generated-rule based; no public `SelectFormatted` or internal `ResolvePlural` helper exists. | `numberformat/notation.go`; `internal/plural/plural.go`; absence of `SelectFormatted` / `ResolvePlural` in Go source |
+| `OperandsRecord` remains the single internal operand record bridge. | `internal/plural/plural.go`; `pluralrules/pluralrules_test.go` |
+| Race, vet, and generated-data byte stability gates pass for the package and generated CLDR output. | `go test -race ./pluralrules/...`; `go vet ./pluralrules/...`; `task data:check` |
+| PluralRules cardinal, ordinal, and range benchmarks remain per-surface and non-blocking. | `pluralrules/benchmark_test.go`; `SPECS/71-benchmark.md`; `task bench` |
+| CLDR bumps are visible as generated-data diffs and must be reviewed with source CLDR version changes. | `internal/cldr/plural/*`; `tools/gen-plural-rules/main.go`; `task data:check` |
 
 ---
 
@@ -590,3 +623,10 @@ semantics, and conformance fixtures agree with the ECMA-402/CLDR boundary.
 - [SPEC 50 §Version Pin](./50-cldr-data.md#version-pin) — CLDR version lock (48.1.0)
 - [SPEC 60](./60-facade.md) — root namespace ownership; root `intl.SelectPlural*` one-shot helpers are outside the long-term public surface.
 - [SPEC 71](./71-benchmark.md) — non-blocking performance telemetry
+
+Digit-family bounds and min/max relationships are checked only after resolving
+`needFd`/`needSd`. Under auto priority, an active significant-digit family ignores
+unused fraction options; more/lessPrecision validates both. The shared owner is
+`internal/ecma402/numberformat/options.go`; public regression evidence is
+`pluralrules/options_test.go:TestInactiveFractionOptions` and the matching
+NumberFormat test. This follows SetNumberFormatDigitOptions in ECMA-402.

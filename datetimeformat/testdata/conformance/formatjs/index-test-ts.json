@@ -1,16 +1,6 @@
 [
   {
-    "id": "datetimeformat-formatjs-index-test-ts-000",
-    "source": "formatjs:packages/intl-datetimeformat/tests/index.test.ts",
-    "locale": "en",
-    "options": {
-      "timeZone": "UTC"
-    },
-    "input": "1970-01-01T00:00:00Z",
-    "expected": "1/1/1970"
-  },
-  {
-    "id": "datetimeformat-formatjs-index-test-ts-003",
+    "id": "datetimeformat-formatjs-index-test-ts-a31f58035cdc1420b78722cee1e7e3e750063d66365e5fcecb9dd6ecc643af98",
     "source": "formatjs:packages/intl-datetimeformat/tests/index.test.ts",
     "locale": "en",
     "feature": "formatRange",
@@ -27,5 +17,15 @@
       "start": "2021-05-19T09:00:00Z"
     },
     "expectedRange": "5/19/2021, 5:00 AM – 6/19/2021, 1:00 PM"
+  },
+  {
+    "id": "datetimeformat-formatjs-index-test-ts-f798e4d23c301aa96f52cd60faff476bb7817328595ca5885aea80aa1f057693",
+    "source": "formatjs:packages/intl-datetimeformat/tests/index.test.ts",
+    "locale": "en",
+    "options": {
+      "timeZone": "UTC"
+    },
+    "input": "1970-01-01T00:00:00Z",
+    "expected": "1/1/1970"
   }
 ]

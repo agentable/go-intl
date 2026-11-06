@@ -38,6 +38,9 @@ type dataProfile struct {
 	TZData      string
 	LocaleCount int
 	Cold        bool
+	GoVersion   string
+	GOOS        string
+	GOARCH      string
 }
 
 func main() {
@@ -47,7 +50,7 @@ func main() {
 func runMain(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("sizecheck", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	cold := fs.Bool("cold", false, "clear the Go build cache before measuring compile time")
+	cold := fs.Bool("cold", false, "use a fresh isolated Go build cache for each case")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -72,16 +75,14 @@ type runOptions struct {
 }
 
 type runDependencies struct {
-	cases           []binaryCase
-	cleanBuildCache func(context.Context) error
-	stdout          io.Writer
+	cases  []binaryCase
+	stdout io.Writer
 }
 
 func defaultRunDependencies(stdout io.Writer) runDependencies {
 	return runDependencies{
-		cases:           sizeCases(),
-		cleanBuildCache: cleanBuildCache,
-		stdout:          stdout,
+		cases:  sizeCases(),
+		stdout: stdout,
 	}
 }
 
@@ -90,9 +91,6 @@ func run(ctx context.Context, dir string, opts runOptions) error {
 }
 
 func runWithDependencies(ctx context.Context, dir string, opts runOptions, deps runDependencies) error {
-	if deps.cleanBuildCache == nil {
-		deps.cleanBuildCache = cleanBuildCache
-	}
 	if deps.stdout == nil {
 		deps.stdout = os.Stdout
 	}
@@ -107,11 +105,15 @@ func runWithDependencies(ctx context.Context, dir string, opts runOptions, deps 
 		return err
 	}
 	profile.Cold = opts.Cold
-	if opts.Cold {
-		if err := deps.cleanBuildCache(ctx); err != nil {
-			return err
-		}
+	output, err := exec.CommandContext(ctx, "go", "env", "GOVERSION", "GOOS", "GOARCH").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("read Go build environment: %w\n%s", err, output)
 	}
+	fields := strings.Fields(string(output))
+	if len(fields) != 3 {
+		return fmt.Errorf("read Go build environment: unexpected output %q", output)
+	}
+	profile.GoVersion, profile.GOOS, profile.GOARCH = fields[0], fields[1], fields[2]
 	caseDir := filepath.Join(dir, "cases")
 	binDir := filepath.Join(dir, "bin")
 	if err := os.MkdirAll(binDir, 0o750); err != nil {
@@ -124,7 +126,7 @@ func runWithDependencies(ctx context.Context, dir string, opts runOptions, deps 
 		if err != nil {
 			return err
 		}
-		result, err := buildCase(ctx, tc.name, pkgDir, filepath.Join(binDir, tc.name))
+		result, err := buildCase(ctx, tc.name, pkgDir, filepath.Join(binDir, tc.name), opts.Cold)
 		if err != nil {
 			return err
 		}
@@ -132,21 +134,6 @@ func runWithDependencies(ctx context.Context, dir string, opts runOptions, deps 
 	}
 	if _, err := fmt.Fprint(deps.stdout, formatResults(profile, results)); err != nil {
 		return err
-	}
-	return nil
-}
-
-type commandContextFunc func(context.Context, string, ...string) *exec.Cmd
-
-func cleanBuildCache(ctx context.Context) error {
-	return cleanBuildCacheWithCommand(ctx, exec.CommandContext)
-}
-
-func cleanBuildCacheWithCommand(ctx context.Context, command commandContextFunc) error {
-	cmd := command(ctx, "go", "clean", "-cache")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("clean build cache: %w\n%s", err, output)
 	}
 	return nil
 }
@@ -163,9 +150,21 @@ func writeCase(root string, tc binaryCase) (string, error) {
 	return dir, nil
 }
 
-func buildCase(ctx context.Context, name, pkgDir, out string) (result, error) {
-	start := time.Now()
+func buildCase(ctx context.Context, name, pkgDir, out string, cold bool) (built result, err error) {
 	cmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-o", out, "./"+filepath.ToSlash(pkgDir))
+	if cold {
+		cache, cacheErr := os.MkdirTemp("", "go-intl-sizecheck-*")
+		if cacheErr != nil {
+			return result{}, fmt.Errorf("create build cache for %s: %w", name, cacheErr)
+		}
+		defer func() {
+			if cleanupErr := os.RemoveAll(cache); cleanupErr != nil {
+				err = errors.Join(err, fmt.Errorf("remove build cache for %s: %w", name, cleanupErr))
+			}
+		}()
+		cmd.Env = append(os.Environ(), "GOCACHE="+cache)
+	}
+	start := time.Now()
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return result{}, fmt.Errorf("build %s: %w\n%s", name, err, output)
@@ -180,6 +179,11 @@ func buildCase(ctx context.Context, name, pkgDir, out string) (result, error) {
 func formatResults(profile dataProfile, results []result) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "data-profile: locales=%d cldr=%s icu=%s tzdata=%s cold=%t\n", profile.LocaleCount, profile.CLDR, profile.ICU, profile.TZData, profile.Cold)
+	cache := "inherited"
+	if profile.Cold {
+		cache = "isolated-per-case"
+	}
+	fmt.Fprintf(&b, "build-environment: go=%s target=%s/%s cache=%s\n", profile.GoVersion, profile.GOOS, profile.GOARCH, cache)
 	var baseline int64
 	for _, r := range results {
 		if r.name == "empty" {

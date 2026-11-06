@@ -5,14 +5,12 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"golang.org/x/text/language"
 )
 
 func TestPartsAndJoin(t *testing.T) {
 	t.Parallel()
 
-	lang, script, region := Parts(language.MustParse("en-Latn-US"))
+	lang, script, region := Parts(Tag("en-Latn-US"))
 	if lang != "en" || script != "Latn" || region != "US" {
 		t.Fatalf("Parts(en-Latn-US) = %q, %q, %q; want en, Latn, US", lang, script, region)
 	}
@@ -332,5 +330,25 @@ func TestInsertUnicodeExtensionBeforePrivateUse(t *testing.T) {
 	got := InsertUnicodeExtension("en-x-private", nil, []UnicodeKeyword{{Key: "ca", Value: "gregory"}})
 	if want := "en-u-ca-gregory-x-private"; got != want {
 		t.Fatalf("InsertUnicodeExtension() = %q, want %q", got, want)
+	}
+}
+
+func TestCanonicalIdentity(t *testing.T) {
+	t.Parallel()
+	for input, want := range map[string]string{"xx-INVALID": "xx-invalid", "abcdefgh": "abcdefgh", "und-Gara": "und-Gara", "en-foobar": "en-foobar", "iw-BU": "he-MM", "en-UK": "en-GB", "en-000": "en-000", "no": "no", "nb": "nb", "en-Zzzz-ZZ": "en-Zzzz-ZZ", "en-b-FOO-a-BAR-u-ca-islamicc-x-X": "en-a-bar-b-foo-u-ca-islamic-civil-x-x"} {
+		tag, err := ParseTag(input, nil)
+		if err != nil || tag.String() != want {
+			t.Errorf("ParseTag(%q)=%s,%v; want %s", input, tag, err, want)
+			continue
+		}
+		again, err := ParseTag(tag.String(), nil)
+		if err != nil || again != tag {
+			t.Errorf("not idempotent: %s, %v", again, err)
+		}
+	}
+	for _, input := range []string{"en-POSIX-posix", "en-a-foo-A-bar", "en-t-en-1901-1901", "en-x-!", "en-t-a0", "en-u-a1", "en-u-ca-gregorian"} {
+		if _, err := ParseTag(input, nil); err == nil {
+			t.Errorf("accepted %q", input)
+		}
 	}
 }

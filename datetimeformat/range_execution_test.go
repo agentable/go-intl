@@ -20,9 +20,9 @@ func TestDateTimeRangeTextAndPartsShareExecutionDecisions(t *testing.T) {
 		}{
 			{name: "cross-day date interval", options: Options{Year: stringPtr(NumericFieldStyle), Month: stringPtr(ShortMonthStyle), Day: stringPtr(NumericFieldStyle), TimeZone: stringPtr("UTC")}, start: base, end: base.AddDate(0, 0, 2)},
 			{name: "time interval", options: Options{Hour: stringPtr(NumericFieldStyle), Minute: stringPtr(TwoDigitFieldStyle), Second: stringPtr(TwoDigitFieldStyle), TimeZone: stringPtr("UTC")}, start: base, end: base.Add(2*time.Hour + 3*time.Minute)},
-			{name: "date-time interval", options: Options{DateStyle: stringPtr(MediumDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), TimeZone: stringPtr("UTC")}, start: base, end: base.Add(2 * time.Hour)},
-			{name: "cross-month fallback", options: Options{DateStyle: stringPtr(FullDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), TimeZone: stringPtr("UTC")}, start: base, end: base.AddDate(0, 1, 0)},
-			{name: "cross-year fallback", options: Options{DateStyle: stringPtr(MediumDateTimeStyle), TimeStyle: stringPtr(ShortDateTimeStyle), TimeZone: stringPtr("UTC")}, start: base, end: base.AddDate(1, 0, 0)},
+			{name: "date-time interval", options: Options{DateStyle: stringPtr(MediumStyle), TimeStyle: stringPtr(ShortStyle), TimeZone: stringPtr("UTC")}, start: base, end: base.Add(2 * time.Hour)},
+			{name: "cross-month fallback", options: Options{DateStyle: stringPtr(FullStyle), TimeStyle: stringPtr(ShortStyle), TimeZone: stringPtr("UTC")}, start: base, end: base.AddDate(0, 1, 0)},
+			{name: "cross-year fallback", options: Options{DateStyle: stringPtr(MediumStyle), TimeStyle: stringPtr(ShortStyle), TimeZone: stringPtr("UTC")}, start: base, end: base.AddDate(1, 0, 0)},
 			{name: "DST boundary", options: Options{Hour: stringPtr(NumericFieldStyle), Minute: stringPtr(TwoDigitFieldStyle), TimeZone: stringPtr("America/New_York")}, start: time.Date(2026, time.March, 8, 6, 30, 0, 0, time.UTC), end: time.Date(2026, time.March, 8, 7, 30, 0, 0, time.UTC)},
 			{name: "fixed offset", options: Options{Hour: stringPtr(NumericFieldStyle), Minute: stringPtr(TwoDigitFieldStyle), TimeZone: stringPtr("+05:30")}, start: base, end: base.Add(2 * time.Hour)},
 			{name: "reversed", options: Options{Year: stringPtr(NumericFieldStyle), Month: stringPtr(ShortMonthStyle), Day: stringPtr(NumericFieldStyle), TimeZone: stringPtr("UTC")}, start: base.AddDate(1, 0, 0), end: base},

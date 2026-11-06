@@ -168,9 +168,6 @@ func unsupportedTimeZone(value, locName string, err error) error {
 }
 
 func resolveHourCycle(cfg config, resolvedHourCycle, dataLocale string) (HourCycle, *bool) {
-	if cfg.hour == "" && cfg.timeStyle == "" {
-		return "", nil
-	}
 	if cfg.hasHour12 {
 		resolvedHourCycle = cldrdate.HourCycleFor(dataLocale, cfg.hour12)
 	}
@@ -211,7 +208,7 @@ func (f *DateTimeFormat) Format(t time.Time) (string, error) {
 }
 
 func withDefaultDateFields(c config) config {
-	if c.dateStyle != "" || c.timeStyle != "" || c.weekday != "" || c.era != "" || c.year != "" || c.month != "" || c.day != "" || c.dayPeriod != "" || c.hour != "" || c.minute != "" || c.second != "" || c.hasFractionalSecondDigits {
+	if c.dateStyle != "" || c.timeStyle != "" || c.weekday != "" || c.year != "" || c.month != "" || c.day != "" || c.dayPeriod != "" || c.hour != "" || c.minute != "" || c.second != "" || c.hasFractionalSecondDigits {
 		return c
 	}
 	c.year = string(NumericFieldStyle)

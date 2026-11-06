@@ -45,11 +45,11 @@ func TestDateTimeFormatPatternLiteralEdges(t *testing.T) {
 	got = compilePatternProgram("H ''m").parts(&format, gregoryLocalTime(time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC)))
 	want = []Part{
 		{Type: PartHour, Value: "9"},
-		{Type: PartLiteral, Value: " "},
+		{Type: PartLiteral, Value: " '"},
 		{Type: PartMinute, Value: "7"},
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("compiled empty quoted literal = %#v, want %#v", got, want)
+		t.Fatalf("compiled escaped quote = %#v, want %#v", got, want)
 	}
 
 	rangeProgram := compileIntervalPattern("H ''m – H ''m")
@@ -77,10 +77,10 @@ func TestDateTimeStylePatternFallsBackToStandardPattern(t *testing.T) {
 		DateTimeAtFormats: [4]string{"at-full"},
 		DateTimeFormats:   [4]string{"standard-full", "standard-long", "standard-medium", "standard-short"},
 	}
-	if got := dateTimeStylePattern(gregorian, FullDateTimeStyle); got != "at-full" {
+	if got := dateTimeStylePattern(gregorian, FullStyle); got != "at-full" {
 		t.Fatalf("dateTimeStylePattern(full) = %q, want at-full", got)
 	}
-	if got := dateTimeStylePattern(gregorian, MediumDateTimeStyle); got != "standard-medium" {
+	if got := dateTimeStylePattern(gregorian, MediumStyle); got != "standard-medium" {
 		t.Fatalf("dateTimeStylePattern(medium fallback) = %q, want standard-medium", got)
 	}
 }
@@ -165,13 +165,13 @@ func TestDateTimeFormatSmallFormattingHelpers(t *testing.T) {
 		TimeFormats:     [4]string{"time-full", "time-long", "time-medium", "time-short"},
 		DateTimeFormats: [4]string{"both-full", "both-long", "both-medium", "both-short"},
 	}
-	if got := dateStylePattern(gregorian, LongDateTimeStyle); got != "date-long" {
+	if got := dateStylePattern(gregorian, LongStyle); got != "date-long" {
 		t.Fatalf("dateStylePattern(long) = %q, want date-long", got)
 	}
-	if got := timeStylePattern(gregorian, FullDateTimeStyle); got != "time-full" {
+	if got := timeStylePattern(gregorian, FullStyle); got != "time-full" {
 		t.Fatalf("timeStylePattern(full) = %q, want time-full", got)
 	}
-	if got := dateTimeStandardStylePattern(gregorian, ShortDateTimeStyle); got != "both-short" {
+	if got := dateTimeStandardStylePattern(gregorian, ShortStyle); got != "both-short" {
 		t.Fatalf("dateTimeStandardStylePattern(short) = %q, want both-short", got)
 	}
 	if got := dateTimeStandardStylePattern(gregorian, Style("unknown")); got != "" {
@@ -194,7 +194,7 @@ func TestDateTimeFormatSmallFormattingHelpers(t *testing.T) {
 	if got := dayPeriodPatternName(gregorianData, 4, afternoon); got != "PM" {
 		t.Fatalf("dayPeriodPatternName(pm default fallback) = %q, want PM", got)
 	}
-	if got := flexibleDayPeriodPatternName(format.cldrLoc, gregorianData, 4, morning); got != "AM" {
+	if got := flexibleDayPeriodPatternName(format.flexibleDayPeriodValue(morning), gregorianData, 4, morning); got != "AM" {
 		t.Fatalf("flexibleDayPeriodPatternName(fallback) = %q, want AM", got)
 	}
 
@@ -203,7 +203,7 @@ func TestDateTimeFormatSmallFormattingHelpers(t *testing.T) {
 	if datePart.Type != PartLiteral || datePart.Value != "QQ" {
 		t.Fatalf("datePatternPart(unknown) = %#v, want literal QQ", datePart)
 	}
-	timePart, ok := format.timePatternPart('?', 2, morning, numberingSystem, format.uses24Hour, format.cldrLoc, gregorianData)
+	timePart, ok := format.timePatternPart('?', 2, morning, numberingSystem, format.uses24Hour, gregorianData)
 	if !ok || timePart.Type != PartLiteral || timePart.Value != "??" {
 		t.Fatalf("timePatternPart(unknown) = %#v, %v; want literal ??", timePart, ok)
 	}
@@ -235,5 +235,34 @@ func TestDateTimeFormatFallbackRangeParts(t *testing.T) {
 	got = format.fallbackRangeParts(start, end)
 	if joined := joinRangePartValues(got); joined != "9 – 10" {
 		t.Fatalf("fallbackRangeParts(default) = %q, want 9 – 10", joined)
+	}
+}
+
+func TestEscapedQuotesInPrograms(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ pattern, want string }{
+		{"''H''", "'9'"}, {"''''", "''"}, {"'it''s' H", "it's 9"}, {"'H'", "H"},
+	} {
+		f := DateTimeFormat{resolved: ResolvedOptions{NumberingSystem: "latn"}}
+		parts := compilePatternProgram(tc.pattern).parts(&f, gregoryLocalTime(time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC)))
+		got := ""
+		for _, p := range parts {
+			got += p.Value
+		}
+		if got != tc.want {
+			t.Errorf("%s: %q, want %q", tc.pattern, got, tc.want)
+		}
+	}
+	if got := normalizeDateTimeConnectorLiteral(" '' at 'it''s' "); got != " ' at it's " {
+		t.Errorf("connector = %q", got)
+	}
+	f := DateTimeFormat{resolved: ResolvedOptions{NumberingSystem: "latn"}}
+	parts := compileIntervalPattern("H ''m – H ''m").parts(&f, gregoryLocalTime(time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC)), gregoryLocalTime(time.Date(2026, time.May, 8, 10, 8, 0, 0, time.UTC)))
+	got := ""
+	for _, p := range parts {
+		got += p.Value
+	}
+	if got != "9 '7 – 10 '8" {
+		t.Errorf("range = %q", got)
 	}
 }

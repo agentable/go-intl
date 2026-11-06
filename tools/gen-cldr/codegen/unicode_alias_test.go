@@ -13,7 +13,7 @@ func TestRenderUnicodeTypeAliases(t *testing.T) {
 	src, err := renderUnicodeTypeAliases([]cldr.UnicodeTypeAlias{
 		{Key: "ca", Alias: "islamicc", Canonical: "islamic-civil"},
 		{Key: "ms", Alias: "imperial", Canonical: "uksystem"},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("renderUnicodeTypeAliases() error = %v", err)
 	}

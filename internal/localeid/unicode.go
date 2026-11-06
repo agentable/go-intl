@@ -146,11 +146,13 @@ func InsertUnicodeExtension(locale string, attributes []string, keywords []Unico
 		return locale
 	}
 	extension := "-u-" + strings.Join(parts, "-")
-	privateIndex := strings.Index(locale, "-x-")
-	if privateIndex < 0 {
-		return locale + extension
+	// Insert u in singleton order, before private use regardless of its content.
+	for i := 0; i+2 < len(locale); i++ {
+		if locale[i] == '-' && locale[i+2] == '-' && (locale[i+1] > 'u' || locale[i+1] == 'x') {
+			return locale[:i] + extension + locale[i:]
+		}
 	}
-	return locale[:privateIndex] + extension + locale[privateIndex:]
+	return locale + extension
 }
 
 // LowercaseUnicodeLocaleID lowercases ASCII letters in a Unicode locale
@@ -159,10 +161,70 @@ func LowercaseUnicodeLocaleID(tag string) string {
 	return asciiLower(tag)
 }
 
+// HasUnicodeLocaleStructure checks language identifiers and duplicate subtags
+// before canonicalization can erase them. Extension contents are validated by
+// their parsers; private-use contents are not interpreted here.
+func HasUnicodeLocaleStructure(tag string) bool {
+	if strings.Contains(tag, "_") {
+		return false
+	}
+	parts := strings.Split(asciiLower(tag), "-")
+	i := unicodeLanguageIDLength(parts)
+	if i == 0 {
+		return false
+	}
+	singletons := make(map[string]bool)
+	for i < len(parts) {
+		key := parts[i]
+		if len(key) != 1 || !asciiAlnum(key) || singletons[key] {
+			return false
+		}
+		if key == "x" {
+			return true
+		}
+		singletons[key] = true
+		start := i + 1
+		i = start
+		for i < len(parts) && len(parts[i]) != 1 {
+			i++
+		}
+		if key == "t" && start < i && IsUnicodeLanguageSubtag(parts[start]) && unicodeLanguageIDLength(parts[start:i]) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func unicodeLanguageIDLength(parts []string) int {
+	if len(parts) == 0 || !IsUnicodeLanguageSubtag(parts[0]) {
+		return 0
+	}
+	i := 1
+	if i < len(parts) && IsUnicodeScriptSubtag(parts[i]) {
+		i++
+	}
+	if i < len(parts) && IsUnicodeRegionSubtag(parts[i]) {
+		i++
+	}
+	variants := make(map[string]bool)
+	for ; i < len(parts) && IsUnicodeVariantSubtag(parts[i]); i++ {
+		if variants[parts[i]] {
+			return 0
+		}
+		variants[parts[i]] = true
+	}
+	return i
+}
+
 // IsUnicodeKey reports whether value is an ASCII alphanumeric followed by a
 // letter, as required by Unicode locale extension key syntax.
 func IsUnicodeKey(value string) bool {
 	return len(value) == 2 && asciiAlnum(value[:1]) && asciiAlpha(value[1:])
+}
+
+// IsTransformedKey reports the letter-digit key grammar of transformed extensions.
+func IsTransformedKey(value string) bool {
+	return len(value) == 2 && asciiAlpha(value[:1]) && asciiDigits(value[1:])
 }
 
 // IsUnicodeType reports whether value has BCP 47 Unicode locale extension type
@@ -192,7 +254,16 @@ func CanonicalUnicodeType(key, value string) (string, bool) {
 	if !IsUnicodeType(value) {
 		return "", false
 	}
-	return canonicalUnicodeTypeAlias(key, value), true
+	value = canonicalUnicodeTypeAlias(key, value)
+	if key == "rg" || key == "sd" {
+		if replacement, ok := subdivisionAlias[value]; ok {
+			value, _, _ = strings.Cut(strings.ToLower(replacement), " ")
+			if len(value) == 2 {
+				value += "zzzz"
+			}
+		}
+	}
+	return value, true
 }
 
 // IsUnicodeLanguageSubtag reports whether subtag has Unicode language subtag
@@ -246,6 +317,19 @@ func CanonicalUnicodeRegionSubtag(subtag string) (string, bool) {
 		return "", false
 	}
 	return asciiUpper(subtag), true
+}
+
+// UnicodeSubdivisionRegion extracts the uppercased region from a Unicode
+// subdivision identifier. Region aliases are resolved by the caller.
+func UnicodeSubdivisionRegion(value string) (string, bool) {
+	regionLength := 2
+	if len(value) >= 3 && asciiDigits(value[:3]) {
+		regionLength = 3
+	}
+	if len(value) <= regionLength || len(value) > regionLength+4 || !asciiAlnum(value[regionLength:]) {
+		return "", false
+	}
+	return CanonicalUnicodeRegionSubtag(value[:regionLength])
 }
 
 // IsUnicodeVariantSubtag reports whether subtag has Unicode variant subtag

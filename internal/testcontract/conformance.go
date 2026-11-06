@@ -20,6 +20,11 @@ func AssertSupportedLocalesOfFixture[L any, S ~[]E, E interface{ String() string
 ) {
 	t.Helper()
 
+	if fixture.Expected != nil || fixture.ExpectedParts != nil || fixture.ExpectedRange != nil ||
+		fixture.ExpectedRangeParts != nil || fixture.ExpectedOK != nil || fixture.ExpectedResolved != nil ||
+		fixture.ErrorCode != "" && fixture.ExpectedLocales != nil {
+		t.Fatalf("fixture %s: unsupported supportedLocalesOf observation", fixture.ID)
+	}
 	got, err := run(requested(t, fixture.Input))
 	if AssertErrorCode(t, "SupportedLocalesOf()", err, fixture.ErrorCode, wantError) {
 		return

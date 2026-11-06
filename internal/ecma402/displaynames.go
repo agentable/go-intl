@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/localeid"
 )
 
@@ -101,11 +102,11 @@ func canonicalDisplayNamesLanguage(code string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	tag, err := localeid.ParseTag(canonical)
+	tag, err := localeid.ParseTag(canonical, cldrlocale.MaximizeSubtags)
 	if err == nil {
 		return tag.String(), true
 	}
-	return canonical, true
+	return "", false
 }
 
 func canonicalDisplayNamesRegion(code string) (string, bool) {

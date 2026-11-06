@@ -16,6 +16,11 @@ var unicodeTypeAliases = [...]unicodeTypeAliasRecord{
 	{key: "ks", alias: "primary", canonical: "level1"},
 	{key: "ks", alias: "tertiary", canonical: "level3"},
 	{key: "ms", alias: "imperial", canonical: "uksystem"},
+	{key: "t:d0", alias: "name", canonical: "charname"},
+	{key: "t:m0", alias: "beta-metsehaf", canonical: "betamets"},
+	{key: "t:m0", alias: "ies-jes", canonical: "iesjes"},
+	{key: "t:m0", alias: "names", canonical: "prprname"},
+	{key: "t:m0", alias: "tekie-alibekit", canonical: "tekieali"},
 	{key: "tz", alias: "aqams", canonical: "aqmcm"},
 	{key: "tz", alias: "aukns", canonical: "auhba"},
 	{key: "tz", alias: "caffs", canonical: "cawnp"},
@@ -66,4 +71,2199 @@ var unicodeTypeAliases = [...]unicodeTypeAliasRecord{
 	{key: "tz", alias: "usnavajo", canonical: "usden"},
 	{key: "tz", alias: "wet", canonical: "ptlis"},
 	{key: "tz", alias: "zulu", canonical: "utc"},
+}
+
+var languageAliases = map[string][]languageAliasRecord{
+	"aa": {
+		{from: "aa-saaho", to: "ssy"},
+	},
+	"aam": {
+		{from: "aam", to: "aas"},
+	},
+	"aar": {
+		{from: "aar", to: "aa"},
+	},
+	"abk": {
+		{from: "abk", to: "ab"},
+	},
+	"adp": {
+		{from: "adp", to: "dz"},
+	},
+	"afr": {
+		{from: "afr", to: "af"},
+	},
+	"agp": {
+		{from: "agp", to: "apf"},
+	},
+	"ais": {
+		{from: "ais", to: "ami"},
+	},
+	"ajp": {
+		{from: "ajp", to: "apc"},
+	},
+	"ajt": {
+		{from: "ajt", to: "aeb"},
+	},
+	"aju": {
+		{from: "aju", to: "jrb"},
+	},
+	"aka": {
+		{from: "aka", to: "ak"},
+	},
+	"alb": {
+		{from: "alb", to: "sq"},
+	},
+	"als": {
+		{from: "als", to: "sq"},
+	},
+	"amh": {
+		{from: "amh", to: "am"},
+	},
+	"ara": {
+		{from: "ara", to: "ar"},
+	},
+	"arb": {
+		{from: "arb", to: "ar"},
+	},
+	"arg": {
+		{from: "arg", to: "an"},
+	},
+	"arm": {
+		{from: "arm", to: "hy"},
+	},
+	"art": {
+		{from: "art-lojban", to: "jbo"},
+	},
+	"asd": {
+		{from: "asd", to: "snz"},
+	},
+	"asm": {
+		{from: "asm", to: "as"},
+	},
+	"aue": {
+		{from: "aue", to: "ktz"},
+	},
+	"ava": {
+		{from: "ava", to: "av"},
+	},
+	"ave": {
+		{from: "ave", to: "ae"},
+	},
+	"aym": {
+		{from: "aym", to: "ay"},
+	},
+	"ayr": {
+		{from: "ayr", to: "ay"},
+	},
+	"ayx": {
+		{from: "ayx", to: "nun"},
+	},
+	"aze": {
+		{from: "aze", to: "az"},
+	},
+	"azj": {
+		{from: "azj", to: "az"},
+	},
+	"bak": {
+		{from: "bak", to: "ba"},
+	},
+	"bam": {
+		{from: "bam", to: "bm"},
+	},
+	"baq": {
+		{from: "baq", to: "eu"},
+	},
+	"baz": {
+		{from: "baz", to: "nvo"},
+	},
+	"bcc": {
+		{from: "bcc", to: "bal"},
+	},
+	"bcl": {
+		{from: "bcl", to: "bik"},
+	},
+	"bel": {
+		{from: "bel", to: "be"},
+	},
+	"ben": {
+		{from: "ben", to: "bn"},
+	},
+	"bgm": {
+		{from: "bgm", to: "bcg"},
+	},
+	"bh": {
+		{from: "bh", to: "bho"},
+	},
+	"bhk": {
+		{from: "bhk", to: "fbl"},
+	},
+	"bic": {
+		{from: "bic", to: "bir"},
+	},
+	"bih": {
+		{from: "bih", to: "bho"},
+	},
+	"bis": {
+		{from: "bis", to: "bi"},
+	},
+	"bjd": {
+		{from: "bjd", to: "drl"},
+	},
+	"bjq": {
+		{from: "bjq", to: "bzc"},
+	},
+	"bkb": {
+		{from: "bkb", to: "ebk"},
+	},
+	"blg": {
+		{from: "blg", to: "iba"},
+	},
+	"bod": {
+		{from: "bod", to: "bo"},
+	},
+	"bos": {
+		{from: "bos", to: "bs"},
+	},
+	"bre": {
+		{from: "bre", to: "br"},
+	},
+	"btb": {
+		{from: "btb", to: "beb"},
+	},
+	"bul": {
+		{from: "bul", to: "bg"},
+	},
+	"bur": {
+		{from: "bur", to: "my"},
+	},
+	"bxk": {
+		{from: "bxk", to: "luy"},
+	},
+	"bxr": {
+		{from: "bxr", to: "bua"},
+	},
+	"cat": {
+		{from: "cat", to: "ca"},
+	},
+	"ccq": {
+		{from: "ccq", to: "rki"},
+	},
+	"cel": {
+		{from: "cel-gaulish", to: "xtg"},
+	},
+	"ces": {
+		{from: "ces", to: "cs"},
+	},
+	"cha": {
+		{from: "cha", to: "ch"},
+	},
+	"che": {
+		{from: "che", to: "ce"},
+	},
+	"chi": {
+		{from: "chi", to: "zh"},
+	},
+	"chu": {
+		{from: "chu", to: "cu"},
+	},
+	"chv": {
+		{from: "chv", to: "cv"},
+	},
+	"cjr": {
+		{from: "cjr", to: "mom"},
+	},
+	"cka": {
+		{from: "cka", to: "cmr"},
+	},
+	"cld": {
+		{from: "cld", to: "syr"},
+	},
+	"cls": {
+		{from: "cls", to: "sa"},
+	},
+	"cmk": {
+		{from: "cmk", to: "xch"},
+	},
+	"cmn": {
+		{from: "cmn", to: "zh"},
+	},
+	"cnr": {
+		{from: "cnr", to: "sr-ME"},
+	},
+	"cor": {
+		{from: "cor", to: "kw"},
+	},
+	"cos": {
+		{from: "cos", to: "co"},
+	},
+	"coy": {
+		{from: "coy", to: "pij"},
+	},
+	"cqu": {
+		{from: "cqu", to: "quh"},
+	},
+	"cre": {
+		{from: "cre", to: "cr"},
+	},
+	"cwd": {
+		{from: "cwd", to: "cr"},
+	},
+	"cym": {
+		{from: "cym", to: "cy"},
+	},
+	"cze": {
+		{from: "cze", to: "cs"},
+	},
+	"daf": {
+		{from: "daf", to: "dnj"},
+	},
+	"dan": {
+		{from: "dan", to: "da"},
+	},
+	"dap": {
+		{from: "dap", to: "njz"},
+	},
+	"dek": {
+		{from: "dek", to: "sqm"},
+	},
+	"deu": {
+		{from: "deu", to: "de"},
+	},
+	"dgo": {
+		{from: "dgo", to: "doi"},
+	},
+	"dhd": {
+		{from: "dhd", to: "mwr"},
+	},
+	"dik": {
+		{from: "dik", to: "din"},
+	},
+	"diq": {
+		{from: "diq", to: "zza"},
+	},
+	"dit": {
+		{from: "dit", to: "dif"},
+	},
+	"div": {
+		{from: "div", to: "dv"},
+	},
+	"djl": {
+		{from: "djl", to: "dze"},
+	},
+	"dkl": {
+		{from: "dkl", to: "aqd"},
+	},
+	"drh": {
+		{from: "drh", to: "mn"},
+	},
+	"drr": {
+		{from: "drr", to: "kzk"},
+	},
+	"drw": {
+		{from: "drw", to: "fa-AF"},
+	},
+	"dud": {
+		{from: "dud", to: "uth"},
+	},
+	"duj": {
+		{from: "duj", to: "dwu"},
+	},
+	"dut": {
+		{from: "dut", to: "nl"},
+	},
+	"dwl": {
+		{from: "dwl", to: "dbt"},
+	},
+	"dzo": {
+		{from: "dzo", to: "dz"},
+	},
+	"ekk": {
+		{from: "ekk", to: "et"},
+	},
+	"ell": {
+		{from: "ell", to: "el"},
+	},
+	"elp": {
+		{from: "elp", to: "amq"},
+	},
+	"emk": {
+		{from: "emk", to: "man"},
+	},
+	"en": {
+		{from: "en-GB-oed", to: "en-GB-oxendict"},
+	},
+	"eng": {
+		{from: "eng", to: "en"},
+	},
+	"epo": {
+		{from: "epo", to: "eo"},
+	},
+	"esk": {
+		{from: "esk", to: "ik"},
+	},
+	"est": {
+		{from: "est", to: "et"},
+	},
+	"eus": {
+		{from: "eus", to: "eu"},
+	},
+	"ewe": {
+		{from: "ewe", to: "ee"},
+	},
+	"fao": {
+		{from: "fao", to: "fo"},
+	},
+	"fas": {
+		{from: "fas", to: "fa"},
+	},
+	"fat": {
+		{from: "fat", to: "ak"},
+	},
+	"fij": {
+		{from: "fij", to: "fj"},
+	},
+	"fin": {
+		{from: "fin", to: "fi"},
+	},
+	"fra": {
+		{from: "fra", to: "fr"},
+	},
+	"fre": {
+		{from: "fre", to: "fr"},
+	},
+	"fry": {
+		{from: "fry", to: "fy"},
+	},
+	"fuc": {
+		{from: "fuc", to: "ff"},
+	},
+	"ful": {
+		{from: "ful", to: "ff"},
+	},
+	"gav": {
+		{from: "gav", to: "dev"},
+	},
+	"gaz": {
+		{from: "gaz", to: "om"},
+	},
+	"gbc": {
+		{from: "gbc", to: "wny"},
+	},
+	"gbo": {
+		{from: "gbo", to: "grb"},
+	},
+	"geo": {
+		{from: "geo", to: "ka"},
+	},
+	"ger": {
+		{from: "ger", to: "de"},
+	},
+	"gfx": {
+		{from: "gfx", to: "vaj"},
+	},
+	"ggn": {
+		{from: "ggn", to: "gvr"},
+	},
+	"ggo": {
+		{from: "ggo", to: "esg"},
+	},
+	"ggr": {
+		{from: "ggr", to: "gtu"},
+	},
+	"gio": {
+		{from: "gio", to: "aou"},
+	},
+	"gla": {
+		{from: "gla", to: "gd"},
+	},
+	"gle": {
+		{from: "gle", to: "ga"},
+	},
+	"glg": {
+		{from: "glg", to: "gl"},
+	},
+	"gli": {
+		{from: "gli", to: "kzk"},
+	},
+	"glv": {
+		{from: "glv", to: "gv"},
+	},
+	"gno": {
+		{from: "gno", to: "gon"},
+	},
+	"gom": {
+		{from: "gom", to: "kok"},
+	},
+	"gre": {
+		{from: "gre", to: "el"},
+	},
+	"grn": {
+		{from: "grn", to: "gn"},
+	},
+	"gti": {
+		{from: "gti", to: "nyc"},
+	},
+	"gug": {
+		{from: "gug", to: "gn"},
+	},
+	"guj": {
+		{from: "guj", to: "gu"},
+	},
+	"guv": {
+		{from: "guv", to: "duz"},
+	},
+	"gya": {
+		{from: "gya", to: "gba"},
+	},
+	"hat": {
+		{from: "hat", to: "ht"},
+	},
+	"hau": {
+		{from: "hau", to: "ha"},
+	},
+	"hbs": {
+		{from: "hbs", to: "sr-Latn"},
+	},
+	"hdn": {
+		{from: "hdn", to: "hai"},
+	},
+	"hea": {
+		{from: "hea", to: "hmn"},
+	},
+	"heb": {
+		{from: "heb", to: "he"},
+	},
+	"her": {
+		{from: "her", to: "hz"},
+	},
+	"him": {
+		{from: "him", to: "srx"},
+	},
+	"hin": {
+		{from: "hin", to: "hi"},
+	},
+	"hmo": {
+		{from: "hmo", to: "ho"},
+	},
+	"hrr": {
+		{from: "hrr", to: "jal"},
+	},
+	"hrv": {
+		{from: "hrv", to: "hr"},
+	},
+	"hun": {
+		{from: "hun", to: "hu"},
+	},
+	"hy": {
+		{from: "hy-arevmda", to: "hyw"},
+	},
+	"hye": {
+		{from: "hye", to: "hy"},
+	},
+	"i": {
+		{from: "i-ami", to: "ami"},
+		{from: "i-bnn", to: "bnn"},
+		{from: "i-default", to: "en-x-i-default"},
+		{from: "i-enochian", to: "und-x-i-enochian"},
+		{from: "i-hak", to: "hak"},
+		{from: "i-klingon", to: "tlh"},
+		{from: "i-lux", to: "lb"},
+		{from: "i-mingo", to: "see-x-i-mingo"},
+		{from: "i-navajo", to: "nv"},
+		{from: "i-pwn", to: "pwn"},
+		{from: "i-tao", to: "tao"},
+		{from: "i-tay", to: "tay"},
+		{from: "i-tsu", to: "tsu"},
+	},
+	"ibi": {
+		{from: "ibi", to: "opa"},
+	},
+	"ibo": {
+		{from: "ibo", to: "ig"},
+	},
+	"ice": {
+		{from: "ice", to: "is"},
+	},
+	"ido": {
+		{from: "ido", to: "io"},
+	},
+	"iii": {
+		{from: "iii", to: "ii"},
+	},
+	"ike": {
+		{from: "ike", to: "iu"},
+	},
+	"iku": {
+		{from: "iku", to: "iu"},
+	},
+	"ile": {
+		{from: "ile", to: "ie"},
+	},
+	"ill": {
+		{from: "ill", to: "ilm"},
+	},
+	"ilw": {
+		{from: "ilw", to: "gal"},
+	},
+	"in": {
+		{from: "in", to: "id"},
+	},
+	"ina": {
+		{from: "ina", to: "ia"},
+	},
+	"ind": {
+		{from: "ind", to: "id"},
+	},
+	"ipk": {
+		{from: "ipk", to: "ik"},
+	},
+	"isl": {
+		{from: "isl", to: "is"},
+	},
+	"ita": {
+		{from: "ita", to: "it"},
+	},
+	"iw": {
+		{from: "iw", to: "he"},
+	},
+	"izi": {
+		{from: "izi", to: "eza"},
+	},
+	"jar": {
+		{from: "jar", to: "jgk"},
+	},
+	"jav": {
+		{from: "jav", to: "jv"},
+	},
+	"jeg": {
+		{from: "jeg", to: "oyb"},
+	},
+	"ji": {
+		{from: "ji", to: "yi"},
+	},
+	"jpn": {
+		{from: "jpn", to: "ja"},
+	},
+	"jw": {
+		{from: "jw", to: "jv"},
+	},
+	"kal": {
+		{from: "kal", to: "kl"},
+	},
+	"kan": {
+		{from: "kan", to: "kn"},
+	},
+	"kas": {
+		{from: "kas", to: "ks"},
+	},
+	"kat": {
+		{from: "kat", to: "ka"},
+	},
+	"kau": {
+		{from: "kau", to: "kr"},
+	},
+	"kaz": {
+		{from: "kaz", to: "kk"},
+	},
+	"kdv": {
+		{from: "kdv", to: "zkd"},
+	},
+	"kgc": {
+		{from: "kgc", to: "tdf"},
+	},
+	"kgd": {
+		{from: "kgd", to: "ncq"},
+	},
+	"kgh": {
+		{from: "kgh", to: "kml"},
+	},
+	"kgm": {
+		{from: "kgm", to: "plu"},
+	},
+	"khk": {
+		{from: "khk", to: "mn"},
+	},
+	"khm": {
+		{from: "khm", to: "km"},
+	},
+	"kik": {
+		{from: "kik", to: "ki"},
+	},
+	"kin": {
+		{from: "kin", to: "rw"},
+	},
+	"kir": {
+		{from: "kir", to: "ky"},
+	},
+	"kmr": {
+		{from: "kmr", to: "ku"},
+	},
+	"knc": {
+		{from: "knc", to: "kr"},
+	},
+	"kng": {
+		{from: "kng", to: "kg"},
+	},
+	"koj": {
+		{from: "koj", to: "kwv"},
+	},
+	"kom": {
+		{from: "kom", to: "kv"},
+	},
+	"kon": {
+		{from: "kon", to: "kg"},
+	},
+	"kor": {
+		{from: "kor", to: "ko"},
+	},
+	"kpp": {
+		{from: "kpp", to: "jkm"},
+	},
+	"kpv": {
+		{from: "kpv", to: "kv"},
+	},
+	"krm": {
+		{from: "krm", to: "bmf"},
+	},
+	"ktr": {
+		{from: "ktr", to: "dtp"},
+	},
+	"kua": {
+		{from: "kua", to: "kj"},
+	},
+	"kur": {
+		{from: "kur", to: "ku"},
+	},
+	"kvs": {
+		{from: "kvs", to: "gdj"},
+	},
+	"kwq": {
+		{from: "kwq", to: "yam"},
+	},
+	"kxe": {
+		{from: "kxe", to: "tvd"},
+	},
+	"kxl": {
+		{from: "kxl", to: "kru"},
+	},
+	"kzh": {
+		{from: "kzh", to: "dgl"},
+	},
+	"kzj": {
+		{from: "kzj", to: "dtp"},
+	},
+	"kzt": {
+		{from: "kzt", to: "dtp"},
+	},
+	"lak": {
+		{from: "lak", to: "ksp"},
+	},
+	"lao": {
+		{from: "lao", to: "lo"},
+	},
+	"lat": {
+		{from: "lat", to: "la"},
+	},
+	"lav": {
+		{from: "lav", to: "lv"},
+	},
+	"lbk": {
+		{from: "lbk", to: "bnc"},
+	},
+	"leg": {
+		{from: "leg", to: "enl"},
+	},
+	"lii": {
+		{from: "lii", to: "raq"},
+	},
+	"lim": {
+		{from: "lim", to: "li"},
+	},
+	"lin": {
+		{from: "lin", to: "ln"},
+	},
+	"lit": {
+		{from: "lit", to: "lt"},
+	},
+	"llo": {
+		{from: "llo", to: "ngt"},
+	},
+	"lmm": {
+		{from: "lmm", to: "rmx"},
+	},
+	"ltz": {
+		{from: "ltz", to: "lb"},
+	},
+	"lub": {
+		{from: "lub", to: "lu"},
+	},
+	"lug": {
+		{from: "lug", to: "lg"},
+	},
+	"lvs": {
+		{from: "lvs", to: "lv"},
+	},
+	"mac": {
+		{from: "mac", to: "mk"},
+	},
+	"mah": {
+		{from: "mah", to: "mh"},
+	},
+	"mal": {
+		{from: "mal", to: "ml"},
+	},
+	"mao": {
+		{from: "mao", to: "mi"},
+	},
+	"mar": {
+		{from: "mar", to: "mr"},
+	},
+	"may": {
+		{from: "may", to: "ms"},
+	},
+	"meg": {
+		{from: "meg", to: "cir"},
+	},
+	"mgx": {
+		{from: "mgx", to: "jbk"},
+	},
+	"mhr": {
+		{from: "mhr", to: "chm"},
+	},
+	"mkd": {
+		{from: "mkd", to: "mk"},
+	},
+	"mlg": {
+		{from: "mlg", to: "mg"},
+	},
+	"mlt": {
+		{from: "mlt", to: "mt"},
+	},
+	"mnt": {
+		{from: "mnt", to: "wnn"},
+	},
+	"mo": {
+		{from: "mo", to: "ro"},
+	},
+	"mof": {
+		{from: "mof", to: "xnt"},
+	},
+	"mol": {
+		{from: "mol", to: "ro"},
+	},
+	"mon": {
+		{from: "mon", to: "mn"},
+	},
+	"mri": {
+		{from: "mri", to: "mi"},
+	},
+	"msa": {
+		{from: "msa", to: "ms"},
+	},
+	"mst": {
+		{from: "mst", to: "mry"},
+	},
+	"mup": {
+		{from: "mup", to: "raj"},
+	},
+	"mwd": {
+		{from: "mwd", to: "dmw"},
+	},
+	"mwj": {
+		{from: "mwj", to: "vaj"},
+	},
+	"mya": {
+		{from: "mya", to: "my"},
+	},
+	"myd": {
+		{from: "myd", to: "aog"},
+	},
+	"myt": {
+		{from: "myt", to: "mry"},
+	},
+	"nad": {
+		{from: "nad", to: "xny"},
+	},
+	"nau": {
+		{from: "nau", to: "na"},
+	},
+	"nav": {
+		{from: "nav", to: "nv"},
+	},
+	"nbf": {
+		{from: "nbf", to: "nru"},
+	},
+	"nbl": {
+		{from: "nbl", to: "nr"},
+	},
+	"nbx": {
+		{from: "nbx", to: "gll"},
+	},
+	"ncp": {
+		{from: "ncp", to: "kdz"},
+	},
+	"nde": {
+		{from: "nde", to: "nd"},
+	},
+	"ndo": {
+		{from: "ndo", to: "ng"},
+	},
+	"nep": {
+		{from: "nep", to: "ne"},
+	},
+	"nld": {
+		{from: "nld", to: "nl"},
+	},
+	"nln": {
+		{from: "nln", to: "azd"},
+	},
+	"nlr": {
+		{from: "nlr", to: "nrk"},
+	},
+	"nno": {
+		{from: "nno", to: "nn"},
+	},
+	"nns": {
+		{from: "nns", to: "nbr"},
+	},
+	"nnx": {
+		{from: "nnx", to: "ngv"},
+	},
+	"no": {
+		{from: "no-bok", to: "nb"},
+		{from: "no-bokmal", to: "nb"},
+		{from: "no-nyn", to: "nn"},
+		{from: "no-nynorsk", to: "nn"},
+	},
+	"nob": {
+		{from: "nob", to: "nb"},
+	},
+	"nom": {
+		{from: "nom", to: "cbr"},
+	},
+	"noo": {
+		{from: "noo", to: "dtd"},
+	},
+	"nor": {
+		{from: "nor", to: "no"},
+	},
+	"npi": {
+		{from: "npi", to: "ne"},
+	},
+	"nte": {
+		{from: "nte", to: "eko"},
+	},
+	"nts": {
+		{from: "nts", to: "pij"},
+	},
+	"nxu": {
+		{from: "nxu", to: "bpp"},
+	},
+	"nya": {
+		{from: "nya", to: "ny"},
+	},
+	"oci": {
+		{from: "oci", to: "oc"},
+	},
+	"ojg": {
+		{from: "ojg", to: "oj"},
+	},
+	"oji": {
+		{from: "oji", to: "oj"},
+	},
+	"ori": {
+		{from: "ori", to: "or"},
+	},
+	"orm": {
+		{from: "orm", to: "om"},
+	},
+	"ory": {
+		{from: "ory", to: "or"},
+	},
+	"oss": {
+		{from: "oss", to: "os"},
+	},
+	"oun": {
+		{from: "oun", to: "vaj"},
+	},
+	"pan": {
+		{from: "pan", to: "pa"},
+	},
+	"pat": {
+		{from: "pat", to: "kxr"},
+	},
+	"pbu": {
+		{from: "pbu", to: "ps"},
+	},
+	"pcr": {
+		{from: "pcr", to: "adx"},
+	},
+	"per": {
+		{from: "per", to: "fa"},
+	},
+	"pes": {
+		{from: "pes", to: "fa"},
+	},
+	"pli": {
+		{from: "pli", to: "pi"},
+	},
+	"plt": {
+		{from: "plt", to: "mg"},
+	},
+	"pmc": {
+		{from: "pmc", to: "huw"},
+	},
+	"pmk": {
+		{from: "pmk", to: "crr"},
+	},
+	"pmu": {
+		{from: "pmu", to: "phr"},
+	},
+	"pnb": {
+		{from: "pnb", to: "lah"},
+	},
+	"pol": {
+		{from: "pol", to: "pl"},
+	},
+	"por": {
+		{from: "por", to: "pt"},
+	},
+	"ppa": {
+		{from: "ppa", to: "bfy"},
+	},
+	"ppr": {
+		{from: "ppr", to: "lcq"},
+	},
+	"prp": {
+		{from: "prp", to: "gu"},
+	},
+	"prs": {
+		{from: "prs", to: "fa-AF"},
+	},
+	"pry": {
+		{from: "pry", to: "prt"},
+	},
+	"pus": {
+		{from: "pus", to: "ps"},
+	},
+	"puz": {
+		{from: "puz", to: "pub"},
+	},
+	"que": {
+		{from: "que", to: "qu"},
+	},
+	"quz": {
+		{from: "quz", to: "qu"},
+	},
+	"rmr": {
+		{from: "rmr", to: "emx"},
+	},
+	"rmy": {
+		{from: "rmy", to: "rom"},
+	},
+	"roh": {
+		{from: "roh", to: "rm"},
+	},
+	"ron": {
+		{from: "ron", to: "ro"},
+	},
+	"rum": {
+		{from: "rum", to: "ro"},
+	},
+	"run": {
+		{from: "run", to: "rn"},
+	},
+	"rus": {
+		{from: "rus", to: "ru"},
+	},
+	"sag": {
+		{from: "sag", to: "sg"},
+	},
+	"san": {
+		{from: "san", to: "sa"},
+	},
+	"sap": {
+		{from: "sap", to: "aqt"},
+	},
+	"sca": {
+		{from: "sca", to: "hle"},
+	},
+	"scc": {
+		{from: "scc", to: "sr"},
+	},
+	"scr": {
+		{from: "scr", to: "hr"},
+	},
+	"sgl": {
+		{from: "sgl", to: "isk"},
+	},
+	"sgn": {
+		{from: "sgn-BE-FR", to: "sfb"},
+		{from: "sgn-BE-NL", to: "vgt"},
+		{from: "sgn-BR", to: "bzs"},
+		{from: "sgn-CH-DE", to: "sgg"},
+		{from: "sgn-CO", to: "csn"},
+		{from: "sgn-DE", to: "gsg"},
+		{from: "sgn-DK", to: "dsl"},
+		{from: "sgn-ES", to: "ssp"},
+		{from: "sgn-FR", to: "fsl"},
+		{from: "sgn-GB", to: "bfi"},
+		{from: "sgn-GR", to: "gss"},
+		{from: "sgn-IE", to: "isg"},
+		{from: "sgn-IT", to: "ise"},
+		{from: "sgn-JP", to: "jsl"},
+		{from: "sgn-MX", to: "mfs"},
+		{from: "sgn-NI", to: "ncs"},
+		{from: "sgn-NL", to: "dse"},
+		{from: "sgn-NO", to: "nsi"},
+		{from: "sgn-PT", to: "psr"},
+		{from: "sgn-SE", to: "swl"},
+		{from: "sgn-US", to: "ase"},
+		{from: "sgn-ZA", to: "sfs"},
+	},
+	"sh": {
+		{from: "sh", to: "sr-Latn"},
+	},
+	"sin": {
+		{from: "sin", to: "si"},
+	},
+	"skk": {
+		{from: "skk", to: "oyb"},
+	},
+	"slk": {
+		{from: "slk", to: "sk"},
+	},
+	"slo": {
+		{from: "slo", to: "sk"},
+	},
+	"slv": {
+		{from: "slv", to: "sl"},
+	},
+	"smd": {
+		{from: "smd", to: "kmb"},
+	},
+	"sme": {
+		{from: "sme", to: "se"},
+	},
+	"smo": {
+		{from: "smo", to: "sm"},
+	},
+	"sna": {
+		{from: "sna", to: "sn"},
+	},
+	"snb": {
+		{from: "snb", to: "iba"},
+	},
+	"snd": {
+		{from: "snd", to: "sd"},
+	},
+	"som": {
+		{from: "som", to: "so"},
+	},
+	"sot": {
+		{from: "sot", to: "st"},
+	},
+	"spa": {
+		{from: "spa", to: "es"},
+	},
+	"spy": {
+		{from: "spy", to: "kln"},
+	},
+	"sqi": {
+		{from: "sqi", to: "sq"},
+	},
+	"src": {
+		{from: "src", to: "sc"},
+	},
+	"srd": {
+		{from: "srd", to: "sc"},
+	},
+	"srp": {
+		{from: "srp", to: "sr"},
+	},
+	"ssw": {
+		{from: "ssw", to: "ss"},
+	},
+	"sul": {
+		{from: "sul", to: "sgd"},
+	},
+	"sum": {
+		{from: "sum", to: "ulw"},
+	},
+	"sun": {
+		{from: "sun", to: "su"},
+	},
+	"swa": {
+		{from: "swa", to: "sw"},
+	},
+	"swc": {
+		{from: "swc", to: "sw-CD"},
+	},
+	"swe": {
+		{from: "swe", to: "sv"},
+	},
+	"swh": {
+		{from: "swh", to: "sw"},
+	},
+	"szd": {
+		{from: "szd", to: "umi"},
+	},
+	"tah": {
+		{from: "tah", to: "ty"},
+	},
+	"tam": {
+		{from: "tam", to: "ta"},
+	},
+	"tat": {
+		{from: "tat", to: "tt"},
+	},
+	"tdu": {
+		{from: "tdu", to: "dtp"},
+	},
+	"tel": {
+		{from: "tel", to: "te"},
+	},
+	"tgg": {
+		{from: "tgg", to: "bjp"},
+	},
+	"tgk": {
+		{from: "tgk", to: "tg"},
+	},
+	"tgl": {
+		{from: "tgl", to: "fil"},
+	},
+	"tha": {
+		{from: "tha", to: "th"},
+	},
+	"thc": {
+		{from: "thc", to: "tpo"},
+	},
+	"thw": {
+		{from: "thw", to: "ola"},
+	},
+	"thx": {
+		{from: "thx", to: "oyb"},
+	},
+	"tib": {
+		{from: "tib", to: "bo"},
+	},
+	"tid": {
+		{from: "tid", to: "itd"},
+	},
+	"tie": {
+		{from: "tie", to: "ras"},
+	},
+	"tir": {
+		{from: "tir", to: "ti"},
+	},
+	"tkk": {
+		{from: "tkk", to: "twm"},
+	},
+	"tl": {
+		{from: "tl", to: "fil"},
+	},
+	"tlw": {
+		{from: "tlw", to: "weo"},
+	},
+	"tmk": {
+		{from: "tmk", to: "tdg"},
+	},
+	"tmp": {
+		{from: "tmp", to: "tyj"},
+	},
+	"tne": {
+		{from: "tne", to: "kak"},
+	},
+	"tnf": {
+		{from: "tnf", to: "fa-AF"},
+	},
+	"ton": {
+		{from: "ton", to: "to"},
+	},
+	"tpw": {
+		{from: "tpw", to: "tpn"},
+	},
+	"tsf": {
+		{from: "tsf", to: "taj"},
+	},
+	"tsn": {
+		{from: "tsn", to: "tn"},
+	},
+	"tso": {
+		{from: "tso", to: "ts"},
+	},
+	"ttq": {
+		{from: "ttq", to: "tmh"},
+	},
+	"tuk": {
+		{from: "tuk", to: "tk"},
+	},
+	"tur": {
+		{from: "tur", to: "tr"},
+	},
+	"tw": {
+		{from: "tw", to: "ak"},
+	},
+	"twi": {
+		{from: "twi", to: "ak"},
+	},
+	"uig": {
+		{from: "uig", to: "ug"},
+	},
+	"ukr": {
+		{from: "ukr", to: "uk"},
+	},
+	"umu": {
+		{from: "umu", to: "del"},
+	},
+	"und": {
+		{from: "und-aaland", to: "und-AX"},
+		{from: "und-arevela", to: "und"},
+		{from: "und-arevmda", to: "und"},
+		{from: "und-bokmal", to: "und"},
+		{from: "und-hakka", to: "und"},
+		{from: "und-hepburn-heploc", to: "und-alalc97"},
+		{from: "und-lojban", to: "und"},
+		{from: "und-nynorsk", to: "und"},
+		{from: "und-saaho", to: "und"},
+		{from: "und-xiang", to: "und"},
+	},
+	"unp": {
+		{from: "unp", to: "wro"},
+	},
+	"uok": {
+		{from: "uok", to: "ema"},
+	},
+	"urd": {
+		{from: "urd", to: "ur"},
+	},
+	"uzb": {
+		{from: "uzb", to: "uz"},
+	},
+	"uzn": {
+		{from: "uzn", to: "uz"},
+	},
+	"ven": {
+		{from: "ven", to: "ve"},
+	},
+	"vie": {
+		{from: "vie", to: "vi"},
+	},
+	"vol": {
+		{from: "vol", to: "vo"},
+	},
+	"wel": {
+		{from: "wel", to: "cy"},
+	},
+	"wgw": {
+		{from: "wgw", to: "wgb"},
+	},
+	"wit": {
+		{from: "wit", to: "nol"},
+	},
+	"wiw": {
+		{from: "wiw", to: "nwo"},
+	},
+	"wln": {
+		{from: "wln", to: "wa"},
+	},
+	"wol": {
+		{from: "wol", to: "wo"},
+	},
+	"xba": {
+		{from: "xba", to: "cax"},
+	},
+	"xho": {
+		{from: "xho", to: "xh"},
+	},
+	"xia": {
+		{from: "xia", to: "acn"},
+	},
+	"xkh": {
+		{from: "xkh", to: "waw"},
+	},
+	"xpe": {
+		{from: "xpe", to: "kpe"},
+	},
+	"xrq": {
+		{from: "xrq", to: "dmw"},
+	},
+	"xsj": {
+		{from: "xsj", to: "suj"},
+	},
+	"xsl": {
+		{from: "xsl", to: "den"},
+	},
+	"xss": {
+		{from: "xss", to: "zko"},
+	},
+	"ybd": {
+		{from: "ybd", to: "rki"},
+	},
+	"ydd": {
+		{from: "ydd", to: "yi"},
+	},
+	"yen": {
+		{from: "yen", to: "ynq"},
+	},
+	"yid": {
+		{from: "yid", to: "yi"},
+	},
+	"yiy": {
+		{from: "yiy", to: "yrm"},
+	},
+	"yma": {
+		{from: "yma", to: "lrr"},
+	},
+	"ymt": {
+		{from: "ymt", to: "mtm"},
+	},
+	"yor": {
+		{from: "yor", to: "yo"},
+	},
+	"yos": {
+		{from: "yos", to: "zom"},
+	},
+	"yuu": {
+		{from: "yuu", to: "yug"},
+	},
+	"zai": {
+		{from: "zai", to: "zap"},
+	},
+	"zh": {
+		{from: "zh-cmn", to: "zh"},
+		{from: "zh-cmn-Hans", to: "zh-Hans"},
+		{from: "zh-cmn-Hant", to: "zh-Hant"},
+		{from: "zh-gan", to: "gan"},
+		{from: "zh-guoyu", to: "zh"},
+		{from: "zh-hakka", to: "hak"},
+		{from: "zh-min", to: "nan-x-zh-min"},
+		{from: "zh-min-nan", to: "nan"},
+		{from: "zh-wuu", to: "wuu"},
+		{from: "zh-xiang", to: "hsn"},
+		{from: "zh-yue", to: "yue"},
+	},
+	"zha": {
+		{from: "zha", to: "za"},
+	},
+	"zho": {
+		{from: "zho", to: "zh"},
+	},
+	"zir": {
+		{from: "zir", to: "scv"},
+	},
+	"zkb": {
+		{from: "zkb", to: "kjh"},
+	},
+	"zsm": {
+		{from: "zsm", to: "ms"},
+	},
+	"zul": {
+		{from: "zul", to: "zu"},
+	},
+	"zyb": {
+		{from: "zyb", to: "za"},
+	},
+}
+
+var scriptAlias = map[string]string{
+	"Qaai": "Zinh",
+}
+
+var territoryAlias = map[string]string{
+	"004": "AF",
+	"008": "AL",
+	"010": "AQ",
+	"012": "DZ",
+	"016": "AS",
+	"020": "AD",
+	"024": "AO",
+	"028": "AG",
+	"031": "AZ",
+	"032": "AR",
+	"036": "AU",
+	"040": "AT",
+	"044": "BS",
+	"048": "BH",
+	"050": "BD",
+	"051": "AM",
+	"052": "BB",
+	"056": "BE",
+	"060": "BM",
+	"062": "034 143",
+	"064": "BT",
+	"068": "BO",
+	"070": "BA",
+	"072": "BW",
+	"074": "BV",
+	"076": "BR",
+	"084": "BZ",
+	"086": "IO",
+	"090": "SB",
+	"092": "VG",
+	"096": "BN",
+	"100": "BG",
+	"104": "MM",
+	"108": "BI",
+	"112": "BY",
+	"116": "KH",
+	"120": "CM",
+	"124": "CA",
+	"132": "CV",
+	"136": "KY",
+	"140": "CF",
+	"144": "LK",
+	"148": "TD",
+	"152": "CL",
+	"156": "CN",
+	"158": "TW",
+	"162": "CX",
+	"166": "CC",
+	"170": "CO",
+	"172": "RU AM AZ BY GE KG KZ MD TJ TM UA UZ",
+	"174": "KM",
+	"175": "YT",
+	"178": "CG",
+	"180": "CD",
+	"184": "CK",
+	"188": "CR",
+	"191": "HR",
+	"192": "CU",
+	"196": "CY",
+	"200": "CZ SK",
+	"203": "CZ",
+	"204": "BJ",
+	"208": "DK",
+	"212": "DM",
+	"214": "DO",
+	"218": "EC",
+	"222": "SV",
+	"226": "GQ",
+	"230": "ET",
+	"231": "ET",
+	"232": "ER",
+	"233": "EE",
+	"234": "FO",
+	"238": "FK",
+	"239": "GS",
+	"242": "FJ",
+	"246": "FI",
+	"248": "AX",
+	"249": "FR",
+	"250": "FR",
+	"254": "GF",
+	"258": "PF",
+	"260": "TF",
+	"262": "DJ",
+	"266": "GA",
+	"268": "GE",
+	"270": "GM",
+	"275": "PS",
+	"276": "DE",
+	"278": "DE",
+	"280": "DE",
+	"288": "GH",
+	"292": "GI",
+	"296": "KI",
+	"300": "GR",
+	"304": "GL",
+	"308": "GD",
+	"312": "GP",
+	"316": "GU",
+	"320": "GT",
+	"324": "GN",
+	"328": "GY",
+	"332": "HT",
+	"334": "HM",
+	"336": "VA",
+	"340": "HN",
+	"344": "HK",
+	"348": "HU",
+	"352": "IS",
+	"356": "IN",
+	"360": "ID",
+	"364": "IR",
+	"368": "IQ",
+	"372": "IE",
+	"376": "IL",
+	"380": "IT",
+	"384": "CI",
+	"388": "JM",
+	"392": "JP",
+	"398": "KZ",
+	"400": "JO",
+	"404": "KE",
+	"408": "KP",
+	"410": "KR",
+	"414": "KW",
+	"417": "KG",
+	"418": "LA",
+	"422": "LB",
+	"426": "LS",
+	"428": "LV",
+	"430": "LR",
+	"434": "LY",
+	"438": "LI",
+	"440": "LT",
+	"442": "LU",
+	"446": "MO",
+	"450": "MG",
+	"454": "MW",
+	"458": "MY",
+	"462": "MV",
+	"466": "ML",
+	"470": "MT",
+	"474": "MQ",
+	"478": "MR",
+	"480": "MU",
+	"484": "MX",
+	"492": "MC",
+	"496": "MN",
+	"498": "MD",
+	"499": "ME",
+	"500": "MS",
+	"504": "MA",
+	"508": "MZ",
+	"512": "OM",
+	"516": "NA",
+	"520": "NR",
+	"524": "NP",
+	"528": "NL",
+	"530": "CW SX BQ",
+	"531": "CW",
+	"532": "CW SX BQ",
+	"533": "AW",
+	"534": "SX",
+	"535": "BQ",
+	"536": "SA IQ",
+	"540": "NC",
+	"548": "VU",
+	"554": "NZ",
+	"558": "NI",
+	"562": "NE",
+	"566": "NG",
+	"570": "NU",
+	"574": "NF",
+	"578": "NO",
+	"580": "MP",
+	"581": "UM",
+	"582": "FM MH MP PW",
+	"583": "FM",
+	"584": "MH",
+	"585": "PW",
+	"586": "PK",
+	"591": "PA",
+	"598": "PG",
+	"600": "PY",
+	"604": "PE",
+	"608": "PH",
+	"612": "PN",
+	"616": "PL",
+	"620": "PT",
+	"624": "GW",
+	"626": "TL",
+	"630": "PR",
+	"634": "QA",
+	"638": "RE",
+	"642": "RO",
+	"643": "RU",
+	"646": "RW",
+	"652": "BL",
+	"654": "SH",
+	"659": "KN",
+	"660": "AI",
+	"662": "LC",
+	"663": "MF",
+	"666": "PM",
+	"670": "VC",
+	"674": "SM",
+	"678": "ST",
+	"682": "SA",
+	"686": "SN",
+	"688": "RS",
+	"690": "SC",
+	"694": "SL",
+	"702": "SG",
+	"703": "SK",
+	"704": "VN",
+	"705": "SI",
+	"706": "SO",
+	"710": "ZA",
+	"716": "ZW",
+	"720": "YE",
+	"724": "ES",
+	"728": "SS",
+	"729": "SD",
+	"732": "EH",
+	"736": "SD",
+	"740": "SR",
+	"744": "SJ",
+	"748": "SZ",
+	"752": "SE",
+	"756": "CH",
+	"760": "SY",
+	"762": "TJ",
+	"764": "TH",
+	"768": "TG",
+	"772": "TK",
+	"776": "TO",
+	"780": "TT",
+	"784": "AE",
+	"788": "TN",
+	"792": "TR",
+	"795": "TM",
+	"796": "TC",
+	"798": "TV",
+	"800": "UG",
+	"804": "UA",
+	"807": "MK",
+	"810": "RU AM AZ BY EE GE KZ KG LV LT MD TJ TM UA UZ",
+	"818": "EG",
+	"826": "GB",
+	"830": "JE GG",
+	"831": "GG",
+	"832": "JE",
+	"833": "IM",
+	"834": "TZ",
+	"840": "US",
+	"850": "VI",
+	"854": "BF",
+	"858": "UY",
+	"860": "UZ",
+	"862": "VE",
+	"876": "WF",
+	"882": "WS",
+	"886": "YE",
+	"887": "YE",
+	"890": "RS ME SI HR MK BA",
+	"891": "RS ME",
+	"894": "ZM",
+	"958": "AA",
+	"959": "QM",
+	"960": "QN",
+	"962": "QP",
+	"963": "QQ",
+	"964": "QR",
+	"965": "QS",
+	"966": "QT",
+	"967": "EU",
+	"968": "QV",
+	"969": "QW",
+	"970": "QX",
+	"971": "QY",
+	"972": "QZ",
+	"973": "XA",
+	"974": "XB",
+	"975": "XC",
+	"976": "XD",
+	"977": "XE",
+	"978": "XF",
+	"979": "XG",
+	"980": "XH",
+	"981": "XI",
+	"982": "XJ",
+	"983": "XK",
+	"984": "XL",
+	"985": "XM",
+	"986": "XN",
+	"987": "XO",
+	"988": "XP",
+	"989": "XQ",
+	"990": "XR",
+	"991": "XS",
+	"992": "XT",
+	"993": "XU",
+	"994": "XV",
+	"995": "XW",
+	"996": "XX",
+	"997": "XY",
+	"998": "XZ",
+	"999": "ZZ",
+	"AAA": "AA",
+	"ABW": "AW",
+	"AFG": "AF",
+	"AGO": "AO",
+	"AIA": "AI",
+	"ALA": "AX",
+	"ALB": "AL",
+	"AN":  "CW SX BQ",
+	"AND": "AD",
+	"ANT": "CW SX BQ",
+	"ARE": "AE",
+	"ARG": "AR",
+	"ARM": "AM",
+	"ASC": "AC",
+	"ASM": "AS",
+	"ATA": "AQ",
+	"ATF": "TF",
+	"ATG": "AG",
+	"AUS": "AU",
+	"AUT": "AT",
+	"AZE": "AZ",
+	"BDI": "BI",
+	"BEL": "BE",
+	"BEN": "BJ",
+	"BES": "BQ",
+	"BFA": "BF",
+	"BGD": "BD",
+	"BGR": "BG",
+	"BHR": "BH",
+	"BHS": "BS",
+	"BIH": "BA",
+	"BLM": "BL",
+	"BLR": "BY",
+	"BLZ": "BZ",
+	"BMU": "BM",
+	"BOL": "BO",
+	"BRA": "BR",
+	"BRB": "BB",
+	"BRN": "BN",
+	"BTN": "BT",
+	"BU":  "MM",
+	"BUR": "MM",
+	"BVT": "BV",
+	"BWA": "BW",
+	"CAF": "CF",
+	"CAN": "CA",
+	"CCK": "CC",
+	"CHE": "CH",
+	"CHL": "CL",
+	"CHN": "CN",
+	"CIV": "CI",
+	"CMR": "CM",
+	"COD": "CD",
+	"COG": "CG",
+	"COK": "CK",
+	"COL": "CO",
+	"COM": "KM",
+	"CPT": "CP",
+	"CPV": "CV",
+	"CRI": "CR",
+	"CS":  "RS ME",
+	"CT":  "KI",
+	"CUB": "CU",
+	"CUW": "CW",
+	"CXR": "CX",
+	"CYM": "KY",
+	"CYP": "CY",
+	"CZE": "CZ",
+	"DD":  "DE",
+	"DDR": "DE",
+	"DEU": "DE",
+	"DGA": "DG",
+	"DJI": "DJ",
+	"DMA": "DM",
+	"DNK": "DK",
+	"DOM": "DO",
+	"DY":  "BJ",
+	"DZA": "DZ",
+	"ECU": "EC",
+	"EGY": "EG",
+	"ERI": "ER",
+	"ESH": "EH",
+	"ESP": "ES",
+	"EST": "EE",
+	"ETH": "ET",
+	"FIN": "FI",
+	"FJI": "FJ",
+	"FLK": "FK",
+	"FQ":  "AQ TF",
+	"FRA": "FR",
+	"FRO": "FO",
+	"FSM": "FM",
+	"FX":  "FR",
+	"FXX": "FR",
+	"GAB": "GA",
+	"GBR": "GB",
+	"GEO": "GE",
+	"GGY": "GG",
+	"GHA": "GH",
+	"GIB": "GI",
+	"GIN": "GN",
+	"GLP": "GP",
+	"GMB": "GM",
+	"GNB": "GW",
+	"GNQ": "GQ",
+	"GRC": "GR",
+	"GRD": "GD",
+	"GRL": "GL",
+	"GTM": "GT",
+	"GUF": "GF",
+	"GUM": "GU",
+	"GUY": "GY",
+	"HKG": "HK",
+	"HMD": "HM",
+	"HND": "HN",
+	"HRV": "HR",
+	"HTI": "HT",
+	"HUN": "HU",
+	"HV":  "BF",
+	"IDN": "ID",
+	"IMN": "IM",
+	"IND": "IN",
+	"IOT": "IO",
+	"IRL": "IE",
+	"IRN": "IR",
+	"IRQ": "IQ",
+	"ISL": "IS",
+	"ISR": "IL",
+	"ITA": "IT",
+	"JAM": "JM",
+	"JEY": "JE",
+	"JOR": "JO",
+	"JPN": "JP",
+	"JT":  "UM",
+	"KAZ": "KZ",
+	"KEN": "KE",
+	"KGZ": "KG",
+	"KHM": "KH",
+	"KIR": "KI",
+	"KNA": "KN",
+	"KOR": "KR",
+	"KWT": "KW",
+	"LAO": "LA",
+	"LBN": "LB",
+	"LBR": "LR",
+	"LBY": "LY",
+	"LCA": "LC",
+	"LIE": "LI",
+	"LKA": "LK",
+	"LSO": "LS",
+	"LTU": "LT",
+	"LUX": "LU",
+	"LVA": "LV",
+	"MAC": "MO",
+	"MAF": "MF",
+	"MAR": "MA",
+	"MCO": "MC",
+	"MDA": "MD",
+	"MDG": "MG",
+	"MDV": "MV",
+	"MEX": "MX",
+	"MHL": "MH",
+	"MI":  "UM",
+	"MKD": "MK",
+	"MLI": "ML",
+	"MLT": "MT",
+	"MMR": "MM",
+	"MNE": "ME",
+	"MNG": "MN",
+	"MNP": "MP",
+	"MOZ": "MZ",
+	"MRT": "MR",
+	"MSR": "MS",
+	"MTQ": "MQ",
+	"MUS": "MU",
+	"MWI": "MW",
+	"MYS": "MY",
+	"MYT": "YT",
+	"NAM": "NA",
+	"NCL": "NC",
+	"NER": "NE",
+	"NFK": "NF",
+	"NGA": "NG",
+	"NH":  "VU",
+	"NIC": "NI",
+	"NIU": "NU",
+	"NLD": "NL",
+	"NOR": "NO",
+	"NPL": "NP",
+	"NQ":  "AQ",
+	"NRU": "NR",
+	"NT":  "SA IQ",
+	"NTZ": "SA IQ",
+	"NZL": "NZ",
+	"OMN": "OM",
+	"PAK": "PK",
+	"PAN": "PA",
+	"PC":  "FM MH MP PW",
+	"PCN": "PN",
+	"PER": "PE",
+	"PHL": "PH",
+	"PLW": "PW",
+	"PNG": "PG",
+	"POL": "PL",
+	"PRI": "PR",
+	"PRK": "KP",
+	"PRT": "PT",
+	"PRY": "PY",
+	"PSE": "PS",
+	"PU":  "UM",
+	"PYF": "PF",
+	"PZ":  "PA",
+	"QAT": "QA",
+	"QMM": "QM",
+	"QNN": "QN",
+	"QPP": "QP",
+	"QQQ": "QQ",
+	"QRR": "QR",
+	"QSS": "QS",
+	"QTT": "QT",
+	"QU":  "EU",
+	"QUU": "EU",
+	"QVV": "QV",
+	"QWW": "QW",
+	"QXX": "QX",
+	"QYY": "QY",
+	"QZZ": "QZ",
+	"REU": "RE",
+	"RH":  "ZW",
+	"ROU": "RO",
+	"RUS": "RU",
+	"RWA": "RW",
+	"SAU": "SA",
+	"SCG": "RS ME",
+	"SDN": "SD",
+	"SEN": "SN",
+	"SGP": "SG",
+	"SGS": "GS",
+	"SHN": "SH",
+	"SJM": "SJ",
+	"SLB": "SB",
+	"SLE": "SL",
+	"SLV": "SV",
+	"SMR": "SM",
+	"SOM": "SO",
+	"SPM": "PM",
+	"SRB": "RS",
+	"SSD": "SS",
+	"STP": "ST",
+	"SU":  "RU AM AZ BY EE GE KZ KG LV LT MD TJ TM UA UZ",
+	"SUN": "RU AM AZ BY EE GE KZ KG LV LT MD TJ TM UA UZ",
+	"SUR": "SR",
+	"SVK": "SK",
+	"SVN": "SI",
+	"SWE": "SE",
+	"SWZ": "SZ",
+	"SXM": "SX",
+	"SYC": "SC",
+	"SYR": "SY",
+	"TAA": "TA",
+	"TCA": "TC",
+	"TCD": "TD",
+	"TGO": "TG",
+	"THA": "TH",
+	"TJK": "TJ",
+	"TKL": "TK",
+	"TKM": "TM",
+	"TLS": "TL",
+	"TMP": "TL",
+	"TON": "TO",
+	"TP":  "TL",
+	"TTO": "TT",
+	"TUN": "TN",
+	"TUR": "TR",
+	"TUV": "TV",
+	"TWN": "TW",
+	"TZA": "TZ",
+	"UGA": "UG",
+	"UK":  "GB",
+	"UKR": "UA",
+	"UMI": "UM",
+	"URY": "UY",
+	"USA": "US",
+	"UZB": "UZ",
+	"VAT": "VA",
+	"VCT": "VC",
+	"VD":  "VN",
+	"VEN": "VE",
+	"VGB": "VG",
+	"VIR": "VI",
+	"VNM": "VN",
+	"VUT": "VU",
+	"WK":  "UM",
+	"WLF": "WF",
+	"WSM": "WS",
+	"XAA": "XA",
+	"XBB": "XB",
+	"XCC": "XC",
+	"XDD": "XD",
+	"XEE": "XE",
+	"XFF": "XF",
+	"XGG": "XG",
+	"XHH": "XH",
+	"XII": "XI",
+	"XJJ": "XJ",
+	"XKK": "XK",
+	"XLL": "XL",
+	"XMM": "XM",
+	"XNN": "XN",
+	"XOO": "XO",
+	"XPP": "XP",
+	"XQQ": "XQ",
+	"XRR": "XR",
+	"XSS": "XS",
+	"XTT": "XT",
+	"XUU": "XU",
+	"XVV": "XV",
+	"XWW": "XW",
+	"XXX": "XX",
+	"XYY": "XY",
+	"XZZ": "XZ",
+	"YD":  "YE",
+	"YEM": "YE",
+	"YMD": "YE",
+	"YU":  "RS ME",
+	"YUG": "RS ME",
+	"ZAF": "ZA",
+	"ZAR": "CD",
+	"ZMB": "ZM",
+	"ZR":  "CD",
+	"ZWE": "ZW",
+	"ZZZ": "ZZ",
+}
+
+var variantAlias = map[string]string{
+	"heploc":   "alalc97",
+	"polytoni": "polyton",
+}
+
+var subdivisionAlias = map[string]string{
+	"cn11":  "cnbj",
+	"cn12":  "cntj",
+	"cn13":  "cnhe",
+	"cn14":  "cnsx",
+	"cn15":  "cnmn",
+	"cn21":  "cnln",
+	"cn22":  "cnjl",
+	"cn23":  "cnhl",
+	"cn31":  "cnsh",
+	"cn32":  "cnjs",
+	"cn33":  "cnzj",
+	"cn34":  "cnah",
+	"cn35":  "cnfj",
+	"cn36":  "cnjx",
+	"cn37":  "cnsd",
+	"cn41":  "cnha",
+	"cn42":  "cnhb",
+	"cn43":  "cnhn",
+	"cn44":  "cngd",
+	"cn45":  "cngx",
+	"cn46":  "cnhi",
+	"cn50":  "cncq",
+	"cn51":  "cnsc",
+	"cn52":  "cngz",
+	"cn53":  "cnyn",
+	"cn54":  "cnxz",
+	"cn61":  "cnsn",
+	"cn62":  "cngs",
+	"cn63":  "cnqh",
+	"cn64":  "cnnx",
+	"cn65":  "cnxj",
+	"cn71":  "TW",
+	"cn91":  "HK",
+	"cn92":  "MO",
+	"cz10a": "cz110",
+	"cz10b": "cz111",
+	"cz10c": "cz112",
+	"cz10d": "cz113",
+	"cz10e": "cz114",
+	"cz10f": "cz115",
+	"cz611": "cz663",
+	"cz612": "cz632",
+	"cz613": "cz633",
+	"cz614": "cz634",
+	"cz615": "cz635",
+	"cz621": "cz641",
+	"cz622": "cz642",
+	"cz623": "cz643",
+	"cz624": "cz644",
+	"cz626": "cz646",
+	"cz627": "cz647",
+	"czjc":  "cz31",
+	"czjm":  "cz64",
+	"czka":  "cz41",
+	"czkr":  "cz52",
+	"czli":  "cz51",
+	"czmo":  "cz80",
+	"czol":  "cz71",
+	"czpa":  "cz53",
+	"czpl":  "cz32",
+	"czpr":  "cz10",
+	"czst":  "cz20",
+	"czus":  "cz42",
+	"czvy":  "cz63",
+	"czzl":  "cz72",
+	"fi01":  "AX",
+	"fra":   "frges",
+	"frb":   "frnaq",
+	"frbl":  "BL",
+	"frc":   "frara",
+	"frcp":  "CP",
+	"frd":   "frbfc",
+	"fre":   "frbre",
+	"frf":   "frcvl",
+	"frg":   "frges",
+	"frgf":  "GF",
+	"frgp":  "GP",
+	"frgua": "GP",
+	"frh":   "frcor",
+	"fri":   "frbfc",
+	"frj":   "fridf",
+	"frk":   "frocc",
+	"frl":   "frnaq",
+	"frlre": "RE",
+	"frm":   "frges",
+	"frmay": "YT",
+	"frmf":  "MF",
+	"frmq":  "MQ",
+	"frn":   "frocc",
+	"frnc":  "NC",
+	"fro":   "frhdf",
+	"frp":   "frnor",
+	"frpf":  "PF",
+	"frpm":  "PM",
+	"frq":   "frnor",
+	"frr":   "frpdl",
+	"frre":  "RE",
+	"frs":   "frhdf",
+	"frt":   "frnaq",
+	"frtf":  "TF",
+	"fru":   "frpac",
+	"frv":   "frara",
+	"frwf":  "WF",
+	"fryt":  "YT",
+	"laxn":  "laxs",
+	"lud":   "lucl ludi lurd luvd luwi",
+	"lug":   "luec lugr lurm",
+	"lul":   "luca lues lulu lume",
+	"mrnkc": "mr13 mr14 mr15",
+	"nlaw":  "AW",
+	"nlcw":  "CW",
+	"nlsx":  "SX",
+	"no23":  "no50",
+	"nzn":   "nzauk nzbop nzgis nzhkb nzmwt nzntl nztki nzwgn nzwko",
+	"nzs":   "nzcan nzmbh nznsn nzota nzstl nztas nzwtc",
+	"omba":  "ombj ombs",
+	"omsh":  "omsj omss",
+	"plds":  "pl02",
+	"plkp":  "pl04",
+	"pllb":  "pl08",
+	"plld":  "pl10",
+	"pllu":  "pl06",
+	"plma":  "pl12",
+	"plmz":  "pl14",
+	"plop":  "pl16",
+	"plpd":  "pl20",
+	"plpk":  "pl18",
+	"plpm":  "pl22",
+	"plsk":  "pl26",
+	"plsl":  "pl24",
+	"plwn":  "pl28",
+	"plwp":  "pl30",
+	"plzp":  "pl32",
+	"shta":  "TA",
+	"tteto": "tttob",
+	"ttrcm": "ttmrc",
+	"ttwto": "tttob",
+	"twkhq": "twkhh",
+	"twtnq": "twtnn",
+	"twtpq": "twnwt",
+	"twtxq": "twtxg",
+	"usas":  "AS",
+	"usgu":  "GU",
+	"usmp":  "MP",
+	"uspr":  "PR",
+	"usum":  "UM",
+	"usvi":  "VI",
 }

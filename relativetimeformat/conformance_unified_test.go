@@ -27,8 +27,14 @@ func runRelativeConformanceFixture(t *testing.T, fixture conformance.Fixture) {
 		return
 	}
 
+	constructorError := fixture.ErrorCode == "invalid_option"
+	if fixture.ExpectedRange != nil || fixture.ExpectedRangeParts != nil || fixture.ExpectedOK != nil || fixture.ExpectedLocales != nil ||
+		fixture.ErrorCode != "" && (fixture.Expected != nil || fixture.ExpectedParts != nil) ||
+		constructorError && fixture.ExpectedResolved != nil {
+		t.Fatalf("fixture %s: unsupported relativetimeformat observation", fixture.ID)
+	}
 	format, err := New(locale.List{intltest.Locale(t, fixture.Locale)}, conformanceRelativeOptions(t, fixture))
-	if fixture.ErrorCode == "invalid_option" {
+	if constructorError {
 		testcontract.AssertErrorCode(t, "New()", err, fixture.ErrorCode, func(code string) error {
 			return conformanceRelativeOptionError(t, code)
 		})
@@ -38,9 +44,6 @@ func runRelativeConformanceFixture(t *testing.T, fixture conformance.Fixture) {
 		t.Fatal(err)
 	}
 
-	if fixture.ExpectedRange != nil || fixture.ExpectedRangeParts != nil || fixture.ExpectedOK != nil || fixture.ExpectedLocales != nil {
-		t.Fatal("unsupported relativetimeformat observation")
-	}
 	if fixture.ExpectedResolved != nil {
 		testcontract.AssertResolvedOptionsJSON(t, format.ResolvedOptions(), fixture.ExpectedResolved)
 	}

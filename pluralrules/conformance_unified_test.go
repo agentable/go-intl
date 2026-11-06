@@ -24,6 +24,16 @@ func TestUnifiedConformanceFixtures(t *testing.T) {
 func runPluralConformanceFixture(t *testing.T, fixture conformance.Fixture) {
 	t.Helper()
 
+	switch fixture.Feature {
+	case "", "select", "selectRange":
+	default:
+		t.Fatalf("fixture %s: unsupported pluralrules feature %q", fixture.ID, fixture.Feature)
+	}
+	if fixture.ExpectedParts != nil || fixture.ExpectedRange != nil || fixture.ExpectedRangeParts != nil || fixture.ExpectedOK != nil || fixture.ExpectedLocales != nil ||
+		fixture.ErrorCode != "" && fixture.Expected != nil ||
+		fixture.ErrorCode == "invalid_option" && fixture.ExpectedResolved != nil {
+		t.Fatalf("fixture %s: unsupported pluralrules observation", fixture.ID)
+	}
 	rules, err := New(locale.List{intltest.Locale(t, fixture.Locale)}, conformancePluralOptions(t, fixture))
 	if fixture.ErrorCode == "invalid_option" {
 		testcontract.AssertErrorCode(t, "New()", err, fixture.ErrorCode, func(code string) error {
@@ -33,9 +43,6 @@ func runPluralConformanceFixture(t *testing.T, fixture conformance.Fixture) {
 	}
 	if err != nil {
 		t.Fatal(err)
-	}
-	if fixture.ExpectedParts != nil || fixture.ExpectedRange != nil || fixture.ExpectedRangeParts != nil || fixture.ExpectedOK != nil || fixture.ExpectedLocales != nil {
-		t.Fatal("unsupported pluralrules observation")
 	}
 	if fixture.ExpectedResolved != nil {
 		testcontract.AssertResolvedOptionsJSON(t, rules.ResolvedOptions(), fixture.ExpectedResolved)
