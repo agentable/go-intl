@@ -189,6 +189,7 @@ Specification documents in [`SPECS/`](SPECS/) are maintained records of design c
 | [`71-benchmark.md`](SPECS/71-benchmark.md) | Benchmark layout, non-blocking performance telemetry, benchstat workflow |
 | [`72-operation-ledger.md`](SPECS/72-operation-ledger.md) | Public surface to ECMA-402 owner, implementation, and verification ledger |
 | [`73-json-records.md`](SPECS/73-json-records.md) | JSON field names and presence policy for resolved options, parts, duration records, and locale info |
+| [`80-x-modules.md`](SPECS/80-x-modules.md) | Experimental official LocaleMatcher draft and application resource matching |
 
 ## References Index
 
@@ -222,6 +223,16 @@ Reference projects in [`.references/`](.references/) are read-only implementatio
 - **Constructor parity** - Formatter `New` functions mirror `new Intl.<Constructor>(locales, options)`: callers pass exactly one typed `Options` value, and zero-valued `Options{}` means the ECMA-402 empty options object.
 - **Typed bridges only** - Typed Go values such as `numberformat.Int` and `numberformat.ParseValue` are bridges for JavaScript methods like `format(value)`; they must not introduce behavior that native Intl lacks.
 - **Typed boundaries** - User locale identifiers enter through `locale.Parse`, `locale.ParseList`, or `locale.New`; formatter constructors receive `locale.List`, while `locale.FromTag` is the explicit `language.Tag` bridge. `language.Tag` is the only `golang.org/x/text` type allowed in exported signatures; secondary `x/text` types stay internal.
+
+## Experimental Draft Exception
+
+`x/localematcher` is an additional package in the root module, anchored to the
+official TC39 Stage 1 LocaleMatcher draft pinned in [SPEC 80](SPECS/80-x-modules.md).
+It uses an exact application resource set and shares internal algorithms/data.
+This is a narrow exception to the active standardized surface rules above:
+there is no root alias, separate module/tag, or change to existing constructors.
+Root verification commands cover it. Its public contract may evolve with the
+official proposal; other additions still require an explicit owner and review.
 
 ## Coding Rules
 

@@ -79,7 +79,7 @@ enter matching.
 > 3. **Data is injected by callers** - matcher does not import `internal/cldr`; formatter constructors pass generated supported-locale lists, maximizers, and relevant-extension-key data lookups.
 >
 > **Rejected**:
-> - **Public `localematcher` package** - users never construct matcher directly; `internal/` enforces hidden implementation.
+> - **Public internal algorithm/type re-exports** - formatter negotiation remains private. The official-draft `x/localematcher` application API is a separate, explicit exception owned by SPEC 80.
 > - **Single file `match.go` fully plugged** - spec The three core operators (Lookup / BestFit / Resolve) each have migration costs and test fixtures; splitting by file facilitates fixture alignment.
 
 ### 1.2 Public entrance signature
@@ -888,3 +888,14 @@ construction follows ordinary default-locale fallback. `intl_test.go:TestUnknown
 exercises both boundaries. `SupportedLocalesOptions` has no hidden
 RequireLookupMatch override; the caller's validated localeMatcher selects the
 algorithm. Shared maximization no longer reparses identities with x/text.
+
+## 11. Experimental application resource matching
+
+[SPEC 80](./80-x-modules.md) owns `x/localematcher`, an explicit exception to
+this document's internal-only matcher API boundary. The experimental public
+package follows the official LocaleMatcher draft, not public abstract-operation
+re-exports. `NewExactMatcher` compiles only canonical supplied resources;
+`NewMatcher` keeps the existing constructor-specific parent/alias expansion.
+They share compilation, CLDR distances and matching execution. An application's
+missing resource yields no match, while formatter construction retains its
+existing default locale and data fallback behavior.

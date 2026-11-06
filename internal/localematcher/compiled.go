@@ -33,6 +33,10 @@ type singleMatch struct {
 func NewMatcher(supported []string, maximizer Maximizer) *Matcher {
 	maximizer = normalizeMaximizer(maximizer)
 	available := availableLocalesFor(supported, maximizer)
+	return newMatcher(available, maximizer)
+}
+
+func newMatcher(available []availableLocale, maximizer Maximizer) *Matcher {
 	m := &Matcher{
 		supported:             make([]string, len(available)),
 		maximized:             make([]string, len(available)),
@@ -220,4 +224,14 @@ func (m *Matcher) dataLocale(availableLocale string) string {
 
 func (m *Matcher) defaultResult(defaultLocale string) Result {
 	return Result{Locale: defaultLocale, DataLocale: m.dataLocale(defaultLocale)}
+}
+
+// NewExactMatcher compiles canonical application locales without adding
+// constructor data fallbacks. Callers validate and deduplicate the input.
+func NewExactMatcher(available []string, maximizer Maximizer) *Matcher {
+	locales := make([]availableLocale, len(available))
+	for i, loc := range available {
+		locales[i] = availableLocale{locale: loc, dataLocale: loc}
+	}
+	return newMatcher(locales, normalizeMaximizer(maximizer))
 }
