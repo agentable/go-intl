@@ -101,28 +101,6 @@ Prefer constructor subpackages in services that need one formatter. Importing `g
 
 See the [Go package documentation](https://pkg.go.dev/github.com/agentable/go-intl) for the full API reference.
 
-## Experimental LocaleMatcher
-
-[`x/localematcher`](x/README.md) matches application resource locales using the
-official Stage 1 `Intl.LocaleMatcher` constructor draft. It ships in the root
-module and may change with the proposal; pin a root-module version.
-
-```go
-available, err := locale.ParseList("en", "zh-Hans", "zh-Hant")
-if err != nil { return err }
-matcher, err := localematcher.New(available, localematcher.Options{})
-if err != nil { return err }
-requested, err := locale.ParseList("zh-HK")
-if err != nil { return err }
-if matched, ok := matcher.Match(requested); ok {
-    fmt.Println(matched.String()) // zh-Hant
-}
-```
-
-Import `github.com/agentable/go-intl/x/localematcher` alongside `locale`.
-Results come from your available set; your application owns default fallback.
-See [SPEC 80](SPECS/80-x-modules.md) for the pinned official draft contract.
-
 ## Native Intl Mapping
 
 The Go packages follow the ownership of the native JavaScript `Intl` API:
