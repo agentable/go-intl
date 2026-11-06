@@ -105,7 +105,10 @@ lookup or a letter-category heuristic is not established equivalent behavior.
 FormatJS `packages/intl-segmenter/segmenter.ts` supplies useful API/rule evidence,
 not proof that these candidates match ICU's language engines.
 These paths are relative to `.references/node` or `.references/formatjs`.
-Pinned reference revisions are recorded in the root `improve.md`.
+Pinned reference revisions: ECMA-402
+`730ca2b88c305862db7be2f83c510dcca33ab48c`, FormatJS
+`aa3f90b53b157481515a0f7a7f0d76fcbd7c3274`, Node
+`5a566ac6b971a9bcbcff1d338f391e0ae6dbd678`.
 
 ## Follow-up gate
 
@@ -114,6 +117,5 @@ or a bounded ICU algorithm/data port with reproducible pins and redistribution
 rights. It must pass the issue corpus plus ambiguous/unknown words and mixed
 scripts under the fixed native target. Then implement and verify all three
 granularities, negotiation, word status, UTF-16/byte containment, invalid UTF-8
-handling and independent iterators as planned in M04/M05 of `improve.md`.
-This investigation stops M03 at a documented backend gap; M04/M05 remain
-conditional and #10 is not resolved by the LocaleMatcher contribution.
+handling and independent iterators. Implementation remains gated on that
+backend qualification; #10 is not resolved by the LocaleMatcher contribution.
