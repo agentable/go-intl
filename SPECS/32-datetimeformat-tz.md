@@ -151,6 +151,35 @@ own explicit default-zone provider and does not prove Go file-path identity.
 instant-sensitive zone-to-metazone selection and localized metazone names belong
 to `internal/cldr/timezone`, where DateTimeFormat consumes them directly.
 
+#### DST representation qualification
+
+Go 1.27.3 on Darwin arm64 and Linux arm64 was qualified with the same TZif
+files compiled by `/usr/sbin/zic` from the verified IANA 2025b archive, using
+its `ziguard.awk -v DATAFORM=rearguard` for the comparison. Each public formatter
+probe ran in a fresh process with explicit `ZONEINFO`; Linux ran the static Go
+binary in a network-disabled scratch container, with no host zoneinfo fallback.
+
+| Zone / UTC date | Offset | Main IsDST / long name | Rearguard IsDST / long name |
+|---|---|---|---|
+| Dublin / 2026-01-15 | 0 | true / Irish Standard Time | false / Greenwich Mean Time |
+| Dublin / 2026-07-15 | +01:00 | false / Greenwich Mean Time | true / Irish Standard Time |
+| Casablanca / 2026-01-15 | +01:00 | false / GMT+01:00 | true / GMT+01:00 |
+| Casablanca / 2026-03-01 | 0 | true / GMT+00:00 | false / GMT+00:00 |
+
+Darwin and Linux agreed for each representation. Node v26.0.0 / ICU 78.3 /
+tzdata 2026a uses the rearguard naming convention for these Dublin instants.
+This confirms a data-representation limitation, not universal ICU name parity.
+`LookupAt` retains the selected TZif flag as required above; the standard/daylight
+name projection currently inherits it. Correcting this across arbitrary host
+releases would require an additional versioned naming-rule authority. Inferring
+it from January/July offsets or copying moejs's hard-coded compatibility spans
+would split ownership without proving historical regime boundaries, so neither
+is implemented. The ECMA-402 `ToLocalTime` InDST field uses best available IANA
+information; its localized-name rules do not require ICU's particular labels.
+Deployments requiring the compared Dublin naming convention should select
+matching rearguard transition data; no automatic format detection or public
+compatibility switch is introduced.
+
 ### 1.4 Identifier registry and primary projection <a id="canonicallink"></a>
 
 **MUST** Rules:
@@ -223,12 +252,21 @@ End int64 //, MaxInt64 means +∞
        RegionFormat string // exactly one {0}, replaced by the exemplar city
    }
    ```
-4. accessor `internal/cldr/timezone.TimeZoneDisplayName(loc timezone.Locale, zone string, form TimeZoneName, isDST bool, instant int64, offsetMs int64, numberingSystem string) string` **MUST** implement ECMA-402 §13.1.5 fallback chain:
+4. accessor `internal/cldr/timezone.TimeZoneDisplayName(loc timezone.Locale, zone string, form TimeZoneName, isDST, useStandard bool, instant int64, offsetMs int64, numberingSystem string) string` owns this implementation's localized-name selection for ECMA-402 `FormatDateTimePattern`. The specification leaves localized text implementation-dependent; the specific-name fallback is aligned with ICU `TimeZoneFormat`:
    ```text
-1. Check zone-specific and metazone names for the requested form → return if hit
-2. Check exemplarCities[locale][zone] → interpolate the city into the locale's CLDR regionFormat
-3. Fall back to the locale's GMT offset pattern
+1. Offset forms use localized GMT directly.
+2. Check a zone-specific name for the requested form → return if hit.
+3. Generic forms with useStandard and a metazone may use a zone-specific or
+   metazone standard name, unless equal (ignoring case) to the metazone generic.
+4. Check the metazone name for the requested form → return if hit.
+5. Specific short/long names fall back to the locale's GMT offset pattern.
+6. Only generic forms check exemplarCities[locale][zone] and interpolate regionFormat.
+7. Fall back to the locale's GMT offset pattern, preserving the requested width.
    ```
+   `TestDateTimeFormatSpecificTimeZoneNameFallback` covers missing short names
+   with exemplar cities and missing long names in en/fr/zh through the public
+   parts/text boundary; Node v26.0.0 / ICU 78.3 supplies the comparison.
+   Existing generic Dumont-d'Urville city behavior remains protected separately.
 5. The metazone selection **MUST** support time sensitivity (`instant` decides which `MetazonePeriod` to take) - Example: `Europe/Moscow` has different metazones around 2011.
 6. `regionFormat` **MUST** be extracted from `timeZoneNames.json`, contain exactly one `{0}` placeholder, and use the CLDR root pattern `{0}` when absent. `fallbackFormat` and the standard/daylight `regionFormat` variants remain out of the payload until a runtime decision path consumes them.
 
@@ -439,10 +477,10 @@ From, To time.Duration // Time offset from 00:00 on the current day
 - After `internal/cldr/date.ResolveLocale("zh-Hans-CN")` succeeds, `internal/cldr/date.GregorianFor(loc).DayPeriods.Flex` contains all 6 keys of `"morning1" / "afternoon1" / "evening1" / "night1" / "noon" / "midnight"`.
 - `internal/cldr/date.DayPeriodFor(enUSDateLocale, 5, 0, 0) == "morning1"`.
 - `internal/cldr/date.DayPeriodFor(zhHansCNDateLocale, 13, 0, 0) == "afternoon2"`.
-- `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "America/New_York", TimeZoneNameLongGeneric, false, time.Now().UnixMilli(), -5*3600*1000) == "Eastern Time"`.
-- `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "America/New_York", TimeZoneNameShort, false, instant, -5*3600*1000) == "EST"`.
+- `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "America/New_York", TimeZoneNameLongGeneric, false, false, instant, -5*3600*1000, "latn") == "Eastern Time"`.
+- `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "America/New_York", TimeZoneNameShort, false, false, instant, -5*3600*1000, "latn") == "EST"` (a winter instant).
 - Exemplar-city fallback uses pinned CLDR `regionFormat`: `en` yields `Dumont d’Urville Station Time`, `fr` yields `heure : Dumont-d’Urville`, and `zh` yields `迪蒙·迪维尔时间` for `Antarctica/DumontDUrville` with `shortGeneric`.
-- `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "Mars/Olympus", TimeZoneNameShortGeneric, false, instant, -5*3600*1000) == "GMT-05:00"`.
+- `internal/cldr/timezone.TimeZoneDisplayName(enUSTimeZoneLocale, "Mars/Olympus", TimeZoneNameShortGeneric, false, false, instant, -5*3600*1000, "latn") == "GMT-5"`.
 - `internal/cldr/timezone/data.go` is generated, and the file header contains `// Code generated by tools/gen-cldr; DO NOT EDIT.`.
 - `internal/cldr/date/data.go` is generated, the file header contains `// Code generated by tools/gen-cldr; DO NOT EDIT.`; there is no `internal/cldr/calendars/*` active scope placeholder file.
 - The codegen tool currently reads `ca-gregorian.json`, the date-domain active scope only contains the `"gregorian"` calendar, and `SupportedCalendars()` derives `gregory` / `iso8601` from that generated payload rather than a hand-written list.
@@ -502,3 +540,43 @@ Conflicting primary/display rows fail generation with their source and keys.
 This relation owns display lookup only, with no identifier legality, region or
 transition policy. Kolkata/Calcutta, Kyiv/Kiev and UTC/Etc/UTC share display
 facts while resolved identifiers retain the pinned primary spelling.
+
+
+### Generic-name decision boundary
+
+Zone-specific generic names keep priority. When a metazone is present and no
+Go DST period intersects the 184-day neighborhood on either side of the input
+instant, a nonempty standard name may precede the metazone generic name. A
+standard name equal to that generic name adds no alternative. DateTimeFormat
+supplies the decision; `internal/tz.HasDSTBetween` walks `ZoneBounds`, while the
+CLDR timezone package only selects text. This is an ICU-derived display choice,
+not a normative 184-day rule. It uses raw Go DST flags and inherits the
+representation qualification above. Queries inspect only the bounded transition
+window; no second transition database or mutable naming cache is introduced.
+Go's POSIX tail can report a non-advancing synthetic end on the last day of a
+future leap year. Traversal resumes at the next UTC year in that case, rather
+than treating it as evidence that no later DST period exists.
+
+The 2026-01-15 en-US matrix below uses generated CLDR 48.1.0, controlled IANA
+2025b rearguard transitions and Node v26.0.0 / ICU 78.3 / tzdata 2026a. Textual
+agreement in these rows does not establish whole-version equivalence.
+
+| Decision / input | go-intl | Native witness | Disposition |
+|---|---|---|---|
+| Tokyo longGeneric: no nearby DST, standard available | Japan Standard Time | Japan Standard Time | Implemented; January/July public regressions |
+| Phoenix shortGeneric / longGeneric | MST / Mountain Standard Time | Same | Implemented; standard branch |
+| Los Angeles longGeneric: seasonal zone | Pacific Time | Pacific Time | Metazone generic preserved |
+| DumontDUrville shortGeneric: no short name | Dumont d’Urville Station Time | Same | Existing city location fallback preserved |
+| Tokyo shortGeneric: no short name or generated city | GMT+9 | Japan Time | Territory location names not yet generated |
+| Dublin / Casablanca longGeneric | GMT+00:00 / GMT+01:00 | Ireland Time / Morocco Time | Territory location branch remains unimplemented |
+| Etc/GMT-5 longGeneric | GMT+05:00 | GMT+05:00 | Final GMT fallback now uses long width |
+| Windhoek, 2000-07-15 longGeneric | GMT+01:00 | Namibia Time | Historical location/name gap remains; current Maputo reference offset is +02:00 |
+
+Zone-specific generic precedence remains covered by the generated-name
+round-trip. Territory-primary/location and reference-zone partial-location
+selection require additional generated facts and are not implemented by this
+slice. In particular, it does not claim generic parity merely because a
+metazone generic name exists. No country-name borrowing or guessed offset
+adjustment is added. `TestDateTimeFormatGenericTimeZoneStandardName`,
+`TestHasDSTBetween`, the six-style fallback tests and the production timezone
+round-trip protect the retained boundary.

@@ -123,6 +123,16 @@ func currencyPatternsForNumberFormat(loc cldrnumber.Locale, currencyLoc cldrcurr
 		return currencyPatternSet{name: patterns}
 	}
 	pattern := loc.CurrencyPattern(opts.NumberingSystem, string(ecma402.ResolvedScalarValue(opts.CurrencySign)))
+	if opts.Notation == StandardNotation {
+		if override := cldrcurrency.FormatFor(currencyLoc, ecma402.ResolvedScalarValue(opts.Currency)); override != (cldrcurrency.Format{}) {
+			// A currency-specific row replaces the complete style pattern,
+			// including accounting; absent patterns use the locale's latn standard.
+			pattern = loc.CurrencyPattern("latn", "standard")
+			if override.Pattern != "" {
+				pattern = override.Pattern
+			}
+		}
+	}
 	positive, negative, hasNegative := strings.Cut(pattern, ";")
 	affix := Part{Type: PartCurrency, Value: currencyDisplayForNumberFormat(currencyLoc, opts, "other")}
 	set := currencyPatternSet{positive: compileNumberAffixPattern(positive, affix)}

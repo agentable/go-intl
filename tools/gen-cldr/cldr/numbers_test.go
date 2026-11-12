@@ -21,7 +21,8 @@ func TestLoadCurrencies(t *testing.T) {
 					"currencies": {
 						"EUR": {
 							"displayName": "Euro",
-							"symbol": "€"
+							"symbol": "€",
+							"pattern": "¤#,##0.00"
 						},
 						"USD": {
 							"displayName": "US Dollar",
@@ -32,7 +33,10 @@ func TestLoadCurrencies(t *testing.T) {
 							"displayName-count-many": "US dollars",
 							"displayName-count-other": "US dollars",
 							"symbol": "$",
-							"symbol-alt-narrow": "$"
+							"symbol-alt-narrow": "$",
+							"pattern": "¤ #,##0.00",
+							"decimal": ".",
+							"group": ","
 						}
 					}
 				}
@@ -50,6 +54,7 @@ func TestLoadCurrencies(t *testing.T) {
 				Display:   map[string]string{"other": "Euro"},
 				Canonical: "Euro",
 				Symbol:    "€",
+				Pattern:   "¤#,##0.00",
 			},
 			"USD": {
 				Display: map[string]string{
@@ -63,6 +68,9 @@ func TestLoadCurrencies(t *testing.T) {
 				Canonical: "US Dollar",
 				Symbol:    "$",
 				Narrow:    "$",
+				Pattern:   "¤ #,##0.00",
+				Decimal:   ".",
+				Group:     ",",
 			},
 		},
 	}
@@ -1130,6 +1138,7 @@ func currencyNamesEqual(got, want CurrencyNames) bool {
 	return got.Canonical == want.Canonical &&
 		got.Symbol == want.Symbol &&
 		got.Narrow == want.Narrow &&
+		got.Pattern == want.Pattern && got.Decimal == want.Decimal && got.Group == want.Group &&
 		maps.Equal(got.Display, want.Display)
 }
 

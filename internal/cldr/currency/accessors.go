@@ -4,6 +4,13 @@
 
 package currency
 
+// FormatFor returns a currency's explicit formatting overrides in this locale.
+// The sparse format blob decodes independently of names and fraction metadata.
+func FormatFor(loc Locale, code string) Format {
+	formatsOnce.Do(loadFormats)
+	return formats[loc][code]
+}
+
 // Digits returns the fraction-digit metadata for a currency code, falling back
 // to the "DEFAULT" entry when the code is unknown.
 func Digits(code string) Data {

@@ -381,9 +381,9 @@ Active generated pattern data currently covers Gregorian/ISO-8601 observable beh
 **MUST** Rules:
 
 1. `Format` / `FormatToParts` paths **must not** call `time.LoadLocation` / `internal/tz.Resolve`.
-2. The `Format` path **must not** parse `metaZones.json` or do file I/O; the time zone display name (`shortGeneric` / `longGeneric`, etc.) is obtained through the generated `internal/cldr/timezone.TimeZoneDisplayName(cldrLoc, zone, form, isDST, instant, offsetMs)` table lookup and GMT fallback.
+2. The `Format` path **must not** parse `metaZones.json` or do file I/O. DateTimeFormat computes generic-name standard eligibility from the instant's bounded Go transition neighborhood, then calls `internal/cldr/timezone.TimeZoneDisplayName(cldrLoc, zone, form, isDST, useStandard, instant, offsetMs, numberingSystem)` for generated name selection and GMT fallback. Specific short/long names never substitute a generic city name when missing; generic forms retain their separate location fallback (SPEC 32 §1.5 and generic-name decision boundary).
 
-> **Why**: hot path should not be used for time zone parsing or runtime JSON; CLDR metazone/exemplar city data has been compiled into a Go table during codegen, and only memory table lookup and necessary GMT fallback are performed during the call period.
+> **Why**: CLDR metazone/exemplar city data is compiled into Go tables during codegen, and transition queries use the location loaded in `New`; formatting needs no time-zone parsing, runtime JSON, or data-file access.
 
 ---
 

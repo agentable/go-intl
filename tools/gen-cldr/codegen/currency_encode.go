@@ -9,7 +9,7 @@ import (
 )
 
 // encodeCurrencies renders the const-only payload for the currency domain. It
-// emits a private _data string table plus three independent blobs, each
+// emits a private _data string table plus four independent blobs, each
 // prefixed by its record count:
 //
 //   - _currencyFractionBlob:  the locale-independent fraction table, sorted by
@@ -22,6 +22,8 @@ import (
 //     map[Locale]map[string]currencyNames.
 //   - _currencySupportedBlob: the supported ISO 4217 codes in sorted order, a
 //     narrow index so SupportedCodes never decodes the fraction or names blobs.
+//   - _currencyFormatBlob: sparse per-locale currency-specific pattern and
+//     separator overrides, decoded independently of names and fractions.
 //
 // The fraction and names blobs ride independent sync.Once gates in decode.go,
 // so a CurrencyDigits call never forces the (much larger) names decode and vice
@@ -47,10 +49,34 @@ func encodeCurrencies(input RuntimeInput, table *StringTable) ([]byte, error) {
 	supportedCodes := supportedCurrencyValues(data)
 	supported.appendStringRefSlice(supportedCodes, table)
 
+	formats := make(map[string]cldr.Currencies)
+	for locale, currencies := range data.Currencies {
+		for code, names := range currencies {
+			if names.Pattern == "" && names.Decimal == "" && names.Group == "" {
+				continue
+			}
+			if formats[locale] == nil {
+				formats[locale] = make(cldr.Currencies)
+			}
+			formats[locale][code] = names
+		}
+	}
+	var overrides blobEncoder
+	if err := overrides.appendLocaleDeltaRecords(sortedLocaleKeys(formats), localeIndex, func(locale string) {
+		appendStringRefKeyMap(&overrides, formats[locale], table, func(names cldr.CurrencyNames) {
+			overrides.appendStringRef(table.Add(names.Pattern))
+			overrides.appendStringRef(table.Add(names.Decimal))
+			overrides.appendStringRef(table.Add(names.Group))
+		})
+	}); err != nil {
+		return nil, err
+	}
+
 	return renderPayloadFile("currency", table,
 		payloadBlob{"_currencyFractionBlob", fractions.bytes()},
 		payloadBlob{"_currencyNamesBlob", names.bytes()},
 		payloadBlob{"_currencySupportedBlob", supported.bytes()},
+		payloadBlob{"_currencyFormatBlob", overrides.bytes()},
 	)
 }
 

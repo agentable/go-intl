@@ -260,6 +260,37 @@ kilometer-per-hour
 
 Unit identifiers follow native `Intl.NumberFormat`: use canonical lowercase ECMA-402 identifiers such as `meter`, `microsecond`, or `kilometer-per-hour`.
 
+### Format Historical Currencies
+
+Pass the currency code and locale directly; the formatter applies supplied
+currency-specific separators and placement. For Portuguese escudos, the decimal
+separator is `$` even when the currency is displayed as a code:
+
+```go
+format, err := numberformat.New(mustLocaleList("pt-PT"), numberformat.Options{
+	Style:                 gointl.String(numberformat.CurrencyStyle),
+	Currency:              gointl.String("PTE"),
+	CurrencyDisplay:       gointl.String(numberformat.CurrencyDisplayCode),
+	MinimumFractionDigits: gointl.Int(2),
+	MaximumFractionDigits: gointl.Int(2),
+})
+if err != nil {
+	return err
+}
+
+fmt.Println(format.Format(numberformat.Float(12345.67)))
+```
+
+Output (with a nonbreaking space before `PTE`):
+
+```text
+12,345$67 PTE
+```
+
+Digit options still control rounding and visible precision. Currency names and
+compact notation follow their own locale patterns; see the
+[currency formatting rules](SPECS/20-numberformat.md).
+
 ### Format Localized Currency Names
 
 Use `CurrencyDisplayName` when the caller needs localized words instead of a
@@ -783,7 +814,7 @@ from reference output are documented separately:
 
 ### Data-dependent behavior
 
-Pinned CLDR data can differ from a host's ICU data. Two current DateTimeFormat
+Pinned CLDR data can differ from a host's ICU data. Current DateTimeFormat
 boundaries matter when comparing output:
 
 - `Hour12` set to `gointl.Bool(true)` for `ja` and `ja-JP` selects the Japanese
@@ -793,10 +824,18 @@ boundaries matter when comparing output:
   `NumberingSystem` set to `gointl.String("arab")` use Arabic digits and the
   French decimal comma; native ICU can use the Arabic decimal separator. Arabic-Egyptian `latn` and
   `arab` requests have separate symbol rows.
+- Missing specific `short`/`long` time-zone names use localized GMT offsets.
+  Generic forms can select a standard or location name, but some ICU country and
+  historical location-name fallbacks remain unavailable; for example, Tokyo's
+  English `shortGeneric` output is `GMT+9` rather than `Japan Time`.
+- Time-zone names use Go's loaded transition flags. Different main/rearguard
+  representations of negative DST can produce different names for the same
+  offset; use `shortOffset` or `longOffset` when an offset label is required.
 
 See [hour-cycle selection](SPECS/30-datetimeformat.md#22-hourcycle-linkage-13111)
 and [fractional-second separators](SPECS/31-datetimeformat-skeleton.md) for the
-data policy.
+data policy. The [time-zone compatibility boundary](SPECS/32-datetimeformat-tz.md#generic-name-decision-boundary)
+records generic-name coverage and DST representation differences.
 
 ### Conformance divergences
 

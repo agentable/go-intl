@@ -41,6 +41,9 @@ func TestCurrencyRoundTrip(t *testing.T) {
 	for localeTag, currencies := range data.Currencies {
 		loc := resolveKernelLocale(t, localeTag)
 		for code, names := range currencies {
+			if got, want := currency.FormatFor(loc, code), (currency.Format{Pattern: names.Pattern, Decimal: names.Decimal, Group: names.Group}); got != want {
+				t.Errorf("FormatFor(%q, %q) = %+v, want %+v", localeTag, code, got, want)
+			}
 			for plural, want := range names.Display {
 				if got := currency.DisplayName(loc, code, plural); got != want {
 					t.Errorf("DisplayName(%q, %q, %q) = %q, want %q", localeTag, code, plural, got, want)

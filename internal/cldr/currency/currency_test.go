@@ -27,6 +27,7 @@ func TestSupportedCodesDoesNotDecodeOtherBlobs(t *testing.T) {
 	testcontract.AssertNarrowStringIndexDoesNotLoad(t, "SupportedCodes", SupportedCodes,
 		testcontract.LoadProbe{Name: "fraction blob", Loaded: func() bool { return fractions != nil }},
 		testcontract.LoadProbe{Name: "names blob", Loaded: func() bool { return byLocale != nil }},
+		testcontract.LoadProbe{Name: "format blob", Loaded: func() bool { return formats != nil }},
 	)
 }
 

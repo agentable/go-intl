@@ -26,6 +26,10 @@ type Locale = cldrlocale.Locale
 // Data holds the fraction-digit metadata for one currency code.
 type Data struct{ DefaultDigits int }
 
+// Format holds the explicit pattern and separators of a currency-specific row.
+// Empty fields use the locale-wide standard pattern and symbols.
+type Format struct{ Pattern, Decimal, Group string }
+
 // currencyNames holds the per-locale display map keyed by plural category plus
 // the canonical, symbol, and narrow scalars.
 type currencyNames struct {
@@ -42,6 +46,9 @@ var (
 
 	namesOnce sync.Once
 	byLocale  map[Locale]map[string]currencyNames
+
+	formatsOnce sync.Once
+	formats     map[Locale]map[string]Format
 )
 
 func loadFractions() {
@@ -74,3 +81,12 @@ func decodeCurrencyNames(r *codec.Reader) currencyNames {
 }
 
 var supported = codec.NewLazyStrings(_currencySupportedBlob, _data)
+
+func loadFormats() {
+	r := codec.NewReader(_currencyFormatBlob)
+	formats = codec.Uint16DeltaMap[Locale, map[string]Format](&r, func(r *codec.Reader) map[string]Format {
+		return codec.StringRefKeyMap[Format](r, _data, func(r *codec.Reader) Format {
+			return Format{Pattern: r.StringRef(_data), Decimal: r.StringRef(_data), Group: r.StringRef(_data)}
+		})
+	})
+}

@@ -271,3 +271,36 @@ func BenchmarkTZ_Resolve(b *testing.B) {
 		})
 	}
 }
+
+func TestHasDSTBetween(t *testing.T) {
+	t.Parallel()
+	loc, err := Resolve("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 3, 8, 7, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 11, 1, 6, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name       string
+		start, end time.Time
+		want       bool
+	}{
+		{"before start", start.Add(-time.Hour), start, false},
+		{"at start", start, start.Add(time.Nanosecond), true},
+		{"at end", end, end.Add(time.Hour), false},
+		{"until end", end.Add(-time.Nanosecond), end, true},
+		{"season between standard endpoints", start.Add(-time.Hour), end.Add(time.Hour), true},
+		{"future leap year boundary", time.Date(2040, 12, 31, 0, 0, 0, 0, time.UTC), time.Date(2041, 4, 1, 0, 0, 0, 0, time.UTC), true},
+		{"future leap year before DST", time.Date(2040, 12, 31, 12, 0, 0, 0, time.UTC), time.Date(2041, 3, 10, 7, 0, 0, 0, time.UTC), false},
+		{"empty", start, start, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := HasDSTBetween(loc, tc.start, tc.end); got != tc.want {
+				t.Fatalf("HasDSTBetween = %t, want %t", got, tc.want)
+			}
+		})
+	}
+	if HasDSTBetween(time.FixedZone("fixed", 3600), start, end) {
+		t.Fatal("fixed zone has DST")
+	}
+}

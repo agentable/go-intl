@@ -723,6 +723,17 @@ index is derived from those name keys alone; `currencyData.json` precision
 exceptions cannot add membership. DisplayNames language data carries CLDR
 variant names and the locale separator alongside the locale pattern.
 
+Explicit per-currency `pattern`, `decimal`, and `group` fields are retained
+unchanged from the same expanded JSON in an independent sparse
+`_currencyFormatBlob`. Only locales/codes with at least one supplied field have
+a record. `currency.FormatFor` decodes it separately from names, fractions and
+supported codes; absence returns an empty record. NumberFormat owns the bounded
+constructor selection described in SPEC 20 §4; DisplayNames continues to consume
+names only. Loader tests assert field preservation and `TestCurrencyRoundTrip`
+compares every source row with the production accessor, including absence.
+The full JSON does not expose the original LDML file owning an inherited row;
+this representation makes no new owner-inheritance claim.
+
 Number generation carries the positive `minimumGroupingDigits` from resolved
 CLDR full JSON into the number blob and production accessor. An absent field
 uses ICU’s minimum of one; malformed supplied values fail with source context.

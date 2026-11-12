@@ -67,10 +67,9 @@ func metazonePeriodsForZone(zone string) []metazonePeriod {
 	return periods
 }
 
-// TimeZoneDisplayName resolves the localized display name for a zone, falling
-// back through zone-specific names, metazone names, exemplar city, and finally
-// the GMT offset.
-func TimeZoneDisplayName(loc Locale, zone string, form TimeZoneName, isDST bool, instant int64, offsetMs int64, numberingSystem string) string {
+// TimeZoneDisplayName resolves zone-specific and metazone names. Only generic
+// styles use exemplar-city fallback; specific names fall back to localized GMT.
+func TimeZoneDisplayName(loc Locale, zone string, form TimeZoneName, isDST, useStandard bool, instant int64, offsetMs int64, numberingSystem string) string {
 	zone = displayKey(zone)
 	if isOffsetTimeZoneName(form) {
 		return GMTOffsetName(loc, offsetMs, form, numberingSystem)
@@ -79,11 +78,27 @@ func TimeZoneDisplayName(loc Locale, zone string, form TimeZoneName, isDST bool,
 	if name := zoneSpecificName(loc, zone, kind); name != "" {
 		return name
 	}
-	if name := metazoneName(loc, TimeZoneMetazone(zone, instant), kind); name != "" {
+	metazone := TimeZoneMetazone(zone, instant)
+	if useStandard && metazone != "" && (form == TimeZoneNameShortGeneric || form == TimeZoneNameLongGeneric) {
+		standardKind := zoneNameLongStandard
+		if form == TimeZoneNameShortGeneric {
+			standardKind = zoneNameShortStandard
+		}
+		standard := zoneSpecificName(loc, zone, standardKind)
+		if standard == "" {
+			standard = metazoneName(loc, metazone, standardKind)
+		}
+		if standard != "" && !strings.EqualFold(standard, metazoneName(loc, metazone, kind)) {
+			return standard
+		}
+	}
+	if name := metazoneName(loc, metazone, kind); name != "" {
 		return name
 	}
-	if city := exemplarCity(loc, zone); city != "" {
-		return strings.Replace(timeZoneFormats(loc).regionFormat, "{0}", city, 1)
+	if form == TimeZoneNameShortGeneric || form == TimeZoneNameLongGeneric {
+		if city := exemplarCity(loc, zone); city != "" {
+			return strings.Replace(timeZoneFormats(loc).regionFormat, "{0}", city, 1)
+		}
 	}
 	return GMTOffsetName(loc, offsetMs, form, numberingSystem)
 }
@@ -186,7 +201,7 @@ func timeZoneFormatsForLocale(loc Locale) timeZoneFormatRefs {
 // GMTOffsetName formats an offset time-zone name using locale GMT patterns.
 func GMTOffsetName(loc Locale, offsetMs int64, form TimeZoneName, numberingSystem string) string {
 	formats := timeZoneFormats(loc)
-	long := form == TimeZoneNameLongOffset || form == TimeZoneNameLong
+	long := form == TimeZoneNameLongOffset || form == TimeZoneNameLong || form == TimeZoneNameLongGeneric
 	offset := offsetPattern(formats.hourFormat, offsetMs, long, numberingSystem)
 	if offset == "" && !long {
 		return formats.gmtZeroFormat

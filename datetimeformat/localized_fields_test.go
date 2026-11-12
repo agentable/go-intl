@@ -55,7 +55,7 @@ func TestDateTimeFormatLocalizedFieldWidths(t *testing.T) {
 			want: "17 h UTC+5:30",
 		},
 		{
-			name:   "long generic non-metazone location",
+			name:   "long generic standard name",
 			locale: "fr-FR",
 			options: Options{
 				Hour:         stringPtr(NumericFieldStyle),
@@ -63,7 +63,7 @@ func TestDateTimeFormatLocalizedFieldWidths(t *testing.T) {
 				TimeZoneName: stringPtr(LongGenericTimeZoneName),
 			},
 			date: time.Date(2026, time.January, 8, 12, 0, 0, 0, time.UTC),
-			want: "22 h heure : Dumont-d’Urville",
+			want: "22 h heure de Dumont-d’Urville",
 		},
 	}
 	for _, tc := range tests {

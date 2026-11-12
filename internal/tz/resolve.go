@@ -67,3 +67,24 @@ func LookupAt(loc *time.Location, t time.Time) ZoneInfo {
 	name, offset := local.Zone()
 	return ZoneInfo{Name: loc.String(), OffsetMs: int64(offset) * 1000, IsDST: local.IsDST(), Abbrv: name}
 }
+
+// HasDSTBetween reports whether a DST period intersects [start, end).
+// It walks actual zone periods, including short seasons between the endpoints.
+func HasDSTBetween(loc *time.Location, start, end time.Time) bool {
+	for cursor := start.In(loc); cursor.Before(end); {
+		if cursor.IsDST() {
+			return true
+		}
+		_, next := cursor.ZoneBounds()
+		if next.IsZero() {
+			return false
+		}
+		if !next.After(cursor) {
+			// Go's POSIX tail uses a 365-day synthetic year end, even in
+			// leap years. Resume at the next UTC year to reach its rules.
+			next = time.Date(cursor.UTC().Year()+1, 1, 1, 0, 0, 0, 0, time.UTC)
+		}
+		cursor = next.In(loc)
+	}
+	return false
+}

@@ -1208,6 +1208,88 @@ func TestDateTimeFormatUsesLocalizedRegionFormatForLocationTimeZoneName(t *testi
 	}
 }
 
+func TestDateTimeFormatGenericTimeZoneStandardName(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		zone, style, want string
+	}{
+		{"Asia/Tokyo", "longGeneric", "Japan Standard Time"},
+		{"America/Phoenix", "shortGeneric", "MST"},
+		{"America/Phoenix", "longGeneric", "Mountain Standard Time"},
+		{"America/Los_Angeles", "longGeneric", "Pacific Time"},
+	} {
+		t.Run(tc.zone+"/"+tc.style, func(t *testing.T) {
+			t.Parallel()
+			format, err := New(intltest.LocaleList(t, "en-US"), Options{
+				TimeZone: stringPtr(tc.zone), Hour: stringPtr(NumericFieldStyle),
+				TimeZoneName: stringPtr(TimeZoneName(tc.style)),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, month := range []time.Month{time.January, time.July} {
+				parts := mustDateFormatToParts(t, format, time.Date(2026, month, 15, 12, 0, 0, 0, time.UTC))
+				found := false
+				for _, part := range parts {
+					if part.Type == PartTimeZoneName {
+						found = true
+						if part.Value != tc.want {
+							t.Errorf("%s timeZoneName = %q, want %q", month, part.Value, tc.want)
+						}
+					}
+				}
+				if !found {
+					t.Fatal("missing timeZoneName part")
+				}
+			}
+		})
+	}
+}
+
+func TestDateTimeFormatSpecificTimeZoneNameFallback(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		locale, zone, style, want string
+	}{
+		{"en-US", "Antarctica/DumontDUrville", "short", "GMT+10"},
+		{"fr", "Antarctica/DumontDUrville", "short", "UTC+10"},
+		{"zh", "Antarctica/DumontDUrville", "short", "GMT+10"},
+		{"en-US", "Africa/Casablanca", "long", "GMT+01:00"},
+		{"fr", "Africa/Casablanca", "long", "UTC+01:00"},
+		{"zh", "Africa/Casablanca", "long", "GMT+01:00"},
+	} {
+		t.Run(tc.locale+"/"+tc.zone+"/"+tc.style, func(t *testing.T) {
+			t.Parallel()
+			format, err := New(intltest.LocaleList(t, tc.locale), Options{
+				TimeZone: stringPtr(tc.zone), Hour: stringPtr(NumericFieldStyle),
+				TimeZoneName: stringPtr(TimeZoneName(tc.style)),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			instant := time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC)
+			parts := mustDateFormatToParts(t, format, instant)
+			var joined strings.Builder
+			found := false
+			for _, part := range parts {
+				joined.WriteString(part.Value)
+				if part.Type == PartTimeZoneName {
+					found = true
+					if part.Value != tc.want {
+						t.Errorf("timeZoneName = %q, want %q", part.Value, tc.want)
+					}
+				}
+			}
+			if !found {
+				t.Fatal("missing timeZoneName part")
+			}
+			if got := mustDateFormat(t, format, instant); got != joined.String() {
+				t.Errorf("Format() = %q, parts = %q", got, joined.String())
+			}
+		})
+	}
+}
+
 func TestDateTimeFormatFormatsLocalizedTimeZoneNameForms(t *testing.T) {
 	t.Parallel()
 

@@ -621,6 +621,54 @@ func TestNumberFormatFormatCurrencyUSD(t *testing.T) {
 	}
 }
 
+// CLDR currency-specific rows override locale-wide placement and separators.
+func TestNumberFormatCurrencyOverrides(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		locale, code, want, group, decimal, rangeText string
+	}{
+		{"it", "ITL", "ITL\u00a012.345,67", ".", ",", "ITL\u00a012,00-13,00"},
+		{"pt-PT", "PTE", "12,345$67\u00a0PTE", ",", "$", "12$00 - 13$00\u00a0PTE"},
+		{"et", "EEK", "12\u00a0345.67\u00a0EEK", "\u00a0", ".", "12.00‒13.00\u00a0EEK"},
+	} {
+		t.Run(tc.locale+"/"+tc.code, func(t *testing.T) {
+			t.Parallel()
+			format, err := New(intltest.LocaleList(t, tc.locale), Options{
+				Style: stringPtr(CurrencyStyle), Currency: stringPtr(tc.code),
+				CurrencyDisplay:       stringPtr(CurrencyDisplayCode),
+				MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := format.Format(Float(12345.67)); got != tc.want {
+				t.Fatalf("Format() = %q, want %q", got, tc.want)
+			}
+			wantParts := []Part{{Type: PartInteger, Value: "12"}, {Type: PartGroup, Value: tc.group}, {Type: PartInteger, Value: "345"}, {Type: PartDecimal, Value: tc.decimal}, {Type: PartFraction, Value: "67"}}
+			if tc.code == "ITL" {
+				wantParts = append([]Part{{Type: PartCurrency, Value: tc.code}, {Type: PartLiteral, Value: "\u00a0"}}, wantParts...)
+			} else {
+				wantParts = append(wantParts, Part{Type: PartLiteral, Value: "\u00a0"}, Part{Type: PartCurrency, Value: tc.code})
+			}
+			if got := format.FormatToParts(Float(12345.67)); !reflect.DeepEqual(got, wantParts) {
+				t.Fatalf("FormatToParts() = %#v, want %#v", got, wantParts)
+			}
+			if got, err := format.FormatRange(Int(12), Int(13)); err != nil || got != tc.rangeText {
+				t.Fatalf("FormatRange() = %q, %v, want %q", got, err, tc.rangeText)
+			}
+			parts, err := format.FormatRangeToParts(Int(12), Int(13))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, part := range parts {
+				if part.Type == PartCurrency && (part.Value != tc.code || part.Source != SourceShared) {
+					t.Errorf("currency range part = %+v, want shared %s", part, tc.code)
+				}
+			}
+		})
+	}
+}
+
 func TestNumberFormatFormatCurrencyJPY(t *testing.T) {
 	t.Parallel()
 
@@ -635,6 +683,52 @@ func TestNumberFormatFormatCurrencyJPY(t *testing.T) {
 	}
 	if got := format.Format(Float(1234.5)); got != "¥1,235" {
 		t.Fatalf("Format(1234.5) = %q, want ¥1,235", got)
+	}
+}
+
+func TestNumberFormatCurrencyOverrideAccounting(t *testing.T) {
+	t.Parallel()
+	format, err := New(intltest.LocaleList(t, "pt-PT"), Options{
+		Style: stringPtr(CurrencyStyle), Currency: stringPtr("PTE"),
+		CurrencyDisplay: stringPtr(CurrencyDisplayCode), CurrencySign: stringPtr(AccountingCurrencySign),
+		MinimumFractionDigits: intPtr(2), MaximumFractionDigits: intPtr(2),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := format.Format(Float(-12345.67)), "-12,345$67\u00a0PTE"; got != want {
+		t.Fatalf("Format() = %q, want %q", got, want)
+	}
+}
+
+func TestNumberFormatCurrencyOverrideValues(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		locale, code, display, system, want string
+		value                               float64
+		digits                              *int
+	}{
+		{"it", "ITL", "code", "latn", "ITL\u00a00,00", 0, intPtr(2)},
+		{"it", "ITL", "code", "latn", "ITL\u00a012.346", 12345.67, nil},
+		{"pt-PT", "PTE", "code", "latn", "0$00\u00a0PTE", 0, intPtr(2)},
+		{"et", "EEK", "symbol", "latn", "−12\u00a0345.67\u00a0kr", -12345.67, intPtr(2)},
+		{"pt-PT", "PTE", "code", "arab", "١٢,٣٤٥$٦٧\u00a0PTE", 12345.67, intPtr(2)},
+		{"ca", "ESP", "narrowSymbol", "latn", "₧\u00a012.345,67", 12345.67, intPtr(2)},
+	} {
+		t.Run(tc.locale+"/"+tc.code+"/"+tc.system, func(t *testing.T) {
+			t.Parallel()
+			format, err := New(intltest.LocaleList(t, tc.locale), Options{
+				Style: stringPtr(CurrencyStyle), Currency: stringPtr(tc.code),
+				CurrencyDisplay: stringPtr(CurrencyDisplay(tc.display)), NumberingSystem: stringPtr(tc.system),
+				MinimumFractionDigits: tc.digits, MaximumFractionDigits: tc.digits,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := format.Format(Float(tc.value)); got != tc.want {
+				t.Fatalf("Format() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

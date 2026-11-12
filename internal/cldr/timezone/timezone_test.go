@@ -106,8 +106,14 @@ func TestSmokeTimeZoneDisplayName(t *testing.T) {
 		{"zone specific daylight", enGB, "Europe/London", TimeZoneNameLong, true, 3600 * 1000, "British Summer Time"},
 		{"short offset", enUS, "America/New_York", TimeZoneNameShortOffset, false, -5 * 3600 * 1000, "GMT-5"},
 		{"long offset", enUS, "America/New_York", TimeZoneNameLongOffset, false, -5 * 3600 * 1000, "GMT-05:00"},
+		{"long generic gmt fallback", enUS, "Mars/Olympus", TimeZoneNameLongGeneric, false, -5 * 3600 * 1000, "GMT-05:00"},
 		{"gmt fallback", enUS, "Mars/Olympus", TimeZoneNameShortGeneric, false, -5 * 3600 * 1000, "GMT-5"},
 		{"missing locale fallback", missingLocale, "America/New_York", TimeZoneNameShortGeneric, false, -5 * 3600 * 1000, "GMT-5"},
+		{"short specific city is not fallback", enUS, "Antarctica/DumontDUrville", TimeZoneNameShort, false, 10 * 3600 * 1000, "GMT+10"},
+		{"missing specific short half hour", missingLocale, "Mars/Olympus", TimeZoneNameShort, false, 330 * 60 * 1000, "GMT+5:30"},
+		{"missing specific long half hour", missingLocale, "Mars/Olympus", TimeZoneNameLong, false, 330 * 60 * 1000, "GMT+05:30"},
+		{"missing specific short zero", missingLocale, "Mars/Olympus", TimeZoneNameShort, false, 0, "GMT"},
+		{"missing specific long zero", missingLocale, "Mars/Olympus", TimeZoneNameLong, false, 0, "GMT+00:00"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -115,7 +121,7 @@ func TestSmokeTimeZoneDisplayName(t *testing.T) {
 			if tc.name == "zone specific daylight" {
 				gbInstant = time.Date(2021, time.June, 10, 12, 0, 0, 0, time.UTC).UnixMilli()
 			}
-			if got := TimeZoneDisplayName(tc.loc, tc.zone, tc.form, tc.dst, gbInstant, tc.off, "latn"); got != tc.want {
+			if got := TimeZoneDisplayName(tc.loc, tc.zone, tc.form, tc.dst, false, gbInstant, tc.off, "latn"); got != tc.want {
 				t.Fatalf("TimeZoneDisplayName(%s) = %q, want %q", tc.name, got, tc.want)
 			}
 		})

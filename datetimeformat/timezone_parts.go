@@ -36,8 +36,15 @@ func (f *DateTimeFormat) offsetTimeZonePatternName(t time.Time) string {
 func (f *DateTimeFormat) localizedTimeZonePatternName(form cldrtimezone.TimeZoneName, width int, t time.Time) string {
 	loc := cldrtimezone.Locale(f.cldrLoc)
 	zone, info := resolvedTimeZoneInfo(f.resolved.TimeZone, f.location, t)
+	useStandard := false
+	if !info.IsDST && (form == cldrtimezone.TimeZoneNameShortGeneric || form == cldrtimezone.TimeZoneNameLongGeneric) {
+		// ICU uses a 184-day neighborhood to distinguish seasonal generic names
+		// from standard names in zones without nearby daylight-saving periods.
+		const neighborhood = 184 * 24 * time.Hour
+		useStandard = !tz.HasDSTBetween(f.location, t.Add(-neighborhood), t.Add(neighborhood))
+	}
 	if zone != "" && zone != "Local" {
-		if name := cldrtimezone.TimeZoneDisplayName(loc, zone, form, info.IsDST, t.UnixMilli(), info.OffsetMs, f.resolved.NumberingSystem); name != "" {
+		if name := cldrtimezone.TimeZoneDisplayName(loc, zone, form, info.IsDST, useStandard, t.UnixMilli(), info.OffsetMs, f.resolved.NumberingSystem); name != "" {
 			return name
 		}
 	}

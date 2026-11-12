@@ -46,6 +46,9 @@ type CurrencyNames struct {
 	Canonical string
 	Symbol    string
 	Narrow    string
+	Pattern   string
+	Decimal   string
+	Group     string
 }
 
 type CurrencyFraction struct{ Digits int }
@@ -604,6 +607,12 @@ func parseCurrencyNames(fields map[string]string) (CurrencyNames, error) {
 			names.Symbol = value
 		case "symbol-alt-narrow":
 			names.Narrow = value
+		case "pattern":
+			names.Pattern = value
+		case "decimal":
+			names.Decimal = value
+		case "group":
+			names.Group = value
 		default:
 			plural, ok, err := pluralCategoryFromField(key, "displayName-count-")
 			if err != nil {

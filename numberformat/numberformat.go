@@ -86,6 +86,15 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 		if symbols.CurrencyGroup != "" {
 			symbols.Group = symbols.CurrencyGroup
 		}
+		if resolved.Notation == StandardNotation && ecma402.ResolvedScalarValue(resolved.CurrencyDisplay) != CurrencyDisplayName {
+			override := cldrcurrency.FormatFor(unitLoc, cfg.currency)
+			if override.Decimal != "" {
+				symbols.Decimal = override.Decimal
+			}
+			if override.Group != "" {
+				symbols.Group = override.Group
+			}
+		}
 	}
 	grouping := groupingForNumberFormat(cldrLoc, resolved)
 	cardinalRule, err := plural.Rule(dataLocale, "cardinal")
