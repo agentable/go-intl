@@ -32,8 +32,8 @@ func FormatNumericToString(d decimal.Decimal, resolved ResolvedDigitOptions) For
 		return FormattedNumeric{Formatted: d.String(), Rounded: d}
 	}
 	opts := resolved.DigitOptions
-	if canUseRoundedString(d, opts) {
-		return FormattedNumeric{Formatted: d.String(), Rounded: d}
+	if formatted, ok := unchangedFixedString(d, opts); ok {
+		return FormattedNumeric{Formatted: formatted, Rounded: d}
 	}
 	switch resolved.RoundingType {
 	case RoundingTypeSignificantDigits:
@@ -110,11 +110,11 @@ func formatSignificantCandidate(d decimal.Decimal, opts DigitOptions) (string, d
 	return formatted, rounded
 }
 
-// canUseRoundedString returns true only when the input representation is already
+// unchangedFixedString returns the input text only when it is already
 // byte-identical to the general fixed path. Input literal scale is not part of an
 // Intl mathematical value, so fractional trailing zeros and negative zero must
 // go through that path even when no rounding is otherwise needed.
-func canUseRoundedString(d decimal.Decimal, opts DigitOptions) bool {
+func unchangedFixedString(d decimal.Decimal, opts DigitOptions) (string, bool) {
 	switch {
 	case opts.MinimumIntegerDigits != 1,
 		opts.MinimumFractionDigits != 0,
@@ -123,13 +123,14 @@ func canUseRoundedString(d decimal.Decimal, opts DigitOptions) bool {
 		opts.TrailingZeroDisplay != "auto",
 		opts.MaximumSignificantDigits > 0,
 		opts.RoundingPriority != "auto":
-		return false
+		return "", false
 	}
 	if d.IsZero() && d.Negative() {
-		return false
+		return "", false
 	}
-	_, fraction, ok := strings.Cut(strings.TrimPrefix(d.String(), "-"), ".")
-	return !ok || len(fraction) <= opts.MaximumFractionDigits && !strings.HasSuffix(fraction, "0")
+	formatted := d.String()
+	_, fraction, ok := strings.Cut(strings.TrimPrefix(formatted, "-"), ".")
+	return formatted, !ok || len(fraction) <= opts.MaximumFractionDigits && !strings.HasSuffix(fraction, "0")
 }
 
 func roundFixed(d decimal.Decimal, opts DigitOptions) (decimal.Decimal, bool) {

@@ -30,28 +30,19 @@ var numberSymbolFieldOrder = [...]func(cldr.NumberSymbols) string{
 	func(s cldr.NumberSymbols) string { return s.CurrencyGroup },
 }
 
-// encodeNumbers renders the const-only payload for the number domain. It emits a
-// private _data string table plus two independent blobs, each prefixed by its
-// record count:
-//
-//   - _numberBlob:          per-locale number-formatting data. Locale indices are
-//     written as a sorted delta stream; each locale carries its default
-//     numbering system StringRef followed by the symbols, decimal, percent,
-//     scientific, currency, and compact sub-blocks. The decoder rebuilds the
-//     map[Locale]numberData consumed by the number accessors.
-//   - _numberSupportedBlob: the locales with number data, in sorted-locale
-//     order. A narrow index so SupportedLocales never decodes the main blob.
-//
-// The two blobs ride independent sync.Once gates in decode.go, so a
-// SupportedLocales call never forces the (much larger) main decode.
+// encodeNumbers emits per-locale number records with a locale-delta index of
+// offset/length references. Supported locales and numbering systems keep their
+// independent narrow indexes.
 func encodeNumbers(input RuntimeInput, table *StringTable) ([]byte, error) {
 	data := input.Numbers
 	localeIndex := localeIndexMap(input.Locales)
 
-	var main blobEncoder
+	var main, index blobEncoder
 	locales := sortedLocaleKeys(data)
-	if err := main.appendLocaleDeltaRecords(locales, localeIndex, func(locale string) {
+	if err := index.appendLocaleDeltaRecords(locales, localeIndex, func(locale string) {
+		start := len(main.bytes())
 		encodeNumberLocale(&main, data[locale], table)
+		index.appendStringRef(StringRef{start: uint32(start), length: uint32(len(main.bytes()) - start)})
 	}); err != nil {
 		return nil, err
 	}
@@ -64,6 +55,7 @@ func encodeNumbers(input RuntimeInput, table *StringTable) ([]byte, error) {
 	numberingSystems.appendStringRefSlice(nsExtras, table)
 
 	return renderPayloadFile("number", table,
+		payloadBlob{"_numberIndexBlob", index.bytes()},
 		payloadBlob{"_numberBlob", main.bytes()},
 		payloadBlob{"_numberSupportedBlob", supported.bytes()},
 		payloadBlob{"_numberingSystemBlob", numberingSystems.bytes()},

@@ -3,6 +3,7 @@ package number
 import (
 	"maps"
 	"slices"
+	"sync"
 	"testing"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
@@ -403,4 +404,56 @@ func TestCurrencyCompactPattern(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNumberFirstAccessDecodesOnlyRequestedLocale(t *testing.T) {
+	t.Parallel()
+	if !testprocess.RunInFreshProcess(t, "GO_INTL_NUMBER_SINGLE_RECORD_SUBPROCESS") {
+		return
+	}
+	loc, ok := ResolveLocale("en")
+	if !ok {
+		t.Fatal("missing en locale")
+	}
+	var wg sync.WaitGroup
+	for range 16 {
+		wg.Go(func() {
+			if got := loc.DecimalPattern("latn"); got != "#,##0.###" {
+				t.Errorf("DecimalPattern = %q", got)
+			}
+		})
+	}
+	wg.Wait()
+	decoded := 0
+	for _, record := range byLocale {
+		if record.defaultNumberingSystem != "" {
+			decoded++
+		}
+	}
+	if decoded != 1 {
+		t.Fatalf("decoded %d number locales for one request, want 1", decoded)
+	}
+	for _, tag := range SupportedLocales() {
+		wg.Go(func() {
+			loc, ok := ResolveLocale(tag)
+			if !ok || loc.DefaultNumberingSystem() == "" || loc.DecimalPattern("") == "" {
+				t.Errorf("missing number data for %s", tag)
+			}
+		})
+	}
+	wg.Wait()
+	for handle, record := range byLocale {
+		if record.defaultNumberingSystem == "" {
+			t.Errorf("locale %d was not decoded", handle)
+		}
+	}
+}
+
+func numberDataByLocale() map[Locale]numberData {
+	numbersOnce.Do(loadNumbers)
+	data := make(map[Locale]numberData, len(byLocale))
+	for handle := range byLocale {
+		data[handle] = numberDataForLocale(handle)
+	}
+	return data
 }

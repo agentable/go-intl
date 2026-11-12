@@ -252,6 +252,16 @@ Fresh-process tests verify concurrent first access and record isolation;
 `TestDateRoundTrip` and `task data:check` verify all locales through production
 accessors and reproducible generation.
 
+Number data follows the same per-locale model: `_numberIndexBlob` contains
+locale deltas and offset/length references into `_numberBlob`. Its immutable
+index owns one pointer-stable `numberRecord` and one `sync.Once` per generated
+locale. Accessors decode only the requested record; missing handles retain the
+existing empty-view behavior. The supported and numbering-system indexes do
+not initialize this record map. No runtime I/O, eviction, pool or background
+work participates. Same-locale and all-locale concurrent first access, the full
+production number round-trip and reproducible generation protect the layout.
+Measurement and its all-locale allocation tradeoff are recorded in SPEC 71.
+
 ### 2.4 Per-domain packages, not single-package files
 
 CLDR data **MUST** be generated as one package per semantic domain (§1.2). This is the structure that lets Go compile, link, and lazily decode per reachable package — importing only `displaynames` compiles only `displaynames` + the `locale` kernel + `codec`, in parallel with other packages.

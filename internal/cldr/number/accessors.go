@@ -11,6 +11,7 @@ package number
 import (
 	"slices"
 
+	"github.com/agentable/go-intl/internal/cldr/codec"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/localeid"
 	"github.com/agentable/go-intl/internal/numbering"
@@ -205,11 +206,16 @@ func (l Locale) dataForResolvedNumberingSystem(numberingSystem string) (numberDa
 }
 
 func numberDataForLocale(loc Locale) numberData {
-	data, ok := numberDataByLocale()[loc]
+	numbersOnce.Do(loadNumbers)
+	record, ok := byLocale[loc]
 	if !ok {
 		return numberData{}
 	}
-	return data
+	record.once.Do(func() {
+		r := codec.NewReader(record.blob)
+		record.numberData = decodeNumberLocale(&r)
+	})
+	return record.numberData
 }
 
 // NumberLocaleData exposes the relevant extension keys used by

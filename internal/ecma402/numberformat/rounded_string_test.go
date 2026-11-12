@@ -6,11 +6,11 @@ import (
 	"github.com/agentable/go-intl/internal/decimal"
 )
 
-// TestCanUseRoundedStringAgreesWithFullPath guards against silent drift between
-// the canUseRoundedString fast path and the general fixed path. Input literal
+// TestUnchangedFixedStringAgreesWithFullPath guards against silent drift between
+// the unchangedFixedString fast path and the general fixed path. Input literal
 // scale is not part of an Intl mathematical value, so trailing-zero spellings are
 // subject to the same byte-equality requirement as every other input.
-func TestCanUseRoundedStringAgreesWithFullPath(t *testing.T) {
+func TestUnchangedFixedStringAgreesWithFullPath(t *testing.T) {
 	t.Parallel()
 
 	opts := DigitOptions{
@@ -36,7 +36,7 @@ func TestCanUseRoundedStringAgreesWithFullPath(t *testing.T) {
 		formatted := FormatNumericToString(d, inferredResolvedDigits(opts)).Formatted
 		full, _ := formatFixedCandidate(d, opts)
 		if formatted != full {
-			t.Errorf("FormatNumericToString(%q) = %q, full path = %q; fast-path eligibility = %t", in, formatted, full, canUseRoundedString(d, opts))
+			t.Errorf("FormatNumericToString(%q) = %q, full path = %q", in, formatted, full)
 		}
 	}
 }

@@ -303,3 +303,73 @@ not a release or correctness gate.
 - `golang.org/x/text/message`(main baseline)
 - `golang.org/x/text/feature/plural`(main baseline)
 - `golang.org/x/perf/cmd/benchstat`(CLI tool)
+
+
+## Number locale decode measurement (2026-11-12)
+
+The number-domain pilot compared identical supported-index and data-accessor
+workloads in eight fresh processes each, Go 1.27.3 / darwin arm64 / Apple M5 Pro,
+CLDR 48.1.0. `one` queried en; `multi` queried en/fr/ar/ja/ru; `all` queried all
+86 generated number records from the unchanged profile. Both variants read the
+same symbols, currency and compact accessors. The pre-change binary was built
+before the number decoder edit, after the preceding currency corrections.
+
+| Workload | TotalAlloc before → after (bytes) | Mallocs before → after | Retained heap before → after (bytes, eight-run range) |
+|---|---|---|---|
+| narrow supported index | 2,816 → 2,816 | 2 → 2 | 1,408–6,840 → 1,408–6,728 |
+| one locale | 1,906,448 → 36,280 | 11,943 → 210 | 1,906,424–1,911,744 → 36,232 |
+| five locales | 1,906,448 → 123,544 | 11,943 → 758 | 1,906,424–1,917,064 → 123,400–128,832 |
+| all locales | 1,909,264 → 1,911,072 | 11,945 → 12,117 | 1,907,832–1,918,472 → 1,907,576–1,918,216 |
+
+The embedded main blob changed from 83,874 to 83,793 bytes; the added locale
+index is 494 bytes, a net 413-byte payload increase. The same standalone
+accessor probe binary changed from 3,951,874 to 3,951,922 bytes. This is a probe
+artifact result, not a universal linked-size claim. Existing New benchmarks
+retained 81 allocs/op and a repeated 6,200 B/op steady result; first-batch
+amortized initialization produced 6,265/6,222 B/op before/after and does not
+prove a warm allocation improvement.
+
+Verdict: KEEP for single/few-locale allocation and retained heap; accept the
+reported all-locale allocation/index overhead. Time/op and process wall time
+are INCONCLUSIVE because unrelated compilation and system I/O contaminated
+both batches; no speed ratio is claimed. Raw diagnostic stage times were
+0.52–1.05ms / 0.021–0.043ms for one locale and warm New ranges were
+6.34–6.91µs / 6.50–7.92µs, but they are not accepted latency evidence. The
+candidate build initially reported a missing standard-library directory that
+was present on inspection; no source change was made, and both binaries were
+resampled after a successful build. Race tests cover first access; full
+production round-trip and `task data:check` passed with the pinned inputs.
+
+
+## Reusing an unchanged numeric string (2026-11-12)
+
+After the locale decode pilot, five repetitions of the existing cached
+workloads used `-benchtime=300ms` on the same Go 1.27.3 / M5 Pro environment.
+The Decimal allocation profile showed an avoidable conversion: the fixed-path
+eligibility helper called Decimal.String, then a successful caller called it
+again. `unchangedFixedString` now returns its text and eligibility together;
+conditions and the general rounding path are unchanged. No second renderer,
+new cache, pool or decimal backend participates.
+
+| Cached workload | B/op before → after | allocs/op before → after |
+|---|---|---|
+| Decimal (Int 1234567) | 48 → 40 | 4 → 3 |
+| Currency (Float 1234.5) | 328 → 328 | 15 → 15 |
+| Compact (Int 1234567) | 3,528 → 3,528 | 137 → 137 |
+| FormatToParts (Float 1234.5) | 208 → 200 | 7 → 6 |
+| FormatRange (Int 1234, Int 5678) | 800 → 800 | 14 → 12 |
+
+Each allocation result was identical in all five repetitions. The candidate
+allocation profile attributes the remaining Decimal.String work to the single
+helper call. Profile percentages and totals are not compared as equal-duration
+or equal-operation proof; the repeated unprofiled B/op/allocs/op own the payoff.
+The change adds no retained state. Existing literal-scale, negative-zero and
+full-path parity tests, shared consumers' race tests and the public rational
+fuzz protect semantics.
+
+Verdict: KEEP for allocations and Decimal/parts bytes; currency/compact bytes
+and allocations are unchanged. Time/op is INCONCLUSIVE under host contention:
+observed diagnostic ranges were Decimal 165.8–193.0 → 142.7–148.3 ns, Currency
+455.0–472.9 → 447.1–455.1 ns, Compact 2,550–2,747 → 2,535–3,077 ns, Parts
+247.7–252.9 → 242.9–308.2 ns and Range 418.9–464.2 → 402.5–470.7 ns.
+These overlapping/mixed ranges do not justify a whole-formatter speed claim.

@@ -1,9 +1,9 @@
 // Hand-written decode layer for the number domain. It expands domain-private
 // const blobs from data.go into numbering-system, pattern, symbol, and
-// supported-index records consumed by accessors.go, behind per-blob sync.Once
-// gates.
+// supported-index records consumed by accessors.go. Number records decode once
+// per locale; the other indexes decode once per blob.
 //
-// Locale handle ownership: the main blob packs the locale index assigned by the
+// Locale handle ownership: the index blob packs the locale index assigned by the
 // cldr/locale kernel. number.Locale is a distinct named type so it can carry the
 // number accessor methods formatters call as loc.DecimalPattern(...); it converts
 // to the kernel handle only for shared locale resolution and index assignment.
@@ -64,20 +64,23 @@ type compactPluralPatterns map[string]string
 
 var (
 	numbersOnce sync.Once
-	byLocale    map[Locale]numberData
+	byLocale    map[Locale]*numberRecord
 
 	numberingSystemOnce       sync.Once
 	supportedNumberingSystems []string
 )
 
-func numberDataByLocale() map[Locale]numberData {
-	numbersOnce.Do(loadNumbers)
-	return byLocale
+type numberRecord struct {
+	once sync.Once
+	blob string
+	numberData
 }
 
 func loadNumbers() {
-	r := codec.NewReader(_numberBlob)
-	byLocale = codec.Uint16DeltaMap[Locale, numberData](&r, decodeNumberLocale)
+	r := codec.NewReader(_numberIndexBlob)
+	byLocale = codec.Uint16DeltaMap[Locale, *numberRecord](&r, func(r *codec.Reader) *numberRecord {
+		return &numberRecord{blob: r.StringRef(_numberBlob)}
+	})
 }
 
 func decodeNumberLocale(r *codec.Reader) numberData {
