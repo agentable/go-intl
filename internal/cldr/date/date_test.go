@@ -2,6 +2,7 @@ package date
 
 import (
 	"slices"
+	"sync"
 	"testing"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
@@ -373,4 +374,38 @@ func resolveSmoke(t *testing.T, tag string) Locale {
 		t.Fatalf("ResolveLocale(%q) = false, want true", tag)
 	}
 	return loc
+}
+
+func TestGregorianFirstAccessDecodesOnlyRequestedLocale(t *testing.T) {
+	t.Parallel()
+	if !testprocess.RunInFreshProcess(t, "GO_INTL_DATE_SINGLE_RECORD_SUBPROCESS") {
+		return
+	}
+	loc := resolveSmoke(t, "en-US")
+	var wg sync.WaitGroup
+	for range 16 {
+		wg.Go(func() {
+			if got := GregorianFor(loc).Months.Wide[0]; got != "January" {
+				t.Errorf("January = %q", got)
+			}
+		})
+	}
+	wg.Wait()
+	decoded := 0
+	for _, record := range gregorianData {
+		if record.data.names != nil {
+			decoded++
+		}
+	}
+	if decoded != 1 {
+		t.Fatalf("decoded %d Gregorian records for one locale, want 1", decoded)
+	}
+	for _, tag := range SupportedLocales() {
+		GregorianFor(resolveSmoke(t, tag))
+	}
+	for handle, record := range gregorianData {
+		if record.data.names == nil {
+			t.Errorf("locale %d was not decoded", handle)
+		}
+	}
 }

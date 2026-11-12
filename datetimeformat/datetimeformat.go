@@ -34,10 +34,9 @@ func New(locales locale.List, opts Options) (*DateTimeFormat, error) {
 	validationLocaleName := validationLocale.String()
 	cfg := defaultConfig()
 	applyOptions(&cfg, opts)
-	if err := cfg.validate(validationLocaleName); err != nil {
+	if err := cfg.validateLocaleOptions(validationLocaleName); err != nil {
 		return nil, err
 	}
-	cfg = withDefaultDateFields(cfg)
 
 	resolution := resolveLocale(locales, validationLocale, cfg)
 	calendar := resolution.calendar
@@ -45,6 +44,10 @@ func New(locales locale.List, opts Options) (*DateTimeFormat, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := cfg.validateFormatOptions(validationLocaleName); err != nil {
+		return nil, err
+	}
+	cfg = withDefaultDateFields(cfg)
 	hourCycle, hour12 := resolveHourCycle(cfg, resolution.hourCycle, resolution.locale.String())
 	cldrLoc, gregorian := resolveDateData(resolution.cldrLoc, cfg)
 	patterns := patternDataFor(cldrLoc, gregorian)

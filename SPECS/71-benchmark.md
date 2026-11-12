@@ -85,6 +85,11 @@ func BenchmarkBaseline_XText_Plural_Cardinal(b *testing.B)
 2. The baseline benchmark **MUST** be prefixed with `BenchmarkBaseline_` to visually distinguish it from the production benchmark.
 3. PerCall benchmark **MUST** contain a complete constructor `New(...)` call; Cached benchmark **MUST** be constructed before `b.Loop()`.
 
+`BenchmarkNumberFormat_Partition_Cached` supplies identical prebuilt values to
+text, parts and range methods for decimal, currency, unit, compact, scientific,
+non-latn digits and long fraction precision. Use this aligned matrix to compare
+partition costs.
+
 ### 1.3 b.Loop mandatory use
 
 ```go

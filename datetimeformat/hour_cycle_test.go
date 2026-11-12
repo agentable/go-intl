@@ -66,11 +66,11 @@ func TestHourCycleForSelectedPattern(t *testing.T) {
 		cycle  string
 		noHour bool
 	}{
-		{"minute h11", "en", Options{Minute: new("numeric"), HourCycle: new("h11")}, "h11", false},
-		{"minute h12", "en", Options{Minute: new("numeric"), HourCycle: new("h12")}, "h12", false},
-		{"minute h23", "en", Options{Minute: new("numeric"), HourCycle: new("h23")}, "h23", false},
-		{"minute h24", "en", Options{Minute: new("numeric"), HourCycle: new("h24")}, "h24", false},
-		{"hour12 overrides hc", "en-u-hc-h24", Options{Minute: new("numeric"), Hour12: new(true)}, "h12", false},
+		{"minute h11", "en", Options{Minute: new("numeric"), HourCycle: new("h11")}, "h11", true},
+		{"minute h12", "en", Options{Minute: new("numeric"), HourCycle: new("h12")}, "h12", true},
+		{"minute h23", "en", Options{Minute: new("numeric"), HourCycle: new("h23")}, "h23", true},
+		{"minute h24", "en", Options{Minute: new("numeric"), HourCycle: new("h24")}, "h24", true},
+		{"hour12 overrides hc", "en-u-hc-h24", Options{Minute: new("numeric"), Hour12: new(true)}, "h12", true},
 		{"date components", "en", Options{Year: new("numeric"), HourCycle: new("h24")}, "", true},
 		{"date style", "en", Options{DateStyle: new("long"), HourCycle: new("h24")}, "", true},
 	} {

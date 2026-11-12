@@ -1,5 +1,67 @@
 [
   {
+    "id": "numberformat-node-v26-number-beyond-safe-integer",
+    "source": "node:v26.0.0:numberformat:edge",
+    "locale": "en",
+    "options": {
+      "useGrouping": false
+    },
+    "input": 9007199254740992,
+    "expected": "9007199254740992",
+    "expectedParts": [
+      {
+        "type": "integer",
+        "value": "9007199254740992"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "maximumFractionDigits": 3,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "auto",
+      "signDisplay": "auto",
+      "style": "decimal",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": false
+    }
+  },
+  {
+    "id": "numberformat-node-v26-string-beyond-safe-integer",
+    "source": "node:v26.0.0:numberformat:edge",
+    "locale": "en",
+    "options": {
+      "useGrouping": false
+    },
+    "input": "9007199254740993",
+    "expected": "9007199254740993",
+    "expectedParts": [
+      {
+        "type": "integer",
+        "value": "9007199254740993"
+      }
+    ],
+    "expectedResolvedOptions": {
+      "locale": "en",
+      "maximumFractionDigits": 3,
+      "minimumFractionDigits": 0,
+      "minimumIntegerDigits": 1,
+      "notation": "standard",
+      "numberingSystem": "latn",
+      "roundingIncrement": 1,
+      "roundingMode": "halfExpand",
+      "roundingPriority": "auto",
+      "signDisplay": "auto",
+      "style": "decimal",
+      "trailingZeroDisplay": "auto",
+      "useGrouping": false
+    }
+  },
+  {
     "id": "numberformat-node-v26-negative-zero-sign",
     "source": "node:v26.0.0:numberformat:edge",
     "locale": "en",

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agentable/go-intl/internal/cldr/codec"
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/localeid"
 	"github.com/agentable/go-intl/internal/numbering"
@@ -115,11 +116,15 @@ func GregorianFor(loc Locale) Gregorian {
 }
 
 func gregorianCalendarData(loc Locale) calendarData {
-	data, ok := gregorianData[loc]
+	record, ok := gregorianData[loc]
 	if !ok {
 		return calendarData{}
 	}
-	return data
+	record.once.Do(func() {
+		r := codec.NewReader(record.blob)
+		record.data = decodeCalendar(&r)
+	})
+	return record.data
 }
 
 // nameAt indexes a day-period name list, returning "" when the index is past the

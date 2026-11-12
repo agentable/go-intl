@@ -121,14 +121,15 @@ func componentPattern(patterns *patternData, formatMatcher FormatMatcher, resolv
 		if !dateOK || !timeOK {
 			return selectedPattern{}, false
 		}
-		return selectedPattern{
+		selected := selectedPattern{
 			kind:       patternDateTime,
 			date:       dateFormat.Pattern,
 			time:       timeFormat.Pattern,
 			dateTime:   componentDateTimePattern(gregorian, opts, dateFormat),
 			dateFormat: dateFormat,
 			timeFormat: timeFormat,
-		}, true
+		}
+		return matchCombinedPattern(patterns, formatMatcher, opts, selected), true
 	case hasDate:
 		format, ok := matchComponentPattern(formatMatcher, opts, patterns.dateCandidates, appendItems)
 		if !ok {
@@ -146,6 +147,93 @@ func componentPattern(patterns *patternData, formatMatcher FormatMatcher, resolv
 	}
 }
 
+// Compare complete locale patterns with the independently selected date/time
+// combination; this retains localized connectors such as weekday + hour.
+func matchCombinedPattern(patterns *patternData, matcher FormatMatcher, opts ecma402dtf.Options, fallback selectedPattern) selectedPattern {
+	if len(patterns.combinedCandidates) == 0 {
+		return fallback
+	}
+	combined := combineRangeEndpointPattern(fallback.dateTime, fallback.date, fallback.time)
+	candidates := append([]ecma402dtf.Formats(nil), patterns.combinedCandidates...)
+	if matcher != BasicFormatMatcher {
+		for i, candidate := range candidates {
+			candidates[i] = effectiveFormat(ecma402dtf.AdjustFieldTypes(candidate, opts))
+		}
+	}
+
+	fallbackFormat := ecma402dtf.Parse(combined, combined, nil, "")
+	fallbackFormat.Skeleton = ""
+	candidates = append(candidates, fallbackFormat)
+	var best ecma402dtf.Formats
+	if matcher == BasicFormatMatcher {
+		best = ecma402dtf.MatchBasic(opts, candidates)
+	} else {
+		best = ecma402dtf.Match(opts, candidates)
+	}
+	if best.Skeleton == "" {
+		return fallback
+	}
+	best = ecma402dtf.AdjustHourCycle(best, opts.HourCycle)
+	if selected, ok := splitCombinedPattern(best); ok {
+		return selected
+	}
+	return fallback
+}
+
+// The executable mixed CLDR candidates have one date block and one time
+// block. Split at their field boundary while preserving quoted literals.
+func splitCombinedPattern(format ecma402dtf.Formats) (selectedPattern, bool) {
+	raw := format.Pattern
+	firstDate, seen, switched := false, false, false
+	firstEnd, secondStart := 0, 0
+	for i := 0; i < len(raw); {
+		if raw[i] == '\'' {
+			i = skipQuotedPatternLiteral(raw, i)
+			continue
+		}
+		end := i + 1
+		for end < len(raw) && raw[end] == raw[i] {
+			end++
+		}
+		date, clock := isDatePatternField(rune(raw[i])), isTimePatternField(rune(raw[i]))
+		if date || clock {
+			if !seen {
+				firstDate, seen = date, true
+			}
+			if date != firstDate {
+				if !switched {
+					secondStart, switched = i, true
+				}
+			} else {
+				if switched {
+					return selectedPattern{}, false
+				}
+				firstEnd = end
+			}
+		}
+		i = end
+	}
+	if !switched {
+		return selectedPattern{}, false
+	}
+	first, second := raw[:firstEnd], raw[secondStart:]
+	date, clock, glue := first, second, "{1}"+raw[firstEnd:secondStart]+"{0}"
+	if !firstDate {
+		date, clock, glue = second, first, "{0}"+raw[firstEnd:secondStart]+"{1}"
+	}
+	dateKey, timeKey := "", ""
+	for _, field := range format.Skeleton {
+		if isDatePatternField(field) {
+			dateKey += string(field)
+		} else if isTimePatternField(field) {
+			timeKey += string(field)
+		}
+	}
+	return selectedPattern{kind: patternDateTime, date: date, time: clock, dateTime: glue,
+		dateFormat: effectiveFormat(ecma402dtf.Parse(dateKey, date, nil, "")), timeFormat: effectiveFormat(ecma402dtf.Parse(timeKey, clock, nil, "")),
+	}, true
+}
+
 func componentDateTimePattern(gregorian cldrdate.Gregorian, opts ecma402dtf.Options, dateFormat ecma402dtf.Formats) string {
 	style := MediumStyle
 	switch {
@@ -156,7 +244,7 @@ func componentDateTimePattern(gregorian cldrdate.Gregorian, opts ecma402dtf.Opti
 	case opts.Year == ecma402dtf.Numeric2Digit && (opts.Month == ecma402dtf.FieldNumeric || opts.Month == ecma402dtf.Field2Digit):
 		style = ShortStyle
 	}
-	return dateTimeStylePattern(gregorian, style)
+	return dateTimeStandardStylePattern(gregorian, style)
 }
 
 func styleDateIntervalFormat(patterns *patternData, style Style, formatMatcher FormatMatcher, appendItems map[string]string) ecma402dtf.Formats {

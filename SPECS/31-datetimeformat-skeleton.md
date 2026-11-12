@@ -205,9 +205,23 @@ AM/PM positions, literals, parts, and same-day/cross-date ranges).
 1. Skeleton → Pattern mapping **MUST** go to the `dateTimeFormats.availableFormats` node of CLDR `cldr-dates-full/main/<locale>/ca-gregorian.json`.
 2. Range pattern selection **MUST** go to the `dateTimeFormats.intervalFormats` node of the same file.
 3. `dateFormat / timeFormat / dateTimeFormat`’s `full / long / medium / short` **MUST** go `dates.calendars.gregorian.dateFormats` / `timeFormats` / `dateTimeFormats`.
-4. **Disable** handwritten skeleton → pattern mapping table; **Prohibit** skipping codegen through `// hard-coded` annotation.
+4. Locale-specific skeleton → pattern mappings come from codegen. Algorithmic canonical single-field fallbacks are allowed; they contain no locale-specific literals.
 
 > **Why**: CLDR is upstream authoritative data; handwritten tables will drift when CLDR is upgraded, and ~100 locale × dozens of skeletons cannot be maintained manually.
+
+Candidates contain sorted CLDR availableFormats followed by canonical fields
+(`G y L d E B H m s S v`); ties retain locale patterns. Standalone seconds also
+receive fractional-second candidates. Sparse minute/second/dayPeriod requests
+need no extra hour; hour+minute preserves contextual zero padding.
+
+Mixed CLDR patterns compete with the separately matched date/time combination.
+Best-fit compares adjusted effective fields; Basic keeps normative scoring and
+unadjusted widths. A selected mixed pattern preserves its quoted connector when
+split into contiguous date/time blocks; interleaved fields use the separate
+combination. Components use standard dateTimeFormats, while styles retain
+atTime patterns. The selected pattern owns resolved fields and compiled endpoint
+and range programs. Pinned Node witnesses cover sparse and mixed requests in
+en/zh/ja/ru/ar; best-fit remains implementation-defined.
 
 ### 4.2 Data slice injection
 

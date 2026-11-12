@@ -1,34 +1,28 @@
 package datetimeformat
 
 import (
-	"slices"
 	"testing"
+
+	ecma402dtf "github.com/agentable/go-intl/internal/ecma402/datetimeformat"
 
 	cldrdate "github.com/agentable/go-intl/internal/cldr/date"
 )
 
-func TestAvailableFormatCandidatesSortsSkeletons(t *testing.T) {
+func TestAvailableFormatCandidatesPreserveLocalizedTies(t *testing.T) {
 	t.Parallel()
-
-	candidates := availableFormatCandidates(cldrdate.Gregorian{
-		AvailableFormats: map[string]string{
-			"yMd":   "M/d/y",
-			"Hms":   "HH:mm:ss",
-			"yMMMd": "MMM d, y",
-		},
-	})
-
-	gotSkeletons := make([]string, len(candidates))
-	gotPatterns := make([]string, len(candidates))
-	for i, candidate := range candidates {
-		gotSkeletons[i] = candidate.Skeleton
-		gotPatterns[i] = candidate.Pattern
+	g := cldrdate.Gregorian{AvailableFormats: map[string]string{"y": "y 'localized'", "Hms": "HH:mm:ss"}}
+	candidates := availableFormatCandidates(g)
+	selected := ecma402dtf.Match(ecma402dtf.Options{Year: ecma402dtf.NumericNumeric}, candidates)
+	if selected.Pattern != "y 'localized'" {
+		t.Fatalf("selected pattern = %q", selected.Pattern)
 	}
-	if want := []string{"Hms", "yMMMd", "yMd"}; !slices.Equal(gotSkeletons, want) {
-		t.Fatalf("available format skeletons = %#v, want %#v", gotSkeletons, want)
-	}
-	if want := []string{"HH:mm:ss", "MMM d, y", "M/d/y"}; !slices.Equal(gotPatterns, want) {
-		t.Fatalf("available format patterns = %#v, want %#v", gotPatterns, want)
+	for _, opts := range []ecma402dtf.Options{
+		{Minute: ecma402dtf.NumericNumeric}, {Second: ecma402dtf.NumericNumeric}, {DayPeriod: ecma402dtf.FieldLong},
+	} {
+		format := ecma402dtf.Match(opts, candidates)
+		if format.Hour != "" || format.Year != "" {
+			t.Errorf("sparse request added fields: %#v", format)
+		}
 	}
 }
 

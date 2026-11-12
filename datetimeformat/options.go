@@ -109,24 +109,8 @@ func applyOptions(cfg *config, opts Options) {
 	ecma402.ApplyOptionInput(&cfg.fractionalSecondDigits, &cfg.hasFractionalSecondDigits, opts.FractionalSecondDigits)
 }
 
-func (c config) validate(locName string) error {
-	if err := ecma402.ValidateStringOptions(
-		dateTimeFormatOwner,
-		locName,
-		dateTimeFormatMatcherOptionInput(c.formatMatcher, c.hasFormatMatcher),
-		dateTimeZoneNameOptionInput(c.timeZoneName, c.hasTimeZoneName),
-		dateTimeFieldStyleOptionInput("weekday", c.weekday, c.hasWeekday),
-		dateTimeFieldStyleOptionInput("era", c.era, c.hasEra),
-		dateTimeNumericStyleOptionInput("year", c.year, c.hasYear),
-		dateTimeMonthStyleOptionInput(c.month, c.hasMonth),
-		dateTimeNumericStyleOptionInput("day", c.day, c.hasDay),
-		dateTimeFieldStyleOptionInput("dayPeriod", c.dayPeriod, c.hasDayPeriod),
-		dateTimeNumericStyleOptionInput("hour", c.hour, c.hasHour),
-		dateTimeNumericStyleOptionInput("minute", c.minute, c.hasMinute),
-		dateTimeNumericStyleOptionInput("second", c.second, c.hasSecond),
-		dateTimeHourCycleOptionInput(c.hourCycle, c.hasHourCycle),
-		dateTimeStyleOptionInput("dateStyle", c.dateStyle, c.hasDateStyle),
-		dateTimeStyleOptionInput("timeStyle", c.timeStyle, c.hasTimeStyle),
+func (c config) validateLocaleOptions(locName string) error {
+	if err := ecma402.ValidateStringOptions(dateTimeFormatOwner, locName,
 		ecma402.LocaleMatcherOptionInput(c.localeMatcher, c.hasLocaleMatcher),
 	); err != nil {
 		return err
@@ -137,13 +121,36 @@ func (c config) validate(locName string) error {
 	if err := ecma402.ValidateUnicodeTypeOptionInput(dateTimeFormatOwner, "numberingSystem", c.numberingSystem, locName, c.hasNumberingSystem); err != nil {
 		return err
 	}
+	return ecma402.ValidateStringOptions(dateTimeFormatOwner, locName,
+		dateTimeHourCycleOptionInput(c.hourCycle, c.hasHourCycle),
+	)
+}
+
+func (c config) validateFormatOptions(locName string) error {
+	if err := ecma402.ValidateStringOptions(dateTimeFormatOwner, locName,
+		dateTimeFieldStyleOptionInput("weekday", c.weekday, c.hasWeekday),
+		dateTimeFieldStyleOptionInput("era", c.era, c.hasEra),
+		dateTimeNumericStyleOptionInput("year", c.year, c.hasYear),
+		dateTimeMonthStyleOptionInput(c.month, c.hasMonth),
+		dateTimeNumericStyleOptionInput("day", c.day, c.hasDay),
+		dateTimeFieldStyleOptionInput("dayPeriod", c.dayPeriod, c.hasDayPeriod),
+		dateTimeNumericStyleOptionInput("hour", c.hour, c.hasHour),
+		dateTimeNumericStyleOptionInput("minute", c.minute, c.hasMinute),
+		dateTimeNumericStyleOptionInput("second", c.second, c.hasSecond),
+	); err != nil {
+		return err
+	}
 	if err := ecma402.ValidateIntegerOptions(dateTimeFormatOwner, locName, ecma402.IntegerOption{
-		Name:  "fractionalSecondDigits",
-		Value: c.fractionalSecondDigits,
-		Min:   1,
-		Max:   3,
-		Set:   c.hasFractionalSecondDigits,
+		Name: "fractionalSecondDigits", Value: c.fractionalSecondDigits, Min: 1, Max: 3, Set: c.hasFractionalSecondDigits,
 	}); err != nil {
+		return err
+	}
+	if err := ecma402.ValidateStringOptions(dateTimeFormatOwner, locName,
+		dateTimeZoneNameOptionInput(c.timeZoneName, c.hasTimeZoneName),
+		dateTimeFormatMatcherOptionInput(c.formatMatcher, c.hasFormatMatcher),
+		dateTimeStyleOptionInput("dateStyle", c.dateStyle, c.hasDateStyle),
+		dateTimeStyleOptionInput("timeStyle", c.timeStyle, c.hasTimeStyle),
+	); err != nil {
 		return err
 	}
 	return c.validateDateTimeStyleConflicts(locName)
@@ -179,10 +186,10 @@ func (c config) firstDateTimeStyleConflict() (string, bool) {
 		return "minute", true
 	case c.second != "":
 		return "second", true
-	case c.timeZoneName != "":
-		return "timeZoneName", true
 	case c.hasFractionalSecondDigits:
 		return "fractionalSecondDigits", true
+	case c.timeZoneName != "":
+		return "timeZoneName", true
 	default:
 		return "", false
 	}

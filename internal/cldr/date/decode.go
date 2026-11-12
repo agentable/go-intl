@@ -1,6 +1,7 @@
 // Hand-written decode layer for the date domain. It expands domain-private
 // const blobs from data.go into the calendar, day-period, and supported-index
-// records consumed by accessors.go, behind per-blob sync.Once gates.
+// records consumed by accessors.go. Gregorian records decode once per locale;
+// the other indexes and rules decode once per blob.
 //
 // Locale handle ownership: the date blobs pack the locale index assigned by the
 // cldr/locale kernel. Borrowing that handle keeps generated date data and
@@ -82,7 +83,7 @@ var calendarNameKeyOrder = [...]calendarNameKey{
 
 var (
 	gregorianOnce sync.Once
-	gregorianData map[Locale]calendarData
+	gregorianData map[Locale]*calendarRecord
 
 	dayPeriodOnce  sync.Once
 	dayPeriodRules map[Locale][]DayPeriodRange
@@ -91,9 +92,17 @@ var (
 	calendarIDs   []string
 )
 
+type calendarRecord struct {
+	once sync.Once
+	blob string
+	data calendarData
+}
+
 func loadGregorian() {
-	r := codec.NewReader(_dateGregorianBlob)
-	gregorianData = codec.Uint16DeltaMap[Locale, calendarData](&r, decodeCalendar)
+	r := codec.NewReader(_dateGregorianIndexBlob)
+	gregorianData = codec.Uint16DeltaMap[Locale, *calendarRecord](&r, func(r *codec.Reader) *calendarRecord {
+		return &calendarRecord{blob: r.StringRef(_dateGregorianBlob)}
+	})
 }
 
 func decodeCalendar(r *codec.Reader) calendarData {

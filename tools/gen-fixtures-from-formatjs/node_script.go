@@ -299,6 +299,9 @@ const witness = {
     numberFormatErrorFixture('unit-casing-rejected', 'en', {style: 'unit', unit: 'METER'}, 1),
   ],
   numberFormatEdge: [
+    numberFormatEdgeFixture('number-beyond-safe-integer', 'en', {useGrouping: false}, Number('9007199254740993')),
+    numberFormatEdgeFixture('string-beyond-safe-integer', 'en', {useGrouping: false}, '9007199254740993'),
+
     numberFormatEdgeFixture('negative-zero-sign', 'en', {signDisplay: 'auto'}, '-0'),
     numberFormatEdgeFixture('rounding-increment', 'en', {minimumFractionDigits: 2, maximumFractionDigits: 2, roundingIncrement: 5}, 1.234),
     numberFormatEdgeFixture('rounding-priority-more-precision', 'en', {minimumSignificantDigits: 2, maximumFractionDigits: 0, roundingPriority: 'morePrecision'}, 1.234),
@@ -321,6 +324,31 @@ const witness = {
     dateTimeFormatErrorFixture('invalid-calendar', 'en-US', {calendar: 'bad!'}, '2026-05-08T12:00:00Z'),
   ],
   dateTimeFormatEdge: [
+    ...['zh', 'ja', 'ru', 'ar'].flatMap(locale => [
+      dateTimeFormatPartsFixture('sparse-minute-' + locale, 'edge', 'sparseComponents', locale, {minute: 'numeric', timeZone: 'UTC'}, '2020-01-03T15:04:05.123Z'),
+      dateTimeFormatPartsFixture('sparse-period-' + locale, 'edge', 'sparseComponents', locale, {dayPeriod: 'long', timeZone: 'UTC'}, '2020-01-03T15:04:05.123Z'),
+      dateTimeFormatPartsFixture('sparse-weekday-hour-' + locale, 'edge', 'sparseComponents', locale, {weekday: 'long', hour: 'numeric', timeZone: 'UTC'}, '2020-01-03T15:04:05.123Z'),
+    ]),
+    ...['h11', 'h12', 'h23', 'h24'].flatMap(hourCycle => [
+      dateTimeFormatPartsFixture('sparse-minute-' + hourCycle, 'edge', 'sparseComponents', 'en', {minute: 'numeric', hourCycle, timeZone: 'UTC'}, '2020-01-03T15:04:05.123Z'),
+      dateTimeFormatPartsFixture('sparse-weekday-hour-' + hourCycle, 'edge', 'sparseComponents', 'en', {weekday: 'long', hour: 'numeric', hourCycle, timeZone: 'UTC'}, '2020-01-03T15:04:05.123Z'),
+    ]),
+    ...[
+      ['equal', '2020-01-03T15:04:05.123Z'],
+      ['hidden-seconds', '2020-01-03T15:04:59.123Z'],
+      ['next-minute', '2020-01-03T15:05:05.123Z'],
+      ['next-hour', '2020-01-03T16:04:05.123Z'],
+      ['next-day', '2020-01-04T15:04:05.123Z'],
+      ['next-year', '2021-01-03T15:04:05.123Z'],
+    ].map(([topic, end]) => dateTimeFormatRangeFixture('sparse-minute-range-' + topic, 'edge', 'en', {minute: 'numeric', timeZone: 'UTC'}, '2020-01-03T15:04:05.123Z', end)),
+
+    dateTimeFormatPartsFixture('sparse-minute-only', 'edge', 'sparseComponents', 'en', {"timeZone": "UTC", "minute": "numeric"}, '2020-01-03T15:04:05.123Z'),
+    dateTimeFormatPartsFixture('sparse-second-only', 'edge', 'sparseComponents', 'en', {"timeZone": "UTC", "second": "numeric"}, '2020-01-03T15:04:05.123Z'),
+    dateTimeFormatPartsFixture('sparse-period-only', 'edge', 'sparseComponents', 'en', {"timeZone": "UTC", "dayPeriod": "long"}, '2020-01-03T15:04:05.123Z'),
+    dateTimeFormatPartsFixture('sparse-second-fraction', 'edge', 'sparseComponents', 'en', {"timeZone": "UTC", "second": "numeric", "fractionalSecondDigits": 3}, '2020-01-03T15:04:05.123Z'),
+    dateTimeFormatPartsFixture('sparse-weekday-hour', 'edge', 'sparseComponents', 'en', {"timeZone": "UTC", "weekday": "long", "hour": "numeric"}, '2020-01-03T15:04:05.123Z'),
+    dateTimeFormatPartsFixture('sparse-era-hour', 'edge', 'sparseComponents', 'en', {"timeZone": "UTC", "era": "short", "hour": "numeric"}, '2020-01-03T15:04:05.123Z'),
+    dateTimeFormatPartsFixture('sparse-year-minute', 'edge', 'sparseComponents', 'en', {"timeZone": "UTC", "year": "numeric", "minute": "numeric"}, '2020-01-03T15:04:05.123Z'),
     dateTimeFormatPartsFixture('offset-timezone-kolkata', 'edge', 'offsetTimeZone', 'en-US', {hour: '2-digit', minute: '2-digit', hour12: false, timeZone: '+05:30', timeZoneName: 'longOffset'}, '2021-01-10T12:00:00Z'),
     dateTimeFormatPartsFixture('offset-timezone-boundary', 'edge', 'offsetTimeZoneBoundary', 'en-US', {hour: '2-digit', minute: '2-digit', hour12: false, timeZone: '+23:59', timeZoneName: 'longOffset'}, '2021-01-10T00:00:00Z'),
     dateTimeFormatPartsFixture('day-period-time-zone-name-spacing', 'edge', 'dayPeriodTimeZoneNameSpacing', 'en-US', {hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Amsterdam', timeZoneName: 'short'}, '2020-09-16T09:55:32Z'),

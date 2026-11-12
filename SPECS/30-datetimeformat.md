@@ -213,6 +213,13 @@ type Options struct {
 6. `FormatMatcher`, `TimeZoneName`, component fields, `HourCycle`, `DateStyle`, and `TimeStyle` **MUST** reject present empty strings through the same constructor option grammar as other ECMA-402 string options.
 7. With neither date/time style nor weekday, year, month, day, dayPeriod, hour, minute, second, or fractionalSecondDigits requested, add numeric year/month/day before matching. Era and timeZoneName alone do not suppress these defaults; an explicit year does. `datetimeformat/datetimeformat_test.go:TestDateTimeFormatEraDefaultDateFields` covers both cases and BCE output.
 
+Constructor evaluation follows ECMA-402's observable error precedence:
+localeMatcher → calendar → numberingSystem → hourCycle → locale resolution →
+timeZone → weekday, era, year, month, day, dayPeriod, hour, minute, second,
+fractionalSecondDigits, timeZoneName → formatMatcher → dateStyle → timeStyle →
+style/component conflict. Invalid hourCycle is rejected even when hour12 is
+present. `TestDateTimeFormatOptionEvaluationOrder` verifies error ownership.
+
 ### 2.2 HourCycle linkage (§13.1.1.1) <a id="22-hourcycle-linkage-13111"></a>
 
 **MUST** Rules:
@@ -253,8 +260,9 @@ text, resolved fields, and same-day/cross-date ranges.
 English, French Canadian and Japanese output and range parts.
 
 `TestHourCycleForSelectedPattern` in the hour-cycle suite covers sparse requests
-whose selected pattern adds an hour, four cycles, hour12 precedence, and
-endpoint/range execution. Selection need not match the host ICU candidate.
+without added hours, four cycles and hour12 precedence. Minute-only patterns
+omit hour/hourCycle/hour12 from resolved options. Selection need not match the
+host ICU candidate.
 Node 26.10.0 selects h12 for unqualified `ja` and h11 for `ja-JP`; this library
 uses the pinned JP preference for both without adding JP to the public tag.
 
@@ -444,7 +452,7 @@ Type string // Same as Part.Type
    ```
 4. `Source` uses formatter-owned `datetimeformat.RangeSource` constants (`startRange`, `endRange`, `shared`). Part and source types stay scoped to their constructor.
 5. The input of `start.After(end)` must not return an error, nor must the two ends be swapped or `~` added; use the input parameter order according to ECMA-402 `PartitionDateTimeRangePattern`.
-6. Equality is defined by the localized semantic fields present in the effective selected range record, not by instant equality and not by rendered label equality. Lower fields after the record's last present field are irrelevant; distinct narrow month labels remain distinct semantic months; fractional seconds compare at the resolved precision; repeated wall times in a DST fold may collapse. Equal selected records return `Format(start)` with shared parts.
+6. Equality is defined by the localized semantic fields present in the effective selected range record, not by instant equality and not by rendered label equality. Lower fields after the record's last present field are irrelevant; minute-only ranges ignore hidden seconds but distinguish hidden hours, and cross-date fallbacks add date fields; distinct narrow month labels remain distinct semantic months; fractional seconds compare at the resolved precision; repeated wall times in a DST fold may collapse. Equal selected records return `Format(start)` with shared parts.
 7. Generated and manual range fixtures must cover date, time, date-time, reversed, semantic-equal, flexible/standard day-period, fractional-precision, and cross-date fallback behavior while retaining CLDR literal spacing instead of handwritten separators.
 8. Accepted DateTimeFormat range, range-part-source, time-zone, or resolved-options divergences **MUST** carry a `native_witness` entry in `datetimeformat/testdata/divergences.md` that points to a same-package native fixture. If that native fixture also differs from generated CLDR output, retain it as its own accepted divergence instead of hiding it behind the generated-reference entry.
 9. Interval tokenization, repeated-field occurrence counting, endpoint selection, and literal `source` classification **MUST** compile through one package-private execution-step path. `FormatRange` appends values and `FormatRangeToParts` materializes records from the same relation and pattern decisions; neither sink may maintain an independent start/end or source traversal.

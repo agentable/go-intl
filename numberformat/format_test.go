@@ -1347,3 +1347,34 @@ func TestNumberFormatStripIfIntegerPreservesIntegerDigits(t *testing.T) {
 		})
 	}
 }
+
+// The Number witness rounds before Intl receives the value; exact bridges do not.
+func TestNumberFormatNumericBridgesAtNumberPrecisionBoundary(t *testing.T) {
+	t.Parallel()
+	f, err := New(intltest.LocaleList(t, "en"), Options{UseGrouping: stringPtr(UseGroupingFalse)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	exact, err := ParseValue("9007199254740993")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name  string
+		value Value
+		want  string
+	}{
+		{"Number", Float(9007199254740993), "9007199254740992"},
+		{"Int", Int(9007199254740993), "9007199254740993"},
+		{"Uint", Uint(9007199254740993), "9007199254740993"},
+		{"BigInt", BigInt(big.NewInt(9007199254740993)), "9007199254740993"},
+		{"string", exact, "9007199254740993"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := f.Format(tt.value); got != tt.want {
+				t.Fatalf("Format = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

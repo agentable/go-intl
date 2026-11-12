@@ -15,31 +15,19 @@ const (
 	dateSupportedISO8601Calendar   = "iso8601"
 )
 
-// encodeDates renders the const-only payload for the date domain. It emits a
-// private _data string table plus four independent blobs, each prefixed by its
-// record count:
-//
-//   - _dateGregorianBlob: per-locale gregorian calendar data (names by
-//     width/context, style formats, available formats, interval formats, append
-//     items). Locale indices are written as a sorted delta stream; the decoder
-//     rebuilds the runtime map[Locale]calendarData.
-//   - _dateDayPeriodBlob: per-locale day-period rules (From/To durations and the
-//     period type), the input to DayPeriodFor.
-//   - _dateSupportedBlob: the date-supported locale tags in sorted-locale order,
-//     a narrow index so SupportedLocales never decodes the gregorian blob.
-//   - _dateCalendarBlob: the supported ECMA-402 calendar identifiers, a narrow
-//     index so SupportedCalendars never decodes the gregorian blob.
-//
-// Only the gregorian calendar is present in the CLDR payload, so the blob stores
-// it directly without a calendar key.
+// encodeDates renders const-only date assets. The Gregorian index stores sorted
+// locale deltas and offset/length references into the calendar record payload.
+// Day-period rules and the narrow supported/calendar indexes remain independent.
 func encodeDates(input RuntimeInput, table *StringTable) ([]byte, error) {
 	dates := input.Dates
 	localeIndex := localeIndexMap(input.Locales)
 
-	var gregorian blobEncoder
+	var gregorian, gregorianIndex blobEncoder
 	gregLocales := dateGregorianLocales(dates)
-	if err := gregorian.appendLocaleDeltaRecords(gregLocales, localeIndex, func(locale string) {
+	if err := gregorianIndex.appendLocaleDeltaRecords(gregLocales, localeIndex, func(locale string) {
+		start := len(gregorian.bytes())
 		encodeCalendar(&gregorian, dates[locale].Calendars[dateCLDRGregorianCalendar], table)
+		gregorianIndex.appendStringRef(StringRef{start: uint32(start), length: uint32(len(gregorian.bytes()) - start)})
 	}); err != nil {
 		return nil, err
 	}
@@ -76,6 +64,7 @@ func encodeDates(input RuntimeInput, table *StringTable) ([]byte, error) {
 	calendars.appendStringRefSlice(calendarIDs, table)
 
 	return renderPayloadFile("date", table,
+		payloadBlob{"_dateGregorianIndexBlob", gregorianIndex.bytes()},
 		payloadBlob{"_dateGregorianBlob", gregorian.bytes()},
 		payloadBlob{"_dateDayPeriodBlob", dayPeriods.bytes()},
 		payloadBlob{"_dateSupportedBlob", supported.bytes()},

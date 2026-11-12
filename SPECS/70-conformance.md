@@ -559,3 +559,21 @@ All ledger bindings followed the same payload mapping. Source extraction is
 repeatable; `main_test.go:TestFormatJSSemanticIdentity` protects insertion,
 reordering/expectation independence and conflict detection; precision and
 observation kinds are covered by `TestSemanticIdentityObservationsAndPrecision`.
+
+## Public formatter checks
+
+Pinned Node witnesses cover sparse/mixed date fields, hour cycles and ranges,
+including hidden seconds and date boundaries. Multiple-invalid-option tests
+check constructor error ownership directly. Numeric tests distinguish the
+rounded Number value `9007199254740993` from exact string/Int/Uint/BigInt bridges.
+
+Public fuzz targets exercise bounded inputs and independent behavior checks:
+
+- `numberformat.FuzzNumberFormatPartition`: text/parts, range sources and plural
+  category membership.
+- `numberformat.FuzzNumberFormatRationalRounding`: a `big.Rat` rounding oracle.
+- `datetimeformat.FuzzDateTimeFormatPartition`: text/parts, ranges and TimeClip.
+
+Package tests run seeds. Explore each target with
+`go test <package> -run '^$' -fuzz '^<target>$' -fuzztime=30s`.
+Valid inputs must succeed; panics are not recovered.

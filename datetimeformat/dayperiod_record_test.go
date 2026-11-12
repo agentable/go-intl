@@ -99,7 +99,7 @@ func TestDayPeriodDisplayPrecision(t *testing.T) {
 		{"second after noon", Options{Hour: new("numeric"), Minute: new("2-digit"), Second: new("2-digit")}, 12, 0, 1, 0, "12:00:01 in the afternoon"},
 		{"last second", Options{Hour: new("numeric"), Minute: new("2-digit"), Second: new("2-digit")}, 12, 0, 59, 0, "12:00:59 in the afternoon"},
 		{"minute after noon", Options{Hour: new("numeric"), Minute: new("2-digit"), Second: new("2-digit")}, 12, 1, 0, 0, "12:01:00 in the afternoon"},
-		{"only period", Options{}, 12, 1, 1, 0, "12 noon"},
+		{"only period", Options{}, 12, 1, 1, 0, "noon"},
 		{"fraction one", Options{Hour: new("numeric"), Minute: new("2-digit"), Second: new("2-digit"), FractionalSecondDigits: new(1)}, 12, 0, 0, 100000000, "12:00:00.1 noon"},
 		{"fraction two", Options{Hour: new("numeric"), Minute: new("2-digit"), Second: new("2-digit"), FractionalSecondDigits: new(2)}, 12, 0, 0, 10000000, "12:00:00.01 noon"},
 		{"fraction three", Options{Hour: new("numeric"), Minute: new("2-digit"), Second: new("2-digit"), FractionalSecondDigits: new(3)}, 12, 0, 0, 1000000, "12:00:00.001 noon"},

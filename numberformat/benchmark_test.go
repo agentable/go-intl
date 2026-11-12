@@ -126,3 +126,48 @@ func BenchmarkNumberFormat_SupportedLocalesOf(b *testing.B) {
 		}
 	}
 }
+
+// Each method receives the same prebuilt mathematical values and formatter.
+func BenchmarkNumberFormat_Partition_Cached(b *testing.B) {
+	value := Float(1234567.89)
+	end := Float(2345678.91)
+	for _, tt := range []struct {
+		name string
+		opts Options
+	}{
+		{"decimal", Options{}},
+		{"currency", Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("USD")}},
+		{"unit", Options{Style: stringPtr(UnitStyle), Unit: stringPtr("meter-per-second")}},
+		{"compact", Options{Notation: stringPtr(CompactNotation)}},
+		{"scientific", Options{Notation: stringPtr(ScientificNotation)}},
+		{"arab", Options{NumberingSystem: stringPtr("arab")}},
+		{"precision", Options{MinimumFractionDigits: intPtr(20), MaximumFractionDigits: intPtr(20)}},
+	} {
+		b.Run(tt.name, func(b *testing.B) {
+			f, err := New(intltest.LocaleList(b, "en"), tt.opts)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.Run("text", func(b *testing.B) {
+				b.ReportAllocs()
+				for b.Loop() {
+					_ = f.Format(value)
+				}
+			})
+			b.Run("parts", func(b *testing.B) {
+				b.ReportAllocs()
+				for b.Loop() {
+					_ = f.FormatToParts(value)
+				}
+			})
+			b.Run("range", func(b *testing.B) {
+				b.ReportAllocs()
+				for b.Loop() {
+					if _, err := f.FormatRange(value, end); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		})
+	}
+}

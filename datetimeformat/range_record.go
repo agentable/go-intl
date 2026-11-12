@@ -141,6 +141,11 @@ func (r *rangePatternRecord) addDatePatterns(format ecma402dtf.Formats, interval
 }
 
 func (r *rangePatternRecord) addTimePatterns(format ecma402dtf.Formats, intervals map[string]map[string]string) {
+	if format.DayPeriod != "" {
+		r.periodKind = rangePeriodFlexible
+	} else if hour12 := hourCycleImpliesHour12(HourCycle(format.HourCycle)); hour12 != nil && *hour12 {
+		r.periodKind = rangePeriodStandard
+	}
 	patterns := intervals[format.Skeleton]
 	if len(patterns) == 0 {
 		patterns = intervals[strings.TrimRight(format.Skeleton, "S")]
@@ -220,8 +225,8 @@ func (r rangePatternRecord) timeRelation(format *DateTimeFormat, start, end loca
 		}
 	}
 	if !r.hasTime {
-		for field := timeRangeHour; field < timeRangeFieldCount; field++ {
-			if !timeRangeFieldEqual(field, rangePeriodNone, format, start, end) {
+		for field := timeRangePeriod; field < timeRangeFieldCount; field++ {
+			if !timeRangeFieldEqual(field, r.periodKind, format, start, end) {
 				return rangeRelation{}
 			}
 		}
@@ -255,11 +260,14 @@ func timeRangeFieldEqual(field timeRangeField, periodKind rangePeriodKind, forma
 			return true
 		}
 	case timeRangeHour:
-		return start.Hour == end.Hour
+		fields := format.pattern.timeFormat
+		return fields.Hour == "" && fields.Minute == "" && fields.Second == "" && fields.FractionalSecondDigits == 0 || start.Hour == end.Hour
 	case timeRangeMinute:
-		return start.Minute == end.Minute
+		fields := format.pattern.timeFormat
+		return fields.Minute == "" && fields.Second == "" && fields.FractionalSecondDigits == 0 || start.Minute == end.Minute
 	case timeRangeSecond:
-		return start.Second == end.Second
+		fields := format.pattern.timeFormat
+		return fields.Second == "" && fields.FractionalSecondDigits == 0 || start.Second == end.Second
 	case timeRangeFractionalSecond:
 		digits := ecma402.ResolvedScalarValue(format.resolved.FractionalSecondDigits)
 		return digits == 0 || fractionalSecondValue(start.Nanosecond, digits) == fractionalSecondValue(end.Nanosecond, digits)

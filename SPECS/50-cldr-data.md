@@ -244,6 +244,14 @@ A large domain is split into multiple blobs, each with its own `const`, its own 
 
 > **Why**: A single giant blob per domain would force any importer to link the whole domain. Sub-domain blobs keep the link cost proportional to the access paths a consumer actually reaches.
 
+Gregorian data decodes per locale. `_dateGregorianIndexBlob` stores locale
+deltas and offset/length references into `_dateGregorianBlob`; each finite
+locale record has one `sync.Once`. Decoded data is immutable, `GregorianFor`
+copies exposed maps, and supported/calendar queries keep their narrow indexes.
+Fresh-process tests verify concurrent first access and record isolation;
+`TestDateRoundTrip` and `task data:check` verify all locales through production
+accessors and reproducible generation.
+
 ### 2.4 Per-domain packages, not single-package files
 
 CLDR data **MUST** be generated as one package per semantic domain (§1.2). This is the structure that lets Go compile, link, and lazily decode per reachable package — importing only `displaynames` compiles only `displaynames` + the `locale` kernel + `codec`, in parallel with other packages.

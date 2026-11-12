@@ -365,6 +365,55 @@ func TestDateTimeFormatRejectsInvalidStringOptions(t *testing.T) {
 	}
 }
 
+// ECMA-402 CreateDateTimeFormat reads resolution options, the zone, then
+// components in table order before formatMatcher and styles.
+func TestDateTimeFormatOptionEvaluationOrder(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		opts Options
+		want string
+	}{
+		{"locale before matcher", Options{LocaleMatcher: stringPtr("bad"), FormatMatcher: stringPtr("bad")}, "localeMatcher"},
+		{"calendar before numbering", Options{Calendar: stringPtr("!"), NumberingSystem: stringPtr("!"), HourCycle: stringPtr("bad")}, "calendar"},
+		{"numbering before cycle", Options{Calendar: stringPtr("gregory"), NumberingSystem: stringPtr("!"), HourCycle: stringPtr("bad")}, "numberingSystem"},
+		{"cycle despite hour12", Options{Hour12: boolPtr(true), HourCycle: stringPtr("bad"), TimeZone: stringPtr("Bad/Zone")}, "hourCycle"},
+		{"zone before components", Options{TimeZone: stringPtr("Bad/Zone"), Hour: stringPtr("bad")}, "timeZone"},
+		{"weekday before era", Options{Weekday: stringPtr("bad"), Era: stringPtr("bad"), FormatMatcher: stringPtr("bad")}, "weekday"},
+		{"era before year", Options{Era: stringPtr("bad"), Year: stringPtr("bad")}, "era"},
+		{"year before month", Options{Year: stringPtr("bad"), Month: stringPtr("bad")}, "year"},
+		{"month before day", Options{Month: stringPtr("bad"), Day: stringPtr("bad")}, "month"},
+		{"day before period", Options{Day: stringPtr("bad"), DayPeriod: stringPtr("bad")}, "day"},
+		{"period before hour", Options{DayPeriod: stringPtr("bad"), Hour: stringPtr("bad")}, "dayPeriod"},
+		{"hour before minute", Options{Hour: stringPtr("bad"), Minute: stringPtr("bad")}, "hour"},
+		{"minute before second", Options{Minute: stringPtr("bad"), Second: stringPtr("bad")}, "minute"},
+		{"second before fraction", Options{Second: stringPtr("bad"), FractionalSecondDigits: intPtr(0)}, "second"},
+		{"fraction before zone name", Options{FractionalSecondDigits: intPtr(0), TimeZoneName: stringPtr("bad")}, "fractionalSecondDigits"},
+		{"fraction before style", Options{FractionalSecondDigits: intPtr(0), DateStyle: stringPtr("bad")}, "fractionalSecondDigits"},
+		{"zone name before matcher", Options{FractionalSecondDigits: intPtr(3), TimeZoneName: stringPtr("bad"), FormatMatcher: stringPtr("bad")}, "timeZoneName"},
+		{"matcher before styles", Options{FormatMatcher: stringPtr("bad"), DateStyle: stringPtr("bad")}, "formatMatcher"},
+		{"date style before time style", Options{DateStyle: stringPtr("bad"), TimeStyle: stringPtr("bad")}, "dateStyle"},
+		{"style grammar before conflict", Options{Year: stringPtr("numeric"), DateStyle: stringPtr("short"), TimeStyle: stringPtr("bad")}, "timeStyle"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := New(locale.List{intltest.Locale(t, "en-US")}, tc.opts)
+			detail, ok := errors.AsType[*intlerr.Error](err)
+			if !ok || detail.Name != tc.want {
+				t.Fatalf("New() error = %v, want %s", err, tc.want)
+			}
+			sentinel := intlerr.ErrInvalidOption
+			if tc.want == "timeZone" {
+				sentinel = intlerr.ErrUnsupportedOption
+			}
+			if !errors.Is(err, sentinel) {
+				t.Fatalf("error = %v, want %v", err, sentinel)
+			}
+		})
+	}
+}
+
 func TestDateTimeFormatRejectsInvalidFractionalSecondDigits(t *testing.T) {
 	t.Parallel()
 
@@ -1478,7 +1527,7 @@ func TestDateTimeFormatCombinesFullDateAndTimeStylesWithAtConnector(t *testing.T
 	}
 }
 
-func TestDateTimeFormatCombinesLongMonthDateAndTimeWithAtConnector(t *testing.T) {
+func TestDateTimeFormatCombinesComponentsWithStandardConnector(t *testing.T) {
 	t.Parallel()
 
 	format, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Year: stringPtr(NumericFieldStyle), Month: stringPtr(LongMonthStyle), Day: stringPtr(NumericFieldStyle), Hour: stringPtr(NumericFieldStyle), Minute: stringPtr(TwoDigitFieldStyle), Hour12: boolPtr(true)})
@@ -1486,7 +1535,7 @@ func TestDateTimeFormatCombinesLongMonthDateAndTimeWithAtConnector(t *testing.T)
 		t.Fatalf("New(long month date+time fields) error = %v", err)
 	}
 	got := mustDateFormat(t, format, time.Date(2026, time.May, 8, 9, 7, 0, 0, time.UTC))
-	if want := "May 8, 2026 at 9:07 AM"; got != want {
+	if want := "May 8, 2026, 9:07 AM"; got != want {
 		t.Fatalf("Format() = %q, want %q", got, want)
 	}
 }

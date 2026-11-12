@@ -11,6 +11,7 @@ import (
 )
 
 type patternData struct {
+	combinedCandidates       []ecma402dtf.Formats
 	dateCandidates           []ecma402dtf.Formats
 	timeCandidates           []ecma402dtf.Formats
 	fractionalTimeCandidates [3][]ecma402dtf.Formats
@@ -52,8 +53,9 @@ func patternDataFor(loc cldrdate.Locale, gregorian cldrdate.Gregorian) *patternD
 func buildPatternData(gregorian cldrdate.Gregorian) *patternData {
 	formats := availableFormatCandidates(gregorian)
 	data := &patternData{
-		dateCandidates: filterFormats(formats, hasDateFormatOnly),
-		timeCandidates: filterFormats(formats, hasTimeFormatOnly),
+		combinedCandidates: filterFormats(formats, func(f ecma402dtf.Formats) bool { return hasDateFormatFields(f) && hasTimeFormatFields(f) }),
+		dateCandidates:     filterFormats(formats, hasDateFormatOnly),
+		timeCandidates:     filterFormats(formats, hasTimeFormatOnly),
 	}
 	for i := range data.fractionalTimeCandidates {
 		data.fractionalTimeCandidates[i] = appendFractionalSecondCandidates(data.timeCandidates, i+1)
@@ -70,10 +72,15 @@ func buildPatternData(gregorian cldrdate.Gregorian) *patternData {
 func availableFormatCandidates(gregorian cldrdate.Gregorian) []ecma402dtf.Formats {
 	keys := slices.Sorted(maps.Keys(gregorian.AvailableFormats))
 
-	formats := make([]ecma402dtf.Formats, len(keys))
+	formats := make([]ecma402dtf.Formats, len(keys), len(keys)+11)
 	for i, skeleton := range keys {
 		pattern := gregorian.AvailableFormats[skeleton]
 		formats[i] = ecma402dtf.Parse(skeleton, pattern, nil, "")
+	}
+	// ICU's canonical items supply fields missing from availableFormats. Locale
+	// patterns precede these fallbacks so equal scores retain localized literals.
+	for _, field := range []string{"G", "y", "L", "d", "E", "B", "H", "m", "s", "S", "v"} {
+		formats = append(formats, ecma402dtf.Parse(field, field, nil, ""))
 	}
 	return formats
 }

@@ -15,7 +15,9 @@ import (
 
 // Format formats a numeric value.
 func (f *NumberFormat) Format(v Value) string {
-	return partsText(formatDecimalToPartsAppend(nil, v.numeric.Decimal, &f.formatState))
+	// Keep common temporary partitions on the stack; append grows for larger values.
+	var scratch [16]Part
+	return partsText(formatDecimalToPartsAppend(scratch[:0], v.numeric.Decimal, &f.formatState))
 }
 
 // FormatToParts formats a numeric value into ECMA-402 parts.
