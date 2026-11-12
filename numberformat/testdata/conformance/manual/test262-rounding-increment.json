@@ -1,0 +1,50 @@
+[
+  {
+    "id": "numberformat/manual/test262-increment25-0",
+    "source": "manual:test262@045bf6f9966ce3291b8fbc1e0403cd97b9201b00/test/intl402/NumberFormat/prototype/format/format-rounding-increment-25.js",
+    "locale": "en-US",
+    "options": {
+      "roundingIncrement": 25,
+      "minimumFractionDigits": 2,
+      "maximumFractionDigits": 2
+    },
+    "input": "1.3125",
+    "expected": "1.25"
+  },
+  {
+    "id": "numberformat/manual/test262-increment25-1",
+    "source": "manual:test262@045bf6f9966ce3291b8fbc1e0403cd97b9201b00/test/intl402/NumberFormat/prototype/format/format-rounding-increment-25.js",
+    "locale": "en-US",
+    "options": {
+      "roundingIncrement": 25,
+      "minimumFractionDigits": 2,
+      "maximumFractionDigits": 2
+    },
+    "input": "1.3750",
+    "expected": "1.50"
+  },
+  {
+    "id": "numberformat/manual/test262-increment25-2",
+    "source": "manual:test262@045bf6f9966ce3291b8fbc1e0403cd97b9201b00/test/intl402/NumberFormat/prototype/format/format-rounding-increment-25.js",
+    "locale": "en-US",
+    "options": {
+      "roundingIncrement": 25,
+      "minimumFractionDigits": 3,
+      "maximumFractionDigits": 3
+    },
+    "input": "1.03125",
+    "expected": "1.025"
+  },
+  {
+    "id": "numberformat/manual/test262-increment25-3",
+    "source": "manual:test262@045bf6f9966ce3291b8fbc1e0403cd97b9201b00/test/intl402/NumberFormat/prototype/format/format-rounding-increment-25.js",
+    "locale": "en-US",
+    "options": {
+      "roundingIncrement": 25,
+      "minimumFractionDigits": 3,
+      "maximumFractionDigits": 3
+    },
+    "input": "1.03750",
+    "expected": "1.050"
+  }
+]

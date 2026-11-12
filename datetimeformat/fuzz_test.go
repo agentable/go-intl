@@ -12,27 +12,55 @@ import (
 
 func FuzzDateTimeFormatPartition(f *testing.F) {
 	for _, millis := range []int64{0, -1, 1580745845123, 8640000000000000, -8640000000000000, 8640000000000001, -8640000000000001} {
-		for scenario := uint8(0); scenario < 8; scenario++ {
-			f.Add(millis, int64(3600000), scenario)
-		}
+		f.Add(millis, int64(1580745845123), uint8(0), uint8(0), uint8(255), uint8(2))
 	}
-	f.Fuzz(func(t *testing.T, millis, delta int64, scenario uint8) {
-		// Preserve both TimeClip boundaries while excluding int64/time overflow.
-		millis %= 8640000000000002
-		delta %= 3 * 86400000
-		start, end := time.UnixMilli(millis), time.UnixMilli(millis+delta)
-		options := []Options{
-			{Minute: new("numeric")}, {Second: new("numeric"), FractionalSecondDigits: new(3)},
-			{DayPeriod: new("long")}, {Weekday: new("long"), Hour: new("numeric")},
-			{Year: new("numeric"), Month: new("long"), Day: new("numeric"), Hour: new("numeric"), Minute: new("2-digit")},
-			{DateStyle: new("full"), TimeStyle: new("short")}, {Era: new("short"), Hour: new("numeric")},
-			{Hour: new("2-digit"), Minute: new("2-digit"), TimeZoneName: new("shortOffset")},
+	for i, instant := range []string{"2024-03-10T07:00:00Z", "2024-04-06T15:00:00Z", "2024-09-28T14:00:00Z", "2024-03-10T02:00:00Z"} {
+		at, err := time.Parse(time.RFC3339, instant)
+		if err != nil {
+			f.Fatal(err)
 		}
-		opts := options[int(scenario)%len(options)]
-		opts.TimeZone = new("UTC")
-		opts.HourCycle = new([]string{"h11", "h12", "h23", "h24"}[int(scenario)%4])
-		tag := []string{"en", "zh", "ja", "ru", "ar", "en-u-nu-arab-x-test"}[int(scenario)%6]
+		f.Add(at.UnixMilli()-1, at.UnixMilli(), uint8(i+1), uint8(0), uint8(71), uint8(2))
+		f.Add(at.UnixMilli(), at.UnixMilli()-3600000, uint8(i+1), uint8(4), uint8(27), uint8(1))
+	}
+	f.Fuzz(func(t *testing.T, millis, endMillis int64, zone, language, components, cycle uint8) {
+		// Independent bounded endpoints retain both sides of TimeClip.
+		millis %= 8640000000000002
+		endMillis %= 8640000000000002
+		start, end := time.UnixMilli(millis), time.UnixMilli(endMillis)
+		opts := Options{TimeZone: new([]string{"UTC", "America/New_York", "Australia/Lord_Howe", "Pacific/Chatham", "Africa/Casablanca", "+05:30"}[int(zone)%6])}
+		opts.HourCycle = new([]string{"h11", "h12", "h23", "h24", "invalid"}[int(cycle)%5])
+		if components&1 != 0 {
+			opts.Hour = new("2-digit")
+		}
+		if components&2 != 0 {
+			opts.Minute = new("2-digit")
+		}
+		if components&4 != 0 {
+			opts.Second = new("2-digit")
+		}
+		if components&8 != 0 {
+			opts.DayPeriod = new("long")
+		}
+		if components&16 != 0 {
+			opts.FractionalSecondDigits = new(int(components>>5)%3 + 1)
+		}
+		if components&32 != 0 {
+			opts.Year, opts.Month, opts.Day = new("numeric"), new("short"), new("numeric")
+		}
+		if components&64 != 0 {
+			opts.TimeZoneName = new([]string{"short", "long", "shortOffset", "longOffset", "shortGeneric", "longGeneric"}[int(components>>1)%6])
+		}
+		if components&128 != 0 && components&127 == 0 {
+			opts.DateStyle, opts.TimeStyle = new("full"), new("short")
+		}
+		tag := []string{"en", "zh", "ja", "ru", "ar", "en-u-nu-arab-x-test"}[int(language)%6]
 		format, err := New(intltest.LocaleList(t, tag), opts)
+		if cycle%5 == 4 {
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("invalid hourCycle error = %v", err)
+			}
+			return
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -56,7 +84,6 @@ func FuzzDateTimeFormatPartition(f *testing.F) {
 		}
 		text, err = format.FormatRange(start, end)
 		rangeParts, partsErr := format.FormatRangeToParts(start, end)
-		endMillis := millis + delta
 		if millis < -8640000000000000 || millis > 8640000000000000 || endMillis < -8640000000000000 || endMillis > 8640000000000000 {
 			if !errors.Is(err, intlerr.ErrInvalidValue) || !errors.Is(partsErr, intlerr.ErrInvalidValue) {
 				t.Fatalf("TimeClip range errors=%v, %v", err, partsErr)

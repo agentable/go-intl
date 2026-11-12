@@ -577,3 +577,29 @@ Public fuzz targets exercise bounded inputs and independent behavior checks:
 Package tests run seeds. Explore each target with
 `go test <package> -run '^$' -fuzz '^<target>$' -fuzztime=30s`.
 Valid inputs must succeed; panics are not recovered.
+
+
+### Bounded Test262 adaptation
+
+Six manual NumberFormat fixtures derive from Test262 revision
+`045bf6f9966ce3291b8fbc1e0403cd97b9201b00`,
+`test/intl402/NumberFormat/prototype/format/format-rounding-increment-25.js`
+and `signDisplay-rounding.js`. Their source fields retain these paths and
+revision; `numberformat/testdata/conformance/manual/TEST262_NOTICE` retains the
+applicable notices and license. The former's numeric-string pairs use Go's
+explicit `ParseValue` bridge; the latter's Number inputs use the existing Float
+adapter. They exercise visible zeros at quarter increments and suppression of
+signs after rounding to zero. Existing exact-string and integer bridge tests
+already cover `value-decimal-string.js`; JS-only undefined/null/valueOf coercion
+is outside this typed API. These cases use the existing manual lane and do not
+claim extraction coverage or complete Test262 execution.
+
+The public numeric fuzz separates locale, notation/style, precision/rounding,
+value bridges and range endpoints. Its rational subset checks three modes and
+selected increments through the constructor; the lower-level quantize oracle
+retains all nine modes. Date fuzz independently chooses both instants, named
+zones, component presence and hour cycle. Fixed New York, Lord Howe, Chatham
+and Casablanca transition witnesses supplement the structural text/parts
+properties. At zero offset, the pinned CLDR GMT-zero form differs from the
+Node shortOffset witness (`GMT` versus `GMT+0`); tests disclose this text choice.
+No whitespace normalization or resolved-options reconstruction law is used.

@@ -452,3 +452,43 @@ func assertRangePartsHaveEndpoints(t *testing.T, parts []RangePart) {
 		t.Fatalf("range parts lack both endpoint sources: %#v", parts)
 	}
 }
+
+// Node v26.0.0 / ICU 78.3 / tzdata 2026a witnesses, checked against the
+// pinned IANA 2025b transition instants. At zero offset, the pinned CLDR
+// GMT-zero pattern is "GMT"; Node shortOffset instead emits "GMT+0".
+// No whitespace normalization applies.
+func TestDateTimeFormatTransitionWitnesses(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ zone, instant, before, after string }{
+		{"America/New_York", "2024-03-10T07:00:00Z", "01:59 GMT-5", "03:00 GMT-4"},
+		{"Australia/Lord_Howe", "2024-04-06T15:00:00Z", "01:59 GMT+11", "01:30 GMT+10:30"},
+		{"Pacific/Chatham", "2024-09-28T14:00:00Z", "02:44 GMT+12:45", "03:45 GMT+13:45"},
+		{"Africa/Casablanca", "2024-03-10T02:00:00Z", "02:59 GMT+1", "02:00 GMT"},
+	} {
+		t.Run(tc.zone, func(t *testing.T) {
+			f, err := New(intltest.LocaleList(t, "en-US"), Options{
+				TimeZone: new(tc.zone), Hour: new("2-digit"), Minute: new("2-digit"), HourCycle: new("h23"), TimeZoneName: new("shortOffset"),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			at, err := time.Parse(time.RFC3339, tc.instant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, sample := range []struct {
+				at   time.Time
+				want string
+			}{{at.Add(-time.Millisecond), tc.before}, {at, tc.after}} {
+				if got := mustDateFormat(t, f, sample.at); got != sample.want {
+					t.Fatalf("Format(%s) = %q, want %q", sample.at, got, sample.want)
+				}
+			}
+			parts := mustFormatRangeToParts(t, f, at.Add(-time.Millisecond), at)
+			assertRangePartsHaveEndpoints(t, parts)
+			if got := joinRangePartValues(parts); got != mustFormatRange(t, f, at.Add(-time.Millisecond), at) {
+				t.Fatal("range parts disagree")
+			}
+		})
+	}
+}

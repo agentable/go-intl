@@ -1,0 +1,24 @@
+[
+  {
+    "id": "numberformat/manual/test262-sign-rounding-0",
+    "source": "manual:test262@045bf6f9966ce3291b8fbc1e0403cd97b9201b00/test/intl402/NumberFormat/prototype/format/signDisplay-rounding.js",
+    "locale": "en-US",
+    "options": {
+      "maximumFractionDigits": 1,
+      "signDisplay": "exceptZero"
+    },
+    "input": 0.01,
+    "expected": "0"
+  },
+  {
+    "id": "numberformat/manual/test262-sign-rounding-1",
+    "source": "manual:test262@045bf6f9966ce3291b8fbc1e0403cd97b9201b00/test/intl402/NumberFormat/prototype/format/signDisplay-rounding.js",
+    "locale": "en-US",
+    "options": {
+      "maximumFractionDigits": 1,
+      "signDisplay": "exceptZero"
+    },
+    "input": -0.01,
+    "expected": "0"
+  }
+]
