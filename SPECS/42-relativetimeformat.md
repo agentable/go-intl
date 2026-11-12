@@ -137,10 +137,14 @@ Pipeline:
 MUST rules:
 
 1. Invalid `localeMatcher`, `numberingSystem`, `style`, or `numeric` returns an error wrapping `ErrInvalidOption`.
-2. `numberingSystem` option must override the `nu` locale extension during locale resolution, matching ECMA-402 `ResolveLocale`.
+2. `numberingSystem` uses shared Unicode type canonicalization before support checks and overrides a different supported `nu` extension. An equal value preserves the extension; an unknown well-formed value does not override it.
 3. The internal NumberFormat must format absolute numeric values.
 4. The internal PluralRules must select plural category from the original signed value as ECMA-402 `ResolvePlural` does.
 5. Constructor support for a locale requires relative time field data, number data, and plural rule data. For every legal unit, style falls back to long when needed, and both past/future must provide a nonempty `other` pattern. Incomplete data fails `New` with locale/unit/style/tense context; successful instances never report missing data as an invalid caller unit.
+
+The constructor validates options in the pipeline order above.
+`TestRelativeTimeFormatConstructorOptionOrder` verifies the first structured error
+when multiple options are invalid.
 
 ---
 

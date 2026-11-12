@@ -840,3 +840,28 @@ func assertDayPeriodRanges(t *testing.T, name string, got, want []DayPeriodRange
 		t.Fatalf("%s = %#v, want %#v", name, got, want)
 	}
 }
+
+func TestAvailableFormatsExcludeInactiveSkeletons(t *testing.T) {
+	t.Parallel()
+	got, err := availableFormats(jsontext.Value(`{
+		"yMd": "M/d/y",
+		"yQQQ": "QQQ y",
+		"MMMMW-count-one": "'week' W 'of' MMMM",
+		"MMMMW-count-other": "'week' W 'of' MMMM",
+		"yw-count-one": "'week' w 'of' Y",
+		"yw-count-other": "'week' w 'of' Y"
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertStringMap(t, "executable available formats", got, map[string]string{"yMd": "M/d/y"})
+}
+
+func TestAvailableFormatsRejectMalformedActivePatterns(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{`{"yMd":"y 'at"}`, `{"yMd":"y Q"}`, `{"yMd":"MMMMMM"}`} {
+		if _, err := availableFormats(jsontext.Value(raw)); err == nil {
+			t.Errorf("availableFormats(%s) accepted invalid pattern", raw)
+		}
+	}
+}

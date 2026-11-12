@@ -561,6 +561,10 @@ private identity products in `internal/localeid`, `internal/localematcher`, and
 contract, and data-shape tests; per-domain generator tests retain production
 decoder/accessor round trips.
 
+Available-format generation retains only skeletons in the executable date
+grammar and validates their patterns. Quarter/week and plural-count keys stay
+out of the runtime candidate set; matcher and renderer need no second filter.
+
 ### 7.3 Conformance integration
 
 The correctness of domain data access is verified indirectly through the downstream formatter conformance suites (SPEC 70). This SPEC does not duplicate fixture design.

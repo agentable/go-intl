@@ -2,7 +2,6 @@ package cldr
 
 import (
 	"fmt"
-	"strings"
 )
 
 type datePatternWidth struct {
@@ -104,7 +103,6 @@ func skipDatePatternLiteral(pattern string, start int) (int, error) {
 }
 
 func isExecutableDateSkeleton(skeleton string) bool {
-	skeleton, _, _ = strings.Cut(skeleton, "-count-")
 	found := false
 	for i := 0; i < len(skeleton); {
 		if skeleton[i] == '\'' {

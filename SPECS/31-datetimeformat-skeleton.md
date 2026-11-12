@@ -209,7 +209,7 @@ AM/PM positions, literals, parts, and same-day/cross-date ranges).
 
 > **Why**: CLDR is upstream authoritative data; handwritten tables will drift when CLDR is upgraded, and ~100 locale × dozens of skeletons cannot be maintained manually.
 
-Candidates contain sorted CLDR availableFormats followed by canonical fields
+Candidates contain sorted executable CLDR availableFormats followed by canonical fields
 (`G y L d E B H m s S v`); ties retain locale patterns. Standalone seconds also
 receive fractional-second candidates. Sparse minute/second/dayPeriod requests
 need no extra hour; hour+minute preserves contextual zero padding.
@@ -255,9 +255,9 @@ const payload. Validation has two consumer-aware layers:
 
 1. Date/time style patterns, interval patterns, and `availableFormats`
    skeletons whose fields are executable by the current runtime validate LDML
-   quote balance, active field symbols, and supported widths. Retained
-   quarter/week skeletons that no public path can select remain source data;
-   the validator must not pretend the runtime executes them.
+   quote balance, active field symbols, and supported widths. Generation excludes
+   non-executable availableFormats, including quarter/week and plural-count
+   keys, before runtime matching; key metadata is never parsed as fields.
 2. Date-time combinations, date-time-at combinations, interval fallback, and
    the active `AppendItems["Timezone"]` consumer require exactly one `{0}` and
    one `{1}` and reject every other placeholder. Other retained append-item
@@ -327,7 +327,7 @@ validated data and do not grow a second defensive grammar.
 - LDML literal test: `parseDateTimeSkeleton("'Year:' y")` output `Formats.Pattern` contains literal `"Year:"`, and `Year:numeric`.
 - LDML escape test: `parseDateTimeSkeleton("'it''s' y")` literal part outputs `"it's"`.
 - Generator tests reject unbalanced quotes, unknown executable fields, unsupported widths, malformed indexed placeholders, duplicate `{0}`/`{1}`, and forbidden `{2}` with source context.
-- Current pinned data regenerates byte-identically; inactive quarter/week skeletons are not falsely advertised as executable, and only inactive append-item records may retain one `{2}`.
+- Current pinned data regenerates byte-identically; quarter/week and plural-count availableFormats are excluded. Public sparse year/weekday and month/weekday tests cover both matchers, resolved fields, parts, and range sources. Only inactive append-item records may retain one `{2}`.
 
 ---
 

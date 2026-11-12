@@ -879,3 +879,30 @@ func durationPartsText(parts []Part) string {
 	}
 	return b.String()
 }
+
+func TestDurationFormatConstructorOptionOrder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		opts          Options
+		option, value string
+	}{
+		{"matcher before numbering", Options{LocaleMatcher: new("bad"), NumberingSystem: new("bad!"), Style: new("bad")}, "localeMatcher", "bad"},
+		{"numbering before style", Options{NumberingSystem: new("bad!"), Style: new("bad")}, "numberingSystem", "bad!"},
+		{"style before units", Options{Style: new("bad"), Years: new("bad")}, "style", "bad"},
+		{"unit style before display", Options{Years: new("bad"), YearsDisplay: new("bad")}, "years", "bad"},
+		{"earlier unit before later", Options{YearsDisplay: new("bad"), Months: new("bad")}, "yearsDisplay", "bad"},
+		{"unit before fraction", Options{Years: new("bad"), FractionalDigits: new(10)}, "years", "bad"},
+		{"last display before fraction", Options{NanosecondsDisplay: new("bad"), FractionalDigits: new(10)}, "nanosecondsDisplay", "bad"},
+		{"chain before fraction", Options{Hours: new("numeric"), Minutes: new("long"), FractionalDigits: new(10)}, "minutes", "long"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := New(locale.List{intltest.Locale(t, "en")}, tc.opts)
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("error = %v, want ErrInvalidOption", err)
+			}
+			testcontract.AssertOptionError(t, err, "durationformat", intlerr.InvalidOption, tc.option, tc.value, "en")
+		})
+	}
+}

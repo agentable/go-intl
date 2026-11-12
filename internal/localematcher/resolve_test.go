@@ -181,3 +181,27 @@ func TestResolveLocaleSameValueOption(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveLocaleCanonicalOptionValues(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ key, requested, option, want, locale string }{
+		{"nu", "en", "ARAB", "arab", "en"},
+		{"nu", "en-u-nu-latn", "Arab", "arab", "en"},
+		{"nu", "en-u-nu-arab", "ARAB", "arab", "en-u-nu-arab"},
+		{"nu", "en-u-nu-arab", "unknown", "arab", "en-u-nu-arab"},
+		{"ca", "en", "ISLAMICC", "islamic-civil", "en"},
+		{"ca", "en-u-ca-islamic-civil", "Islamicc", "islamic-civil", "en-u-ca-islamic-civil"},
+	} {
+		t.Run(tc.requested+"/"+tc.option, func(t *testing.T) {
+			t.Parallel()
+			got := ResolveLocale(ResolveOptions{
+				Algorithm: AlgorithmLookup, Supported: []string{"en"}, Requested: []string{tc.requested}, DefaultLocale: "en",
+				RelevantExtensionKeys: []string{tc.key}, OptionValues: []Option{{Key: tc.key, Value: tc.option}},
+				LocaleData: testLocaleData{"en": {"nu": {"latn", "arab"}, "ca": {"gregory", "islamic-civil"}}},
+			})
+			if got.Locale != tc.locale || got.Extensions[tc.key] != tc.want {
+				t.Fatalf("ResolveLocale = %+v, want locale %q, %s=%q", got, tc.locale, tc.key, tc.want)
+			}
+		})
+	}
+}

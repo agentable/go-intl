@@ -87,8 +87,8 @@ func defaultConfig() config {
 }
 
 func applyOptions(cfg *config, opts Options) {
-	ecma402.ApplyUnicodeTypeOptionInput(&cfg.calendar, &cfg.hasCalendar, "ca", opts.Calendar)
-	ecma402.ApplyUnicodeTypeOptionInput(&cfg.numberingSystem, &cfg.hasNumberingSystem, "nu", opts.NumberingSystem)
+	ecma402.ApplyOptionInput(&cfg.calendar, &cfg.hasCalendar, opts.Calendar)
+	ecma402.ApplyOptionInput(&cfg.numberingSystem, &cfg.hasNumberingSystem, opts.NumberingSystem)
 	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
 	ecma402.ApplyOptionInput(&cfg.formatMatcher, &cfg.hasFormatMatcher, opts.FormatMatcher)
 	ecma402.ApplyOptionInput(&cfg.timeZone, &cfg.hasTimeZone, opts.TimeZone)

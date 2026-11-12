@@ -135,10 +135,14 @@ Pipeline:
 MUST rules:
 
 1. Invalid `localeMatcher`, `numberingSystem`, `style`, unit style, unit display, or `fractionalDigits` returns an error wrapping `ErrInvalidOption`; explicit empty `style`, unit style, or unit display is invalid rather than treated as omitted.
-2. `numberingSystem` option must override the `nu` locale extension during locale resolution.
+2. `numberingSystem` uses shared Unicode type canonicalization before support checks and overrides a different supported `nu` extension. An equal value preserves the extension; an unknown well-formed value does not override it.
 3. `style="digital"` must select numeric hour/minute/second defaults and short date-unit defaults according to ECMA-402.
 4. `fractionalDigits` must distinguish omitted from explicit zero; `FractionalDigits: gointl.Int(0)` is an explicit option, and constructors copy the pointee value.
 5. Unit option validation must reject numeric/non-numeric mixing and illegal fractional display combinations according to ECMA-402 `ValidateDurationUnitStyle`.
+
+The constructor validates options in the pipeline order above.
+`TestDurationFormatConstructorOptionOrder` verifies the first structured error
+when multiple options are invalid.
 
 ---
 

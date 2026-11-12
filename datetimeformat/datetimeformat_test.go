@@ -2184,3 +2184,64 @@ func TestSupportedLocalesOfErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestDateTimeFormatSparseDateFieldsAreExecutable(t *testing.T) {
+	t.Parallel()
+	for _, matcher := range []string{"basic", "best fit"} {
+		for _, field := range []string{"year", "month"} {
+			t.Run(matcher+"/"+field, func(t *testing.T) {
+				t.Parallel()
+				opts := Options{FormatMatcher: &matcher, Weekday: new("long"), TimeZone: new("UTC")}
+				if field == "year" {
+					opts.Year = new("numeric")
+				} else {
+					opts.Month = new("long")
+				}
+				f, err := New(locale.List{intltest.Locale(t, "en")}, opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				start := time.Date(2020, 1, 3, 15, 4, 5, 123000000, time.UTC)
+				end := start.AddDate(1, 1, 0)
+				for _, instant := range []time.Time{start, end} {
+					parts := mustDateFormatToParts(t, f, instant)
+					values := make(map[PartType]string)
+					for _, p := range parts {
+						values[p.Type] += p.Value
+					}
+					resolved := f.ResolvedOptions()
+					if resolved.Year != nil && values[PartYear] == "" || resolved.Month != nil && values[PartMonth] == "" || resolved.Weekday != nil && values[PartWeekday] == "" {
+						t.Fatalf("resolved date fields missing in parts: %+v, %#v", resolved, parts)
+					}
+					if field == "year" && values[PartYear] != fmt.Sprint(instant.Year()) {
+						t.Fatalf("year part = %q", values[PartYear])
+					}
+					text := mustDateFormat(t, f, instant)
+					if text != joinPartValues(parts) || strings.Contains(text, "week") {
+						t.Fatalf("invalid date output %q, parts %#v", text, parts)
+					}
+				}
+				if mustDateFormat(t, f, start) == mustDateFormat(t, f, end) {
+					t.Fatal("different date fields produced identical output")
+				}
+				parts := mustFormatRangeToParts(t, f, start, end)
+				if joinRangePartValues(parts) != mustFormatRange(t, f, start, end) {
+					t.Fatal("range text differs from parts")
+				}
+				wantType := PartYear
+				if field == "month" {
+					wantType = PartMonth
+				}
+				seen := map[RangeSource]bool{}
+				for _, p := range parts {
+					if p.Type == wantType {
+						seen[p.Source] = true
+					}
+				}
+				if !seen[SourceStartRange] || !seen[SourceEndRange] {
+					t.Fatalf("missing endpoint fields in range: %#v", parts)
+				}
+			})
+		}
+	}
+}

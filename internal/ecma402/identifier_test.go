@@ -158,67 +158,6 @@ func TestIsWellFormedUnicodeType(t *testing.T) {
 	}
 }
 
-func TestCanonicalUnicodeType(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		key    string
-		in     string
-		want   string
-		wantOK bool
-	}{
-		{key: "nu", in: "arab", want: "arab", wantOK: true},
-		{key: "nu", in: "ARAB-LATN", want: "arab-latn", wantOK: true},
-		{key: "ca", in: "islamicc", want: "islamic-civil", wantOK: true},
-		{key: "co", in: "islamicc", want: "islamicc", wantOK: true},
-		{key: "ca", in: "gregorian"},
-		{in: "\u212Aarab"},
-		{in: "a"},
-		{in: ""},
-	}
-	for _, tc := range tests {
-		t.Run(tc.in, func(t *testing.T) {
-			t.Parallel()
-
-			got, ok := ecma402.CanonicalUnicodeType(tc.key, tc.in)
-			if ok != tc.wantOK || got != tc.want {
-				t.Fatalf("CanonicalUnicodeType(%q, %q) = %q, %v; want %q, %v",
-					tc.key, tc.in, got, ok, tc.want, tc.wantOK)
-			}
-		})
-	}
-}
-
-func TestApplyUnicodeTypeOptionInput(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		input       *string
-		initial     string
-		want        string
-		wantPresent bool
-	}{
-		{name: "nil keeps default", initial: "latn", want: "latn"},
-		{name: "canonicalizes valid input", input: stringPtr("PHONEBK"), want: "phonebk", wantPresent: true},
-		{name: "preserves invalid input", input: stringPtr("bad!"), want: "bad!", wantPresent: true},
-		{name: "preserves explicit empty input", input: stringPtr(""), wantPresent: true},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := tc.initial
-			var present bool
-			ecma402.ApplyUnicodeTypeOptionInput(&got, &present, "co", tc.input)
-			if got != tc.want || present != tc.wantPresent {
-				t.Fatalf("ApplyUnicodeTypeOptionInput() = %q/%v, want %q/%v",
-					got, present, tc.want, tc.wantPresent)
-			}
-		})
-	}
-}
-
 func stringPtr(value string) *string {
 	return &value
 }

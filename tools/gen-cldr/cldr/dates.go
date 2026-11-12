@@ -352,7 +352,7 @@ func availableFormats(raw jsontext.Value) (map[string]string, error) {
 	}
 	out := make(map[string]string, len(fields))
 	for key, rawValue := range fields {
-		if isCalendarAltVariant(key) {
+		if isCalendarAltVariant(key) || !isExecutableDateSkeleton(key) {
 			continue
 		}
 		value, err := rawString(rawValue)
@@ -362,10 +362,8 @@ func availableFormats(raw jsontext.Value) (map[string]string, error) {
 		if value == "" {
 			return nil, fmt.Errorf("empty pattern for %s", key)
 		}
-		if isExecutableDateSkeleton(key) {
-			if err := validateExecutableDatePattern(value); err != nil {
-				return nil, fmt.Errorf("validate %s: %w", key, err)
-			}
+		if err := validateExecutableDatePattern(value); err != nil {
+			return nil, fmt.Errorf("validate %s: %w", key, err)
 		}
 		out[key] = value
 	}

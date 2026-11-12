@@ -67,8 +67,9 @@ func ResolveLocale(opts ResolveOptions) ResolvedLocale {
 			if option.Key != key {
 				continue
 			}
-			if option.Value != "" && option.Value != value && slices.Contains(keyLocaleData, option.Value) {
-				value = option.Value
+			optionValue, ok := localeid.CanonicalUnicodeType(key, option.Value)
+			if ok && optionValue != value && slices.Contains(keyLocaleData, optionValue) {
+				value = optionValue
 				supportedKeywordValue = ""
 			}
 			break

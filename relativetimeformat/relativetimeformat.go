@@ -22,10 +22,14 @@ func New(locales locale.List, opts Options) (*RelativeTimeFormat, error) {
 	validationLocaleName := validationLocale.String()
 	cfg := defaultConfig()
 	applyOptions(&cfg, opts)
-	if err := cfg.validate(validationLocaleName); err != nil {
+	if err := cfg.validateLocaleOptions(validationLocaleName); err != nil {
 		return nil, err
 	}
 	resolvedLocale, cldrLoc, numberingSystem := resolveLocale(locales, validationLocale, cfg)
+	if err := ecma402.ValidateStringOptions(relativeTimeFormatOwner, validationLocaleName,
+		relativeTimeStyleOption(cfg.style), relativeTimeNumericOption(cfg.numeric)); err != nil {
+		return nil, err
+	}
 	number, err := numberformat.New(locale.List{resolvedLocale}, numberformat.Options{NumberingSystem: &numberingSystem})
 	if err != nil {
 		return nil, ecma402.InvalidOptionErrorExpected(

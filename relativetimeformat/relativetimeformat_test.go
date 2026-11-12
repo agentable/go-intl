@@ -696,3 +696,26 @@ func TestRelativeTimeFormatErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestRelativeTimeFormatConstructorOptionOrder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		opts          Options
+		option, value string
+	}{
+		{"matcher before numbering", Options{LocaleMatcher: new("bad"), NumberingSystem: new("bad!"), Style: new("bad")}, "localeMatcher", "bad"},
+		{"numbering before style", Options{NumberingSystem: new("bad!"), Style: new("bad")}, "numberingSystem", "bad!"},
+		{"numbering before numeric", Options{NumberingSystem: new("bad!"), Numeric: new("bad")}, "numberingSystem", "bad!"},
+		{"style before numeric", Options{Style: new("bad"), Numeric: new("bad")}, "style", "bad"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := New(locale.List{intltest.Locale(t, "en")}, tc.opts)
+			if !errors.Is(err, intlerr.ErrInvalidOption) {
+				t.Fatalf("error = %v, want ErrInvalidOption", err)
+			}
+			testcontract.AssertOptionError(t, err, "relativetimeformat", intlerr.InvalidOption, tc.option, tc.value, "en")
+		})
+	}
+}

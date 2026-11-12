@@ -30,12 +30,24 @@ func New(locales locale.List, opts Options) (*DurationFormat, error) {
 	validationLocaleName := validationLocale.String()
 	cfg := defaultConfig()
 	applyOptions(&cfg, opts)
-	if err := cfg.validate(validationLocaleName); err != nil {
+	if err := cfg.validateLocaleOptions(validationLocaleName); err != nil {
 		return nil, err
 	}
 	resolvedLocale, cldrLoc, numberingSystem := resolveLocale(locales, validationLocale, cfg)
+	if err := ecma402.ValidateStringOptions(durationFormatOwner, validationLocaleName, durationStyleOption(cfg.style)); err != nil {
+		return nil, err
+	}
 	unitOptions, err := resolveUnitOptions(cfg, validationLocaleName)
 	if err != nil {
+		return nil, err
+	}
+	if err := ecma402.ValidateIntegerOptions(durationFormatOwner, validationLocaleName, ecma402.IntegerOption{
+		Name:  "fractionalDigits",
+		Value: cfg.fractionalDigits,
+		Min:   0,
+		Max:   9,
+		Set:   cfg.hasFractionalDigits,
+	}); err != nil {
 		return nil, err
 	}
 	resolved := resolvedOptionsForDurationFormat(resolvedLocale, numberingSystem, cfg, unitOptions)

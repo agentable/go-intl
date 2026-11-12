@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agentable/go-intl/datetimeformat"
 	"github.com/agentable/go-intl/displaynames"
@@ -335,5 +336,102 @@ func TestUnknownLocaleIdentityAndFormatterData(t *testing.T) {
 	}
 	if got := nf.Format(numberformat.Int(123)); got != "123" {
 		t.Fatalf("default data fallback: %q", got)
+	}
+}
+
+func TestConstructorNumberingSystemCanonicalization(t *testing.T) {
+	t.Parallel()
+	for _, owner := range []string{"number", "date", "relative", "duration"} {
+		for _, requested := range []string{"en", "en-u-nu-latn", "en-u-nu-arab"} {
+			for _, option := range []string{"arab", "ARAB", "Arab", "unknown", "bad!", ""} {
+				t.Run(owner+"/"+requested+"/"+option, func(t *testing.T) {
+					t.Parallel()
+					locales := locale.List{intltest.Locale(t, requested)}
+					var loc, nu, text, joined string
+					var err error
+					switch owner {
+					case "number":
+						f, e := numberformat.New(locales, numberformat.Options{NumberingSystem: &option})
+						err = e
+						if e == nil {
+							r := f.ResolvedOptions()
+							loc, nu = r.Locale.String(), r.NumberingSystem
+							text = f.Format(numberformat.Int(1))
+							for _, p := range f.FormatToParts(numberformat.Int(1)) {
+								joined += p.Value
+							}
+						}
+					case "date":
+						f, e := datetimeformat.New(locales, datetimeformat.Options{NumberingSystem: &option, Year: new("numeric"), TimeZone: new("UTC")})
+						err = e
+						if e == nil {
+							r := f.ResolvedOptions()
+							loc, nu = r.Locale.String(), r.NumberingSystem
+							instant := time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
+							text, err = f.Format(instant)
+							parts, pe := f.FormatToParts(instant)
+							if pe != nil {
+								t.Fatal(pe)
+							}
+							for _, p := range parts {
+								joined += p.Value
+							}
+						}
+					case "relative":
+						f, e := relativetimeformat.New(locales, relativetimeformat.Options{NumberingSystem: &option})
+						err = e
+						if e == nil {
+							r := f.ResolvedOptions()
+							loc, nu = r.Locale.String(), r.NumberingSystem
+							text, err = f.Format(relativetimeformat.Int(1), relativetimeformat.Day)
+							parts, pe := f.FormatToParts(relativetimeformat.Int(1), relativetimeformat.Day)
+							if pe != nil {
+								t.Fatal(pe)
+							}
+							for _, p := range parts {
+								joined += p.Value
+							}
+						}
+					case "duration":
+						f, e := durationformat.New(locales, durationformat.Options{NumberingSystem: &option})
+						err = e
+						if e == nil {
+							r := f.ResolvedOptions()
+							loc, nu = r.Locale.String(), r.NumberingSystem
+							text, err = f.Format(durationformat.Duration{Seconds: 1})
+							parts, pe := f.FormatToParts(durationformat.Duration{Seconds: 1})
+							if pe != nil {
+								t.Fatal(pe)
+							}
+							for _, p := range parts {
+								joined += p.Value
+							}
+						}
+					}
+					if option == "bad!" || option == "" {
+						if !errors.Is(err, ErrInvalidOption) {
+							t.Fatalf("New error = %v, want ErrInvalidOption", err)
+						}
+						return
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					wantLocale, wantNU, digit := "en", "arab", "١"
+					if requested == "en-u-nu-arab" {
+						wantLocale = requested
+					}
+					if option == "unknown" {
+						wantLocale = requested
+						if requested != "en-u-nu-arab" {
+							wantNU, digit = "latn", "1"
+						}
+					}
+					if loc != wantLocale || nu != wantNU || !strings.Contains(text, digit) || text != joined {
+						t.Fatalf("locale=%q, nu=%q, text=%q, parts=%q; want locale=%q, nu=%q, digit=%q", loc, nu, text, joined, wantLocale, wantNU, digit)
+					}
+				})
+			}
+		}
 	}
 }

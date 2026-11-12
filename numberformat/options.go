@@ -89,7 +89,7 @@ func applyOptions(cfg *config, opts Options) {
 	ecma402.ApplyOption(&cfg.useGrouping, opts.UseGrouping)
 	ecma402.ApplyOption(&cfg.signDisplay, opts.SignDisplay)
 	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
-	ecma402.ApplyUnicodeTypeOptionInput(&cfg.numberingSystem, &cfg.hasNumberingSystem, "nu", opts.NumberingSystem)
+	ecma402.ApplyOptionInput(&cfg.numberingSystem, &cfg.hasNumberingSystem, opts.NumberingSystem)
 }
 
 func (c config) validateBeforeDigits(locName string) error {

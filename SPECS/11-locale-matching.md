@@ -397,7 +397,9 @@ d. If r.extension is not undefined:
         i.  requestedValue := UnicodeExtensionValue(r.extension, key)
 ii. If requestedValue ∈ keyLocaleData, and (key does not need to be normalized or requestedValue has been normalized),
             value := requestedValue;supportedExtensionAddition := "-" + key + "-" + value
-e. If options[key] differs from value and ∈ keyLocaleData,
+e. Canonicalize a present string options[key] with the key-aware Unicode
+   type rules (ASCII case and generated CLDR aliases) before comparison.
+   If its canonical value differs from value and ∈ keyLocaleData,
    override value and clear supportedExtensionAddition.
    An equal supported option preserves the requested extension.
    f. result[key]:= value
@@ -407,6 +409,12 @@ e. If options[key] differs from value and ∈ keyLocaleData,
 8. result.locale := foundLocale
 9. return result
 ```
+
+Constructors validate raw Unicode option syntax. Shared `ResolveLocale` owns
+canonicalization before support checks; equal supported values retain the
+requested extension, different supported values clear it, and unknown values
+do not override it. Resolver alias tests and the four-constructor numbering
+system matrix in `intl_test.go` cover these projections.
 
 ### 4.2 Go signature
 

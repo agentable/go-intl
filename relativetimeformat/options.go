@@ -49,13 +49,11 @@ func applyOptions(cfg *config, opts Options) {
 	ecma402.ApplyOption(&cfg.numeric, opts.Numeric)
 }
 
-func (cfg config) validate(locName string) error {
+func (cfg config) validateLocaleOptions(locName string) error {
 	if err := ecma402.ValidateStringOptions(
 		relativeTimeFormatOwner,
 		locName,
 		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.hasLocaleMatcher),
-		relativeTimeStyleOption(cfg.style),
-		relativeTimeNumericOption(cfg.numeric),
 	); err != nil {
 		return err
 	}

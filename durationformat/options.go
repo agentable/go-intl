@@ -145,25 +145,15 @@ func durationUnitStyleOption(name, value string, set durationUnitStyleSet) ecma4
 	}
 }
 
-func (cfg config) validate(locName string) error {
+func (cfg config) validateLocaleOptions(locName string) error {
 	if err := ecma402.ValidateStringOptions(
 		durationFormatOwner,
 		locName,
 		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.hasLocaleMatcher),
-		durationStyleOption(cfg.style),
 	); err != nil {
 		return err
 	}
-	if err := ecma402.ValidateUnicodeTypeOptionInput(durationFormatOwner, "numberingSystem", cfg.numberingSystem, locName, cfg.hasNumberingSystem); err != nil {
-		return err
-	}
-	return ecma402.ValidateIntegerOptions(durationFormatOwner, locName, ecma402.IntegerOption{
-		Name:  "fractionalDigits",
-		Value: cfg.fractionalDigits,
-		Min:   0,
-		Max:   9,
-		Set:   cfg.hasFractionalDigits,
-	})
+	return ecma402.ValidateUnicodeTypeOptionInput(durationFormatOwner, "numberingSystem", cfg.numberingSystem, locName, cfg.hasNumberingSystem)
 }
 
 func resolveUnitOptions(cfg config, locName string) ([unitCount]resolvedUnitConfig, error) {

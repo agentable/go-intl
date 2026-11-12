@@ -40,6 +40,7 @@ func TestExecutableDateSkeletonBoundary(t *testing.T) {
 		{skeleton: "yMMMd", want: true},
 		{skeleton: "Hmsvvvv", want: true},
 		{skeleton: "MMMMW-count-one", want: false},
+		{skeleton: "y-count-one", want: false},
 		{skeleton: "yQQQ", want: false},
 	} {
 		if got := isExecutableDateSkeleton(tc.skeleton); got != tc.want {
