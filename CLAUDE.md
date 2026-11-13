@@ -237,7 +237,7 @@ official proposal; other additions still require an explicit owner and review.
 
 ### Must Follow
 
-- Go 1.27.3. Use modern stdlib features already present in the codebase: `slices`, `maps`, `for range N`, `sync.OnceValue`, `sync.Map`, `log/slog`, and `testing.B.Loop()`.
+- Go 1.27.4. Use modern stdlib features already present in the codebase: `slices`, `maps`, `for range N`, `sync.OnceValue`, `sync.Map`, `log/slog`, and `testing.B.Loop()`.
 - Follow Google Go Best Practices: <https://google.github.io/go-style/best-practices>.
 - Follow Google Go Style Decisions: <https://google.github.io/go-style/decisions>.
 - Keep interfaces small and consumer-owned; do not expose broad internal abstractions.

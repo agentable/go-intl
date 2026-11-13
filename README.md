@@ -23,7 +23,7 @@ A Go implementation of the active ECMA-402 `Intl` API with typed constructors an
 go get github.com/agentable/go-intl
 ```
 
-Requires **Go 1.27.3**.
+Requires **Go 1.27.4**.
 
 ## Quick Start
 
@@ -932,9 +932,9 @@ The committed `go.work` links the four release modules during local development.
 The generators can also run outside a checkout at a coordinated release version:
 
 ```bash
-go run github.com/agentable/go-intl/tools/gen-cldr@v0.4.17 -h
-go run github.com/agentable/go-intl/tools/gen-plural-rules@v0.4.17 -h
-go run github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs@v0.4.17 -h
+go run github.com/agentable/go-intl/tools/gen-cldr@v0.5.2 -h
+go run github.com/agentable/go-intl/tools/gen-plural-rules@v0.5.2 -h
+go run github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs@v0.5.2 -h
 ```
 
 Generation requires the explicit input and output paths shown by each command.
