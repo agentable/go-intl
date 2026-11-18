@@ -72,11 +72,11 @@ func SupportedLocales() []string {
 }
 
 func parentTag(tag string) string {
-	idx := strings.LastIndex(tag, "-")
-	if idx < 0 {
+	parent, _, found := strings.CutLast(tag, "-")
+	if !found {
 		return ""
 	}
-	return tag[:idx]
+	return parent
 }
 
 func lookupInLocale(tag, kind, style, languageDisplay, code string, fallbackCode bool) (string, bool) {

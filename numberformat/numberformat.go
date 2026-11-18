@@ -67,16 +67,16 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 		TrailingZeroDisplay:      TrailingZeroDisplay(digitOptions.TrailingZeroDisplay),
 	}
 	if cfg.style == "currency" {
-		resolved.Currency = ecma402.ResolvedScalar(cfg.currency)
-		resolved.CurrencyDisplay = ecma402.ResolvedScalar(CurrencyDisplay(cfg.currencyDisplay))
-		resolved.CurrencySign = ecma402.ResolvedScalar(CurrencySign(cfg.currencySign))
+		resolved.Currency = new(cfg.currency)
+		resolved.CurrencyDisplay = new(CurrencyDisplay(cfg.currencyDisplay))
+		resolved.CurrencySign = new(CurrencySign(cfg.currencySign))
 	}
 	if cfg.style == "unit" {
-		resolved.Unit = ecma402.ResolvedScalar(cfg.unit)
-		resolved.UnitDisplay = ecma402.ResolvedScalar(UnitDisplay(cfg.unitDisplay))
+		resolved.Unit = new(cfg.unit)
+		resolved.UnitDisplay = new(UnitDisplay(cfg.unitDisplay))
 	}
 	if cfg.notation == "compact" {
-		resolved.CompactDisplay = ecma402.ResolvedScalar(CompactDisplay(cfg.compactDisplay))
+		resolved.CompactDisplay = new(CompactDisplay(cfg.compactDisplay))
 	}
 	symbols := cldrLoc.NumberSymbols(numberingSystem)
 	if resolved.Style == CurrencyStyle {

@@ -66,7 +66,7 @@ func resolvedCompactDisplay(cfg config) *CompactDisplay {
 	if cfg.notation != string(CompactNotation) {
 		return nil
 	}
-	return ecma402.ResolvedScalar(CompactDisplay(cfg.compactDisplay))
+	return new(CompactDisplay(cfg.compactDisplay))
 }
 
 func publicCategories(categories []pluralop.Category) []Category {

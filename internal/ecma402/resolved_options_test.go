@@ -2,19 +2,6 @@ package ecma402
 
 import "testing"
 
-func TestResolvedScalarReturnsFreshPointer(t *testing.T) {
-	t.Parallel()
-
-	got := ResolvedScalar(3)
-	if got == nil || *got != 3 {
-		t.Fatalf("ResolvedScalar(3) = %v, want pointer to 3", got)
-	}
-	*got = 4
-	if next := ResolvedScalar(3); next == nil || *next != 3 {
-		t.Fatalf("ResolvedScalar(3) after caller mutation = %v, want pointer to 3", next)
-	}
-}
-
 func TestCloneResolvedScalar(t *testing.T) {
 	t.Parallel()
 

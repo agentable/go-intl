@@ -306,7 +306,7 @@ func matcherOptions(resolved ResolvedOptions, uses24Hour bool) ecma402dtf.Option
 	if hour12 == nil {
 		hour12 = hourCycleImpliesHour12(HourCycle(hourCycle))
 		if hour12 == nil {
-			hour12 = ecma402.ResolvedScalar(!uses24Hour)
+			hour12 = new(!uses24Hour)
 		}
 	}
 	return ecma402dtf.Options{
@@ -441,7 +441,7 @@ func (p selectedPattern) applyResolvedComponents(resolved *ResolvedOptions) {
 	resolved.Second = resolvedStringOption[NumericStyle](string(timeFormat.Second))
 	resolved.FractionalSecondDigits = nil
 	if timeFormat.FractionalSecondDigits != 0 {
-		resolved.FractionalSecondDigits = ecma402.ResolvedScalar(timeFormat.FractionalSecondDigits)
+		resolved.FractionalSecondDigits = new(timeFormat.FractionalSecondDigits)
 	}
 	timeZoneName := timeFormat.TimeZoneName
 	if timeZoneName == "" {

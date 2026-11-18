@@ -1,6 +1,9 @@
 package localeprofile
 
 import (
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +42,16 @@ func TestReadRejectsUnknownKeys(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), `unknown field "pluralLocales"`) {
 		t.Fatalf("Read() error = %v, want unknown pluralLocales field", err)
 	}
+	if !errors.Is(err, json.ErrUnknownName) {
+		t.Fatalf("Read() error = %v, want a wrapped json.ErrUnknownName", err)
+	}
+	semantic, ok := errors.AsType[*json.SemanticError](err)
+	if !ok {
+		t.Fatalf("Read() error = %v, want a wrapped *json.SemanticError", err)
+	}
+	if semantic.JSONPointer != "/pluralLocales" {
+		t.Errorf("Read() error JSON pointer = %q, want /pluralLocales", semantic.JSONPointer)
+	}
 }
 
 func TestReadRejectsTrailingValues(t *testing.T) {
@@ -48,6 +61,9 @@ func TestReadRejectsTrailingValues(t *testing.T) {
 	_, err := Read(path)
 	if err == nil || !strings.Contains(err.Error(), "multiple JSON values") {
 		t.Fatalf("Read() error = %v, want multiple JSON values", err)
+	}
+	if _, ok := errors.AsType[*jsontext.SyntacticError](err); !ok {
+		t.Fatalf("Read() error = %v, want a wrapped *jsontext.SyntacticError", err)
 	}
 }
 

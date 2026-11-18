@@ -185,24 +185,24 @@ func (d ResolvedDigitOptions) CanUseIntegerOperands(notation string) bool {
 
 func (d ResolvedDigitOptions) resolvedFractionDigitProperties() ResolvedDigitProperties {
 	return ResolvedDigitProperties{
-		MinimumFractionDigits: ecma402.ResolvedScalar(d.MinimumFractionDigits),
-		MaximumFractionDigits: ecma402.ResolvedScalar(d.MaximumFractionDigits),
+		MinimumFractionDigits: new(d.MinimumFractionDigits),
+		MaximumFractionDigits: new(d.MaximumFractionDigits),
 	}
 }
 
 func (d ResolvedDigitOptions) resolvedSignificantDigitProperties() ResolvedDigitProperties {
 	return ResolvedDigitProperties{
-		MinimumSignificantDigits: ecma402.ResolvedScalar(d.MinimumSignificantDigits),
-		MaximumSignificantDigits: ecma402.ResolvedScalar(d.MaximumSignificantDigits),
+		MinimumSignificantDigits: new(d.MinimumSignificantDigits),
+		MaximumSignificantDigits: new(d.MaximumSignificantDigits),
 	}
 }
 
 func (d ResolvedDigitOptions) resolvedAllDigitProperties() ResolvedDigitProperties {
 	return ResolvedDigitProperties{
-		MinimumFractionDigits:    ecma402.ResolvedScalar(d.MinimumFractionDigits),
-		MaximumFractionDigits:    ecma402.ResolvedScalar(d.MaximumFractionDigits),
-		MinimumSignificantDigits: ecma402.ResolvedScalar(d.MinimumSignificantDigits),
-		MaximumSignificantDigits: ecma402.ResolvedScalar(d.MaximumSignificantDigits),
+		MinimumFractionDigits:    new(d.MinimumFractionDigits),
+		MaximumFractionDigits:    new(d.MaximumFractionDigits),
+		MinimumSignificantDigits: new(d.MinimumSignificantDigits),
+		MaximumSignificantDigits: new(d.MaximumSignificantDigits),
 	}
 }
 

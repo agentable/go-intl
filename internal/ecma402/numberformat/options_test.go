@@ -384,26 +384,26 @@ func TestResolvedDigitOptionsResolvedProperties(t *testing.T) {
 			name: "fraction digits",
 			typ:  RoundingTypeFractionDigits,
 			want: ResolvedDigitProperties{
-				MinimumFractionDigits: ecma402.ResolvedScalar(2),
-				MaximumFractionDigits: ecma402.ResolvedScalar(4),
+				MinimumFractionDigits: new(2),
+				MaximumFractionDigits: new(4),
 			},
 		},
 		{
 			name: "significant digits",
 			typ:  RoundingTypeSignificantDigits,
 			want: ResolvedDigitProperties{
-				MinimumSignificantDigits: ecma402.ResolvedScalar(3),
-				MaximumSignificantDigits: ecma402.ResolvedScalar(5),
+				MinimumSignificantDigits: new(3),
+				MaximumSignificantDigits: new(5),
 			},
 		},
 		{
 			name: "precision priority",
 			typ:  RoundingTypeMorePrecision,
 			want: ResolvedDigitProperties{
-				MinimumFractionDigits:    ecma402.ResolvedScalar(2),
-				MaximumFractionDigits:    ecma402.ResolvedScalar(4),
-				MinimumSignificantDigits: ecma402.ResolvedScalar(3),
-				MaximumSignificantDigits: ecma402.ResolvedScalar(5),
+				MinimumFractionDigits:    new(2),
+				MaximumFractionDigits:    new(4),
+				MinimumSignificantDigits: new(3),
+				MaximumSignificantDigits: new(5),
 			},
 		},
 	}

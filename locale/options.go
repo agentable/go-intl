@@ -39,7 +39,7 @@ func applyLanguageOptions(loc *Locale, opts Options) error {
 	variants := localeid.VariantSubtags(loc.tag)
 	if opts.Variants != nil {
 		variants = nil
-		for _, value := range strings.Split(*opts.Variants, "-") {
+		for value := range strings.SplitSeq(*opts.Variants, "-") {
 			canonical, ok := localeid.CanonicalUnicodeVariantSubtag(value)
 			if !ok || slices.Contains(variants, canonical) {
 				return invalidLocaleOptionExpected("variants", *opts.Variants, "one or more distinct Unicode variant subtags", nil)

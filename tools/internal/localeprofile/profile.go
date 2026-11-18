@@ -42,14 +42,12 @@ func unmarshalProfile(raw []byte, profile *Profile) error {
 		return nil
 	}
 	if errors.Is(err, json.ErrUnknownName) {
-		var semantic *json.SemanticError
-		if errors.As(err, &semantic) {
+		if semantic, ok := errors.AsType[*json.SemanticError](err); ok {
 			name := strings.TrimPrefix(string(semantic.JSONPointer), "/")
 			return fmt.Errorf("unknown field %q: %w", name, err)
 		}
 	}
-	var syntactic *jsontext.SyntacticError
-	if errors.As(err, &syntactic) && strings.Contains(err.Error(), "after top-level value") {
+	if _, ok := errors.AsType[*jsontext.SyntacticError](err); ok && strings.Contains(err.Error(), "after top-level value") {
 		return fmt.Errorf("multiple JSON values: %w", err)
 	}
 	return err

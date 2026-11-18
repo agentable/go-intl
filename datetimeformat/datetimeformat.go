@@ -74,7 +74,7 @@ func New(locales locale.List, opts Options) (*DateTimeFormat, error) {
 		TimeStyle:       resolvedStringOption[Style](cfg.timeStyle),
 	}
 	if cfg.hasFractionalSecondDigits {
-		resolved.FractionalSecondDigits = ecma402.ResolvedScalar(cfg.fractionalSecondDigits)
+		resolved.FractionalSecondDigits = new(cfg.fractionalSecondDigits)
 	}
 
 	uses24Hour := resolvedUses24HourTime(resolved)
@@ -187,9 +187,9 @@ func resolveHourCycle(cfg config, resolvedHourCycle, dataLocale string) (HourCyc
 func hourCycleImpliesHour12(hourCycle HourCycle) *bool {
 	switch hourCycle {
 	case H11HourCycle, H12HourCycle:
-		return ecma402.ResolvedScalar(true)
+		return new(true)
 	case H23HourCycle, H24HourCycle:
-		return ecma402.ResolvedScalar(false)
+		return new(false)
 	}
 	return nil
 }

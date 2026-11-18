@@ -20,11 +20,11 @@ func getFallbackCandidates(loc string) []string {
 	candidates := make([]string, 0, strings.Count(loc, "-")+1)
 	for loc != "" {
 		candidates = append(candidates, loc)
-		lastDash := strings.LastIndex(loc, "-")
-		if lastDash < 0 {
+		parent, _, found := strings.CutLast(loc, "-")
+		if !found {
 			break
 		}
-		loc = loc[:lastDash]
+		loc = parent
 	}
 	return candidates
 }

@@ -40,7 +40,7 @@ func New(locales locale.List, opts Options) (*DisplayNames, error) {
 		Fallback: Fallback(cfg.fallback),
 	}
 	if resolved.Type == Language {
-		resolved.LanguageDisplay = ecma402.ResolvedScalar(LanguageDisplay(cfg.languageDisplay))
+		resolved.LanguageDisplay = new(LanguageDisplay(cfg.languageDisplay))
 	}
 	return &DisplayNames{
 		resolved:   resolved,

@@ -177,5 +177,5 @@ func resolvedStringOption[T ~string](value string) *T {
 		return nil
 	}
 	resolved := T(value)
-	return ecma402.ResolvedScalar(resolved)
+	return new(resolved)
 }

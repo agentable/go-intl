@@ -105,7 +105,7 @@ func resolvedOptionsForDurationFormat(loc locale.Locale, numberingSystem string,
 		resolved.setUnitOption(spec.index, unitOptions[spec.index])
 	}
 	if cfg.hasFractionalDigits {
-		resolved.FractionalDigits = ecma402.ResolvedScalar(cfg.fractionalDigits)
+		resolved.FractionalDigits = new(cfg.fractionalDigits)
 	}
 	return resolved
 }

@@ -20,8 +20,7 @@ func Example_errorKind() {
 		Currency: gointl.String("US"), // not a 3-letter ISO 4217 code
 	})
 
-	var intlErr *gointl.Error
-	if errors.As(err, &intlErr) {
+	if intlErr, ok := errors.AsType[*gointl.Error](err); ok {
 		switch intlErr.Kind {
 		case gointl.InvalidOption:
 			fmt.Println("invalid option:", intlErr.Name)

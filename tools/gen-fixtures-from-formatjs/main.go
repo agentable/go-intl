@@ -1192,9 +1192,9 @@ func firstMatchString(data string, match []int, indexes ...int) string {
 }
 
 func latestConstructorDeclarationBefore(declarations []formatJSConstructorDeclaration, index int) (formatJSConstructorDeclaration, bool) {
-	for i := len(declarations) - 1; i >= 0; i-- {
-		if declarations[i].index < index {
-			return declarations[i], true
+	for _, declaration := range slices.Backward(declarations) {
+		if declaration.index < index {
+			return declaration, true
 		}
 	}
 	return formatJSConstructorDeclaration{}, false
