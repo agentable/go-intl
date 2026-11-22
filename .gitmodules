@@ -22,3 +22,6 @@
 [submodule ".references/go-money"]
 	path = .references/go-money
 	url = https://github.com/Rhymond/go-money
+[submodule ".references/moejs"]
+	path = .references/moejs
+	url = https://github.com/MoeForge/moejs.git
