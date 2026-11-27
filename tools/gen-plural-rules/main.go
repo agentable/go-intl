@@ -221,8 +221,8 @@ func parsePluralLocaleRules(path, typeKey, loc string, rules map[string]string) 
 		if !ok {
 			return nil, fmt.Errorf("parse %s %s %s: unknown plural category %q", path, typeKey, loc, categoryName)
 		}
-		expr := strings.TrimSpace(strings.Split(rules[key], "@")[0])
-		out = append(out, Rule{Locale: loc, Category: category, Expr: expr})
+		expr, _, _ := strings.Cut(rules[key], "@")
+		out = append(out, Rule{Locale: loc, Category: category, Expr: strings.TrimSpace(expr)})
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("parse %s %s %s: plural rules missing", path, typeKey, loc)
@@ -303,11 +303,11 @@ func parseRangeRuleKey(key string) (Category, Category, bool, error) {
 func activeRules(kind pluralRuleKind, rules map[string][]Rule, locales []string) (map[string][]Rule, error) {
 	out := make(map[string][]Rule, len(locales))
 	for _, loc := range locales {
-		source := pluralRuleSource(loc, rules)
-		if rules[source] == nil {
+		matching := pluralRulesForLocale(loc, rules)
+		if matching == nil {
 			return nil, fmt.Errorf("%s rule for active locale %q is missing", kind, loc)
 		}
-		out[loc] = cloneRules(loc, rules[source])
+		out[loc] = cloneRules(loc, matching)
 	}
 	return out, nil
 }
@@ -315,26 +315,25 @@ func activeRules(kind pluralRuleKind, rules map[string][]Rule, locales []string)
 func filterActiveRanges(ranges map[string]map[RangeKey]Category, locales []string) map[string]map[RangeKey]Category {
 	out := make(map[string]map[RangeKey]Category, len(locales))
 	for _, loc := range locales {
-		source := pluralRuleSource(loc, ranges)
-		if ranges[source] != nil {
-			out[loc] = maps.Clone(ranges[source])
+		if matching := pluralRulesForLocale(loc, ranges); matching != nil {
+			out[loc] = matching
 		}
 	}
 	return out
 }
 
-func pluralRuleSource[T any](locale string, rules map[string]T) string {
+func pluralRulesForLocale[T any](locale string, rules map[string]T) T {
 	for candidate := locale; candidate != ""; {
-		if _, ok := rules[candidate]; ok {
-			return candidate
+		if matching, ok := rules[candidate]; ok {
+			return matching
 		}
 		idx := strings.LastIndexByte(candidate, '-')
 		if idx < 0 {
-			return ""
+			break
 		}
 		candidate = candidate[:idx]
 	}
-	return ""
+	return rules[""]
 }
 
 func cloneRules(locale string, rules []Rule) []Rule {
@@ -348,18 +347,19 @@ func cloneRules(locale string, rules []Rule) []Rule {
 
 func renderRuleFile(kind pluralRuleKind, rules map[string][]Rule) (string, error) {
 	name := kind.title()
+	locales := sortedRuleLocales(rules)
 	var b strings.Builder
 	writeHeader(&b)
 	b.WriteString("package plural\n\n")
 	b.WriteString("import pluralop \"github.com/agentable/go-intl/internal/plural\"\n\n")
 	fmt.Fprintf(&b, "func %sRule(loc string) (func(pluralop.OperandsRecord) pluralop.Category, bool) {\n", name)
 	b.WriteString("\tswitch loc {\n")
-	for _, loc := range sortedRuleLocales(rules) {
+	for _, loc := range locales {
 		fmt.Fprintf(&b, "\tcase %q:\n\t\treturn %s%s, true\n", loc, kind, funcSuffix(loc))
 	}
 	b.WriteString("\t}\n\treturn nil, false\n")
 	b.WriteString("}\n\n")
-	for _, loc := range sortedRuleLocales(rules) {
+	for _, loc := range locales {
 		if err := renderRuleFunc(&b, string(kind)+funcSuffix(loc), rules[loc]); err != nil {
 			return "", err
 		}

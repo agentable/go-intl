@@ -415,6 +415,10 @@ The retired literal-rendering layer — `golang_literal.go`, `map_literal.go` (r
 
 `codegen/domain.go` holds the `domains` registry: one row per CLDR payload domain with its package directory and its const-only `emit` function. Generation derives domain outputs from this table. The data-shape gate (`internal/cldr/locale/datashape_test.go`) independently discovers generated files by their headers; round-trip tests (for example `codegen/currency_roundtrip_test.go`) compare source data through production accessors. The payload path is derived (`internal/cldr/<pkg>/data.go`), and each domain gets a fresh per-domain `StringTable` so its `_data` holds only its own strings. Auxiliary identity products have explicit CLI output paths because their runtime owners sit outside `internal/cldr`; `Taskfile.yml` supplies their output paths and invokes the check. `tools/check-generated-data/compare.go` discovers files from recognized generator headers in both trees, requires the same complete relative-path set, and compares corresponding bytes. `tools/check-generated-data/compare_test.go` covers missing, extra, and changed files; no hand-maintained diff list owns completeness.
 
+The per-domain string table appends each distinct value once and reuses its
+first byte offset and length for repeated values. References remain valid as
+the table grows. `task data:check` verifies the emitted bytes.
+
 Time-zone display generation always validates the IANA pin/archive and CLDR
 BCP47 aliases, even when the auxiliary `-timezone-out` path is omitted. The CLI
 defaults `-tzdata-lock` to `tzdata.json`; direct `Run` callers supply that required

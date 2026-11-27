@@ -238,16 +238,12 @@ func (s jsSource) matches(re *regexp.Regexp) [][]int {
 // codeMatches retains declarations whose values cannot be extracted: a later
 // unsupported declaration must still block reuse of an earlier configuration.
 func (s jsSource) codeMatches(re *regexp.Regexp) [][]int {
-	var matches [][]int
-	for _, match := range re.FindAllStringSubmatchIndex(s.text, -1) {
+	return slices.DeleteFunc(re.FindAllStringSubmatchIndex(s.text, -1), func(match []int) bool {
 		if !s.code[match[0]] || s.issue != "" && match[1] > s.at {
-			continue
+			return true
 		}
-		if !s.overlapsOpaque(match[0], match[0]+1) {
-			matches = append(matches, match)
-		}
-	}
-	return matches
+		return s.overlapsOpaque(match[0], match[0]+1)
+	})
 }
 
 func (s jsSource) overlapsOpaque(start, end int) bool {

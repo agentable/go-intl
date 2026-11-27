@@ -34,7 +34,7 @@ func TestStringTableAddDeduplicatesRefs(t *testing.T) {
 	if again != first {
 		t.Errorf("Add(%q) returned %+v, want original ref %+v", "alpha", again, first)
 	}
-	if got := table.data; got != "alphabeta" {
+	if got := table.data.String(); got != "alphabeta" {
 		t.Errorf("StringTable data after duplicate add = %q, want %q", got, "alphabeta")
 	}
 }

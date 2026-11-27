@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 )
 
 type StringRef struct {
@@ -17,11 +18,12 @@ func (r StringRef) String() string {
 	if r.table == nil {
 		return ""
 	}
-	return r.table.data[r.start : r.start+r.length]
+	return r.table.data.String()[r.start : r.start+r.length]
 }
 
+// StringTable interns strings for one generated domain. Use it through its pointer.
 type StringTable struct {
-	data string
+	data strings.Builder
 	refs map[string]StringRef
 }
 
@@ -33,8 +35,8 @@ func (t *StringTable) Add(s string) StringRef {
 	if ref, ok := t.refs[s]; ok {
 		return ref
 	}
-	ref := StringRef{start: uint32(len(t.data)), length: uint32(len(s)), table: t}
-	t.data += s
+	ref := StringRef{start: uint32(t.data.Len()), length: uint32(len(s)), table: t}
+	t.data.WriteString(s)
 	t.refs[s] = ref
 	return ref
 }
@@ -44,7 +46,7 @@ func (t *StringTable) Add(s string) StringRef {
 // those. This is the const-only payload form a domain data.go uses, where the
 // sliceRef type and string() method live in the hand-written decode.go instead.
 func (t *StringTable) EmitDataConst(w io.Writer, name string) error {
-	return emitStringConst(w, name, t.data)
+	return emitStringConst(w, name, t.data.String())
 }
 
 // emitStringConst writes a string value as a chunked "" + "…" const so the
