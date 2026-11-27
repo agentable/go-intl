@@ -336,6 +336,8 @@ func renderCategoriesFile(cardinal, ordinal map[string][]Rule) string
 **MUST** Rules:
 
 1. `pluralRanges.json` data **MUST** be in the same pipeline codegen as `plurals.json` / `ordinals.json`, and output to `internal/cldr/plural/range_rules.go`.
+   The generator parses each range row's start and end categories into the
+   lookup key and reports an unknown category with its endpoint.
 2. The generated artifact remains sparse and exposes whether the requested
    category pair has an explicit CLDR row:
    ```go

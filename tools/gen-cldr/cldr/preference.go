@@ -84,7 +84,7 @@ func loadHourCyclePreference(root string) (map[string][]string, error) {
 
 func hourCycles(raw string) ([]string, error) {
 	out := make([]string, 0, 4)
-	for _, token := range strings.Fields(raw) {
+	for token := range strings.FieldsSeq(raw) {
 		switch token {
 		case "h":
 			out = append(out, "h12")

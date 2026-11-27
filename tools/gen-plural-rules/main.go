@@ -259,7 +259,7 @@ func parsePluralLocaleRanges(path, loc string, rules map[string]string) (map[Ran
 	}
 	ranges := make(map[RangeKey]Category)
 	for _, key := range slices.Sorted(maps.Keys(rules)) {
-		start, end, ok, err := parseRangeRuleKey(key)
+		rangeKey, ok, err := parseRangeRuleKey(key)
 		if err != nil {
 			return nil, fmt.Errorf("parse %s pluralRanges %s key %q: %w", path, loc, key, err)
 		}
@@ -271,7 +271,7 @@ func parsePluralLocaleRanges(path, loc string, rules map[string]string) (map[Ran
 		if !ok {
 			return nil, fmt.Errorf("parse %s pluralRanges %s key %q: unknown plural category %q", path, loc, key, resultName)
 		}
-		ranges[RangeKey{Start: start, End: end}] = result
+		ranges[rangeKey] = result
 	}
 	if len(ranges) == 0 {
 		return nil, fmt.Errorf("parse %s pluralRanges %s: range rules missing", path, loc)
@@ -279,25 +279,25 @@ func parsePluralLocaleRanges(path, loc string, rules map[string]string) (map[Ran
 	return ranges, nil
 }
 
-func parseRangeRuleKey(key string) (Category, Category, bool, error) {
+func parseRangeRuleKey(key string) (RangeKey, bool, error) {
 	const prefix = "pluralRange-start-"
 	key, ok := strings.CutPrefix(key, prefix)
 	if !ok {
-		return 0, 0, false, nil
+		return RangeKey{}, false, nil
 	}
 	start, rest, ok := strings.Cut(key, "-end-")
 	if !ok {
-		return 0, 0, false, nil
+		return RangeKey{}, false, nil
 	}
 	startCategory, ok := pluralop.ParseCategory(start)
 	if !ok {
-		return 0, 0, false, fmt.Errorf("unknown plural range start category %q", start)
+		return RangeKey{}, false, fmt.Errorf("unknown plural range start category %q", start)
 	}
 	endCategory, ok := pluralop.ParseCategory(rest)
 	if !ok {
-		return 0, 0, false, fmt.Errorf("unknown plural range end category %q", rest)
+		return RangeKey{}, false, fmt.Errorf("unknown plural range end category %q", rest)
 	}
-	return startCategory, endCategory, true, nil
+	return RangeKey{Start: startCategory, End: endCategory}, true, nil
 }
 
 func activeRules(kind pluralRuleKind, rules map[string][]Rule, locales []string) (map[string][]Rule, error) {
