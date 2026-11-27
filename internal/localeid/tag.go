@@ -22,6 +22,16 @@ func (t Tag) String() string {
 	return string(t)
 }
 
+// ParseLanguageID accepts only a Unicode language identifier without extensions.
+func ParseLanguageID(s string, maximize SubtagMaximizer) (Tag, error) {
+	parts := strings.Split(asciiLower(s), "-")
+	if unicodeLanguageIDLength(parts) != len(parts) {
+		return "", ErrInvalidLanguageTag
+	}
+	base, err := canonicalLanguageID(parts, maximize)
+	return Tag(base), err
+}
+
 // ParseTag validates syntax before canonicalization can erase duplicate subtags.
 func ParseTag(s string, maximize SubtagMaximizer) (Tag, error) {
 	parts := strings.Split(asciiLower(s), "-")
@@ -131,17 +141,16 @@ func canonicalTransformed(parts []string, maximize SubtagMaximizer) (string, err
 }
 
 func Parts(tag Tag) (lang, script, region string) {
-	parts := strings.Split(tag.String(), "-")
-	lang = parts[0]
-	i := 1
-	if i < len(parts) && IsUnicodeScriptSubtag(parts[i]) {
-		script = parts[i]
-		i++
+	lang, rest, _ := strings.Cut(tag.String(), "-")
+	subtag, tail, _ := strings.Cut(rest, "-")
+	if IsUnicodeScriptSubtag(subtag) {
+		script = subtag
+		subtag, _, _ = strings.Cut(tail, "-")
 	}
-	if i < len(parts) && IsUnicodeRegionSubtag(parts[i]) {
-		region = parts[i]
+	if IsUnicodeRegionSubtag(subtag) {
+		region = subtag
 	}
-	return
+	return lang, script, region
 }
 func Join(lang, script, region string) string {
 	return strings.Join(languageSubtags(lang, script, region), "-")
@@ -157,13 +166,16 @@ func languageSubtags(lang, script, region string) []string {
 	return parts
 }
 func BaseName(tag Tag) string {
-	parts := strings.Split(tag.String(), "-")
-	for i, p := range parts {
-		if len(p) == 1 {
-			return strings.Join(parts[:i], "-")
+	text := tag.String()
+	offset := 0
+	for subtag := range strings.SplitSeq(text, "-") {
+		if len(subtag) == 1 {
+			// A returned base name may outlive an arbitrarily long private-use suffix.
+			return strings.Clone(text[:max(offset-1, 0)])
 		}
+		offset += len(subtag) + 1
 	}
-	return tag.String()
+	return text
 }
 func VariantSubtags(tag Tag) []string {
 	parts := strings.Split(BaseName(tag), "-")

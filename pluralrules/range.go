@@ -18,13 +18,13 @@ func (f *PluralRules) SelectRange(start, end Value) (Category, error) {
 			if ecma402.Int64Magnitude(startNumeric.Int64) == ecma402.Int64Magnitude(endNumeric.Int64) {
 				return startCategory, nil
 			}
-			return selectRangeCategories(startCategory, selectInteger(endNumeric.Int64, f.rule), f), nil
+			return f.selectRangeCategories(startCategory, selectInteger(endNumeric.Int64, f.rule)), nil
 		case startNumeric.Kind == ecma402.NumericValueUint64 && endNumeric.Kind == ecma402.NumericValueUint64:
 			startCategory := selectUnsignedInteger(startNumeric.Uint64, f.rule)
 			if startNumeric.Uint64 == endNumeric.Uint64 {
 				return startCategory, nil
 			}
-			return selectRangeCategories(startCategory, selectUnsignedInteger(endNumeric.Uint64, f.rule), f), nil
+			return f.selectRangeCategories(startCategory, selectUnsignedInteger(endNumeric.Uint64, f.rule)), nil
 		}
 	}
 	if startNumeric.Decimal.IsNaN() {
@@ -33,27 +33,15 @@ func (f *PluralRules) SelectRange(start, end Value) (Category, error) {
 	if endNumeric.Decimal.IsNaN() {
 		return Other, invalidRangeValue("end", endNumeric.Decimal.String(), f.resolved.Locale.String(), decimal.ErrInvalidDecimal)
 	}
-	return selectRangeDecimal(startNumeric.Decimal, endNumeric.Decimal, f), nil
-}
-
-func selectRangeDecimal(start, end decimal.Decimal, f *PluralRules) Category {
-	notation := f.resolved.Notation
-	digitOptions := f.digitOptions
-	compact := f.compact
-	rule := f.rule
-	startFormatted, startCategory := resolveDecimal(start, notation, digitOptions, compact, rule)
-	endFormatted, endCategory := resolveDecimal(end, notation, digitOptions, compact, rule)
-	return selectRangeResolved(startFormatted, startCategory, endFormatted, endCategory, f)
-}
-
-func selectRangeResolved(startFormatted string, startCategory Category, endFormatted string, endCategory Category, f *PluralRules) Category {
+	startFormatted, startCategory := f.resolveDecimal(startNumeric.Decimal)
+	endFormatted, endCategory := f.resolveDecimal(endNumeric.Decimal)
 	if startFormatted == endFormatted {
-		return startCategory
+		return startCategory, nil
 	}
-	return selectRangeCategories(startCategory, endCategory, f)
+	return f.selectRangeCategories(startCategory, endCategory), nil
 }
 
-func selectRangeCategories(startCategory Category, endCategory Category, f *PluralRules) Category {
+func (f *PluralRules) selectRangeCategories(startCategory, endCategory Category) Category {
 	return Category(plural.ResolveRange(
 		f.dataLocale,
 		pluralop.Category(startCategory),

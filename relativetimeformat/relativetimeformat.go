@@ -52,6 +52,8 @@ func New(locales locale.List, opts Options) (*RelativeTimeFormat, error) {
 			err,
 		)
 	}
+	// FieldsFor supplies caller-owned maps. Compilation retains the selected
+	// literal maps on this instance.
 	fields, err := compileRelativeTimeFields(cldrrelativetime.FieldsFor(cldrLoc), Style(cfg.style))
 	if err != nil {
 		return nil, fmt.Errorf("relative-time data locale %s: %w", resolvedLocale.String(), err)

@@ -1,97 +1,66 @@
 package tz
 
-import (
-	"fmt"
-	"strconv"
-)
-
 func ParseOffsetString(s string) (int64, error) {
-	sign, hour, minute, err := parseOffsetString(s)
-	if err != nil {
-		return 0, err
-	}
-	return offsetMilliseconds(sign, hour, minute), nil
+	minutes, err := parseOffsetMinutes(s)
+	return int64(minutes) * 60_000, err
 }
 
 func CanonicalOffsetString(s string) (string, error) {
-	sign, hour, minute, err := parseOffsetString(s)
+	minutes, err := parseOffsetMinutes(s)
 	if err != nil {
 		return "", err
 	}
-	return canonicalOffsetString(sign, hour, minute), nil
-}
-
-func parseFixedOffset(s string) (int64, string, error) {
-	sign, hour, minute, err := parseOffsetString(s)
-	if err != nil {
-		return 0, "", err
-	}
-	return offsetMilliseconds(sign, hour, minute), canonicalOffsetString(sign, hour, minute), nil
+	return canonicalOffsetString(minutes), nil
 }
 
 func isOffsetName(s string) bool {
 	return s != "" && (s[0] == '+' || s[0] == '-')
 }
 
-func offsetMilliseconds(sign int64, hour, minute int) int64 {
-	return sign * int64(hour*3600*1000+minute*60*1000)
+func canonicalOffsetString(minutes int) string {
+	sign := byte('+')
+	if minutes < 0 {
+		sign = '-'
+		minutes = -minutes
+	}
+	const digits = "0123456789"
+	hour, minute := minutes/60, minutes%60
+	return string([]byte{sign, digits[hour/10], digits[hour%10], ':', digits[minute/10], digits[minute%10]})
 }
 
-func canonicalOffsetString(sign int64, hour, minute int) string {
-	signRune := '+'
-	if sign < 0 && (hour != 0 || minute != 0) {
-		signRune = '-'
+func parseOffsetMinutes(s string) (int, error) {
+	if !isOffsetName(s) {
+		return 0, invalidOffset(s)
 	}
-	return fmt.Sprintf("%c%02d:%02d", signRune, hour, minute)
-}
-
-func parseOffsetString(s string) (int64, int, int, error) {
-	if len(s) == 0 || s[0] != '+' && s[0] != '-' {
-		return 0, 0, 0, invalidOffset(s)
-	}
-	sign := int64(1)
-	if s[0] == '-' {
-		sign = -1
-	}
-	var hourText, minuteText string
+	minuteText := "00"
 	switch len(s) {
 	case len("+05"):
-		hourText = s[1:3]
-		minuteText = "00"
 	case len("+0530"):
-		hourText = s[1:3]
 		minuteText = s[3:5]
 	case len("+05:30"):
 		if s[3] != ':' {
-			return 0, 0, 0, invalidOffset(s)
+			return 0, invalidOffset(s)
 		}
-		hourText = s[1:3]
 		minuteText = s[4:6]
 	default:
-		return 0, 0, 0, invalidOffset(s)
+		return 0, invalidOffset(s)
 	}
-	if !asciiDigits(hourText) || !asciiDigits(minuteText) {
-		return 0, 0, 0, invalidOffset(s)
+	hour, hourOK := parseOffsetPair(s[1:3])
+	minute, minuteOK := parseOffsetPair(minuteText)
+	if !hourOK || !minuteOK || hour > 23 || minute > 59 {
+		return 0, invalidOffset(s)
 	}
-	hour, err := strconv.Atoi(hourText)
-	if err != nil {
-		return 0, 0, 0, invalidOffset(s)
+	minutes := hour*60 + minute
+	if s[0] == '-' {
+		minutes = -minutes
 	}
-	minute, err := strconv.Atoi(minuteText)
-	if err != nil {
-		return 0, 0, 0, invalidOffset(s)
-	}
-	if hour > 23 || minute > 59 {
-		return 0, 0, 0, invalidOffset(s)
-	}
-	return sign, hour, minute, nil
+	return minutes, nil
 }
 
-func asciiDigits(s string) bool {
-	for i := range len(s) {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
+func parseOffsetPair(s string) (int, bool) {
+	tens, ones := s[0]-'0', s[1]-'0'
+	if tens > 9 || ones > 9 {
+		return 0, false
 	}
-	return true
+	return int(tens)*10 + int(ones), true
 }

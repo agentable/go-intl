@@ -17,11 +17,9 @@ func (f *DateTimeFormat) FormatRange(start, end time.Time) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	r := f.normalizeRange(start, end)
-	if r.relation.equal {
-		return f.Format(r.start)
-	}
-	return string(f.appendRange(nil, f.pattern, r)), nil
+	r := f.selectRange(start, end)
+	var scratch [64]byte
+	return string(f.appendRange(scratch[:0], r)), nil
 }
 
 func (f *DateTimeFormat) FormatRangeToParts(start, end time.Time) ([]RangePart, error) {
@@ -33,30 +31,42 @@ func (f *DateTimeFormat) FormatRangeToParts(start, end time.Time) ([]RangePart, 
 	if err != nil {
 		return nil, err
 	}
-	r := f.normalizeRange(start, end)
+	return f.formatRangeParts(f.selectRange(start, end)), nil
+}
+
+func (f *DateTimeFormat) formatRangeParts(r normalizedRange) []RangePart {
+	pattern := &f.pattern
 	if r.relation.equal {
-		parts, _ := f.FormatToParts(r.start)
-		return rangeParts(parts, SourceShared), nil
+		return rangeParts(pattern.parts(f, r.startLocal), SourceShared)
 	}
-	return f.formatRangeParts(f.pattern, r), nil
+	if program := r.relation.program; program != nil {
+		if pattern.kind == patternDateTime {
+			dateParts := rangeParts(pattern.dateProgram.parts(f, r.startLocal), SourceShared)
+			timeParts := program.parts(f, r.startLocal, r.endLocal)
+			return interpolateDateTimeRangeParts(pattern.dateTimeProgram, dateParts, timeParts)
+		}
+		return program.parts(f, r.startLocal, r.endLocal)
+	}
+	if program := r.relation.fallbackProgram; program != nil {
+		return f.fallbackRangeParts(program.parts(f, r.startLocal), program.parts(f, r.endLocal))
+	}
+	return f.fallbackRangeParts(pattern.parts(f, r.startLocal), pattern.parts(f, r.endLocal))
 }
 
-func (f *DateTimeFormat) formatRangeParts(pattern selectedPattern, r normalizedRange) []RangePart {
-	if parts, ok := f.formatIntervalRangeToParts(pattern, r.relation, r.startLocal, r.endLocal); ok {
-		return parts
+func (f *DateTimeFormat) appendRange(dst []byte, r normalizedRange) []byte {
+	pattern := &f.pattern
+	if r.relation.equal {
+		return pattern.appendTo(f, dst, r.startLocal)
 	}
-	startParts := pattern.parts(f, r.startLocal)
-	endParts := pattern.parts(f, r.endLocal)
-	if r.relation.fallbackProgram != nil {
-		startParts = r.relation.fallbackProgram.parts(f, r.startLocal)
-		endParts = r.relation.fallbackProgram.parts(f, r.endLocal)
-	}
-	return f.fallbackRangeParts(startParts, endParts)
-}
-
-func (f *DateTimeFormat) appendRange(dst []byte, pattern selectedPattern, r normalizedRange) []byte {
-	if out, ok := f.appendIntervalRange(dst, pattern, r.relation, r.startLocal, r.endLocal); ok {
-		return out
+	if program := r.relation.program; program != nil {
+		if pattern.kind == patternDateTime {
+			var dateScratch [64]byte
+			var timeScratch [64]byte
+			date := pattern.dateProgram.appendTo(f, dateScratch[:0], r.startLocal)
+			time := program.appendTo(f, timeScratch[:0], r.startLocal, r.endLocal)
+			return appendDateTimeProgram(dst, pattern.dateTimeProgram, date, time)
+		}
+		return program.appendTo(f, dst, r.startLocal, r.endLocal)
 	}
 	var startScratch [64]byte
 	var endScratch [64]byte
@@ -68,25 +78,21 @@ func (f *DateTimeFormat) appendRange(dst []byte, pattern selectedPattern, r norm
 		start = pattern.appendTo(f, startScratch[:0], r.startLocal)
 		end = pattern.appendTo(f, endScratch[:0], r.endLocal)
 	}
-	return f.appendFallbackRange(dst, start, end)
+	return pattern.rangeRecord.fallback.appendTo(dst, start, end)
 }
 
 type normalizedRange struct {
-	start      time.Time
 	startLocal localTime
 	endLocal   localTime
 	relation   rangeRelation
 }
 
-func (f *DateTimeFormat) normalizeRange(start, end time.Time) normalizedRange {
-	location := f.location
-	start = start.Round(0)
-	end = end.Round(0)
+func (f *DateTimeFormat) selectRange(start, end time.Time) normalizedRange {
+	_, startLocal := gregoryTimeInLocation(start, f.location)
 	if start.Equal(end) {
-		return normalizedRange{start: start, relation: rangeRelation{equal: true}}
+		return normalizedRange{startLocal: startLocal, relation: rangeRelation{equal: true}}
 	}
-	start, startLocal := gregoryTimeInLocation(start, location)
-	_, endLocal := gregoryTimeInLocation(end, location)
+	_, endLocal := gregoryTimeInLocation(end, f.location)
 	var relation rangeRelation
 	switch f.pattern.kind {
 	case patternDate:
@@ -96,47 +102,10 @@ func (f *DateTimeFormat) normalizeRange(start, end time.Time) normalizedRange {
 	case patternNone:
 	}
 	return normalizedRange{
-		start:      start,
 		startLocal: startLocal,
 		endLocal:   endLocal,
 		relation:   relation,
 	}
-}
-
-func (f *DateTimeFormat) formatIntervalRangeToParts(pattern selectedPattern, relation rangeRelation, start, end localTime) ([]RangePart, bool) {
-	program := relation.program
-	if program == nil {
-		return nil, false
-	}
-	switch pattern.kind {
-	case patternDate, patternTime:
-		return program.parts(f, start, end), true
-	case patternDateTime:
-		dateParts := rangeParts(pattern.dateProgram.parts(f, start), SourceShared)
-		timeParts := program.parts(f, start, end)
-		return interpolateDateTimeRangeParts(pattern.dateTimeProgram, dateParts, timeParts), true
-	case patternNone:
-	}
-	return nil, false
-}
-
-func (f *DateTimeFormat) appendIntervalRange(dst []byte, pattern selectedPattern, relation rangeRelation, start, end localTime) ([]byte, bool) {
-	program := relation.program
-	if program == nil {
-		return nil, false
-	}
-	switch pattern.kind {
-	case patternDate, patternTime:
-		return program.appendTo(f, dst, start, end), true
-	case patternDateTime:
-		var dateScratch [64]byte
-		var timeScratch [64]byte
-		date := pattern.dateProgram.appendTo(f, dateScratch[:0], start)
-		time := program.appendTo(f, timeScratch[:0], start, end)
-		return appendDateTimeProgram(dst, pattern.dateTimeProgram, date, time), true
-	case patternNone:
-	}
-	return nil, false
 }
 
 func (p intervalProgram) parts(f *DateTimeFormat, start, end localTime) []RangePart {
@@ -364,10 +333,6 @@ func (p rangeFallbackProgram) parts(start, end []Part) []RangePart {
 		}
 	}
 	return parts
-}
-
-func (f *DateTimeFormat) appendFallbackRange(dst []byte, start, end []byte) []byte {
-	return f.pattern.rangeRecord.fallback.appendTo(dst, start, end)
 }
 
 func (p rangeFallbackProgram) appendTo(dst, start, end []byte) []byte {

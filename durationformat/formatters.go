@@ -31,33 +31,28 @@ func buildDurationFormatters(format *DurationFormat) error {
 
 	for _, spec := range durationUnitSpecs[:] {
 		opt := format.unitOptions[spec.index]
+		var options numberformat.Options
+		name := spec.unit
 		switch opt.style {
 		case LongUnitStyle, ShortUnitStyle, NarrowUnitStyle:
-			options := durationUnitNumberOptions(format.resolved, spec, opt)
+			options = durationUnitNumberOptions(format.resolved, spec, opt)
 			if durationNextUnitFractional(format.unitOptions, spec) {
 				options = durationFractionalNumberOptions(options, format.resolved)
 			}
-			pair, err := newDurationNumberFormatters(locales, options, spec.unit)
-			if err != nil {
-				return err
-			}
-			format.unitFormatters[spec.index] = pair
 		case NumericUnitStyle, TwoDigitUnitStyle:
-			options := durationNumericNumberOptions(format.resolved, opt)
+			name = "numeric"
+			options = durationNumericNumberOptions(format.resolved, opt)
 			if spec.index == secondsIndex {
 				options = durationFractionalNumberOptions(options, format.resolved)
 			}
-			pair, err := newDurationNumberFormatters(locales, options, "numeric")
-			if err != nil {
-				return err
-			}
-			if spec.index == secondsIndex {
-				format.secondsNumericFractionFormatter = pair
-			} else {
-				format.numericFormatters[spec.index] = pair
-			}
-		case fractionalUnitStyle:
+		default:
+			continue
 		}
+		pair, err := newDurationNumberFormatters(locales, options, name)
+		if err != nil {
+			return err
+		}
+		format.unitFormatters[spec.index] = pair
 	}
 	return nil
 }

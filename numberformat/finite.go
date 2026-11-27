@@ -63,73 +63,54 @@ func groupingFromPattern(pattern string) digitGrouping {
 	return grouping
 }
 
-func groupDecimal(s string, grouping digitGrouping) string {
-	original := s
-	sign := ""
-	if rest, ok := strings.CutPrefix(s, "-"); ok {
-		sign = "-"
-		s = rest
-	}
-	integer, fraction, hasFraction := strings.Cut(s, ".")
-	if !needsGrouping(len(integer), grouping) {
-		return original
-	}
-	grouped := groupInteger(integer, grouping)
-	if !hasFraction {
-		return sign + grouped
-	}
-	return joinSignedDecimalParts(sign, grouped, fraction)
-}
-
-func joinSignedDecimalParts(sign, integer, fraction string) string {
-	var b strings.Builder
-	b.Grow(len(sign) + len(integer) + 1 + len(fraction))
-	b.WriteString(sign)
-	b.WriteString(integer)
-	b.WriteByte('.')
-	b.WriteString(fraction)
-	return b.String()
-}
-
-func groupInteger(integer string, grouping digitGrouping) string {
-	if !needsGrouping(len(integer), grouping) {
-		return integer
-	}
-
-	var b strings.Builder
-	b.Grow(len(integer) + groupSeparatorCount(len(integer), grouping))
-	writeGroupedString(&b, integer, grouping, ",")
-	return b.String()
-}
-
-func needsGrouping(digits int, grouping digitGrouping) bool {
-	return grouping.minimum > 0 && digits >= grouping.primary+grouping.minimum
-}
-
-func groupSeparatorCount(digits int, grouping digitGrouping) int {
-	if !needsGrouping(digits, grouping) {
+func (g digitGrouping) separatorCount(digits int) int {
+	if g.minimum <= 0 || digits < g.primary+g.minimum {
 		return 0
 	}
-	remaining := digits - grouping.primary
-	return (remaining + grouping.secondary - 1) / grouping.secondary
+	remaining := digits - g.primary
+	return (remaining + g.secondary - 1) / g.secondary
 }
 
-func writeGroupedString(b *strings.Builder, digits string, grouping digitGrouping, separator string) {
-	firstGroup, lastGroup := groupingBounds(len(digits), grouping)
-	b.WriteString(digits[:firstGroup])
-	for start := firstGroup; start < lastGroup; start += grouping.secondary {
-		b.WriteString(separator)
-		b.WriteString(digits[start : start+grouping.secondary])
+func appendDecimalParts(parts []Part, formatted string, grouping digitGrouping, symbols cldrnumber.NumberSymbols) []Part {
+	digits, negative := strings.CutPrefix(formatted, "-")
+	integer, fraction, hasFraction := strings.Cut(digits, ".")
+	groupCount := grouping.separatorCount(len(integer))
+	partCount := groupCount*2 + 1
+	if negative {
+		partCount++
 	}
-	b.WriteString(separator)
-	b.WriteString(digits[lastGroup:])
-}
+	if hasFraction {
+		partCount += 2
+	}
+	partStart := len(parts)
+	partEnd := partStart + partCount
+	if cap(parts) < partEnd {
+		next := make([]Part, partEnd)
+		copy(next, parts)
+		parts = next
+	} else {
+		parts = parts[:partEnd]
+	}
 
-func groupingBounds(digits int, grouping digitGrouping) (int, int) {
-	lastGroup := digits - grouping.primary
-	firstGroup := lastGroup % grouping.secondary
-	if firstGroup == 0 {
-		firstGroup = grouping.secondary
+	nextPart := partEnd - 1
+	if hasFraction {
+		parts[nextPart] = Part{Type: PartFraction, Value: fraction}
+		parts[nextPart-1] = Part{Type: PartDecimal, Value: symbols.Decimal}
+		nextPart -= 2
 	}
-	return firstGroup, lastGroup
+	// Group widths are counted from the rightmost integer group.
+	width := grouping.primary
+	for range groupCount {
+		start := len(integer) - width
+		parts[nextPart] = Part{Type: PartInteger, Value: integer[start:]}
+		parts[nextPart-1] = Part{Type: PartGroup, Value: symbols.Group}
+		integer = integer[:start]
+		nextPart -= 2
+		width = grouping.secondary
+	}
+	parts[nextPart] = Part{Type: PartInteger, Value: integer}
+	if negative {
+		parts[partStart] = Part{Type: PartMinusSign, Value: symbols.Minus}
+	}
+	return parts
 }

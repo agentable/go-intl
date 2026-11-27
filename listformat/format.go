@@ -42,11 +42,10 @@ func compileListTemplate(text string) ecma402.Pattern {
 	return parts
 }
 
-// Format is the concatenation of FormatToParts' values. ECMA-402 defines one
-// partition per formatter and derives the string from it; a second recursive
-// text traversal would be a byte-for-byte drift liability.
+// Format concatenates the values from the same partition as FormatToParts.
 func (f *ListFormat) Format(list []string) string {
-	parts := f.FormatToParts(list)
+	var scratch [16]Part
+	parts := f.formatParts(list, scratch[:0])
 	size := 0
 	for _, p := range parts {
 		size += len(p.Value)
@@ -60,15 +59,19 @@ func (f *ListFormat) Format(list []string) string {
 }
 
 func (f *ListFormat) FormatToParts(list []string) []Part {
-	templates := f.templates
+	// A non-nil empty result marshals to "[]", matching native.
+	return f.formatParts(list, []Part{})
+}
+
+func (f *ListFormat) formatParts(list []string, out []Part) []Part {
 	switch len(list) {
 	case 0:
-		// Empty, non-nil so it marshals to "[]" (matching native), never "null".
-		return []Part{}
+		return out
 	case 1:
-		return []Part{{Type: PartElement, Value: list[0]}}
+		return append(out, Part{Type: PartElement, Value: list[0]})
 	}
 
+	templates := f.templates
 	last := list[len(list)-1]
 	var pattern, end ecma402.Pattern
 	var count int
@@ -80,7 +83,11 @@ func (f *ListFormat) FormatToParts(list []string) []Part {
 		end = templates.end.forElement(last)
 		count = len(pattern) + (len(list)-3)*(len(templates.middle)-1) + len(end) - 1
 	}
-	out := make([]Part, count)
+	if count > cap(out) {
+		out = make([]Part, count)
+	} else {
+		out = out[:count]
+	}
 	left, right := 0, len(out)-1
 	// Each fold wraps the remaining suffix at {1}. Fill the wrapper from both
 	// ends, leaving its suffix in place instead of copying it at every level.

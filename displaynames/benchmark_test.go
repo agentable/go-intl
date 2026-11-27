@@ -20,6 +20,30 @@ func BenchmarkDisplayNames_OfLanguage_Cached(b *testing.B) {
 	}
 }
 
+func BenchmarkDisplayNames_OfCompoundLanguage_Cached(b *testing.B) {
+	for _, tc := range []struct {
+		display displaynames.LanguageDisplay
+		code    string
+		want    string
+	}{
+		{displaynames.StandardLanguageDisplay, "sl-Latn-SI-rozaj", "Slovenian (Latin, Slovenia, Resian)"},
+		{displaynames.DialectLanguageDisplay, "zh-Hans-CN", "Simplified Chinese (China)"},
+	} {
+		b.Run(string(tc.display), func(b *testing.B) {
+			dn := benchmarkDisplayNames(b, displaynames.Options{
+				Type:            stringPtr(displaynames.Language),
+				LanguageDisplay: stringPtr(tc.display),
+			})
+			b.ReportAllocs()
+			for b.Loop() {
+				if got, ok, err := dn.Of(tc.code); err != nil || !ok || got != tc.want {
+					b.Fatalf("Of(%s) = %q, %v, %v; want %q, true, nil", tc.code, got, ok, err, tc.want)
+				}
+			}
+		})
+	}
+}
+
 func BenchmarkDisplayNames_OfFallback_Cached(b *testing.B) {
 	dn := benchmarkDisplayNames(b, displaynames.Options{Type: stringPtr(displaynames.Region)})
 

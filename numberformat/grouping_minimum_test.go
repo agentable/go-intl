@@ -3,6 +3,7 @@ package numberformat
 import (
 	"testing"
 
+	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
 	"github.com/agentable/go-intl/internal/intltest"
 )
 
@@ -77,11 +78,12 @@ func TestLocaleGroupingMinimum(t *testing.T) {
 
 func TestGroupingWithThreeDigitMinimum(t *testing.T) {
 	t.Parallel()
-	// Pinned ee minimum=3: the first separator needs six displayed digits.
+	// A three-digit minimum needs six displayed digits before the first separator.
 	grouping := digitGrouping{primary: 3, secondary: 3, minimum: 3}
+	symbols := cldrnumber.NumberSymbols{Group: ","}
 	for _, tc := range []struct{ in, want string }{{"1000", "1000"}, {"10000", "10000"}, {"100000", "100,000"}, {"1000000", "1,000,000"}} {
-		if got := groupDecimal(tc.in, grouping); got != tc.want {
-			t.Errorf("groupDecimal(%q) = %q, want %q", tc.in, got, tc.want)
+		if got := partsText(appendDecimalParts(nil, tc.in, grouping, symbols)); got != tc.want {
+			t.Errorf("grouping %q = %q, want %q", tc.in, got, tc.want)
 		}
 	}
 }

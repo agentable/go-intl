@@ -2,7 +2,6 @@ package relativetimeformat
 
 import (
 	"fmt"
-	"maps"
 	"strings"
 
 	cldrrelativetime "github.com/agentable/go-intl/internal/cldr/relativetime"
@@ -18,9 +17,12 @@ type Part struct {
 }
 
 func (f *RelativeTimeFormat) Format(value Value, unit Unit) (string, error) {
-	parts, err := f.partition(value, unit)
+	parts, err := f.FormatToParts(value, unit)
 	if err != nil {
 		return "", err
+	}
+	if len(parts) == 1 {
+		return parts[0].Value, nil
 	}
 	size := 0
 	for _, part := range parts {
@@ -35,41 +37,20 @@ func (f *RelativeTimeFormat) Format(value Value, unit Unit) (string, error) {
 }
 
 func (f *RelativeTimeFormat) FormatToParts(value Value, unit Unit) ([]Part, error) {
-	return f.partition(value, unit)
-}
-
-func (f *RelativeTimeFormat) partition(value Value, unit Unit) ([]Part, error) {
-	selection, err := resolveRelativeTimePattern(value, unit, f)
-	if err != nil {
-		return nil, err
-	}
-	if selection.literal != "" {
-		return []Part{{Type: PartLiteral, Value: selection.literal}}, nil
-	}
-	return relativeTimePatternParts(selection.pattern, selection.unit, f.number.FormatToParts(value.numberFormatValue())), nil
-}
-
-type relativeTimePatternSelection struct {
-	unit    Unit
-	pattern ecma402.Pattern
-	literal string
-}
-
-func resolveRelativeTimePattern(value Value, unit Unit, f *RelativeTimeFormat) (relativeTimePatternSelection, error) {
 	if value.invalidErr != nil {
-		return relativeTimePatternSelection{}, invalidRelativeTimeValue(value.errValue, f.resolved.Locale.String(), value.invalidErr)
+		return nil, invalidRelativeTimeValue(value.errValue, f.resolved.Locale.String(), value.invalidErr)
 	}
 	resolvedUnit, ok := singularUnit(unit)
 	if !ok {
-		return relativeTimePatternSelection{}, invalidRelativeTimeUnit(unit, f.resolved.Locale.String())
+		return nil, invalidRelativeTimeUnit(unit, f.resolved.Locale.String())
 	}
 	field, ok := f.fields[resolvedUnit]
 	if !ok {
-		return relativeTimePatternSelection{}, invalidRelativeTimeUnit(unit, f.resolved.Locale.String())
+		return nil, invalidRelativeTimeUnit(unit, f.resolved.Locale.String())
 	}
 	if f.resolved.Numeric == NumericAuto {
 		if literal := field.relative[value.literalKey()]; literal != "" {
-			return relativeTimePatternSelection{unit: resolvedUnit, literal: literal}, nil
+			return []Part{{Type: PartLiteral, Value: literal}}, nil
 		}
 	}
 	category := f.plural.Select(value.pluralRulesValue())
@@ -77,10 +58,7 @@ func resolveRelativeTimePattern(value Value, unit Unit, f *RelativeTimeFormat) (
 	if value.isPast() {
 		patterns = field.past
 	}
-	// pattern is always non-empty: compileRelativeTimePatternSet requires a
-	// non-empty "other" pattern at construction and backfills every category from
-	// it, so no format-time empty-pattern check is needed.
-	return relativeTimePatternSelection{unit: resolvedUnit, pattern: patterns.pattern(category)}, nil
+	return relativeTimePatternParts(patterns.pattern(category), resolvedUnit, f.number.FormatToParts(value.numberFormatValue())), nil
 }
 
 type relativeTimeField struct {
@@ -123,16 +101,11 @@ const expectedRelativeTimeUnit = `one of "second", "minute", "hour", "day", "wee
 
 func selectRelativeTimeField(fields cldrrelativetime.RelativeTimeFields, unit Unit, style Style) (cldrrelativetime.RelativeTimeField, bool) {
 	styles := fields[string(unit)]
-	if len(styles) == 0 {
-		return cldrrelativetime.RelativeTimeField{}, false
-	}
 	if field, ok := styles[string(style)]; ok {
 		return field, true
 	}
-	if field, ok := styles[string(LongStyle)]; ok {
-		return field, true
-	}
-	return cldrrelativetime.RelativeTimeField{}, false
+	field, ok := styles[string(LongStyle)]
+	return field, ok
 }
 
 func compileRelativeTimeField(field cldrrelativetime.RelativeTimeField) (relativeTimeField, error) {
@@ -147,15 +120,16 @@ func compileRelativeTimeField(field cldrrelativetime.RelativeTimeField) (relativ
 	return relativeTimeField{
 		future:   future,
 		past:     past,
-		relative: maps.Clone(field.Relative),
+		relative: field.Relative,
 	}, nil
 }
 
 func compileRelativeTimePatternSet(patterns map[string]string) (relativeTimePatternSet, error) {
-	if patterns[pluralrules.Other.String()] == "" {
+	text := patterns[pluralrules.Other.String()]
+	if text == "" {
 		return relativeTimePatternSet{}, fmt.Errorf("missing CLDR other pattern")
 	}
-	other, err := compileRelativeTimePattern(patterns[pluralrules.Other.String()])
+	other, err := compileRelativeTimePattern(text)
 	if err != nil {
 		return relativeTimePatternSet{}, err
 	}
@@ -177,9 +151,6 @@ func compileRelativeTimePatternSet(patterns map[string]string) (relativeTimePatt
 }
 
 func compileRelativeTimePattern(pattern string) (ecma402.Pattern, error) {
-	if pattern == "" {
-		return nil, nil
-	}
 	parts, err := ecma402.PartitionPattern(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("relativetimeformat: malformed CLDR pattern: %w", err)

@@ -401,7 +401,7 @@ func QuantizeToIncrement(x Decimal, increment int, exp int32, mode RoundingMode)
 
 > **Why a static increment set**: ECMA-402 §15.5.4 explicitly enumerates the values; any other value is a RangeError. The formatter validates once at construction, while the accessor returns a copy so callers cannot mutate package state.
 >
-> **Why `QuantizeToIncrement` uses coefficient/exponent arithmetic**: The target is an integer multiple of `increment × 10^exp`, not merely a decimal exponent. Exact integer quotient/remainder identifies the lower and upper multiples without division precision, then exact aligned coefficients determine distance and half-even cardinality. Replacing a fixed precision with a larger constant is forbidden because public `BigInt` and decimal-string inputs have no matching digit limit.
+> **Why `QuantizeToIncrement` uses coefficient/exponent arithmetic**: The target is an integer multiple of `increment × 10^exp`. Modular arithmetic can detect exact multiples before expanding the exponent. For inputs between increments, the exact integer quotient selects the lower multiple, and the next multiple supplies the upper bound. Exact aligned coefficients determine distance and half-even cardinality. Public `BigInt` and decimal-string inputs have no matching digit limit, so a fixed precision cannot preserve this contract.
 >
 > **Work bound for extreme exponents**: Exact rounding must not materialize a
 > `10^n` coefficient, or otherwise allocate work proportional to `n`, when the

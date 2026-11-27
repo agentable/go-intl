@@ -2,7 +2,6 @@ package numberformat
 
 import (
 	"slices"
-	"strings"
 
 	cldrcurrency "github.com/agentable/go-intl/internal/cldr/currency"
 	cldrnumber "github.com/agentable/go-intl/internal/cldr/number"
@@ -71,9 +70,7 @@ func formatDecimalOperandToPartsAppend(parts []Part, d decimal.Decimal, state *d
 		parts, operand = formatCompactAppend(parts, d, state)
 	case StandardNotation:
 		result := ecma402nf.FormatNumericToString(d, digitOptions)
-		formatted := result.Formatted
-		formatted = groupDecimal(formatted, grouping)
-		parts = appendDecimalParts(parts, formatted, symbols)
+		parts = appendDecimalParts(parts, result.Formatted, grouping, symbols)
 		parts = applySignDisplay(parts, d.Negative(), signDisplay, symbols)
 		operand = stylePluralOperand{formatted: result.Formatted, finite: true}
 	}
@@ -106,6 +103,7 @@ func stylePluralCategory(operand stylePluralOperand, cardinalRule pluralRuleFunc
 	return pluralCategoryForNotation(cardinalRule, operand.formatted, operand.exponent)
 }
 
+// applyStylePatternForPlural preserves the input partition for range plural selection.
 func applyStylePatternForPlural(parts []Part, plural pluralop.Category, state *decimalFormatState) []Part {
 	resolved := state.resolved
 	style := resolved.Style
@@ -220,50 +218,4 @@ func localizeParts(parts []Part, numberingSystem string) []Part {
 		}
 	}
 	return out
-}
-
-func appendDecimalParts(parts []Part, s string, symbols cldrnumber.NumberSymbols) []Part {
-	rest, negative := strings.CutPrefix(s, "-")
-	if negative {
-		s = rest
-	}
-	integer, fraction, hasFraction := strings.Cut(s, ".")
-	groupCount := strings.Count(integer, ",")
-	partCount := groupCount*2 + 1
-	if negative {
-		partCount++
-	}
-	if hasFraction {
-		partCount += 2
-	}
-	partStart := len(parts)
-	partEnd := partStart + partCount
-	if cap(parts) < partEnd {
-		next := make([]Part, partEnd)
-		copy(next, parts)
-		parts = next
-	} else {
-		parts = parts[:partEnd]
-	}
-	nextPart := partStart
-	if negative {
-		parts[nextPart] = Part{Type: PartMinusSign, Value: symbols.Minus}
-		nextPart++
-	}
-	for {
-		segment, rest, hasGroup := strings.Cut(integer, ",")
-		parts[nextPart] = Part{Type: PartInteger, Value: segment}
-		nextPart++
-		if !hasGroup {
-			break
-		}
-		parts[nextPart] = Part{Type: PartGroup, Value: symbols.Group}
-		nextPart++
-		integer = rest
-	}
-	if hasFraction {
-		parts[nextPart] = Part{Type: PartDecimal, Value: symbols.Decimal}
-		parts[nextPart+1] = Part{Type: PartFraction, Value: fraction}
-	}
-	return parts
 }

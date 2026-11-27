@@ -109,32 +109,30 @@ var hanidecDigits = [...]string{"〇", "一", "二", "三", "四", "五", "六",
 // LocalizeDigits replaces ASCII decimal digits with the ECMA-402 simple digit
 // set for numberingSystem. Unsupported systems are left unchanged.
 func LocalizeDigits(s, numberingSystem string) string {
-	if numberingSystem == "" || numberingSystem == DefaultNumberingSystem {
+	if numberingSystem == "" || numberingSystem == DefaultNumberingSystem || !strings.ContainsAny(s, "0123456789") {
 		return s
 	}
+	hanidec := numberingSystem == "hanidec"
+	var zero rune
+	var contiguous bool
+	if !hanidec {
+		zero, contiguous = digitZeroFor(numberingSystem)
+	}
+
 	var b strings.Builder
 	b.Grow(len(s))
-	changed := false
 	for _, r := range s {
-		if r < '0' || r > '9' {
-			b.WriteRune(r)
-			continue
+		if r >= '0' && r <= '9' {
+			digit := r - '0'
+			switch {
+			case hanidec:
+				b.WriteString(hanidecDigits[digit])
+				continue
+			case contiguous:
+				r = zero + digit
+			}
 		}
-		changed = true
-		digit := int(r - '0')
-		if numberingSystem == "hanidec" {
-			b.WriteString(hanidecDigits[digit])
-			continue
-		}
-		zero, ok := digitZeroFor(numberingSystem)
-		if !ok {
-			b.WriteRune(r)
-			continue
-		}
-		b.WriteRune(zero + rune(digit))
-	}
-	if !changed {
-		return s
+		b.WriteRune(r)
 	}
 	return b.String()
 }

@@ -207,7 +207,8 @@ func (f *DateTimeFormat) Format(t time.Time) (string, error) {
 		return "", err
 	}
 	_, local := gregoryTimeInLocation(t, f.location)
-	return string(f.pattern.appendTo(f, nil, local)), nil
+	var scratch [64]byte
+	return string(f.pattern.appendTo(f, scratch[:0], local)), nil
 }
 
 func withDefaultDateFields(c config) config {

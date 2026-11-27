@@ -12,13 +12,11 @@ import (
 )
 
 type DurationFormat struct {
-	resolved                        ResolvedOptions
-	unitOptions                     [unitCount]resolvedUnitConfig
-	listFormatter                   *listformat.ListFormat
-	unitFormatters                  [unitCount]durationNumberFormatters
-	numericFormatters               [unitCount]durationNumberFormatters
-	secondsNumericFractionFormatter durationNumberFormatters
-	separator                       string
+	resolved       ResolvedOptions
+	unitOptions    [unitCount]resolvedUnitConfig
+	listFormatter  *listformat.ListFormat
+	unitFormatters [unitCount]durationNumberFormatters
+	separator      string
 }
 
 var durationLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {

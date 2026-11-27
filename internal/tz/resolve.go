@@ -20,12 +20,13 @@ var locationCache sync.Map
 
 func Resolve(name string) (*time.Location, error) {
 	if isOffsetName(name) {
-		offsetMs, canonical, err := parseFixedOffset(name)
+		minutes, err := parseOffsetMinutes(name)
 		if err != nil {
 			return nil, err
 		}
+		canonical := canonicalOffsetString(minutes)
 		return cachedLocation(canonical, func() (*time.Location, error) {
-			return time.FixedZone(canonical, int(offsetMs/1000)), nil
+			return time.FixedZone(canonical, minutes*60), nil
 		})
 	}
 	record, ok := LookupIdentifier(name)

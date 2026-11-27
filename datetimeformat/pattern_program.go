@@ -81,7 +81,7 @@ func localizeFractionalSeparator(previous *patternToken, current patternToken, d
 	}
 }
 
-func (p selectedPattern) parts(f *DateTimeFormat, t localTime) []Part {
+func (p *selectedPattern) parts(f *DateTimeFormat, t localTime) []Part {
 	switch p.kind {
 	case patternDate:
 		return p.dateProgram.parts(f, t)
@@ -96,7 +96,7 @@ func (p selectedPattern) parts(f *DateTimeFormat, t localTime) []Part {
 	return nil
 }
 
-func (p selectedPattern) appendTo(f *DateTimeFormat, dst []byte, t localTime) []byte {
+func (p *selectedPattern) appendTo(f *DateTimeFormat, dst []byte, t localTime) []byte {
 	switch p.kind {
 	case patternDate:
 		return p.dateProgram.appendTo(f, dst, t)

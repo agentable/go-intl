@@ -16,7 +16,8 @@ type localTime struct {
 }
 
 func gregoryLocalTime(t time.Time) localTime {
-	year := t.Year()
+	year, month, day := t.Date()
+	hour, minute, second := t.Clock()
 	era := "AD"
 	if year <= 0 {
 		era = "BC"
@@ -26,11 +27,11 @@ func gregoryLocalTime(t time.Time) localTime {
 		Weekday:    t.Weekday(),
 		Era:        era,
 		Year:       year,
-		Month:      t.Month(),
-		Day:        t.Day(),
-		Hour:       t.Hour(),
-		Minute:     t.Minute(),
-		Second:     t.Second(),
+		Month:      month,
+		Day:        day,
+		Hour:       hour,
+		Minute:     minute,
+		Second:     second,
 		Nanosecond: t.Nanosecond(),
 	}
 }

@@ -7,7 +7,6 @@ func (f *DateTimeFormat) FormatToParts(t time.Time) ([]Part, error) {
 	if err != nil {
 		return nil, err
 	}
-	pattern := f.pattern
 	_, local := gregoryTimeInLocation(t, f.location)
-	return pattern.parts(f, local), nil
+	return f.pattern.parts(f, local), nil
 }

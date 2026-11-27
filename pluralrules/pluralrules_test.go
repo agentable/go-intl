@@ -265,10 +265,18 @@ func TestResolveDecimalUsesExplicitConstructorState(t *testing.T) {
 			t.Parallel()
 
 			var gotOps pluralop.OperandsRecord
-			formatted, category := resolveDecimal(d, tc.notation, ecma402nf.ResolvedDigitOptions{DigitOptions: digitOptions, RoundingType: ecma402nf.RoundingTypeFractionDigits}, compactExponentSet{}, func(ops pluralop.OperandsRecord) pluralop.Category {
-				gotOps = ops
-				return pluralop.Many
-			})
+			rules := PluralRules{
+				resolved: ResolvedOptions{Notation: tc.notation},
+				digitOptions: ecma402nf.ResolvedDigitOptions{
+					DigitOptions: digitOptions,
+					RoundingType: ecma402nf.RoundingTypeFractionDigits,
+				},
+				rule: func(ops pluralop.OperandsRecord) pluralop.Category {
+					gotOps = ops
+					return pluralop.Many
+				},
+			}
+			formatted, category := rules.resolveDecimal(d)
 			if formatted != tc.wantFormatted {
 				t.Fatalf("resolveDecimal formatted = %q, want %q", formatted, tc.wantFormatted)
 			}

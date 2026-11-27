@@ -21,26 +21,42 @@ var displayNamesLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
 
 func New(locales locale.List, opts Options) (*DisplayNames, error) {
 	validationLocale := ecma402.ValidationLocale(locales)
-	validationLocaleName := validationLocale.String()
-	cfg := defaultConfig()
-	applyOptions(&cfg, opts)
-	if err := cfg.validate(validationLocaleName); err != nil {
+	matcher := string(BestFitLocaleMatcher)
+	style := string(LongStyle)
+	var kind string
+	fallback := string(CodeFallback)
+	languageDisplay := string(DialectLanguageDisplay)
+	ecma402.ApplyOption(&matcher, opts.LocaleMatcher)
+	ecma402.ApplyOption(&style, opts.Style)
+	ecma402.ApplyOption(&kind, opts.Type)
+	ecma402.ApplyOption(&fallback, opts.Fallback)
+	ecma402.ApplyOption(&languageDisplay, opts.LanguageDisplay)
+
+	if err := ecma402.ValidateStringOptions(
+		displayNamesOwner,
+		validationLocale.String(),
+		ecma402.LocaleMatcherOptionInput(matcher, opts.LocaleMatcher != nil),
+		ecma402.RequiredStringOption("style", style, displayNameStyleValues[:]...),
+		ecma402.RequiredStringOption("type", kind, displayNameTypeValues[:]...),
+		ecma402.RequiredStringOption("fallback", fallback, displayNameFallbackValues[:]...),
+		ecma402.RequiredStringOption("languageDisplay", languageDisplay, displayNameLanguageDisplayValues[:]...),
+	); err != nil {
 		return nil, err
 	}
 	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
 		Locales:       locales,
 		Fallback:      validationLocale,
-		LocaleMatcher: cfg.localeMatcher,
+		LocaleMatcher: matcher,
 		Matcher:       displayNamesLocaleMatcher(),
 	})
 	resolved := ResolvedOptions{
 		Locale:   resolution.Locale,
-		Style:    Style(cfg.style),
-		Type:     Type(cfg.typ),
-		Fallback: Fallback(cfg.fallback),
+		Style:    Style(style),
+		Type:     Type(kind),
+		Fallback: Fallback(fallback),
 	}
 	if resolved.Type == Language {
-		resolved.LanguageDisplay = new(LanguageDisplay(cfg.languageDisplay))
+		resolved.LanguageDisplay = new(LanguageDisplay(languageDisplay))
 	}
 	return &DisplayNames{
 		resolved:   resolved,

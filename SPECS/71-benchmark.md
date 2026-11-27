@@ -29,6 +29,7 @@ baseline = `golang.org/x/text/message` + `golang.org/x/text/feature/plural` (std
 | `datetimeformat/` | `datetimeformat/benchmark_test.go` | DateTimeFormat PerCall + Cached |
 | `pluralrules/` | `pluralrules/benchmark_test.go` | PluralRules Cardinal/Ordinal Cached(PerCall can be omitted) |
 | `durationformat/` | `durationformat/benchmark_test.go` | DurationFormat PerCall + Cached, including digital formatting |
+| `displaynames/` | `displaynames/benchmark_test.go` | Cached bare-language, compound-language, and fallback lookups |
 | `locale/` | `locale/benchmark_test.go` | `locale.Parse(string)` boundary analysis + `locale.New(string, Options{})` construction |
 | baseline | `<package>/benchmark_baseline_test.go` | `x/text/message` / `x/text/feature/plural` comparison for NumberFormat / PluralRules only |
 
@@ -373,3 +374,24 @@ observed diagnostic ranges were Decimal 165.8–193.0 → 142.7–148.3 ns, Curr
 455.0–472.9 → 447.1–455.1 ns, Compact 2,550–2,747 → 2,535–3,077 ns, Parts
 247.7–252.9 → 242.9–308.2 ns and Range 418.9–464.2 → 402.5–470.7 ns.
 These overlapping/mixed ranges do not justify a whole-formatter speed claim.
+
+## DisplayNames language parsing (2026-11-27)
+
+The cached benchmarks compare the same bare and compound codes before and after
+DisplayNames adopted the shared locale grammar. Go 1.27.4 on darwin/arm64, Apple
+M5 Pro, with six 120 ms samples per version.
+
+```bash
+GOMAXPROCS=1 go test ./displaynames -run '^$' \
+  -bench '^BenchmarkDisplayNames_Of(Compound)?Language_Cached$' \
+  -benchmem -count=6 -benchtime=120ms
+```
+
+| Code and display mode | Median B/op before to after | Allocations/op before to after |
+| --- | ---: | ---: |
+| `fr` | 816 to 736 | 28 to 24 |
+| `sl-Latn-SI-rozaj`, standard | 1504 to 1264 | 47 to 40 |
+| `zh-Hans-CN`, dialect | 1784 to 1552 | 54 to 47 |
+
+The allocation counts were stable across samples. Host load varied during the
+run, so these results support the allocation comparison.

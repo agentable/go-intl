@@ -20,25 +20,35 @@ var listLocaleMatcher = sync.OnceValue(func() *localematcher.Matcher {
 
 func New(locales locale.List, opts Options) (*ListFormat, error) {
 	validationLocale := ecma402.ValidationLocale(locales)
-	validationLocaleName := validationLocale.String()
-	cfg := defaultConfig()
-	applyOptions(&cfg, opts)
-	if err := cfg.validate(validationLocaleName); err != nil {
+	matcher := string(BestFitLocaleMatcher)
+	kind := string(Conjunction)
+	style := string(LongStyle)
+	ecma402.ApplyOption(&matcher, opts.LocaleMatcher)
+	ecma402.ApplyOption(&kind, opts.Type)
+	ecma402.ApplyOption(&style, opts.Style)
+
+	if err := ecma402.ValidateStringOptions(
+		listFormatOwner,
+		validationLocale.String(),
+		ecma402.LocaleMatcherOptionInput(matcher, opts.LocaleMatcher != nil),
+		ecma402.RequiredStringOption("type", kind, listTypeValues[:]...),
+		ecma402.RequiredStringOption("style", style, listStyleValues[:]...),
+	); err != nil {
 		return nil, err
 	}
 	resolution := ecma402.ResolveConstructorLocale(ecma402.ConstructorLocaleOptions{
 		Locales:       locales,
 		Fallback:      validationLocale,
-		LocaleMatcher: cfg.localeMatcher,
+		LocaleMatcher: matcher,
 		Matcher:       listLocaleMatcher(),
 	})
 	cldrLoc := ecma402.ResolveDataLocale(resolution, cldrlist.ResolveLocale)
 	return &ListFormat{
 		resolved: ResolvedOptions{
 			Locale: resolution.Locale,
-			Type:   Type(cfg.typ),
-			Style:  Style(cfg.style),
+			Type:   Type(kind),
+			Style:  Style(style),
 		},
-		templates: compileListTemplates(cldrlist.Pattern(cldrLoc, cfg.typ, cfg.style), ecma402.ResolveDataLocaleTag(resolution)),
+		templates: compileListTemplates(cldrlist.Pattern(cldrLoc, kind, style), ecma402.ResolveDataLocaleTag(resolution)),
 	}, nil
 }

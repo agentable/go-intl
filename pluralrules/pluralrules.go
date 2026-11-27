@@ -100,7 +100,7 @@ func (f *PluralRules) Select(v Value) Category {
 		case ecma402.NumericValueDecimal:
 		}
 	}
-	_, category := resolveDecimal(numeric.Decimal, f.resolved.Notation, f.digitOptions, f.compact, f.rule)
+	_, category := f.resolveDecimal(numeric.Decimal)
 	return category
 }
 
@@ -112,42 +112,28 @@ func selectUnsignedInteger(n uint64, rule pluralRuleFunc) Category {
 	return Category(rule(pluralop.GetUnsignedIntegerOperands(n)))
 }
 
-func resolveDecimal(d decimal.Decimal, notation Notation, digitOptions ecma402nf.ResolvedDigitOptions, compact compactExponentSet, rule pluralRuleFunc) (string, Category) {
+func (f *PluralRules) resolveDecimal(d decimal.Decimal) (string, Category) {
 	if !d.IsFinite() {
 		return d.String(), Other
 	}
-	result := ecma402nf.FormatNumericToString(d, digitOptions)
+	result := ecma402nf.FormatNumericToString(d, f.digitOptions)
 	formatted := strings.TrimPrefix(result.Formatted, "-")
 	exponent := 0
-	if notation == CompactNotation {
+	notation := f.resolved.Notation
+	switch notation {
+	case CompactNotation:
 		integer, _, _ := strings.Cut(formatted, ".")
 		magnitude := len(strings.TrimLeft(integer, "0")) - 1
-		if compactExponent, ok := compact.exponentForMagnitude(magnitude); ok {
-			exponent = compactExponent
-		}
-	} else {
-		exponent = pluralExponent(result.Rounded, notation, digitOptions)
+		exponent = f.compact.exponentForMagnitude(magnitude)
+	case ScientificNotation, EngineeringNotation:
+		exponent, _ = ecma402nf.ScientificExponent(result.Rounded, f.digitOptions, notation == EngineeringNotation)
+	case StandardNotation:
 	}
 	ops := pluralop.GetOperands(formatted, exponent)
-	return formatted, Category(rule(ops))
+	return formatted, Category(f.rule(ops))
 }
 
-func pluralExponent(d decimal.Decimal, notation Notation, digitOptions ecma402nf.ResolvedDigitOptions) int {
-	switch notation {
-	case ScientificNotation:
-		exponent, _ := ecma402nf.ScientificExponent(d, digitOptions, false)
-		return exponent
-	case EngineeringNotation:
-		exponent, _ := ecma402nf.ScientificExponent(d, digitOptions, true)
-		return exponent
-	default:
-		return 0
-	}
-}
-
-type compactExponentSet struct {
-	entries []compactExponentEntry
-}
+type compactExponentSet []compactExponentEntry
 
 type compactExponentEntry struct {
 	magnitude int
@@ -156,9 +142,9 @@ type compactExponentEntry struct {
 
 func compactExponentsForPluralRules(loc cldrnumber.Locale, cfg config) (compactExponentSet, error) {
 	if cfg.notation != string(CompactNotation) {
-		return compactExponentSet{}, nil
+		return nil, nil
 	}
-	entries := make([]compactExponentEntry, 0, ecma402nf.MaxCompactMagnitude-ecma402nf.MinCompactMagnitude+1)
+	entries := make(compactExponentSet, 0, ecma402nf.MaxCompactMagnitude-ecma402nf.MinCompactMagnitude+1)
 	for exponent := ecma402nf.MaxCompactMagnitude; exponent >= ecma402nf.MinCompactMagnitude; exponent-- {
 		other := loc.CompactPattern("", cfg.compactDisplay, exponent, "other")
 		if other == "" {
@@ -166,21 +152,21 @@ func compactExponentsForPluralRules(loc cldrnumber.Locale, cfg config) (compactE
 		}
 		parsed, err := cldrpattern.ParseCompact(exponent, other)
 		if err != nil {
-			return compactExponentSet{}, fmt.Errorf("pluralrules: compact pattern display %s magnitude %d: %w", cfg.compactDisplay, exponent, err)
+			return nil, fmt.Errorf("pluralrules: compact pattern display %s magnitude %d: %w", cfg.compactDisplay, exponent, err)
 		}
 		entries = append(entries, compactExponentEntry{
 			magnitude: exponent,
 			exponent:  parsed.Exponent,
 		})
 	}
-	return compactExponentSet{entries: entries}, nil
+	return entries, nil
 }
 
-func (p compactExponentSet) exponentForMagnitude(magnitude int) (int, bool) {
-	for _, entry := range p.entries {
+func (p compactExponentSet) exponentForMagnitude(magnitude int) int {
+	for _, entry := range p {
 		if magnitude >= entry.magnitude {
-			return entry.exponent, true
+			return entry.exponent
 		}
 	}
-	return 0, false
+	return 0
 }

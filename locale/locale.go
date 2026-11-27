@@ -57,10 +57,6 @@ func FromTag(tag language.Tag, opts Options) (Locale, error) {
 }
 
 func (l Locale) String() string {
-	return l.canonicalString()
-}
-
-func (l Locale) canonicalString() string {
 	if l.canonical != "" {
 		return l.canonical
 	}
@@ -145,7 +141,7 @@ func (l Locale) Variants() []string {
 }
 
 func (l Locale) Equal(other Locale) bool {
-	return l.canonicalString() == other.canonicalString()
+	return l.String() == other.String()
 }
 
 func (l Locale) MarshalText() ([]byte, error) {

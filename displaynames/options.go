@@ -1,9 +1,5 @@
 package displaynames
 
-import (
-	"github.com/agentable/go-intl/internal/ecma402"
-)
-
 type LocaleMatcher string
 type Type string
 type Style string
@@ -64,58 +60,4 @@ type Options struct {
 	Style           *string
 	Fallback        *string
 	LanguageDisplay *string
-}
-
-type config struct {
-	localeMatcher    string
-	hasLocaleMatcher bool
-	typ              string
-	style            string
-	fallback         string
-	languageDisplay  string
-}
-
-func defaultConfig() config {
-	return config{
-		localeMatcher:   string(BestFitLocaleMatcher),
-		style:           string(LongStyle),
-		fallback:        string(CodeFallback),
-		languageDisplay: string(DialectLanguageDisplay),
-	}
-}
-
-func applyOptions(cfg *config, opts Options) {
-	ecma402.ApplyOptionInput(&cfg.localeMatcher, &cfg.hasLocaleMatcher, opts.LocaleMatcher)
-	ecma402.ApplyOption(&cfg.typ, opts.Type)
-	ecma402.ApplyOption(&cfg.style, opts.Style)
-	ecma402.ApplyOption(&cfg.fallback, opts.Fallback)
-	ecma402.ApplyOption(&cfg.languageDisplay, opts.LanguageDisplay)
-}
-
-func (cfg config) validate(locName string) error {
-	return ecma402.ValidateStringOptions(
-		displayNamesOwner,
-		locName,
-		ecma402.LocaleMatcherOptionInput(cfg.localeMatcher, cfg.hasLocaleMatcher),
-		displayNameStyleOption(cfg.style),
-		displayNameTypeOption(cfg.typ),
-		displayNameFallbackOption(cfg.fallback),
-		displayNameLanguageDisplayOption(cfg.languageDisplay),
-	)
-}
-
-func displayNameTypeOption(value string) ecma402.StringOption {
-	return ecma402.RequiredStringOption("type", value, displayNameTypeValues[:]...)
-}
-
-func displayNameStyleOption(value string) ecma402.StringOption {
-	return ecma402.RequiredStringOption("style", value, displayNameStyleValues[:]...)
-}
-
-func displayNameFallbackOption(value string) ecma402.StringOption {
-	return ecma402.RequiredStringOption("fallback", value, displayNameFallbackValues[:]...)
-}
-
-func displayNameLanguageDisplayOption(value string) ecma402.StringOption {
-	return ecma402.RequiredStringOption("languageDisplay", value, displayNameLanguageDisplayValues[:]...)
 }

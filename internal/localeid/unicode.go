@@ -34,29 +34,31 @@ func SplitUnicodeExtension(tag string) (string, UnicodeExtension, error) {
 }
 
 func RemoveUnicodeExtension(tag string) (base, extension string, err error) {
-	parts := strings.Split(tag, "-")
-	for i := range parts {
-		if parts[i] == "x" {
+	start, end := -1, len(tag)
+	offset := 0
+	for subtag := range strings.SplitSeq(tag, "-") {
+		if start >= 0 && len(subtag) == 1 {
+			end = offset - 1
 			break
 		}
-		if parts[i] != "u" {
-			continue
+		switch subtag {
+		case "x":
+			return tag, "", nil
+		case "u":
+			start = offset
 		}
-		end := i + 1
-		for end < len(parts) && len(parts[end]) != 1 {
-			end++
-		}
-		baseLen := len(parts) - (end - i)
-		if baseLen == 0 {
+		offset += len(subtag) + 1
+	}
+	if start < 0 {
+		return tag, "", nil
+	}
+	if start == 0 {
+		if end == len(tag) {
 			return "", "", ErrInvalidUnicodeExtension
 		}
-		extension = "-" + strings.Join(parts[i:end], "-")
-		baseParts := make([]string, baseLen)
-		n := copy(baseParts, parts[:i])
-		copy(baseParts[n:], parts[end:])
-		return strings.Join(baseParts, "-"), extension, nil
+		return tag[end+1:], "-" + tag[:end], nil
 	}
-	return tag, "", nil
+	return tag[:start-1] + tag[end:], tag[start-1 : end], nil
 }
 
 func ParseUnicodeExtension(extension string) (UnicodeExtension, error) {

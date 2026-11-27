@@ -2,7 +2,6 @@ package numberformat
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -32,8 +31,8 @@ func partitionNumberRange(start, end decimal.Decimal, formatState *decimalFormat
 	}
 	startNumberParts, startOperand := formatDecimalOperandToPartsAppend(nil, start, formatState)
 	endNumberParts, endOperand := formatDecimalOperandToPartsAppend(nil, end, formatState)
-	startParts := applyStylePattern(slices.Clone(startNumberParts), startOperand, formatState)
-	endParts := applyStylePattern(slices.Clone(endNumberParts), endOperand, formatState)
+	startParts := applyStylePattern(startNumberParts, startOperand, formatState)
+	endParts := applyStylePattern(endNumberParts, endOperand, formatState)
 	if partValuesEqual(startParts, endParts) {
 		out := make([]RangePart, len(startParts)+1)
 		out[0] = RangePart{Type: PartApproximatelySign, Value: formatState.symbols.ApproxSign, Source: SourceShared}

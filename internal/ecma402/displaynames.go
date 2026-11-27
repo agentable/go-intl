@@ -2,7 +2,6 @@ package ecma402
 
 import (
 	"slices"
-	"strings"
 
 	cldrlocale "github.com/agentable/go-intl/internal/cldr/locale"
 	"github.com/agentable/go-intl/internal/localeid"
@@ -98,11 +97,7 @@ func DisplayNamesCodeExpected(typ string) string {
 }
 
 func canonicalDisplayNamesLanguage(code string) (string, bool) {
-	canonical, ok := canonicalizeUnicodeLanguageID(code)
-	if !ok {
-		return "", false
-	}
-	tag, err := localeid.ParseTag(canonical, cldrlocale.MaximizeSubtags)
+	tag, err := localeid.ParseLanguageID(code, cldrlocale.MaximizeSubtags)
 	if err == nil {
 		return tag.String(), true
 	}
@@ -142,43 +137,4 @@ func canonicalDisplayNamesCurrency(code string) (string, bool) {
 		return "", false
 	}
 	return CanonicalCurrencyCode(code), true
-}
-
-func canonicalizeUnicodeLanguageID(code string) (string, bool) {
-	if code == "" || strings.Contains(code, "_") {
-		return "", false
-	}
-	parts := strings.Split(code, "-")
-
-	if !localeid.IsUnicodeLanguageSubtag(parts[0]) {
-		return "", false
-	}
-
-	out := []string{asciiLower(parts[0])}
-	index := 1
-	if index < len(parts) && localeid.IsUnicodeScriptSubtag(parts[index]) {
-		out = append(out, asciiTitle(parts[index]))
-		index++
-	}
-	if index < len(parts) && localeid.IsUnicodeRegionSubtag(parts[index]) {
-		out = append(out, asciiUpper(parts[index]))
-		index++
-	}
-
-	var seenVariants []string
-	for index < len(parts) && localeid.IsUnicodeVariantSubtag(parts[index]) {
-		variant := asciiLower(parts[index])
-		if slices.Contains(seenVariants, variant) {
-			return "", false
-		}
-		seenVariants = append(seenVariants, variant)
-		out = append(out, variant)
-		index++
-	}
-
-	if index != len(parts) {
-		return "", false
-	}
-
-	return strings.Join(out, "-"), true
 }

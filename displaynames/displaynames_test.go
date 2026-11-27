@@ -148,6 +148,7 @@ func TestDisplayNames_RejectsInvalidLanguageCodes(t *testing.T) {
 		"en-u-ca-gregory",
 		"i-klingon",
 		"zh-cmn",
+		"en-POSIX-posix",
 		"abcd",
 	} {
 		t.Run(code, func(t *testing.T) {

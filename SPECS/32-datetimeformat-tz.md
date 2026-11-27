@@ -64,7 +64,7 @@ This SPEC does not redefine:
 - Supports IANA link(`"US/Eastern"` → `"America/New_York"`).
 - Supports UTC offset string(`"+05:30"` / `"-08:00"` / `"+00:00"` / `"+14:00"`).
 2. Formatter boundary failure **MUST** return a wrapped error matching `gointl.ErrUnsupportedOption`, and the message contains the input string.
-3. UTC offset string parsing **MUST** be implemented in `internal/tz.ParseOffsetString(s string) (int64, error)`, returning milliseconds east of UTC; **FORBIDDEN** to pass regular fallback to `time.FixedZone`. Offset identifiers use the ECMA-402 current `<24:00` contract: `+23:59` is valid, `+24:00` is invalid. <a id="parseoffsetstring"></a>
+3. Fixed-offset parsing validates the identifier once and represents the result as signed minutes. `internal/tz.ParseOffsetString` projects that value to milliseconds east of UTC. `Resolve` uses the canonical name as the cache key and supplies seconds to `time.FixedZone`. The upper bound is exclusive at 24 hours, so `+23:59` is valid and `+24:00` is rejected. <a id="parseoffsetstring"></a>
 
 ```go
 // Interface form (signature, no implementation)
@@ -414,15 +414,8 @@ From, To time.Duration // Time offset from 00:00 on the current day
 
 **MUST** rules (corresponding to [SPEC 30 §ResolvedOptions](./30-datetimeformat.md#23-resolvedoptions)):
 
-1. The `ResolvedOptions().TimeZone` return value **MUST** be the IANA canonical name (converted for link) or UTC offset string (reserved for `+HH:MM` input).
-2. The conversion process **MUST** be:
-   ```text
-1. resolveTZ := internal/tz.Resolve(input) // Validate registry membership or offset
-2. canonical := internal/tz.CanonicalLink(input)
-3. f.timeZoneCanonical := canonical // Cache to DateTimeFormat slot
-4. ResolvedOptions().TimeZone == canonical
-   ```
-3. UTC offset string input **MUST** retain the original sign and padding (`"+05:30"` does not become `"05:30"`).
+1. For an explicit time zone, `ResolvedOptions().TimeZone` uses the location name returned by `internal/tz.Resolve`. Named zones use the registry's primary identifier, including for aliases such as `US/Eastern`.
+2. Fixed offsets use the canonical `+HH:MM` or `-HH:MM` form. Equivalent input forms share the same cached location. For example, `+0530` resolves to `+05:30`, and `-00` resolves to `+00:00`.
 
 ---
 

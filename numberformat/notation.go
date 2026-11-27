@@ -24,10 +24,8 @@ func formatCompactAppend(parts []Part, d decimal.Decimal, state *decimalFormatSt
 	compact := state.compact
 	scaled, entry := resolveCompactPattern(d, digitOptions, compact)
 	result := ecma402nf.FormatNumericToString(scaled, digitOptions)
-	formatted := result.Formatted
-	pattern := compactPatternForFormatted(entry, formatted, cardinalRule)
-	formatted = groupDecimal(formatted, grouping)
-	parts = appendDecimalParts(parts, formatted, symbols)
+	pattern := compactPatternForFormatted(entry, result.Formatted, cardinalRule)
+	parts = appendDecimalParts(parts, result.Formatted, grouping, symbols)
 	parts = applySignDisplay(parts, d.Negative(), signDisplay, symbols)
 	return pattern.append(parts), stylePluralOperand{formatted: result.Formatted, exponent: entry.exponent, finite: true}
 }
@@ -61,9 +59,7 @@ func formatScientificAppend(parts []Part, d decimal.Decimal, notation Notation, 
 	}
 	scaled := decimal.Scale10(d, -int32(exponent)) // #nosec G115 -- exponent came from decimal.Log10Floor int32.
 	result := ecma402nf.FormatNumericToString(scaled, digitOptions)
-	formatted := result.Formatted
-	formatted = groupDecimal(formatted, grouping)
-	parts = appendDecimalParts(parts, formatted, symbols)
+	parts = appendDecimalParts(parts, result.Formatted, grouping, symbols)
 	parts = applySignDisplay(parts, d.Negative(), signDisplay, symbols)
 	parts = append(parts, Part{Type: PartExponentSeparator, Value: symbols.Exponential})
 	pluralExponent := exponent

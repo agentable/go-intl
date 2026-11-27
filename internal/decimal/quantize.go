@@ -20,7 +20,7 @@ func QuantizeToIncrement(x Decimal, increment int, exp int32, mode RoundingMode)
 		return x
 	}
 	stepCoeff := big.NewInt(int64(increment))
-	lowerCount, _, exact := quotientRemainder(x, stepCoeff, exp)
+	lowerCount, exact := lowerIncrementCount(x, stepCoeff, exp)
 	if exact {
 		return x
 	}
@@ -30,32 +30,30 @@ func QuantizeToIncrement(x Decimal, increment int, exp int32, mode RoundingMode)
 	return ApplyUnsignedRoundingMode(x, r1, r2, mode)
 }
 
-func quotientRemainder(x Decimal, divisorCoeff *big.Int, divisorExp int32) (quotient, remainder *big.Int, exact bool) {
+func lowerIncrementCount(x Decimal, stepCoeff *big.Int, stepExp int32) (count *big.Int, exact bool) {
 	dividend := x.inner.Coeff.MathBigInt()
-	divisor := new(big.Int).Set(divisorCoeff)
-	shift := int64(x.inner.Exponent) - int64(divisorExp)
+	divisor := stepCoeff
+	shift := int64(x.inner.Exponent) - int64(stepExp)
 	if shift >= 0 {
 		// Test divisibility with modular exponentiation first. A short input such
 		// as 1e1000000000 must not allocate a billion-digit 10^shift merely to
 		// discover that it already lies on the rounding increment.
 		factor := new(big.Int).Exp(big.NewInt(10), big.NewInt(shift), divisor)
-		remainder := new(big.Int).Mod(new(big.Int).Set(dividend), divisor)
+		remainder := new(big.Int).Mod(dividend, divisor)
 		remainder.Mul(remainder, factor).Mod(remainder, divisor)
 		if remainder.Sign() == 0 {
-			return nil, nil, true
+			return nil, true
 		}
 		dividend.Mul(dividend, powerOfTen(shift))
 	} else {
 		gap := -shift
 		if gap >= x.inner.NumDigits() {
-			return new(big.Int), dividend, false
+			return new(big.Int), false
 		}
-		divisor.Mul(divisor, powerOfTen(gap))
+		divisor = powerOfTen(gap)
+		divisor.Mul(divisor, stepCoeff)
 	}
-	quotient = new(big.Int)
-	remainder = new(big.Int)
-	quotient.QuoRem(dividend, divisor, remainder)
-	return quotient, remainder, false
+	return dividend.Quo(dividend, divisor), false
 }
 
 func powerOfTen(exp int64) *big.Int {

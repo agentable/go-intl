@@ -152,10 +152,10 @@ locale. `fallback=code` inserts a missing component code, while `none` yields no
 name. Lookups never borrow a name from unrelated English data. Currency names
 are no longer restricted to an arbitrary common-currency allowlist.
 
-Language code canonicalization shares `internal/localeid.ParseTag` and pinned
-CLDR aliases with Locale, including unknown grammatical identities and no/nb.
-DisplayNames retains its narrower language-identifier grammar: extensions and
-private use are invalid for `Of`. If the language itself is unknown,
+`internal/localeid.ParseLanguageID` shares the language-subtag grammar and
+pinned CLDR aliases with Locale, including unknown grammatical identities and
+no/nb. It requires a complete language identifier. Extensions and private use
+are invalid for `Of`. If the language itself is unknown,
 `fallback=code` uses that language code as the base and still composes known
 script/region/variant names (`zz-US` → `zz (United States)` in English).
 `fallback=none` returns no name. This composition policy follows ICU; it is not a
