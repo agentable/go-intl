@@ -195,21 +195,24 @@ func TestNumberFormatStyleRequiresCompanionOption(t *testing.T) {
 func TestNumberFormatRejectsInvalidCurrencyCode(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr("US")})
+	const currency = "us1"
+	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Style: stringPtr(CurrencyStyle), Currency: stringPtr(currency)})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
-	testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "currency", "US", "en-US")
+	testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "currency", currency, "en-US")
 	testcontract.AssertOptionExpected(t, err, "a three-letter ASCII currency code")
 }
 
 func TestNumberFormatRejectsInvalidCurrencyCodeWhenStyleIsNotCurrency(t *testing.T) {
 	t.Parallel()
 
-	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Currency: stringPtr("US")})
+	const currency = "us"
+	_, err := New(locale.List{intltest.Locale(t, "en-US")}, Options{Currency: stringPtr(currency)})
 	if !errors.Is(err, intlerr.ErrInvalidOption) {
 		t.Fatalf("New() error = %v, want intlerr.ErrInvalidOption", err)
 	}
+	testcontract.AssertOptionError(t, err, "numberformat", intlerr.InvalidOption, "currency", currency, "en-US")
 }
 
 func TestNumberFormatRejectsEmptyCurrencyCode(t *testing.T) {

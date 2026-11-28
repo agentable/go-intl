@@ -35,6 +35,9 @@ func New(locales locale.List, opts Options) (*NumberFormat, error) {
 	if err := cfg.validateBeforeDigits(validationLocaleName); err != nil {
 		return nil, err
 	}
+	if cfg.style == string(CurrencyStyle) {
+		cfg.currency = ecma402.CanonicalCurrencyCode(cfg.currency)
+	}
 	mnfdDefault, mxfdDefault := digitDefaults(cfg)
 	resolvedDigits, invalid, ok := ecma402nf.SetNumberFormatDigitOptions(cfg.digits, mnfdDefault, mxfdDefault, cfg.notation)
 	if ok {

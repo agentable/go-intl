@@ -57,37 +57,6 @@ func TestCanonicalCurrencyCode(t *testing.T) {
 	}
 }
 
-func TestApplyCurrencyCodeOptionInput(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		input       *string
-		initial     string
-		want        string
-		wantPresent bool
-	}{
-		{name: "nil keeps default", initial: "USD", want: "USD"},
-		{name: "canonicalizes valid input", input: stringPtr("usd"), want: "USD", wantPresent: true},
-		{name: "canonicalizes malformed ASCII input", input: stringPtr("u1d"), want: "U1D", wantPresent: true},
-		{name: "preserves explicit empty input", input: stringPtr(""), wantPresent: true},
-		{name: "preserves non ASCII input", input: stringPtr("円円円"), want: "円円円", wantPresent: true},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := tc.initial
-			var present bool
-			ecma402.ApplyCurrencyCodeOptionInput(&got, &present, tc.input)
-			if got != tc.want || present != tc.wantPresent {
-				t.Fatalf("ApplyCurrencyCodeOptionInput() = %q/%v, want %q/%v",
-					got, present, tc.want, tc.wantPresent)
-			}
-		})
-	}
-}
-
 func TestIdentifierOptionErrorsCarryExpectedGuidance(t *testing.T) {
 	t.Parallel()
 
@@ -156,10 +125,6 @@ func TestIsWellFormedUnicodeType(t *testing.T) {
 			}
 		})
 	}
-}
-
-func stringPtr(value string) *string {
-	return &value
 }
 
 func TestValidateUnicodeTypeOption(t *testing.T) {

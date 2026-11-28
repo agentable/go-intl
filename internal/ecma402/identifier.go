@@ -52,17 +52,6 @@ func CanonicalCurrencyCode(currency string) string {
 	return asciiUpper(currency)
 }
 
-// ApplyCurrencyCodeOptionInput copies a present currency code option,
-// canonicalizes its ASCII case, and records that the caller supplied it
-// explicitly.
-func ApplyCurrencyCodeOptionInput(dst *string, present *bool, value *string) {
-	if value == nil {
-		return
-	}
-	*dst = CanonicalCurrencyCode(*value)
-	*present = true
-}
-
 // InvalidCurrencyCodeOptionError returns an invalid-option error for options
 // whose value must use ECMA-402 currency-code syntax.
 func InvalidCurrencyCodeOptionError(owner, name, value, loc string) error {

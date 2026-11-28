@@ -68,7 +68,7 @@ func defaultConfig() config {
 
 func applyOptions(cfg *config, opts Options) {
 	ecma402.ApplyOption(&cfg.style, opts.Style)
-	ecma402.ApplyCurrencyCodeOptionInput(&cfg.currency, &cfg.hasCurrency, opts.Currency)
+	ecma402.ApplyOptionInput(&cfg.currency, &cfg.hasCurrency, opts.Currency)
 	ecma402.ApplyOption(&cfg.currencyDisplay, opts.CurrencyDisplay)
 	ecma402.ApplyOption(&cfg.currencySign, opts.CurrencySign)
 	ecma402.ApplyOptionInput(&cfg.unit, &cfg.hasUnit, opts.Unit)

@@ -172,7 +172,7 @@ Compact and scientific/engineering are adjusted in SetNumberFormatDigitOptions
 
 **MUST** Rules:
 
-1. When `style="currency"` is used, it must be verified that the `currency` option exists and is in the 3-letter ISO 4217 form. Failure to return `ErrInvalidOption`, and the error message contains currency code + locale.
+1. Currency style requires a currency code. Every supplied code must contain exactly three ASCII letters. A malformed code returns `ErrInvalidOption` and preserves the supplied value and locale in the error. Currency style uppercases a valid code before using it for formatting.
 2. Currency precision **MUST** be obtained through `internal/cldr/currency.Digits(code)` (data comes from CLDR `supplemental/currencyData.json` `fractions` node codegen output). **FORBIDDEN** Embedding ISO 4217 static tables. **BANNED** Introduction of `bojanz/currency`.
 3. `style="unit"` **MUST** be verified when the `unit` option is sanctioned simple unit or `<numerator>-per-<denominator>` compound form; the sanctioned list comes from the CLDR `units-constants` codegen.
 4. `currencyDisplay` ∈ `code | symbol | narrowSymbol | name`;`currencyDisplay="symbol"` is the ECMA-402 default value.
