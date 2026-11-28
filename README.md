@@ -932,9 +932,9 @@ The committed `go.work` links the four release modules during local development.
 The generators can also run outside a checkout at a coordinated release version:
 
 ```bash
-go run github.com/agentable/go-intl/tools/gen-cldr@v0.5.2 -h
-go run github.com/agentable/go-intl/tools/gen-plural-rules@v0.5.2 -h
-go run github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs@v0.5.2 -h
+go run github.com/agentable/go-intl/tools/gen-cldr@v0.5.4 -h
+go run github.com/agentable/go-intl/tools/gen-plural-rules@v0.5.4 -h
+go run github.com/agentable/go-intl/tools/gen-fixtures-from-formatjs@v0.5.4 -h
 ```
 
 Generation requires the explicit input and output paths shown by each command.
